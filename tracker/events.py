@@ -63,12 +63,36 @@ PRESETS = {
                          "@sriop-sr70", "@NEONXPAWANOP", "@LadyPredatorGaming", "@LadyPredator"],
         "ended": True,                          # tournament over: nothing is recorded, the site shows history + by day
         "next_start": None,
+        "hist": ["BMSD", "26"],
+        "roster": True,
         "match": ["bmsd", "bgmi showdown", "battlegrounds mobile india showdown", "battlegrounds mobile showdown",
                   "bgmi show down", "bm showdown"],
         "queries": ["BMSD", "BMSD 2026", "BGMI Showdown", "Battlegrounds Mobile India Showdown", "BMSD watch party"],
         "official": ["krafton india esports", "battlegrounds mobile india"],
         "links": {"Esports Charts (official numbers, all platforms)":
                   "https://escharts.com/tournaments/bgmi/battlegrounds-mobile-india-showdown-2026-bgmi"},
+        "predict": True,                        # Predict & Win banner and pages belong to this event
+    },
+    "bmic": {
+        "name": "BMIC 2026",
+        "hist": ["BMIC", "26"],                 # its place in the BGMI history chart (series key, 2-digit year)
+        "roster": True,                         # show the watch-party roster (ROSTER below) and send the NOT LIVE alert
+        "allowed": ["dynamo", "bixi", "zgod", "neyoo", "mizo", "mrspike", "lolzz", "sharkshe", "mafianinja", "ruthless",
+                    "rakazone", "ansh", "casetoo", "sheek", "ipreeet", "shreeman", "mortal", "vaadhiyaar", "regaltos",
+                    "snax", "sriop", "neonxpawan", "pawanop", "ladypredator", "soulaman"],
+        "official_channels": ["UCugG6-k5QGbq_iDEPAnG4NQ"],   # KRAFTON INDIA ESPORTS: every live stream is tracked
+        "always_check": ["@shreemanlegendliveofficial", "@Casetoolive", "@ShreemanLegend", "@VAADHIYAAR", "@SoulAman",
+                         "@DynamoGaming", "@TheBixiOP", "@ZGODGAMING", "@NEYOOGAMINGYT", "@MizoPlays", "@MrSpike",
+                         "@LoLzZzGaming", "@SHARKSHE", "@MafiaNinja", "@ImRuthlessceopubg", "@RakaZoneGaming", "@AnshYT",
+                         "@casetooop", "@thecasetoopapa", "@sheekgaming", "@IPREEET.69", "@MortaLyt", "@soulregaltos9810",
+                         "@SnaxGaming", "@sriop-sr70", "@NEONXPAWANOP", "@LadyPredatorGaming", "@LadyPredator"],
+        "ended": False,
+        "next_start": "2026-10-30 13:00",       # IST; countdown until the official stream goes live
+        "match": ["bmic", "bgmi international cup", "battlegrounds mobile india international cup",
+                  "bgmi international championship", "bm international cup"],
+        "queries": ["BMIC", "BMIC 2026", "BGMI International Cup", "Battlegrounds Mobile India International Cup",
+                    "BMIC watch party"],
+        "official": ["krafton india esports", "battlegrounds mobile india"],
     },
 }
 
@@ -114,7 +138,9 @@ def get(key: str = None):
     if key:
         return evs.get(key.lower())
     active = [e for e in evs.values() if e.get("active")]
-    return active[0] if active else (list(evs.values())[-1] if evs else None)
+    live = [e for e in active if not PRESETS.get(e["key"], {}).get("ended")]   # a running event wins over a finished one
+    pick = live or active
+    return pick[-1] if pick else (list(evs.values())[-1] if evs else None)
 
 
 def create(key: str, name: str = None, match: list = None, queries: list = None, official: list = None) -> dict:

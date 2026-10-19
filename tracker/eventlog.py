@@ -161,7 +161,7 @@ NOT_LIVE_AFTER = int(os.getenv("EVENT_NOT_LIVE_MIN", "10"))   # minutes after th
 def check_roster(ev: dict):
     """Once per broadcast, NOT_LIVE_AFTER minutes after the official stream starts: tell the owner on Telegram which
     permitted watch-party streamers are still not live, so their link can be fixed or they can be removed."""
-    if ev.get("key") != "bmsd":
+    if not events.PRESETS.get(ev.get("key"), {}).get("roster") or events.PRESETS.get(ev.get("key"), {}).get("ended"):
         return
     st = events.stats(ev["key"])
     lb = st.get("last_broadcast") or {}

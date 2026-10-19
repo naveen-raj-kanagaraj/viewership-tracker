@@ -118,7 +118,7 @@ def data(key: str = None) -> dict:
         out["wp"] = [{"vid": w["vid"], "channel": w["channel"], "viewers": w["viewers"], "url": w["url"], "logo": w.get("logo", ""),
                       "peak": max(peaks.get(w["vid"], 0), w["viewers"])} for w in wp]
         out["wp_series"] = ser
-    if ev["key"] == "bmsd":
+    if events.PRESETS.get(ev["key"], {}).get("roster"):
         out["roster"] = _roster(out)
     with _cache_lock:
         _cache[ev["key"]] = (time.time(), out)
@@ -191,6 +191,11 @@ def _elogos(embed: bool = False) -> dict:
     return out
 
 
+def _preset(key) -> dict:
+    ev = events.get(key)
+    return events.PRESETS.get(ev["key"], {}) if ev else {}
+
+
 def _ended(key) -> bool:
     ev = events.get(key)
     return bool(ev and events.PRESETS.get(ev["key"], {}).get("ended"))
@@ -204,12 +209,13 @@ def build_html(key: str = None, live: bool = False, style: str = None) -> str:
                 .replace("__DATA__", payload)
                 .replace("__LIVE__", "true" if live else "false")
                 .replace("__ELOGO__", json.dumps(_elogos(embed=not live)))
+                .replace("__CUR__", json.dumps(_preset(key).get("hist") or []))
                 .replace("__ENDED__", "true" if _ended(key) else "false")
                 .replace("__V2__", "true" if (style or os.getenv("EVENT_STYLE", "v1")) == "v2" else "false")
                 .replace("__ROSTERN__", json.dumps([n for _, n, _ in events.ROSTER]))
                 .replace("__REFRESH__", str(REFRESH_SEC))
                 .replace("__SOCIAL__", _social())
-                .replace("__PWB__", "" if _ended(key) else PWB if os.getenv("PREDICT_OPEN", "0") == "1" else (PWR if os.getenv("PREDICT_SPLIT", "1") == "1" else ""))
+                .replace("__PWB__", "" if (_ended(key) or not _preset(key).get("predict")) else PWB if os.getenv("PREDICT_OPEN", "0") == "1" else (PWR if os.getenv("PREDICT_SPLIT", "1") == "1" else ""))
                 .replace("__BRAND__", html.escape(BRAND)).replace("__BRANDURL__", html.escape(BRAND_URL, quote=True)))
 
 CROWD = r"""<style>
@@ -272,8 +278,8 @@ def _crowd_block() -> str:
 
 PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>__TITLE__ live viewership | __BRAND__</title>
-<meta name="description" content="Track BMSD 2026 Grand Finals viewership live, anywhere, anytime. Official stream and every watch party, peak and average viewers, watch party battles and full stats, updated every 2 seconds.">
-<meta property="og:title" content="BMSD 2026 Live Viewership Tracker | letsgrowesports"><meta property="og:description" content="Track BMSD 2026 Grand Finals viewership live, anywhere, anytime. Official stream and every watch party, peak and average viewers, watch party battles and full stats, updated every 2 seconds."><meta name="twitter:description" content="Track BMSD 2026 Grand Finals viewership live, anywhere, anytime. Official stream and every watch party, peak and average viewers, watch party battles and full stats, updated every 2 seconds.">
+<meta name="description" content="Track __TITLE__ viewership live, anywhere, anytime. Official stream and every watch party, peak and average viewers, watch party battles and full stats, updated every 2 seconds.">
+<meta property="og:title" content="__TITLE__ Live Viewership Tracker | letsgrowesports"><meta property="og:description" content="Track __TITLE__ viewership live, anywhere, anytime. Official stream and every watch party, peak and average viewers, watch party battles and full stats, updated every 2 seconds."><meta name="twitter:description" content="Track __TITLE__ viewership live, anywhere, anytime. Official stream and every watch party, peak and average viewers, watch party battles and full stats, updated every 2 seconds.">
 <meta name="theme-color" content="#07051a">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -414,7 +420,7 @@ tr.fu td.num{animation:fu 1.2s}tr.fd td.num{animation:fd 1.2s}@keyframes fu{0%{c
  <img id="mimg" alt="Share card"><div class="mrow"><button class="btn" id="mig">Instagram</button><button class="btn" id="mxb">X</button><button class="btn ghost" id="mdl">Download</button></div>
  <p class="muted" id="mhint" style="font-size:12px;margin:10px 0 0">On your phone, Instagram and X open the share menu with the image attached: pick Instagram (Story or Post) or X.</p></div></div>
 <script>
-const ENDED=__ENDED__;
+const ENDED=__ENDED__, CUR=__CUR__;
 const DEMO=false, DLOGO={}, ELOGO=__ELOGO__, V2=__V2__, ROSTERN=__ROSTERN__;
 const LIVE=__LIVE__||DEMO, EVERY=__REFRESH__*1000, URLX='https://live.letsgrowesports.com', BRAND='__BRAND__', TITLE='__TITLE__';
 let D=__DATA__, prev={}, prevTotal=null, view='total', range='full', wpAll=false, kind='all', q='', skew=0, lastFetch=Date.now(), failing=false, mode=null, showAll=false, hover=null, hidden={};
@@ -430,7 +436,9 @@ function tween(el,to){const from=+el.dataset.v||0;el.dataset.v=to;if(from===to){
 function isOff(){return !D.official_live&&D.last_broadcast}
 const HIST=[['LAUNCH','21',540],['BGIS','21',460],['BMPS','22',305],['BMSD','22',315],['BGIS','23',235],['BMPS','23',201],['INKR','23',178],['BGIS','24',275],['BMPS','24',495],['BGIS','25',485],['BMPS','25',320],['BMSD','25',380],['BMIC','25',372],['BGIS','26',578],['BMPS','26',730],['BMSD','26',653]];
 const HNAME={LAUNCH:'BGMI Launch Party',BGIS:'BGIS',BMPS:'BMPS',BMSD:'BMSD',INKR:'INKR Invitational',BMIC:'BMIC'};
-function hist(){const h=HIST.map(x=>x.slice());const cur=Math.round((D.peak||0)/1000);if(cur>h[15][2])h[15][2]=cur;return h}
+function hist(){const h=HIST.map(x=>x.slice());if(!CUR.length)return h;const cur=Math.round((D.peak||0)/1000);let e=h.find(x=>x[0]===CUR[0]&&x[1]===CUR[1]);
+ if(!e&&cur>0){e=[CUR[0],CUR[1],0];h.push(e)}if(e&&cur>e[2])e[2]=cur;return h}
+const ISCUR=x=>!ENDED&&CUR.length&&x[0]===CUR[0]&&x[1]===CUR[1];
 const EIMG={};function elogo(k){const u=ELOGO[k];if(!u)return null;let im=EIMG[k];if(!im){im=EIMG[k]=new Image();im.onload=()=>{drawHistCanvas()};im.src=u}return im.complete&&im.naturalWidth?im:null}
 const ekey=x=>x[0]+x[1];
 function drawHist(ctx,W,H,fs){fs=fs||1;const h=hist(),n=h.length,pl=34*fs,pr=34*fs,LS=Math.min(54*fs,(W-68*fs)/(n-1)*.86),pt=46*fs,pb=LS+30*fs,cw=W-pl-pr,ch=H-pt-pb,max=820;
@@ -441,7 +449,7 @@ function drawHist(ctx,W,H,fs){fs=fs||1;const h=hist(),n=h.length,pl=34*fs,pr=34*
  const g=ctx.createLinearGradient(0,pt,0,pt+ch);g.addColorStop(0,'rgba(124,92,255,.45)');g.addColorStop(1,'rgba(124,92,255,0)');ctx.fillStyle=g;ctx.fill();
  ctx.beginPath();h.forEach((x,i)=>i?ctx.lineTo(X(i),Y(x[2])):ctx.moveTo(X(i),Y(x[2])));ctx.strokeStyle='#b6f23a';ctx.lineWidth=3*fs;ctx.shadowColor='#b6f23a';ctx.shadowBlur=10*fs;ctx.stroke();ctx.shadowBlur=0;
  const small=W/fs<620;ctx.textAlign='center';
- h.forEach((x,i)=>{const last=!ENDED&&i===n-1,hi=i===top;ctx.beginPath();ctx.arc(X(i),Y(x[2]),(hi||last?6:4)*fs,0,7);ctx.fillStyle=last?'#ff4d5e':'#b6f23a';ctx.fill();
+ h.forEach((x,i)=>{const last=ISCUR(x),hi=i===top;ctx.beginPath();ctx.arc(X(i),Y(x[2]),(hi||last?6:4)*fs,0,7);ctx.fillStyle=last?'#ff4d5e':'#b6f23a';ctx.fill();
   if(!small||hi||last||i%2===0){ctx.fillStyle=last?'#ff4d5e':hi?'#b6f23a':css('--ink');ctx.font=`700 ${(small?10:12)*fs}px "Chakra Petch",sans-serif`;ctx.textBaseline='bottom';ctx.fillText(x[2]+'K',X(i),Y(x[2])-8*fs)}
   const im=elogo(ekey(x)),ly=pt+ch+8*fs;
   if(im){const r=Math.min(LS/im.naturalWidth,LS/im.naturalHeight),w=im.naturalWidth*r,hh=im.naturalHeight*r;ctx.globalAlpha=last||hi?1:.85;ctx.drawImage(im,X(i)-w/2,ly+(LS-hh)/2,w,hh);ctx.globalAlpha=1}
@@ -458,10 +466,10 @@ function historyHTML(){const h=hist(),top=[...h].sort((a,b)=>b[2]-a[2]),best={},
  <div class="hgrid"><div><div class="lbl">// All-time high // ${HNAME[ath[0]]} 20${ath[1]}</div><div class="big"><div class="v">${ath[2]}K</div></div></div>
  <div><div class="lbl">// Events till date</div><div class="big"><div class="v" style="color:var(--lime)">${h.length}</div></div><div class="muted">2021 to 2026</div></div></div>
  <div class="hgrid2"><div class="card"><div class="lbl">// Year-wise peak</div><div class="tiles">${Object.entries(yr).map(([y,x])=>tile(y,x[2]+'K',HNAME[x[0]].toUpperCase(),y==='2026'?'var(--lime)':'')).join('')}</div></div>
- <div class="card"><div class="lbl">// Series best</div><div class="tiles t2">${['BMPS','BGIS','BMSD','BMIC'].map(k=>tile(k,best[k][2]+'K',(!ENDED&&k==='BMSD'&&best[k][1]==='26'?'<span style="color:var(--red)">\u25CF ONGOING</span> ':'')+'20'+best[k][1],!ENDED&&k==='BMSD'&&best[k][1]==='26'?'var(--red)':'',k+best[k][1])).join('')}</div></div></div>
+ <div class="card"><div class="lbl">// Series best</div><div class="tiles t2">${['BMPS','BGIS','BMSD','BMIC'].map(k=>tile(k,best[k][2]+'K',(ISCUR(best[k])?'<span style="color:var(--red)">\u25CF ONGOING</span> ':'')+'20'+best[k][1],ISCUR(best[k])?'var(--red)':'',k+best[k][1])).join('')}</div></div></div>
  <div class="lbl" style="margin:10px 0 6px">// All-time ranking, peak concurrent viewers</div>
- <div class="rank">${top.map((x,i)=>`<div class="rrow"><span class="rk ${i===0?'r1':i===1?'r2':i===2?'r3':''}">${i+1}</span>${eimg(ekey(x),30)}<span class="rn">${HNAME[x[0]]} 20${x[1]}${i===0?' <span class="tagx lime">ALL-TIME HIGH</span>':''}${!ENDED&&x[0]==='BMSD'&&x[1]==='26'?' <span class="tagx red">\u25CF ONGOING</span>':''}</span><b>${x[2]}K</b></div>`).join('')}</div>
- <div class="muted" style="font-size:11px;margin-top:8px">${ENDED?'Peak concurrent viewers as reported for each event.':'Earlier events: peak concurrent viewers as reported for each event. BMSD 2026 updates from this tracker.'}</div></div>`}
+ <div class="rank">${top.map((x,i)=>`<div class="rrow"><span class="rk ${i===0?'r1':i===1?'r2':i===2?'r3':''}">${i+1}</span>${eimg(ekey(x),30)}<span class="rn">${HNAME[x[0]]} 20${x[1]}${i===0?' <span class="tagx lime">ALL-TIME HIGH</span>':''}${ISCUR(x)?' <span class="tagx red">\u25CF ONGOING</span>':''}</span><b>${x[2]}K</b></div>`).join('')}</div>
+ <div class="muted" style="font-size:11px;margin-top:8px">${ENDED?'Peak concurrent viewers as reported for each event.':`Earlier events: peak concurrent viewers as reported for each event. ${TITLE} updates from this tracker.`}</div></div>`}
 function cdMode(){const ns=D.next_start,LB=D.last_broadcast;if(!ns||D.official_live)return false;
  // keep the countdown ('starting soon') after the scheduled time until that day's broadcast actually starts (max 12h)
  const started=LB&&LB.end>=ns-1800;return ns-nowS()>0||(!started&&nowS()-ns<12*3600)}
@@ -482,13 +490,13 @@ function render(){
  const app=document.getElementById('app');
  if(ENDED){   // tournament over: history + the day-by-day breakdown only
   if(mode!=='ended'){mode='ended';app.innerHTML=`${historyHTML()}
-   <div class="card" style="margin-top:12px"><div class="head"><div><h2>BMSD 2026, day by day</h2><div class="muted" style="font-size:12px">Peak and average concurrent viewers each broadcast day. Tap a day for every live stream and watch party.</div></div></div><div class="scroll"><table><thead><tr><th>Day (IST)</th><th class="num">Peak</th><th>At</th><th class="num">Average</th></tr></thead><tbody id="days"></tbody></table></div></div>
+   <div class="card" style="margin-top:12px"><div class="head"><div><h2>${TITLE}, day by day</h2><div class="muted" style="font-size:12px">Peak and average concurrent viewers each broadcast day. Tap a day for every live stream and watch party.</div></div></div><div class="scroll"><table><thead><tr><th>Day (IST)</th><th class="num">Peak</th><th>At</th><th class="num">Average</th></tr></thead><tbody id="days"></tbody></table></div></div>
    <div class="foot" id="foot"><div class="follow"><span>FOLLOW __BRAND__</span>__SOCIAL__</div><div class="disc">Unofficial viewership tracker by __BRAND__. Not affiliated with or endorsed by KRAFTON. YouTube only.</div></div>`;
    document.getElementById('shareHist').onclick=()=>openShare('history');window.addEventListener('resize',drawHistCanvas)}
   fillDays();drawHistCanvas();return}
  if(cdMode()&&!(D.ticks&&D.last_broadcast)){   // no broadcast yet: countdown page. After a broadcast the countdown sits on top of its numbers
-  if(mode!=='cd'){mode='cd';app.innerHTML=`<div class="card cd" id="cd" style="margin-top:12px"><div class="lbl">// Grand finals go live in</div><div class="cdv mono" id="cdv"></div><div class="muted" id="cdw"></div></div>${historyHTML()}
-   <div class="card" id="wpCard" style="margin-top:12px"><div class="head"><div><h2 id="wph">Watch party streamers</h2><div class="muted" style="font-size:12px">Official watch parties for the grand finals.</div></div><button class="btn sm" id="shareBoard">Share</button></div>
+  if(mode!=='cd'){mode='cd';app.innerHTML=`<div class="card cd" id="cd" style="margin-top:12px"><div class="lbl">// ${TITLE} goes live in</div><div class="cdv mono" id="cdv"></div><div class="muted" id="cdw"></div></div>${historyHTML()}
+   <div class="card" id="wpCard" style="margin-top:12px"><div class="head"><div><h2 id="wph">Watch party streamers</h2><div class="muted" style="font-size:12px">Official watch parties for ${TITLE}.</div></div><button class="btn sm" id="shareBoard">Share</button></div>
    <div class="scroll"><table><thead><tr><th>#</th><th>Streamer</th><th class="num" id="wpth">Status</th><th class="num hide-m">Peak</th><th></th></tr></thead><tbody id="wprows"></tbody></table></div><button class="more" id="wpmore"></button></div>
    <div class="foot" id="foot"><div class="follow"><span>FOLLOW __BRAND__</span>__SOCIAL__</div><div class="disc">Unofficial viewership tracker by __BRAND__. Not affiliated with or endorsed by KRAFTON.</div></div>`;
    document.getElementById('shareHist').onclick=()=>openShare('history');window.addEventListener('resize',drawHistCanvas)}
@@ -501,12 +509,12 @@ function render(){
  const by=off?{official:LB.split.official,'watch party':LB.split.watch,community:LB.split.community}:{official:0,'watch party':0,community:0};
  if(!off)live.forEach(s=>by[s.kind]=(by[s.kind]||0)+s.viewers);
  if(!document.getElementById('big')){
-  app.innerHTML=`<div class="card cd" id="cd" style="display:none;margin-top:12px"><div class="lbl">// Grand finals continue in</div><div class="cdv mono" id="cdv"></div><div class="muted" id="cdw"></div></div>
+  app.innerHTML=`<div class="card cd" id="cd" style="display:none;margin-top:12px"><div class="lbl">// ${TITLE} continues in</div><div class="cdv mono" id="cdv"></div><div class="muted" id="cdw"></div></div>
   <div class="hero"><div class="card big"><div class="head" style="margin:0"><div class="lbl" id="bk"></div><button class="btn sm" id="shareHero">Share</button></div><div class="v" id="big" data-v="0">0</div>
     <div><span id="dl" class="delta flat"></span> <span class="muted" id="nlive"></span></div>
     <div class="split" id="split"></div><div class="legend" id="leg"></div></div>
    <div class="kpis">
-    <div class="card kpi tpk"><div class="lbl">BMSD 2026 tournament peak</div><div class="v" id="ktp"></div><div class="s" id="ktpw"></div></div>
+    <div class="card kpi tpk"><div class="lbl">${TITLE} tournament peak</div><div class="v" id="ktp"></div><div class="s" id="ktpw"></div></div>
     <div class="card kpi"><div class="lbl" id="kpl">Peak concurrent</div><div class="v" id="kp"></div><div class="s" id="kpw"></div></div>
     <div class="card kpi"><div class="lbl">Average concurrent</div><div class="v" id="ka"></div><div class="s" id="kas">this broadcast</div></div>
     <div class="card kpi"><div class="lbl">Official peak</div><div class="v" id="ko"></div><div class="s">official streams combined</div></div>
@@ -714,7 +722,7 @@ function histCard(){const W=1080,H=1350,SC=2,c=document.createElement('canvas');
  T(`${h.length} EVENTS // 2021 TO 2026`,W-80,300,'30px "Share Tech Mono",monospace','#b6f23a','right');
  x.save();x.translate(40,420);x._keep=1;drawHist(x,W-80,420,2);x._keep=0;x.restore();
  let y=880;T('// ALL-TIME RANKING',80,y,'26px "Share Tech Mono",monospace','#ff4d5e');y+=44;
- top.slice(0,8).forEach((r,i)=>{const col=i%2,row=Math.floor(i/2),X=80+col*470,Y=y+row*48,c=r[0]==='BMSD'&&r[1]==='26'?'#ff4d5e':i===0?'#b6f23a':'#eeeef5';
+ top.slice(0,8).forEach((r,i)=>{const col=i%2,row=Math.floor(i/2),X=80+col*470,Y=y+row*48,c=ISCUR(r)?'#ff4d5e':i===0?'#b6f23a':'#eeeef5';
   T(`${i+1}. ${HNAME[r[0]].toUpperCase()} 20${r[1]}`.slice(0,26),X,Y,'700 28px "Chakra Petch",sans-serif',c);T(r[2]+'K',X+430,Y,'700 28px "Chakra Petch",sans-serif',c,'right')});
  x.fillStyle='#b6f23a';x.fillRect(0,H-130,W,130);T('LIVE.LETSGROWESPORTS.COM',80,H-108,'700 44px "Chakra Petch",sans-serif','#0a0a14');T('@letsgrowesports',80,H-52,'24px "Share Tech Mono",monospace','#0a0a14');return c}
 function avatarAt(x,im,cx,cy,r,ring,name){x.save();x.beginPath();x.arc(cx,cy,r,0,7);x.closePath();x.fillStyle='#1a1a26';x.fill();x.clip();
@@ -823,14 +831,14 @@ async function openShare(type,vid){
   const me=type==='streamer'?(w.find(x=>x.vid===vid)||(D.wp||[]).find(x=>x.vid===vid)):w[0];
   const ims=await Promise.all(list.slice(0,12).map(l=>loadImg(big(l.logo))));list.slice(0,12).forEach((l,k)=>{if(ims[k]){avs[l.vid]=ims[k];if(l.name)avs[l.name]=ims[k]}});
   if(me&&type!=='board')av=avs[me.vid]||await loadImg(big(me.logo||logoOf(me.channel)))}
- let c=opaque(card(type,vid,av));const done=(b,ext)=>{cur={blob:b,name:`bmsd-${type}.${ext||'png'}`};document.getElementById('mimg').src=URL.createObjectURL(b)};
+ let c=opaque(card(type,vid,av));const done=(b,ext)=>{cur={blob:b,name:`${TITLE.toLowerCase().replace(/[^a-z0-9]+/g,'-')}-${type}.${ext||'png'}`};document.getElementById('mimg').src=URL.createObjectURL(b)};
  // X re-compresses images over 5 MB hard: keep the PNG if it's under 4.5 MB, else a near-lossless JPEG
  const enc=cv=>cv.toBlob(b=>{if(b&&b.size<=4.5e6)done(b,'png');else cv.toBlob(j=>done(j,'jpg'),'image/jpeg',.95)},'image/png');
  try{enc(c)}catch(e){avs={};c=opaque(card(type,vid,null));enc(c)}
  const wp=D.wp||[],i=wp.findIndex(w=>w.vid===vid);
  const dpk=wp.slice().sort((a,b)=>b.peak-a.peak),today=(D.days||[]).slice(-1)[0]||{},nowT=(D.live||[]).reduce((a,s)=>a+s.viewers,0);
  const LB=D.last_broadcast||{},wpp=wpByPeak();let text;
- if(type==='history'){const t=[...hist()].sort((a,b)=>b[2]-a[2])[0];text=`BGMI viewership till date: all-time high ${t[2]}K (${HNAME[t[0]]} 20${t[1]}). BMSD 2026 so far: ${hist()[15][2]}K.`}else
+ if(type==='history'){const t=[...hist()].sort((a,b)=>b[2]-a[2])[0];text=`BGMI viewership till date: all-time high ${t[2]}K (${HNAME[t[0]]} 20${t[1]}). ${(()=>{const c=hist().find(ISCUR);return c?TITLE+' so far: '+c[2]+'K.':''})()}`}else
  if(type==='streams'){const S=isOff()?LB.streams||[]:D.live||[],tt=isOff()?LB.peak:nowT;text=isOff()?`${TITLE}: ${full(tt||0)} combined peak across ${S.length} streams. Top: ${S.slice(0,3).map(s=>`${s.channel} ${fmt(s.viewers)}`).join(' | ')}.`:`${TITLE} live now: ${full(tt)} watching across ${S.length} streams. Top: ${S.slice(0,3).map(s=>`${s.channel} ${fmt(s.viewers)}`).join(' | ')}.`}else
  if(type==='board'){const R=(D.roster||[]).filter(r=>r.status==='live');text=R.length?`${TITLE} watch parties live now: ${R.slice(0,3).map((r,j)=>`${j+1}. ${r.name} ${fmt(r.viewers)}`).join(' | ')}.`:`${TITLE} official watch parties: ${(D.roster||[]).length} streamers.`}
  else if(type==='streamer'){const j=wpp.findIndex(w=>w.vid===vid),w=wpp[j]||{};text=`${w.channel} was the #${j+1} watch party of ${TITLE} on ${LB.date||'the day'}, peaking at ${full(w.peak)} concurrent viewers${w.avg?` (average ${full(w.avg)})`:''}.`}
