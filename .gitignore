@@ -1,0 +1,23 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data
+data/
+*.db
+*.db-wal
+*.db-shm
+cookies.txt
+
+# Predict & Win player data (Instagram handles): stays on this machine
+exports/private/
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
