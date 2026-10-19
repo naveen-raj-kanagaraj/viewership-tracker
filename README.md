@@ -1,8 +1,10 @@
 # Live Viewership Tracker
 
-Measures how many people are actually watching an esports tournament on YouTube, counting every stream carrying it at once: the official broadcast, permitted watch parties and community restreams. Produces peak concurrent viewers, average concurrent, hours watched and airtime, split by day and by channel.
+Tracks live viewership for esports events on YouTube, counting every stream carrying an event at once: the official broadcast, the watch parties and community restreams. Produces peak concurrent viewers, average concurrent, hours watched and airtime, split by day, by channel and by stream type.
 
-Built because published tournament viewership arrives days late and often counts the official broadcast alone. In Indian esports that misses a large share of the audience: at the BMSD 2026 Grand Finals peak, 57% of concurrent YouTube viewers were watching a watch party, not the official stream.
+Built because published tournament viewership arrives days late and often counts the official broadcast alone. In Indian esports that misses a large share of the audience, because much of it watches through creators' watch parties rather than the official stream.
+
+Each event is a short definition: the phrases that identify it, the official broadcaster, and the creator channels allowed to restream it. The same tracker runs for any tournament and any set of YouTube channels.
 
 No API key is required. Viewer counts are read from public YouTube pages through yt-dlp. A YouTube Data API key can be supplied for more exact counts.
 
@@ -12,17 +14,25 @@ No API key is required. Viewer counts are read from public YouTube pages through
 
 ---
 
-## BMSD 2026, tracked live
+## Events tracked
 
-Battlegrounds Mobile India Showdown 2026 was tracked from 10 to 18 October: 7 broadcast days, 92 streams, one reading every 2 seconds.
+| Event | Dates | Broadcast days | Streams | Peak concurrent | Watch parties at peak | Data |
+|---|---|---|---|---|---|---|
+| BMSD 2026 (BGMI Showdown) | 10 to 18 Oct 2026 | 7 | 92 | 653,067 | 57% | [`exports/bmsd/`](exports/bmsd/) |
+
+Each event's numbers are exported to `exports/<event>/` when it ends, so every figure in this table can be checked against the raw data.
+
+---
+
+## Case study: BMSD 2026
+
+Battlegrounds Mobile India Showdown 2026, the first event tracked end to end: 7 broadcast days, 92 streams, one reading every 2 seconds.
 
 | | |
 |---|---|
 | **Peak concurrent** | **653,067**, Sun 18 Oct, 4:55 PM IST |
 | Official broadcast at that moment | 282,071 |
 | Watch parties at that moment | 370,996 (57%) |
-| Broadcast days | 7 |
-| Streams counted | 92 |
 
 ![BMSD 2026 Grand Finals, concurrent viewers](docs/finals-day.png)
 
@@ -44,7 +54,7 @@ Every figure here is reproducible from `exports/bmsd/`: `daily_peaks.csv` for th
 
 **Catches bad readings.** When a stream ends, YouTube's watch page can report total views where a live viewer count used to be. Left alone that lands as a sudden spike. A jump or drop above a size and percentage threshold inside ~15 seconds is held as unconfirmed until the next reading agrees with it, and is recorded as an anomaly either way.
 
-**Serves it.** A dashboard shows the live total, the per-stream breakdown, per-day peaks and the event's place in BGMI viewership history. It is served locally and can be exposed through a cloudflared tunnel without a server.
+**Serves it.** A dashboard shows the live total, the per-stream breakdown, per-day peaks and, for BGMI events, the event's place in BGMI viewership history. It is served locally and can be exposed through a cloudflared tunnel without a server.
 
 ## Metrics
 
@@ -81,7 +91,33 @@ python track.py pause bmsd       # stop recording, keep serving history
 
 The dashboard runs at `http://localhost:8092`.
 
-An event is defined by the phrases that identify it, the channels allowed to restream it and the official broadcaster. `bmsd` ships as a worked example in `tracker/events.py`. Adding another event means adding one entry to `PRESETS`.
+## Adding an event
+
+Every event is one entry in `PRESETS` in `tracker/events.py`. `bmsd` is there as a full worked example. A new one looks like this:
+
+```python
+"bgis26": {
+    "name": "BGIS 2026",
+    "match":   ["bgis", "battlegrounds india series"],        # a stream's title must contain one of these
+    "queries": ["BGIS 2026", "BGIS live", "BGIS watch party"], # what YouTube is searched for
+    "official": ["krafton india esports"],                      # channel names counted as official
+    "official_channels": ["UCugG6-k5QGbq_iDEPAnG4NQ"],          # channel IDs whose every live stream is tracked
+    "always_check": ["@DynamoGaming", "@SoulAman"],             # creator channels checked directly every minute
+    "allowed": ["dynamo", "soulaman"],                          # watch-party channels that count toward the total
+    "ended": False,                                             # True once it is over: recording stops, history stays
+},
+```
+
+Then:
+
+```bash
+python track.py create bgis26
+python track.py
+```
+
+**Tracking channels.** `always_check` is the list of YouTube channels the tracker looks at directly every minute, whether or not they surface in search. Use it for the creators who usually host watch parties. `allowed` decides which of those channels count toward the event's total, so an unrelated stream that mentions the tournament is left out. Leave `allowed` empty to count every matching stream.
+
+**When an event ends.** Set `"ended": True`, run `python track.py export <key>`, and add a row to the Events tracked table above. The dashboard keeps serving its history.
 
 ## Data
 
@@ -131,6 +167,8 @@ It copies the event tables, the prediction game and the related key-value rows, 
 **Discovery depends on search.** A stream that never surfaces in search and is not on a known channel is missed. The known-channel list exists to narrow that gap, not to close it.
 
 **Sampling is every 2 seconds.** A spike shorter than that is not seen.
+
+**The history panel is BGMI-specific.** The dashboard's all-time chart of peak viewers for every KRAFTON India event is a fixed list in `tracker/eventpage.py`, updated by hand. Events outside BGMI use the rest of the dashboard as is.
 
 ## Configuration
 
