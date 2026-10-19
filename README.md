@@ -105,6 +105,9 @@ Every event is one entry in `PRESETS` in `tracker/events.py`. `bmsd` is there as
     "always_check": ["@DynamoGaming", "@SoulAman"],             # creator channels checked directly every minute
     "allowed": ["dynamo", "soulaman"],                          # watch-party channels that count toward the total
     "ended": False,                                             # True once it is over: recording stops, history stays
+    "next_start": "2026-11-20 13:00",                           # IST; the dashboard counts down to it
+    "hist": ["BGIS", "26"],                                     # BGMI events: its point in the history chart
+    "roster": True,                                             # show the watch-party roster (ROSTER) and NOT LIVE alert
 },
 ```
 
