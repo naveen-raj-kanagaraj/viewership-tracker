@@ -1064,7 +1064,7 @@ def channel_card(handle: str) -> dict:
 
 
 def next_start(key: str):
-    """Next scheduled official start (epoch) if it's in the future: set with /event next, else the preset."""
+    """Next scheduled official start (epoch) if it's in the future: else the preset."""
     if PRESETS.get(key, {}).get("ended"):
         return None
     v = store.kv_get(f"event_next:{key}") or PRESETS.get(key, {}).get("next_start")
@@ -1093,7 +1093,7 @@ def _when(ts) -> str:
 def summary(key: str = None, top: int = 10) -> str:
     ev = get(key)
     if not ev:
-        return "No event is being tracked. Start one with /event start bmsd"
+        return "No event is being tracked. Start one with: python track.py create bmsd"
     st = stats(ev["key"])
     if not st.get("ticks"):
         return (f"{ev['name']}: tracking, but no data yet. The first numbers appear within {POLL_SEC}s of a "
@@ -1121,7 +1121,7 @@ def summary(key: str = None, top: int = 10) -> str:
     if len(st["days"]) > 1:
         lines.append("\nBy day (IST): peak / average concurrent")
         lines += [f"  {d['day']}: {fmt_n(d['peak'])} / {fmt_n(d['avg_broadcast'])}" for d in st["days"]]
-    lines.append(f"\nYouTube, counted from: {st.get('method')}. /event link for the live dashboard, /event chart for the graph.")
+    lines.append(f"\nYouTube, counted from: {st.get('method')}.")
     for label, url in (ev.get("links") or {}).items():
         lines.append(f"{label}: {url}")
     return "\n".join(lines)

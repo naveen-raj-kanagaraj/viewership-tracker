@@ -101,7 +101,7 @@ def _run_once(binary: str, port: int):
                 store.kv_set("event_public_url", url)
                 print(f"Public event dashboard: {url}")
                 _notify(f"Live viewership dashboard (opens on any device, updates every 2s):\n{url}\n\n"
-                        "If the link changes, the new one is sent here. /event link shows the current one.")
+                        "If the link changes, the new one is sent here.")
     proc.wait()
     _state["status"] = "restarting"
 

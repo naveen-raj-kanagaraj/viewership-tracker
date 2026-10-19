@@ -2,12 +2,35 @@
 
 Measures how many people are actually watching an esports tournament on YouTube, counting every stream carrying it at once: the official broadcast, permitted watch parties and community restreams. Produces peak concurrent viewers, average concurrent, hours watched and airtime, split by day and by channel.
 
-Built because published tournament viewership arrives days late, covers the official broadcast only, and misses the watch parties. In Indian esports the watch parties are often a third of the total audience, so a number that ignores them understates the event.
+Built because published tournament viewership arrives days late and often counts the official broadcast alone. In Indian esports that misses a large share of the audience: at the BMSD 2026 Grand Finals peak, 57% of concurrent YouTube viewers were watching a watch party, not the official stream.
 
 No API key is required. Viewer counts are read from public YouTube pages through yt-dlp. A YouTube Data API key can be supplied for more exact counts.
 
-<!-- Replace with a screenshot of the running dashboard -->
-![Dashboard](docs/dashboard.png)
+![The public dashboard](docs/dashboard.png)
+
+<p align="center"><img src="docs/demo.gif" width="300" alt="Live dashboard on mobile"></p>
+
+---
+
+## BMSD 2026, tracked live
+
+Battlegrounds Mobile India Showdown 2026 was tracked from 10 to 18 October: 7 broadcast days, 92 streams, one reading every 2 seconds.
+
+| | |
+|---|---|
+| **Peak concurrent** | **653,067**, Sun 18 Oct, 4:55 PM IST |
+| Official broadcast at that moment | 282,071 |
+| Watch parties at that moment | 370,996 (57%) |
+| Broadcast days | 7 |
+| Streams counted | 92 |
+
+![BMSD 2026 Grand Finals, concurrent viewers](docs/finals-day.png)
+
+The finals day, minute by minute. The official broadcast and the watch parties rise and fall together with each match, but the watch parties carried more of the audience at all but one of the day's match peaks.
+
+![Peak concurrent viewers by broadcast day](docs/daily-peaks.png)
+
+Every figure here is reproducible from `exports/bmsd/`: `daily_peaks.csv` for the bars, `full/viewership_2026-10-18.csv` for the finals day.
 
 ---
 
@@ -79,6 +102,10 @@ Everything is stored in one SQLite file, `data/tracker.db`, written ahead of tim
 A prediction game runs on the same dashboard, at `/predict`: viewers pick outcomes, scores resolve when the answers are set, and a leaderboard ranks them. It exists to give the dashboard a reason to be revisited between matches rather than only during them.
 
 Player handles are treated as private. They are written to `exports/private/`, which is gitignored and never pushed. The public export carries questions, answers and the crowd split with no player data.
+
+During BMSD 2026, 1,875 players made 13,824 picks. The results card the game produced:
+
+![What the community predicted](exports/bmsd_predictions_x.png)
 
 Set `PREDICT_OPEN=1` to accept entries. With it off, the page shows what the crowd predicted and how it turned out.
 
