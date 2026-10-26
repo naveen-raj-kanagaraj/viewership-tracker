@@ -27,7 +27,11 @@ from tracker import events, platforms, store
 SCENE_SEC = int(os.getenv("SCENE_SEC", "120"))
 SCENE_YT_SEC = int(os.getenv("SCENE_YT_SEC", "300"))
 MIN_VIEWERS = int(os.getenv("SCENE_MIN_VIEWERS", "20"))
-KEEP_DAYS = int(os.getenv("SCENE_KEEP_DAYS", "14"))
+KEEP_DAYS = int(os.getenv("SCENE_KEEP_DAYS", "3"))         # raw per-scan readings; per-day totals are kept for good
+GLOBAL_MIN = int(os.getenv("SCENE_GLOBAL_MIN", "100"))     # non-Indian streams smaller than this are left out
+TWITCH_PAGES = int(os.getenv("SCENE_TWITCH_PAGES", "5"))   # global Twitch: top 100 x this many
+YT_RECOUNT = int(os.getenv("SCENE_YT_RECOUNT", "400"))     # YouTube streams re-counted each scan (biggest first)
+FAST_MAX = int(os.getenv("SCENE_FAST_MAX", "300"))         # Kick/Twitch channels re-read every 2s (biggest first)
 LANGS = [x.strip() for x in os.getenv("SCENE_LANGS", "hi").split(",") if x.strip()]
 # Kick and Twitch have no country filter. Besides the India languages above, the top streams overall and in the
 # categories Indians stream most are read, and a stream counts as Indian if its title is written in an Indian script
@@ -150,6 +154,31 @@ def _category_id(p: str, name: str):
     return platforms._cats[k]
 
 
+def platform_global(p: str, errors: dict) -> list:
+    """The biggest live streams anywhere on Kick or Twitch, plus the official esports channels on Twitch."""
+    rows = []
+    try:
+        if p == "twitch":
+            after = None
+            for _ in range(TWITCH_PAGES):
+                prm = {"first": 100, **({"after": after} if after else {})}
+                j = platforms._get("twitch", "https://api.twitch.tv/helix/streams", prm)
+                for s_ in j.get("data") or []:
+                    login = (s_.get("user_login") or "").lower()
+                    rows.append({"vid": f"twitch:{login}", "channel": s_.get("user_name") or login,
+                                 "title": s_.get("title") or "", "viewers": int(s_.get("viewer_count") or 0),
+                                 "category": s_.get("game_name") or "", "language": s_.get("language") or ""})
+                after = (j.get("pagination") or {}).get("cursor")
+                if not after or (j.get("data") and j["data"][-1].get("viewer_count", 0) < GLOBAL_MIN):
+                    break
+            rows += platforms._tw_logins(ESPORTS_TWITCH)
+        else:
+            rows += _kick_live({})
+    except Exception as e:
+        errors[f"{p} global"] = str(e)[:120]
+    return rows
+
+
 def platform_india(p: str, errors: dict) -> list:
     """Indian live streams on Kick or Twitch: the India languages, plus the top streams overall and in the main
     Indian categories whose language or title marks them as Indian."""
@@ -176,7 +205,11 @@ def platform_india(p: str, errors: dict) -> list:
 # (game, words in a platform category or a stream title). Order matters: the first match wins.
 GAMES = [
     ("PUBG PC", ["pubg: battlegrounds", "pubg pc", "pubg battlegrounds", "pubg steam"]),
-    ("BGMI", ["bgmi", "battlegrounds mobile", "pubg mobile", "pubg", "bmps", "bgis", "bmsd", "bmic", "bmoc"]),
+    ("BGMI", ["bgmi", "battlegrounds mobile india", "bmps", "bgis", "bmsd", "bmic", "bmoc"]),
+    ("PUBG Mobile", ["pubg mobile", "pmgc", "pmwi", "pmsl", "pmpl", "pmrc", "battlegrounds mobile", "pubg"]),
+    ("Mobile Legends", ["mobile legends", "mlbb", "mpl ", "msc "]),
+    ("Rocket League", ["rocket league", "rlcs"]),
+    ("Overwatch 2", ["overwatch", "owcs"]),
     ("Free Fire", ["free fire", "freefire", "ff max", "garena"]),
     ("GTA V", ["gta", "grand theft auto", "soulcity", "soul city rp"]),
     ("Valorant", ["valorant", "valo "]),
@@ -217,6 +250,67 @@ QUERIES = ["BGMI live", "BGMI live tamil", "BGMI live telugu", "Free Fire live",
            "live marathi", "live kannada", "live malayalam", "live gujarati", "live punjabi", "bhajan live",
            "live darshan", "cricket live", "podcast live hindi", "live chat hindi", "music live hindi"]
 LIVE_PAGE = "UC4R8DWoMoI7CAwX8_LjQHig"   # YouTube's own "Live" page, India edition: what's trending live now
+# Global YouTube searches (run from the US edition of YouTube): every big game, esports, and the main non-gaming
+# categories. Each finds up to ~20 live streams.
+GLOBAL_QUERIES = ["live gaming", "esports live", "tournament live", "grand finals live", "valorant live", "vct live",
+                  "league of legends live", "lck live", "counter strike live", "cs2 major", "dota 2 live",
+                  "fortnite live", "minecraft live", "gta rp live", "call of duty live", "apex legends live",
+                  "pubg mobile live", "free fire live", "mobile legends live", "mpl live", "roblox live",
+                  "ea fc live", "rocket league live", "overwatch live", "chess live", "pokemon live",
+                  "just chatting live", "irl stream", "news live", "music live", "sports live", "podcast live"]
+ESPORTS_TWITCH = ["riotgames", "valorant", "lck", "lec", "lcs", "lolesports", "eslcs", "esl_csgo", "blastpremier",
+                  "pgl", "pgl_cs2", "esl_dota2", "pgl_dota2", "rainbow6", "playapex", "rocketleague", "ewc",
+                  "callofdutyleague", "overwatchleague", "esl_sc2", "fortnite", "valorant_americas", "valorant_emea",
+                  "valorant_pacific", "dreamhackcs", "pubg_battlegrounds"]
+# Tournaments: (pattern, name, game it must be, if any). Specific names first.
+TOURNAMENTS = [
+    (r"\bvct\b.*challengers|valorant challengers", "VCT Challengers", None), (r"game changers", "VCT Game Changers", None),
+    (r"\bvct\b|valorant champions tour|valorant masters|valorant champions\b", "VCT", None),
+    (r"\blck\b", "LCK", None), (r"\blec\b", "LEC", None), (r"\blcs\b", "LCS", None), (r"\blpl\b", "LPL", None),
+    (r"\bmsi\b", "MSI", "League of Legends"), (r"\bworlds\b", "LoL Worlds", "League of Legends"),
+    (r"esl pro league", "ESL Pro League", None), (r"\biem\b|intel extreme masters", "IEM", None),
+    (r"blast (premier|open|slam|bounty|major|austin)|blast\.tv", "BLAST", None), (r"\bpgl\b", "PGL", None),
+    (r"\bcct\b", "CCT", None), (r"\besl\b", "ESL", None),
+    (r"the international|\bti ?20\d\d\b", "The International", "Dota 2"),
+    (r"esports world cup|\bewc\b", "Esports World Cup", None),
+    (r"\bpmgc\b|pubg mobile global championship", "PMGC", None), (r"\bpmwi\b", "PMWI", None),
+    (r"\bpmsl\b", "PMSL", None), (r"\bpmpl\b", "PMPL", None), (r"\bpmrc\b", "PMRC", None),
+    (r"\bbgis\b", "BGIS", None), (r"\bbmps\b", "BMPS", None), (r"\bbmsd\b", "BMSD", None), (r"\bbmic\b", "BMIC", None),
+    (r"\bbmoc\b", "BMOC", None), (r"\bffws\b|free fire world series", "FFWS", None), (r"\bffic\b", "FFIC", None),
+    (r"\bmpl\b", "MPL", None), (r"\bmsc\b", "MSC", None), (r"\bm[5-9] world championship", "MLBB M-Series", None),
+    (r"\brlcs\b", "RLCS", None), (r"\bcdl\b|call of duty league", "CDL", None), (r"\bowcs\b", "OWCS", None),
+    (r"\balgs\b", "ALGS", None), (r"\bfncs\b", "FNCS", None), (r"\bdreamhack\b", "DreamHack", None),
+    (r"sky ?esports", "Sky Esports", None), (r"upthrust", "Upthrust Esports", None)]
+_T_RX = [(re.compile(p, re.I), n, g) for p, n, g in TOURNAMENTS]
+_T_GENERIC = re.compile(r"\b(championship|grand finals?|finals|playoffs|qualifiers?|tournament|invitational|world cup|"
+                        r"league|major|showdown)\b", re.I)
+_T_MATCH = re.compile(r"\b(vs\.?|day \d+|week \d+|match \d+|stage|group [a-z0-9]|round|semi ?finals?|quarter ?finals?|"
+                      r"bracket|map \d)\b", re.I)
+_T_NOT = re.compile(r"\bscrims?\b|\branked\b|\bcustom room|\bpublic match", re.I)
+
+
+TOUR_GAME = {"VCT": "Valorant", "VCT Challengers": "Valorant", "VCT Game Changers": "Valorant",
+             "LCK": "League of Legends", "LEC": "League of Legends", "LCS": "League of Legends", "LPL": "League of Legends",
+             "MSI": "League of Legends", "LoL Worlds": "League of Legends", "ESL Pro League": "Counter-Strike 2",
+             "IEM": "Counter-Strike 2", "BLAST": "Counter-Strike 2", "PGL": "Counter-Strike 2", "CCT": "Counter-Strike 2",
+             "The International": "Dota 2", "PMGC": "PUBG Mobile", "PMWI": "PUBG Mobile", "PMSL": "PUBG Mobile",
+             "PMPL": "PUBG Mobile", "PMRC": "PUBG Mobile", "BGIS": "BGMI", "BMPS": "BGMI", "BMSD": "BGMI", "BMIC": "BGMI",
+             "BMOC": "BGMI", "FFWS": "Free Fire", "FFIC": "Free Fire", "MPL": "Mobile Legends", "MSC": "Mobile Legends",
+             "MLBB M-Series": "Mobile Legends", "RLCS": "Rocket League", "CDL": "Call of Duty", "OWCS": "Overwatch 2",
+             "ALGS": "Apex Legends", "FNCS": "Fortnite"}
+
+
+def tournament(title: str, game: str = ""):
+    """The tournament a stream is broadcasting or co-streaming, or None."""
+    t = title or ""
+    if _T_NOT.search(t):
+        return None
+    for rx, name, g in _T_RX:
+        if rx.search(t) and (not g or g == game or game in ("", "Other")):
+            return name
+    if _T_GENERIC.search(t) and _T_MATCH.search(t):
+        return f"{game} tournaments" if game and game != "Other" else "Other tournaments"
+    return None
 SEEDS = {"kick": ["skyesports"], "twitch": [],
          "youtube": ["@SoulAman", "@DynamoGaming", "@TheBixiOP", "@ZGODGAMING", "@NEYOOGAMINGYT", "@MizoPlays",
                      "@MrSpike", "@LoLzZzGaming", "@SHARKSHE", "@MafiaNinja", "@ImRuthlessceopubg", "@RakaZoneGaming",
@@ -242,6 +336,8 @@ def _db():
         hw REAL, PRIMARY KEY (day, sid, game));
     CREATE INDEX IF NOT EXISTS sc_daily_game ON sc_daily(game, day);
     CREATE TABLE IF NOT EXISTS sc_cat (ts INTEGER, game TEXT, viewers INTEGER, streams INTEGER, PRIMARY KEY (game, ts));
+    CREATE TABLE IF NOT EXISTS sc_reg (ts INTEGER, region TEXT, game TEXT, viewers INTEGER, streams INTEGER,
+        PRIMARY KEY (region, game, ts));
     """)
     if not _COLS:
         have = {r[1] for r in c.execute("PRAGMA table_info(sc_channels)")}
@@ -272,7 +368,8 @@ TWITCH_NAMES = {"BGMI": ["Battlegrounds Mobile India", "PUBG MOBILE"], "PUBG PC"
                 "Free Fire": ["Garena Free Fire", "Free Fire"], "GTA V": ["Grand Theft Auto V"], "Valorant": ["VALORANT"],
                 "COD Mobile": ["Call of Duty: Mobile"], "Call of Duty": ["Call of Duty: Warzone", "Call of Duty: Black Ops 6"],
                 "Counter-Strike 2": ["Counter-Strike", "Counter-Strike 2"], "Indus": ["Indus Battle Royale", "Indus"],
-                "Pokemon Unite": ["Pokémon UNITE"], "EA Sports FC": ["EA Sports FC 26", "EA Sports FC 25"],
+                "Pokemon Unite": ["Pokémon UNITE"], "PUBG Mobile": ["PUBG MOBILE"], "Mobile Legends": ["Mobile Legends: Bang Bang"],
+                "Overwatch 2": ["Overwatch 2"], "EA Sports FC": ["EA Sports FC 26", "EA Sports FC 25"],
                 "Cricket games": ["Real Cricket 24", "Cricket 24"], "Just Chatting": ["Just Chatting"], "Music": ["Music"]}
 _ART_BUSY = set()
 
@@ -359,10 +456,14 @@ def _text(o) -> str:
     return o.get("simpleText") or "".join(r.get("text", "") for r in o.get("runs", []))
 
 
-def yt_search(query: str) -> list:
-    """Live streams for a search, localised to India. [{vid, channel, channel_id, title, viewers, logo}]"""
+def _itv(gl: str) -> dict:
+    return {**_ITV_IN, "gl": gl}
+
+
+def yt_search(query: str, gl: str = "IN") -> list:
+    """Live streams for a search (gl: which country's YouTube). [{vid, channel, channel_id, title, viewers, logo}]"""
     r = events._http.post("https://www.youtube.com/youtubei/v1/search?prettyPrint=false",
-                          json={"context": {"client": _ITV_IN}, "query": query, "params": _SEARCH_LIVE},
+                          json={"context": {"client": _itv(gl)}, "query": query, "params": _SEARCH_LIVE},
                           headers={"User-Agent": events._UA, "Content-Type": "application/json",
                                    "Origin": "https://www.youtube.com"}, timeout=10)
     r.raise_for_status()
@@ -405,10 +506,10 @@ def _renderers(j) -> list:
     return found
 
 
-def yt_live_page() -> list:
-    """YouTube's Live page for India (the streams YouTube itself features as live now)."""
+def yt_live_page(gl: str = "IN") -> list:
+    """YouTube's Live page (the streams YouTube itself features as live now) for a country's edition."""
     r = events._http.post("https://www.youtube.com/youtubei/v1/browse?prettyPrint=false",
-                          json={"context": {"client": _ITV_IN}, "browseId": LIVE_PAGE},
+                          json={"context": {"client": _itv(gl)}, "browseId": LIVE_PAGE},
                           headers={"User-Agent": events._UA, "Content-Type": "application/json",
                                    "Origin": "https://www.youtube.com"}, timeout=10)
     r.raise_for_status()
@@ -443,7 +544,7 @@ def cycle(now: float = None) -> dict:
     for p in ("kick", "twitch"):
         rows = []
         if platforms._keys(p):
-            rows += platform_india(p, errors)
+            rows += platform_india(p, errors) + platform_global(p, errors)
         if sd[p] and (p == "kick" or platforms._keys(p)):
             try:
                 rows += platforms._by_ids(p, [x.lower() for x in sd[p]])
@@ -456,7 +557,7 @@ def cycle(now: float = None) -> dict:
                 pass
         if p == "kick" and rows:
             platforms.kick_logos([r["vid"] for r in rows])
-        for r in rows:
+        for r in sorted(rows, key=lambda r: r["viewers"]):   # duplicates: the latest (largest) reading wins
             sid = r["vid"]
             found[sid] = {"sid": sid, "platform": p, "name": r["channel"], "url": platforms.link(sid),
                           "logo": platforms.logo(sid), "title": r["title"], "category": r.get("category", ""),
@@ -465,7 +566,8 @@ def cycle(now: float = None) -> dict:
 
     # YouTube: streams already live are re-counted every cycle; searches and hand-added channels less often
     with _lock:
-        prev_yt = {k: dict(v) for k, v in _LIVE.items() if v["platform"] == "youtube"}
+        prev_yt = dict(sorted(((k, dict(v)) for k, v in _LIVE.items() if v["platform"] == "youtube"),
+                              key=lambda kv: -kv[1]["viewers"])[:YT_RECOUNT])
     jobs = {(sid, vid): _pool.submit(_safe_count, vid) for sid, x in prev_yt.items() for vid in x["streams"]}
     for (sid, vid), fu in jobs.items():
         n = fu.result()
@@ -484,7 +586,10 @@ def cycle(now: float = None) -> dict:
         res_live = _try(yt_live_page)
         if res_live == "err":
             errors["youtube live page"] = "failed"
-        for q, res in [("live page", res_live)] + list(zip(QUERIES, _pool.map(lambda q: _try(yt_search, q), QUERIES))):
+        res_glob = _try(yt_live_page, "US")
+        jobs_ = [(q, "IN") for q in QUERIES] + [(q, "US") for q in GLOBAL_QUERIES]
+        for q, res in [("live page", res_live), ("live page US", res_glob)] + \
+                list(zip([q for q, _ in jobs_], _pool.map(lambda a: _try(yt_search, *a), jobs_))):
             if res == "err":
                 errors[f"youtube '{q}'"] = "search failed"
                 continue
@@ -515,10 +620,15 @@ def cycle(now: float = None) -> dict:
             continue
         x["country"] = _CTRY.get(sid[3:]) if sid.startswith("yt:") else None
         x["india"] = verdict(x, x["country"], allow)
-        if not x["india"]:
-            rejected.append(x)
+        if not x["india"] and x["viewers"] < GLOBAL_MIN:
+            rejected.append(x)                # too small to matter worldwide; remembered so it isn't looked up again
             continue
         x["game"] = classify(x.get("category", ""), x.get("title", ""))
+        x["tour"] = tournament(x.get("title", ""), x["game"])
+        if x["tour"] and TOUR_GAME.get(x["tour"]):
+            x["game"] = TOUR_GAME[x["tour"]]          # a VCT broadcast or co-stream is Valorant, whatever the category says
+        if x["india"] and x["game"] == "PUBG Mobile" and not x["tour"]:
+            x["game"] = "BGMI"                        # PUBG Mobile is banned in India; Indian streams of it are BGMI
         if not x.get("logo"):                 # the channel's real picture: YouTube channel page / Kick / Twitch
             x["logo"] = events.avatar(sid[3:]) if x["platform"] == "youtube" else platforms.logo(sid)
         x["seen"] = now
@@ -539,7 +649,9 @@ def cycle(now: float = None) -> dict:
                           [(x["sid"], x["platform"], x["name"], x["url"], x.get("logo") or "", now, now, x.get("title", ""),
                             "", x.get("country"), x.get("language") or "") for x in rejected])
             c.commit()
-    return {"live": len(rows), "rejected": len(rejected), "viewers": sum(x["viewers"] for x in rows), "errors": errors}
+    ind = [x for x in rows if x["india"]]
+    return {"live": len(rows), "india": len(ind), "rejected": len(rejected), "viewers": sum(x["viewers"] for x in rows),
+            "india_viewers": sum(x["viewers"] for x in ind), "errors": errors}
 
 
 def _safe_count(vid):
@@ -574,20 +686,32 @@ def _store(rows, now, last):
                          country=COALESCE(excluded.country, sc_channels.country), india=excluded.india,
                          language=excluded.language""",
                       (x["sid"], x["platform"], x["name"], x["url"], x.get("logo") or "", now, now, x.get("title", ""),
-                       x["game"], x.get("country"), 1, x.get("language") or ""))
+                       x["game"], x.get("country"), 1 if x.get("india", True) else 0, x.get("language") or ""))
             c.execute("""INSERT INTO sc_daily VALUES (?,?,?,?,?,?,?) ON CONFLICT(day, sid, game) DO UPDATE SET
                          peak_at=CASE WHEN excluded.peak > sc_daily.peak THEN excluded.peak_at ELSE sc_daily.peak_at END,
                          peak=MAX(sc_daily.peak, excluded.peak), mins=sc_daily.mins+excluded.mins, hw=sc_daily.hw+excluded.hw""",
                       (day, x["sid"], x["game"], x["viewers"], int(now), dt / 60, x["viewers"] * dt / 3600))
-        cats = {}
-        for x in rows:
-            a = cats.setdefault(x["game"], [0, 0])
-            a[0] += x["viewers"]
-            a[1] += 1
-        cats[ALL] = [sum(x["viewers"] for x in rows), len(rows)]
+        def totals(rs, key):
+            out = {}
+            for x in rs:
+                k = x.get(key)
+                if k:
+                    a = out.setdefault(k, [0, 0])
+                    a[0] += x["viewers"]
+                    a[1] += 1
+            return out
+        ind = [x for x in rows if x.get("india", True)]
+        cats = totals(ind, "game")
+        cats[ALL] = [sum(x["viewers"] for x in ind), len(ind)]
         c.executemany("INSERT OR REPLACE INTO sc_cat VALUES (?,?,?,?)", [(int(now), g, v, n) for g, (v, n) in cats.items()])
+        reg = [("global", g, v, n) for g, (v, n) in totals(rows, "game").items()]
+        reg.append(("global", ALL, sum(x["viewers"] for x in rows), len(rows)))
+        reg += [("tour:global", t, v, n) for t, (v, n) in totals(rows, "tour").items()]
+        reg += [("tour:in", t, v, n) for t, (v, n) in totals(ind, "tour").items()]
+        c.executemany("INSERT OR REPLACE INTO sc_reg VALUES (?,?,?,?,?)", [(int(now), *r_) for r_ in reg])
         if int(now) % 3600 < SCENE_SEC:          # about once an hour: drop raw readings older than KEEP_DAYS
             c.execute("DELETE FROM sc_samples WHERE ts < ?", (now - KEEP_DAYS * 86400,))
+            c.execute("DELETE FROM sc_reg WHERE ts < ? AND region LIKE 'tour:%'", (now - 30 * 86400,))
         c.commit()
 
 
@@ -598,7 +722,8 @@ _FASTV = {}          # sid -> [ts, viewers or None, misses]: Kick/Twitch re-read
 def fast_once(now: float = None) -> int:
     """Re-read every live Kick/Twitch channel (one batched request per platform). Returns how many were read."""
     with _lock:
-        ids = {p: [sid for sid, x in _LIVE.items() if x["platform"] == p] for p in ("kick", "twitch")}
+        ids = {p: [sid for sid, x in sorted(_LIVE.items(), key=lambda kv: -kv[1]["viewers"]) if x["platform"] == p][:FAST_MAX]
+               for p in ("kick", "twitch")}
     n = 0
     for p, sids in ids.items():
         if not sids or not platforms._keys(p):
@@ -656,15 +781,26 @@ PERIODS = {"today": 0, "7d": 6, "30d": 29}
 SERIES_SEC = {"today": 86400, "7d": 7 * 86400, "30d": 30 * 86400}
 
 
-def _series(c, game: str, period: str) -> list:
-    """[[ts, viewers]] for the chart: the category (or India) total each scan, thinned to about 600 points by
+REGIONS = ("in", "global")
+
+
+def _totals_sql(region: str):
+    """(table, extra WHERE, args) for the per-scan totals of a region: India in sc_cat, the rest in sc_reg."""
+    if region == "in":
+        return "sc_cat", "", ()
+    return "sc_reg", " AND region=?", (region,)
+
+
+def _series(c, game: str, period: str, region: str = "in") -> list:
+    """[[ts, viewers]] for the chart: the category (or whole region) total each scan, thinned to about 600 points by
     keeping each bucket's highest reading (so peaks survive)."""
+    tbl, w, a = _totals_sql(region)
     t0 = time.time() - SERIES_SEC[period]
-    rows = c.execute("SELECT ts, viewers FROM sc_cat WHERE game=? AND ts>=? ORDER BY ts", (game, t0)).fetchall()
+    rows = c.execute(f"SELECT ts, viewers FROM {tbl} WHERE game=? AND ts>=?{w} ORDER BY ts", (game, t0, *a)).fetchall()
     if len(rows) <= 600:
         return [[r[0], r[1]] for r in rows]
     step = (rows[-1][0] - rows[0][0]) / 600 or 1
-    out, b = [], {}
+    b = {}
     for ts, v in rows:
         k = int((ts - rows[0][0]) / step)
         if k not in b or v > b[k][1]:
@@ -697,7 +833,9 @@ def category_name(cat: str):
         if slug(g) == cat:
             return g
     with store._lock:
-        for (g,) in _db().execute("SELECT DISTINCT game FROM sc_cat WHERE game != ?", (ALL,)):
+        c = _db()
+        for (g,) in c.execute("SELECT DISTINCT game FROM sc_cat WHERE game != ? UNION SELECT DISTINCT game FROM sc_reg "
+                              "WHERE region='global' AND game != ?", (ALL, ALL)):
             if slug(g) == cat:
                 return g
     return None
@@ -713,23 +851,25 @@ def _logo(x: dict) -> str:
     return events.avatar(sid[3:]) if sid.startswith("yt:") else platforms.logo(sid)
 
 
-def _live_part(game=None) -> dict:
-    """Who is live now: the latest scan (read from the database once per scan) with Kick/Twitch viewers replaced by
-    the 2-second readings when they're fresh."""
+def _live_part(game=None, region: str = "in") -> dict:
+    """Who is live now in a region: the latest scan (read from the database once per scan) with Kick/Twitch viewers
+    replaced by the 2-second readings when they're fresh."""
     blk = blocked()
     with store._lock:
         c = _db()
         last = (c.execute("SELECT MAX(ts) FROM sc_samples").fetchone()[0] or 0)
         if _SCAN["ts"] != last:
             _SCAN["rows"] = [dict(r) for r in c.execute(
-                """SELECT s.sid, s.viewers, s.game, c.platform, c.name, c.url, c.logo, c.title FROM sc_samples s
-                   LEFT JOIN sc_channels c ON c.sid=s.sid WHERE s.ts=? AND COALESCE(c.india, 1)=1
-                   ORDER BY s.viewers DESC""", (last,))]
+                """SELECT s.sid, s.viewers, s.game, c.platform, c.name, c.url, c.logo, c.title,
+                   COALESCE(c.india, 1) AS india FROM sc_samples s LEFT JOIN sc_channels c ON c.sid=s.sid
+                   WHERE s.ts=? ORDER BY s.viewers DESC""", (last,))]
+            for r in _SCAN["rows"]:
+                r["tour"] = tournament(r.get("title") or "", r["game"])
             _SCAN["ts"] = last
     fresh = time.time() - last < SCENE_SEC * 3
     now, seen, live = time.time(), set(), []
     for r in (_SCAN["rows"] if fresh else []):
-        if r["sid"] in blk or r["sid"] in seen:
+        if r["sid"] in blk or r["sid"] in seen or (region == "in" and not r["india"]):
             continue
         seen.add(r["sid"])
         x = dict(r)
@@ -741,7 +881,7 @@ def _live_part(game=None) -> dict:
         x["logo"] = _logo(x)
         live.append(x)
     live.sort(key=lambda x: -x["viewers"])
-    india_total = sum(x["viewers"] for x in live)
+    region_total = sum(x["viewers"] for x in live)
     by_game = {}
     for x in live:
         g = by_game.setdefault(x["game"], {"game": x["game"], "slug": slug(x["game"]), "viewers": 0, "streams": 0,
@@ -749,62 +889,95 @@ def _live_part(game=None) -> dict:
                                            "art": cat_art(x["game"])})
         g["viewers"] += x["viewers"]
         g["streams"] += 1
+    tours = {}
+    for x in live:
+        if not x.get("tour"):
+            continue
+        t = tours.setdefault(x["tour"], {"name": x["tour"], "viewers": 0, "streams": [], "games": {}})
+        t["viewers"] += x["viewers"]
+        t["games"][x["game"]] = t["games"].get(x["game"], 0) + x["viewers"]
+        t["streams"].append({k: x.get(k) for k in ("sid", "platform", "name", "url", "logo", "title", "viewers")})
     if game:
         live = [x for x in live if x["game"] == game]
+        tours = {k: t for k, t in tours.items() if max(t["games"], key=t["games"].get) == game}
     by_plat = {}
     for x in live:
         by_plat[x["platform"]] = by_plat.get(x["platform"], 0) + x["viewers"]
-    return {"_blk": blk, "_live": live, "_by_game": by_game, "_by_plat": by_plat, "updated": last, "fresh": fresh,
-            "india_total": india_total, "live_total": sum(x["viewers"] for x in live), "now": now}
+    return {"_blk": blk, "_live": live, "_by_game": by_game, "_by_plat": by_plat, "_tours": tours, "updated": last,
+            "fresh": fresh, "india_total": region_total, "region_total": region_total,
+            "live_total": sum(x["viewers"] for x in live), "now": now}
 
 
-def live_data(cat: str = "") -> dict:
+def _tour_list(tours: dict, region: str) -> list:
+    """Live tournaments, biggest first, with today's peak (IST day) from the per-scan totals."""
+    d0 = datetime.combine(datetime.now(events.REPORT_TZ).date(), datetime.min.time(), events.REPORT_TZ).timestamp()
+    with store._lock:
+        pk = {r[0]: (r[1], r[2]) for r in _db().execute(
+            "SELECT game, MAX(viewers), ts FROM sc_reg WHERE region=? AND ts>=? GROUP BY game", (f"tour:{region}", d0))}
+    out = []
+    for t in tours.values():
+        g = max(t["games"], key=t["games"].get)
+        st = sorted(t["streams"], key=lambda s_: -s_["viewers"])
+        out.append({"name": t["name"], "game": g, "slug": slug(g), "art": cat_art(g), "viewers": t["viewers"],
+                    "streams": len(st), "top": st[:6], "peak": max((pk.get(t["name"]) or (0,))[0], t["viewers"])})
+    return sorted(out, key=lambda t: -t["viewers"])[:24]
+
+
+def _region(region: str) -> str:
+    return region if region in REGIONS else "in"
+
+
+def live_data(cat: str = "", region: str = "in") -> dict:
     """The part of the page that moves every 2 seconds: totals, platforms, live categories, live streams."""
+    region = _region(region)
     game = category_name(cat) if cat else None
-    lv = _live_part(game)
-    return {"updated": lv["updated"], "fresh": lv["fresh"], "india_total": lv["india_total"],
+    lv = _live_part(game, region)
+    return {"updated": lv["updated"], "fresh": lv["fresh"], "india_total": lv["region_total"],
             "live_total": lv["live_total"], "live_count": len(lv["_live"]), "now": lv["now"],
             "platforms": [{"platform": k, "name": platforms.NAMES[k], "viewers": v}
                           for k, v in sorted(lv["_by_plat"].items(), key=lambda kv: -kv[1])],
             "categories": sorted(lv["_by_game"].values(), key=lambda g: -g["viewers"])[:40],
+            "tournaments": _tour_list(lv["_tours"], region),
             "live": [{k: x.get(k) for k in ("sid", "platform", "name", "url", "logo", "game", "title", "viewers")}
                      for x in lv["_live"][:300]]}
 
 
-def data(period: str = "today", cat: str = "") -> dict:
-    """Everything the hub (cat='') or a category page shows."""
+def data(period: str = "today", cat: str = "", region: str = "in") -> dict:
+    """Everything the hub (cat='') or a category page shows, for India (region 'in') or the world ('global')."""
     period = period if period in PERIODS else "today"
+    region = _region(region)
     game = category_name(cat) if cat else None
-    lv = _live_part(game)
-    blk, last, fresh, live, india_total, by_game, tot, by_plat = (lv[k] for k in (
-        "_blk", "updated", "fresh", "_live", "india_total", "_by_game", "live_total", "_by_plat"))
+    lv = _live_part(game, region)
+    blk, last, fresh, live, region_total, by_game, tot, by_plat = (lv[k] for k in (
+        "_blk", "updated", "fresh", "_live", "region_total", "_by_game", "live_total", "_by_plat"))
     today = datetime.now(events.REPORT_TZ).date()
     d0 = (today - timedelta(days=PERIODS[period])).strftime("%Y-%m-%d")
     key = game or ALL
+    tbl, w, a = _totals_sql(region)
     with store._lock:
         c = _db()
         q = """SELECT d.sid, d.game, MAX(d.peak) peak, SUM(d.mins) mins, SUM(d.hw) hw, c.name, c.platform,
-               c.url, c.logo FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid
-               WHERE d.day >= ? AND COALESCE(c.india, 1)=1"""
+               c.url, c.logo FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid WHERE d.day >= ?"""
+        q += " AND COALESCE(c.india, 1)=1" if region == "in" else ""
         rows = c.execute(q + (" AND d.game = ?" if game else "") + " GROUP BY d.sid, d.game",
                          (d0, game) if game else (d0,)).fetchall()
-        series = _series(c, key, period)
+        series = _series(c, key, period, region)
         p0 = datetime.combine(today - timedelta(days=PERIODS[period]), datetime.min.time(), events.REPORT_TZ).timestamp()
-        scans = c.execute("SELECT COUNT(*) FROM sc_cat WHERE game=? AND ts>=?", (ALL, p0)).fetchone()[0] or 0
-        cstats = c.execute("SELECT game, SUM(viewers) s, MAX(viewers) pk FROM sc_cat WHERE ts>=? AND game!=? GROUP BY game",
-                           (p0, ALL)).fetchall()
-        tracked = c.execute("SELECT COUNT(*) FROM sc_channels").fetchone()[0]
-        pk = c.execute("SELECT ts, viewers FROM sc_cat WHERE game=? AND ts>=? ORDER BY viewers DESC LIMIT 1",
-                       (key, time.time() - SERIES_SEC[period])).fetchone()
-        pk_all = c.execute("SELECT ts, viewers FROM sc_cat WHERE game=? ORDER BY viewers DESC LIMIT 1", (key,)).fetchone()
+        scans = c.execute(f"SELECT COUNT(*) FROM {tbl} WHERE game=? AND ts>=?{w}", (ALL, p0, *a)).fetchone()[0] or 0
+        cstats = c.execute(f"SELECT game, SUM(viewers) s, MAX(viewers) pk FROM {tbl} WHERE ts>=? AND game!=?{w} GROUP BY game",
+                           (p0, ALL, *a)).fetchall()
+        tracked = c.execute("SELECT COUNT(*) FROM sc_channels" + (" WHERE COALESCE(india,1)=1" if region == "in" else "")
+                            ).fetchone()[0]
+        pk = c.execute(f"SELECT ts, viewers FROM {tbl} WHERE game=? AND ts>=?{w} ORDER BY viewers DESC LIMIT 1",
+                       (key, time.time() - SERIES_SEC[period], *a)).fetchone()
+        pk_all = c.execute(f"SELECT ts, viewers FROM {tbl} WHERE game=?{w} ORDER BY viewers DESC LIMIT 1", (key, *a)).fetchone()
     ch, games = {}, {}
     for r in rows:
         if r["sid"] in blk:
             continue
         x = ch.setdefault(r["sid"], {"sid": r["sid"], "name": r["name"] or r["sid"], "platform": r["platform"] or "",
                                       "url": r["url"] or "", "logo": _logo({"sid": r["sid"], "logo": r["logo"]}),
-                                      "peak": 0, "mins": 0.0, "hw": 0.0,
-                                      "games": {}})
+                                      "peak": 0, "mins": 0.0, "hw": 0.0, "games": {}})
         x["peak"] = max(x["peak"], r["peak"])
         x["mins"] += r["mins"]
         x["hw"] += r["hw"]
@@ -822,15 +995,16 @@ def data(period: str = "today", cat: str = "") -> dict:
         del x["games"], x["mins"]
         board.append(x)
     board.sort(key=lambda x: -x["hw"])
-    return {"updated": last, "fresh": fresh, "period": period, "every": SCENE_SEC,
+    return {"updated": last, "fresh": fresh, "period": period, "every": SCENE_SEC, "region": region,
             "cat": cat if game else "", "cat_name": game or "",
-            "live_total": tot, "live_count": len(live), "india_total": india_total,
+            "live_total": tot, "live_count": len(live), "india_total": region_total,
             "peak": {"viewers": pk[1], "ts": pk[0]} if pk else None,
             "peak_all": {"viewers": pk_all[1], "ts": pk_all[0]} if pk_all else None,
             "series": series,
             "platforms": [{"platform": k, "name": platforms.NAMES[k], "viewers": v}
                           for k, v in sorted(by_plat.items(), key=lambda kv: -kv[1])],
             "categories": sorted(by_game.values(), key=lambda g: -g["viewers"])[:40],
+            "tournaments": _tour_list(lv["_tours"], region),
             "live": [{k: x.get(k) for k in ("sid", "platform", "name", "url", "logo", "game", "title", "viewers")}
                      for x in live[:300]],
             "board": board[:300],
@@ -842,12 +1016,14 @@ def data(period: str = "today", cat: str = "") -> dict:
                                   for r in cstats),
                                  key=lambda x: -x["avg"]),
             "tracked": tracked,
-            "langs": LANGS, "min": MIN_VIEWERS, "keys": {p: bool(platforms._keys(p)) for p in ("kick", "twitch")}}
+            "langs": LANGS, "min": MIN_VIEWERS if region == "in" else GLOBAL_MIN,
+            "keys": {p: bool(platforms._keys(p)) for p in ("kick", "twitch")}}
 
 
 def clean() -> dict:
-    """Re-judge every channel seen so far (looking up YouTube countries not yet known), delete the readings of the
-    ones that aren't Indian, and rebuild the per-scan totals. Run on the Mac with the tracker stopped."""
+    """Re-judge every channel seen so far as Indian or not (looking up YouTube countries not yet known) and rebuild
+    the India totals from the raw readings. Nothing is deleted: non-Indian channels stay in the global view.
+    Run on the Mac (the tracker can keep running)."""
     with store._lock:
         chans = [dict(r) for r in _db().execute("SELECT sid, platform, name, title, country, language FROM sc_channels")]
     need = [x["sid"][3:] for x in chans if x["platform"] == "youtube" and not x["country"]]
@@ -864,18 +1040,15 @@ def clean() -> dict:
                       (1 if ok else 0, x["country"], x["sid"]))
             if not ok:
                 bad.append(x["sid"])
-        for i in range(0, len(bad), 500):
-            part = bad[i:i + 500]
-            q = ",".join("?" * len(part))
-            c.execute(f"DELETE FROM sc_samples WHERE sid IN ({q})", part)
-            c.execute(f"DELETE FROM sc_daily WHERE sid IN ({q})", part)
-        c.execute("DELETE FROM sc_cat")
-        c.execute("INSERT INTO sc_cat SELECT ts, game, SUM(viewers), COUNT(*) FROM sc_samples GROUP BY ts, game")
-        c.execute("INSERT INTO sc_cat SELECT ts, ?, SUM(viewers), COUNT(*) FROM sc_samples GROUP BY ts", (ALL,))
+        t0 = c.execute("SELECT MIN(ts) FROM sc_samples").fetchone()[0] or 0
+        c.execute("DELETE FROM sc_cat WHERE ts >= ?", (t0,))
+        ind = "FROM sc_samples s JOIN sc_channels c ON c.sid=s.sid WHERE COALESCE(c.india,1)=1"
+        c.execute(f"INSERT OR REPLACE INTO sc_cat SELECT s.ts, s.game, SUM(s.viewers), COUNT(*) {ind} GROUP BY s.ts, s.game")
+        c.execute(f"INSERT OR REPLACE INTO sc_cat SELECT s.ts, ?, SUM(s.viewers), COUNT(*) {ind} GROUP BY s.ts", (ALL,))
         c.commit()
     _SCAN["ts"] = None
     return {"channels": len(chans), "not_indian": len(bad), "countries_looked_up": checked,
-            "examples_removed": [x["name"] for x in chans if x["sid"] in set(bad)][:15]}
+            "examples_not_indian": [x["name"] for x in chans if x["sid"] in set(bad)][:15]}
 
 
 def probe() -> str:
