@@ -194,9 +194,22 @@ def update(key: str, **fields):
 
 # ---------- fetching ----------
 
+class _QuietLog:
+    """yt-dlp prints "ERROR: ... is not currently live" for every offline channel checked; that's expected, not a fault.
+    The caller still gets the exception and handles it."""
+    def debug(self, msg):
+        pass
+
+    def warning(self, msg):
+        pass
+
+    def error(self, msg):
+        pass
+
+
 def _ydl(flat=True):
     import yt_dlp
-    opts = {"quiet": True, "no_warnings": True, "skip_download": True, "socket_timeout": 20}
+    opts = {"quiet": True, "no_warnings": True, "skip_download": True, "socket_timeout": 20, "logger": _QuietLog()}
     if flat:
         opts.update(extract_flat="in_playlist", playlistend=80)
     if COOKIES_FILE.exists():
@@ -847,7 +860,7 @@ def _safe(fn, *a):
 def run_all():
     """Scheduler job: poll every active event."""
     for ev in events().values():
-        if ev.get("active"):
+        if ev.get("active") and not PRESETS.get(ev["key"], {}).get("ended"):   # a finished event needs no searching
             try:
                 poll(ev)
             except Exception as e:
