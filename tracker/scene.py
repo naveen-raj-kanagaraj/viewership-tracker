@@ -787,6 +787,45 @@ FAST_SEC = float(os.getenv("SCENE_FAST_SEC", "2"))
 _FASTV = {}          # sid -> [ts, viewers or None, misses]: Kick/Twitch re-read every FAST_SEC between scans
 
 
+YT_FAST_N = int(os.getenv("SCENE_YT_FAST_N", "25"))   # biggest YouTube channels re-counted every FAST_SEC
+_YTF = {"next": 0.0, "slow": 0}
+
+
+def yt_fast_once(now: float = None) -> int:
+    """Re-count the biggest live YouTube channels from YouTube's live counter (the method the tournament tracker uses
+    every 2s). They hold most of the viewers, so totals move every 2 seconds; the rest are re-counted each scan.
+    Slows to every 10s while a tournament broadcast is live (it has priority) and backs off if YouTube refuses."""
+    t = now or time.time()
+    if t < _YTF["next"]:
+        return 0
+    with _lock:
+        top = [(sid, list(x["streams"])) for sid, x in sorted(_LIVE.items(), key=lambda kv: -kv[1]["viewers"])
+               if x["platform"] == "youtube"][:YT_FAST_N]
+    jobs = [(sid, vid, _pool.submit(_safe_count, vid)) for sid, vids in top for vid in vids]
+    got, errs = {}, 0
+    for sid, vid, fu in jobs:
+        n = fu.result()
+        if n == "err":
+            errs += 1
+            got.setdefault(sid, None)
+            continue
+        got[sid] = (got.get(sid) or 0) + (n or 0)
+    for sid, v in got.items():
+        f = _FASTV.setdefault(sid, [t, None, 0])
+        if v is None:
+            continue                          # couldn't read: keep the last value
+        if v > 0:
+            f[:] = [t, v, 0]
+        else:
+            f[0], f[2] = t, f[2] + 1
+            if f[2] >= 3:                     # no 'watching' count three times running: ended
+                f[1] = 0
+    _YTF["slow"] = min(_YTF["slow"] + 1, 4) if jobs and errs > len(jobs) // 2 else max(_YTF["slow"] - 1, 0)
+    base = 10 if _event_on_air() else FAST_SEC
+    _YTF["next"] = t + base * (2 ** _YTF["slow"])
+    return len(got)
+
+
 def fast_once(now: float = None) -> int:
     """Re-read every live Kick/Twitch channel (one batched request per platform). Returns how many were read."""
     with _lock:
@@ -821,6 +860,10 @@ def run_fast():
         except Exception as e:                # rate limited or a network blip: back off, up to 30s
             wait = min(wait * 2, 30)
             print(f"Kick/Twitch fast count failed (next in {wait:g}s): {str(e)[:120]}")
+        try:
+            yt_fast_once()
+        except Exception as e:
+            print(f"YouTube fast count failed: {str(e)[:120]}")
         time.sleep(max(0.2, wait - (time.time() - t0)))
 
 

@@ -196,7 +196,7 @@ const liveMap=()=>{const m={};(D.live||[]).forEach(x=>m[x.sid]=x.viewers);return
 const liveList=()=>(D.live||[]).filter(x=>(plat==='all'||x.platform===plat)&&(!q||(x.name+' '+x.title+' '+x.game).toLowerCase().includes(q)));
 const boardList=()=>{const lm=liveMap();return (D.board||[]).filter(x=>bplat==='all'||x.platform===bplat).map(x=>({...x,now:lm[x.sid]||x.now||0})).sort((a,b)=>b[sort]-a[sort])};
 function render(){if(!D)return;const K=D.kpis||{};
- const a=Math.max(0,Math.round(Date.now()/1000-D.updated));setT('upd',D.updated?(a<90?a+'s ago':Math.round(a/60)+' min ago'):'-');
+ updLabel();
  const S=D.sections||[];
  setH('secnav',`<a href="${HOME}" class="${!SEC&&!CAT?'on':''}"><i>${svg('overview',14)}</i>Overview<b>${D.fresh?fmt(D.india_total):''}</b></a>`+S.slice().sort((a,b)=>b.viewers-a.viewers).map(s=>`<a href="${SU(s.key)}" class="${SEC===s.key?'on':''}${s.viewers?'':' z'}"><i>${svg(s.key,14)}</i>${esc(s.name)}<b>${s.viewers?fmt(s.viewers):''}</b></a>`).join(''));
  if(!window._navScrolled){const on=document.querySelector('.secnav a.on');if(on&&on.scrollIntoView){on.scrollIntoView({inline:'center',block:'nearest'});window._navScrolled=1}}
@@ -237,7 +237,7 @@ function render(){if(!D)return;const K=D.kpis||{};
  setT('ch',`Viewers over time, ${PER[per]}`);seg('per1',[['today','24H'],['7d','7D'],['30d','30D']],per,v=>{per=v;bAll=false;load()});drawChart();
  const miss=['kick','twitch'].filter(p=>!(D.keys||{})[p]).map(p=>NAMES[p]);
  setH('note',`<p><b>Watching now</b> is the number of people watching at this moment, added up across every live stream tracked on YouTube, Kick and Twitch (each platform's own count). <b>Live channels</b> is how many channels are streaming. <b>Peak today</b> is the highest "watching now" since midnight IST. <b>Hours watched</b> is viewers multiplied by time live.</p>
-  <p><b>What is tracked.</b> ${GL?`Worldwide: the top 500 live streams on Twitch, the top streams on Kick, YouTube's Live page and searches for every big game, esports and category, plus everything found for India. Streams under ${D.min} viewers are left out.`:`India: channels whose YouTube country is India, or whose stream language, script or title is Indian, plus channels added by hand. Streams under ${D.min} viewers are left out.`} New streams are found every ${Math.round(D.every/60)} minutes; Kick and Twitch numbers refresh every 2 seconds, YouTube every ${Math.round(D.every/60)} minutes.</p>
+  <p><b>What is tracked.</b> ${GL?`Worldwide: the top 500 live streams on Twitch, the top streams on Kick, YouTube's Live page and searches for every big game, esports and category, plus everything found for India. Streams under ${D.min} viewers are left out.`:`India: channels whose YouTube country is India, or whose stream language, script or title is Indian, plus channels added by hand. Streams under ${D.min} viewers are left out.`} New streams are found every ${Math.round(D.every/60)} minutes. Viewer counts refresh every 2 seconds for every Kick and Twitch stream and the biggest YouTube streams; smaller YouTube streams every ${Math.round(D.every/60)} minutes.</p>
   <p><b>Sections</b> come from the stream's category (Kick, Twitch) or title (YouTube). <b>Esports</b> streams are detected from tournament names in the title (VCT, LCK, IEM, BGIS, PMGC ...) and grouped with their co-streams. <b>Not a census:</b> YouTube has no complete list of live streams, so YouTube totals are a floor.${miss.length?` ${miss.join(' and ')} keys are missing, so those platforms are partly covered.`:''}</p>`);
 }
 function cdTxt(ns){const l=ns-Date.now()/1000;if(l<=0)return 'STARTING SOON';const d=Math.floor(l/86400),h=Math.floor(l%86400/3600),m=Math.floor(l%3600/60),s=Math.floor(l%60),p=n=>String(n).padStart(2,'0');return (d?d+'D ':'')+`${p(h)}:${p(m)}:${p(s)}`}
@@ -308,11 +308,13 @@ async function shareTo(app){if(!cur)return;const f=new File([cur.blob],cur.name,
 document.getElementById('mig').onclick=()=>shareTo('ig');document.getElementById('mxb').onclick=()=>shareTo('x');
 document.getElementById('q').oninput=e=>{q=e.target.value.trim().toLowerCase();render()};
 const QS=()=>'region='+REGION+(SEC?'&sec='+SEC:'')+(CAT?'&cat='+CAT:'');
-async function load(){try{const r=await fetch('/api/scene?'+QS()+'&period='+per+'&t='+Math.floor(Date.now()/20000),{cache:'no-store'});D=await r.json();render()}catch(e){}}
+async function load(){try{const r=await fetch('/api/scene?'+QS()+'&period='+per+'&t='+Math.floor(Date.now()/20000),{cache:'no-store'});D=await r.json();LASTOK=Date.now();render()}catch(e){}}
+let LASTOK=0;function updLabel(){const a=LASTOK?Math.round((Date.now()-LASTOK)/1000):null,old=D&&D.updated&&Date.now()/1000-D.updated>600;
+ setT('upd',old?'paused '+Math.round((Date.now()/1000-D.updated)/60)+' min':a===null?'-':a+'s ago')}
 async function loadLive(){if(!D||document.hidden)return;try{const r=await fetch('/api/scene/live?'+QS()+'&t='+Math.floor(Date.now()/2000),{cache:'no-store'});const j=await r.json();
- ['updated','fresh','india_total','live_total','live_count','kpis','sections','platforms','categories','tournaments','live'].forEach(k=>D[k]=j[k]);render()}catch(e){}}
+ ['updated','fresh','india_total','live_total','live_count','kpis','sections','platforms','categories','tournaments','live'].forEach(k=>D[k]=j[k]);LASTOK=Date.now();render()}catch(e){}}
 load();setInterval(load,30000);setInterval(loadLive,2000);
-setInterval(()=>{if(!D)return;const a=Math.round(Date.now()/1000-D.updated);setT('upd',D.updated?(a<90?a+'s ago':Math.round(a/60)+' min ago'):'-');
+setInterval(()=>{if(!D)return;updLabel();
  document.querySelectorAll('.ev .v[data-ns]').forEach(e=>{if(e.dataset.ns)e.textContent=cdTxt(+e.dataset.ns)})},1000);
 </script></body></html>"""
 

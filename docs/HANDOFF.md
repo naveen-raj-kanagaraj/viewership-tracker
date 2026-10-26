@@ -148,8 +148,9 @@ Every `SCENE_SEC` (120s):
    live counter. Hand-added `@handles` are checked every 10 min.
 Between scans, every live Kick/Twitch channel is re-read every `SCENE_FAST_SEC` (2s, one batched request per
    platform, backs off to 30s on errors) and the page polls `/api/scene/live` every 2s; rankings and charts every 30s.
-   The platforms refresh their own counts about every 30-60s, so the 2s readings often repeat. YouTube streams are
-   re-counted once per scan (2 min): re-reading hundreds of YouTube streams every 2s would get the tracker blocked.
+   The platforms refresh their own counts about every 30-60s, so the 2s readings often repeat. The biggest
+   `SCENE_YT_FAST_N` (25) YouTube channels are re-counted every 2s from the live counter (`yt_fast_once`, every 10s
+   while a tournament broadcast is live, backs off if YouTube refuses); the rest once per scan (2 min).
    Logos: YouTube channel page picture (`events.avatar`), Twitch users API, Kick users API (fallback: public page).
    Category art (`resolve_art`): exact names only. Twitch box art by the game's Twitch name (`TWITCH_NAMES`), else
    Kick's category image by exact name (`KICK_NAMES`), else initials; never a near match (BGMI, PUBG: Battlegrounds
