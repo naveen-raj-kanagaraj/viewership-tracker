@@ -23,7 +23,7 @@ PORT = int(os.getenv("EVENT_WEB_PORT", "8092"))
 app = Flask(__name__)
 
 
-CACHE = {"/india": 30, "/india/data": 20, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
+CACHE = {"/india": 30, "/india/data": 20, "/api/scene": 20, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
 
 
 
@@ -52,6 +52,8 @@ def _headers(resp):
     if path.startswith("/e/"):                       # /e/<key>/data caches like /data
         parts = path.split("/", 3)                   # ['', 'e', key, rest]
         path = "/" + (parts[3] if len(parts) > 3 else "")
+    elif path.startswith("/c/"):
+        path = "/india"
     secs = CACHE.get(path)
     if request.path.startswith("/predict/api/profile/") and request.method == "GET":
         secs = 15
@@ -112,7 +114,12 @@ def _json(obj):
 
 @app.route("/")
 def index():
-    return _memo("/", 5, lambda: eventpage.build_html(live=True), "text/html")
+    """The India hub, unless `track.py home <event>` made an event the front page (e.g. on a tournament day)."""
+    from tracker import events, store
+    home = store.kv_get("site_home") or "hub"
+    if home != "hub" and events.get(home):
+        return _memo("/:" + home, 5, lambda: eventpage.build_html(live=True), "text/html")
+    return india()
 
 
 @app.route("/data")
@@ -201,12 +208,27 @@ def india():
     return _memo("/india", 300, scenepage.build_html, "text/html")
 
 
+@app.route("/c/<cat>")
+def category(cat):
+    """One game or category: /c/bgmi, /c/free-fire, /c/news ..."""
+    from tracker import scene, scenepage
+    if not __import__("re").fullmatch(r"[a-z0-9-]{1,40}", cat or ""):
+        return Response("Not found", status=404, mimetype="text/plain")
+    name = scene.category_name(cat)
+    if not name:
+        return Response("Not found", status=404, mimetype="text/plain")
+    return _memo(f"/c/{cat}", 300, lambda: scenepage.build_html(cat, name), "text/html")
+
+
+@app.route("/api/scene")
 @app.route("/india/data")
 def india_data():
     from tracker import scene
     per = request.args.get("period", "today")
     per = per if per in scene.PERIODS else "today"
-    return _memo(f"/india/data:{per}", 20, _jdump(lambda: scene.data(per)), "application/json")
+    cat = request.args.get("cat", "")
+    cat = cat if __import__("re").fullmatch(r"[a-z0-9-]{1,40}", cat) and scene.category_name(cat) else ""
+    return _memo(f"/api/scene:{per}:{cat}", 20, _jdump(lambda: scene.data(per, cat)), "application/json")
 
 
 @app.route("/events")

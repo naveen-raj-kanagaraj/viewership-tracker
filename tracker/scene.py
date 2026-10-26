@@ -96,8 +96,18 @@ def _db():
     CREATE INDEX IF NOT EXISTS sc_samples_ix ON sc_samples(ts);
     CREATE TABLE IF NOT EXISTS sc_daily (day TEXT, sid TEXT, game TEXT, peak INTEGER, peak_at INTEGER, mins REAL,
         hw REAL, PRIMARY KEY (day, sid, game));
+    CREATE INDEX IF NOT EXISTS sc_daily_game ON sc_daily(game, day);
+    CREATE TABLE IF NOT EXISTS sc_cat (ts INTEGER, game TEXT, viewers INTEGER, streams INTEGER, PRIMARY KEY (game, ts));
     """)
     return c
+
+
+def slug(game: str) -> str:
+    """URL name of a category: 'Free Fire' -> 'free-fire'."""
+    return re.sub(r"[^a-z0-9]+", "-", (game or "").lower()).strip("-") or "other"
+
+
+ALL = "__all__"          # the India-wide total in sc_cat
 
 
 def classify(category: str, title: str) -> str:
@@ -341,6 +351,13 @@ def _store(rows, now, last):
                          peak_at=CASE WHEN excluded.peak > sc_daily.peak THEN excluded.peak_at ELSE sc_daily.peak_at END,
                          peak=MAX(sc_daily.peak, excluded.peak), mins=sc_daily.mins+excluded.mins, hw=sc_daily.hw+excluded.hw""",
                       (day, x["sid"], x["game"], x["viewers"], int(now), dt / 60, x["viewers"] * dt / 3600))
+        cats = {}
+        for x in rows:
+            a = cats.setdefault(x["game"], [0, 0])
+            a[0] += x["viewers"]
+            a[1] += 1
+        cats[ALL] = [sum(x["viewers"] for x in rows), len(rows)]
+        c.executemany("INSERT OR REPLACE INTO sc_cat VALUES (?,?,?,?)", [(int(now), g, v, n) for g, (v, n) in cats.items()])
         if int(now) % 3600 < SCENE_SEC:          # about once an hour: drop raw readings older than KEEP_DAYS
             c.execute("DELETE FROM sc_samples WHERE ts < ?", (now - KEEP_DAYS * 86400,))
         c.commit()
@@ -365,10 +382,62 @@ def run_forever():
 PERIODS = {"today": 0, "7d": 6, "30d": 29}
 
 
-def data(period: str = "today") -> dict:
+SERIES_SEC = {"today": 86400, "7d": 7 * 86400, "30d": 30 * 86400}
+
+
+def _series(c, game: str, period: str) -> list:
+    """[[ts, viewers]] for the chart: the category (or India) total each scan, thinned to about 600 points by
+    keeping each bucket's highest reading (so peaks survive)."""
+    t0 = time.time() - SERIES_SEC[period]
+    rows = c.execute("SELECT ts, viewers FROM sc_cat WHERE game=? AND ts>=? ORDER BY ts", (game, t0)).fetchall()
+    if len(rows) <= 600:
+        return [[r[0], r[1]] for r in rows]
+    step = (rows[-1][0] - rows[0][0]) / 600 or 1
+    out, b = [], {}
+    for ts, v in rows:
+        k = int((ts - rows[0][0]) / step)
+        if k not in b or v > b[k][1]:
+            b[k] = [ts, v]
+    return [b[k] for k in sorted(b)]
+
+
+def _events() -> list:
+    """Tracked tournaments for the hub: live now / countdown / finished, with their peak."""
+    out = []
+    with store._lock:
+        c = events._db()
+        for ev in sorted(events.events().values(), key=lambda e: -(e.get("created") or 0)):
+            pr = events.preset(ev["key"])
+            peak = c.execute("SELECT MAX(total) FROM ev_ticks WHERE event=?", (ev["key"],)).fetchone()[0] or 0
+            last = c.execute("SELECT ts, total, official FROM ev_ticks WHERE event=? ORDER BY ts DESC LIMIT 1",
+                             (ev["key"],)).fetchone()
+            live = bool(last and time.time() - last[0] < 120 and not events.paused(ev["key"]))
+            state = "ended" if pr.get("ended") else "live" if live else "upcoming" if events.next_start(ev["key"]) else "off"
+            out.append({"key": ev["key"], "name": ev["name"], "game": events.opt(ev, "game", ""), "state": state,
+                        "next_start": events.next_start(ev["key"]), "now": last[1] if live else 0, "peak": peak,
+                        "url": f"/e/{ev['key']}/"})
+    order = {"live": 0, "upcoming": 1, "off": 2, "ended": 3}
+    return sorted(out, key=lambda e: order[e["state"]])
+
+
+def category_name(cat: str):
+    """Display name for a category slug, or None if nothing in it has ever been seen."""
+    for g, _ in GAMES:
+        if slug(g) == cat:
+            return g
+    with store._lock:
+        for (g,) in _db().execute("SELECT DISTINCT game FROM sc_cat WHERE game != ?", (ALL,)):
+            if slug(g) == cat:
+                return g
+    return None
+
+
+def data(period: str = "today", cat: str = "") -> dict:
+    """Everything the hub (cat='') or a category page shows."""
     period = period if period in PERIODS else "today"
+    game = category_name(cat) if cat else None
     blk = blocked()
-    with store._lock:      # the latest cycle, from the database, so the CLI sees what the running tracker sees
+    with store._lock:      # the latest scan, from the database, so the CLI sees what the running tracker sees
         c = _db()
         last = (c.execute("SELECT MAX(ts) FROM sc_samples").fetchone()[0] or 0)
         live = [dict(r) for r in c.execute(
@@ -377,20 +446,32 @@ def data(period: str = "today") -> dict:
     fresh = time.time() - last < SCENE_SEC * 3
     seen = set()
     live = [x for x in live if x["sid"] not in blk and not (x["sid"] in seen or seen.add(x["sid"]))] if fresh else []
-    tot = sum(x["viewers"] for x in live)
-    by_plat, by_game = {}, {}
+    india_total = sum(x["viewers"] for x in live)
+    by_game = {}
     for x in live:
-        by_plat[x["platform"]] = by_plat.get(x["platform"], 0) + x["viewers"]
-        g = by_game.setdefault(x["game"], {"game": x["game"], "viewers": 0, "streams": 0, "top": x["name"]})
+        g = by_game.setdefault(x["game"], {"game": x["game"], "slug": slug(x["game"]), "viewers": 0, "streams": 0,
+                                           "top": x["name"], "top_logo": x.get("logo") or "", "top_viewers": x["viewers"]})
         g["viewers"] += x["viewers"]
         g["streams"] += 1
+    if game:
+        live = [x for x in live if x["game"] == game]
+    tot = sum(x["viewers"] for x in live)
+    by_plat = {}
+    for x in live:
+        by_plat[x["platform"]] = by_plat.get(x["platform"], 0) + x["viewers"]
     today = datetime.now(events.REPORT_TZ).date()
     d0 = (today - timedelta(days=PERIODS[period])).strftime("%Y-%m-%d")
+    key = game or ALL
     with store._lock:
         c = _db()
-        rows = c.execute("""SELECT d.sid, d.game, MAX(d.peak) peak, SUM(d.mins) mins, SUM(d.hw) hw, c.name, c.platform,
-                            c.url, c.logo FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid WHERE d.day >= ?
-                            GROUP BY d.sid, d.game""", (d0,)).fetchall()
+        q = """SELECT d.sid, d.game, MAX(d.peak) peak, SUM(d.mins) mins, SUM(d.hw) hw, c.name, c.platform,
+               c.url, c.logo FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid WHERE d.day >= ?"""
+        rows = c.execute(q + (" AND d.game = ?" if game else "") + " GROUP BY d.sid, d.game",
+                         (d0, game) if game else (d0,)).fetchall()
+        series = _series(c, key, period)
+        pk = c.execute("SELECT ts, viewers FROM sc_cat WHERE game=? AND ts>=? ORDER BY viewers DESC LIMIT 1",
+                       (key, time.time() - SERIES_SEC[period])).fetchone()
+        pk_all = c.execute("SELECT ts, viewers FROM sc_cat WHERE game=? ORDER BY viewers DESC LIMIT 1", (key,)).fetchone()
     ch, games = {}, {}
     for r in rows:
         if r["sid"] in blk:
@@ -402,7 +483,8 @@ def data(period: str = "today") -> dict:
         x["mins"] += r["mins"]
         x["hw"] += r["hw"]
         x["games"][r["game"]] = x["games"].get(r["game"], 0) + r["hw"]
-        g = games.setdefault(r["game"], {"game": r["game"], "hw": 0.0, "peak_stream": 0, "channels": 0})
+        g = games.setdefault(r["game"], {"game": r["game"], "slug": slug(r["game"]), "hw": 0.0, "peak_stream": 0,
+                                         "channels": 0})
         g["hw"] += r["hw"]
         g["peak_stream"] = max(g["peak_stream"], r["peak"])
         g["channels"] += 1
@@ -415,14 +497,19 @@ def data(period: str = "today") -> dict:
         board.append(x)
     board.sort(key=lambda x: -x["hw"])
     return {"updated": last, "fresh": fresh, "period": period, "every": SCENE_SEC,
-            "live_total": tot, "live_count": len(live),
+            "cat": cat if game else "", "cat_name": game or "",
+            "live_total": tot, "live_count": len(live), "india_total": india_total,
+            "peak": {"viewers": pk[1], "ts": pk[0]} if pk else None,
+            "peak_all": {"viewers": pk_all[1], "ts": pk_all[0]} if pk_all else None,
+            "series": series,
             "platforms": [{"platform": k, "name": platforms.NAMES[k], "viewers": v}
                           for k, v in sorted(by_plat.items(), key=lambda kv: -kv[1])],
-            "games_live": sorted(by_game.values(), key=lambda g: -g["viewers"])[:30],
+            "categories": sorted(by_game.values(), key=lambda g: -g["viewers"])[:40],
             "live": [{k: x.get(k) for k in ("sid", "platform", "name", "url", "logo", "game", "title", "viewers")}
                      for x in live[:300]],
             "board": board[:300],
             "games": [{**g, "hw": round(g["hw"])} for g in sorted(games.values(), key=lambda g: -g["hw"])][:40],
+            "events": [] if game else _events(),
             "langs": LANGS, "min": MIN_VIEWERS, "keys": {p: bool(platforms._keys(p)) for p in ("kick", "twitch")}}
 
 

@@ -17,7 +17,7 @@
     python track.py twitch valo official valorant
     python track.py twitch valo category VALORANT      top live streams in a Twitch category (title must match)
     python track.py kick valo remove tarik
-    python track.py home bmic                          which event the site shows at /  (every event: /e/<key>/)
+    python track.py home hub                           the front page: India hub (default) or an event (home bmic)
     python track.py platforms                          which connectors have keys
 
   India rankings (every streamer, every game; page at /india):
@@ -202,11 +202,16 @@ def cmd_platform(args) -> int:
 
 
 def cmd_home(args) -> int:
+    if args.key == "hub":
+        store.kv_set("site_home", "hub")
+        print("/ now shows the India hub (every channel, every category). Events stay at /e/<key>/")
+        return 0
     if not events.get(args.key):
-        print(f"No event called {args.key}.", file=sys.stderr)
+        print(f"No event called {args.key}. Use an event key or 'hub'.", file=sys.stderr)
         return 1
+    store.kv_set("site_home", args.key)
     store.kv_set("event_home", args.key)
-    print(f"/ now shows {args.key}. Every event also has its own page at /e/<key>/")
+    print(f"/ now shows {args.key}. The India hub stays at /india; switch back with: python track.py home hub")
     return 0
 
 
