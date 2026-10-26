@@ -422,7 +422,7 @@ tr.fu td.num{animation:fu 1.2s}tr.fd td.num{animation:fd 1.2s}@keyframes fu{0%{c
  <span class="pill" id="nx"><svg class="ring" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><circle class="p" id="rp" cx="10" cy="10" r="7" stroke-dasharray="44" stroke-dashoffset="0"/></svg>NEXT <span id="nxt">-</span></span>
 </div></div>
 <div class="wrap" style="padding-bottom:0">__PWB__
-<div class="follow"><span>// FOLLOW FOR LIVE ESPORTS NUMBERS</span>__SOCIAL__</div></div>
+<div class="follow"><span>// FOLLOW FOR LIVE ESPORTS NUMBERS</span><a class="soc" href="/india"><b>INDIA LIVE</b><span>every channel, ranked &rarr;</span></a>__SOCIAL__</div></div>
 <div class="wrap" id="app"></div>
 <script>function pwGo(e,u){if(e.metaKey||e.ctrlKey||e.shiftKey||matchMedia('(prefers-reduced-motion: reduce)').matches)return true;
  const o=document.createElement('div');o.className='pwx';o.innerHTML='<b>PREDICT &amp; WIN</b>';o.style.setProperty('--x',e.clientX+'px');o.style.setProperty('--y',e.clientY+'px');
