@@ -52,7 +52,7 @@ def _headers(resp):
     if path.startswith("/e/"):                       # /e/<key>/data caches like /data
         parts = path.split("/", 3)                   # ['', 'e', key, rest]
         path = "/" + (parts[3] if len(parts) > 3 else "")
-    elif path.startswith(("/c/", "/s/", "/global")):
+    elif path.startswith(("/c/", "/s/", "/india/c/", "/india/s/")):
         path = "/india"
     secs = CACHE.get(path)
     if request.path.startswith("/predict/api/profile/") and request.method == "GET":
@@ -114,12 +114,13 @@ def _json(obj):
 
 @app.route("/")
 def index():
-    """The India hub, unless `track.py home <event>` made an event the front page (e.g. on a tournament day)."""
+    """The worldwide hub, unless `track.py home <event>` made an event the front page (e.g. on a tournament day).
+    India lives under /india (/india/s/<section>, /india/c/<game>)."""
     from tracker import events, store
     home = store.kv_get("site_home") or "hub"
     if home != "hub" and events.get(home):
         return _memo("/:" + home, 5, lambda: eventpage.build_html(live=True), "text/html")
-    return india()
+    return global_hub()
 
 
 @app.route("/data")
@@ -208,11 +209,19 @@ def india():
     return _memo("/india", 300, scenepage.build_html, "text/html")
 
 
-@app.route("/global")
 def global_hub():
-    """Everything live worldwide on YouTube, Kick and Twitch."""
+    """Everything live worldwide on YouTube, Kick and Twitch (the front page)."""
     from tracker import scenepage
     return _memo("/global", 300, lambda: scenepage.build_html(region="global"), "text/html")
+
+
+@app.route("/global")
+@app.route("/global/")
+@app.route("/global/<path:rest>")
+def global_old(rest=""):
+    """Old /global links: worldwide is the front page now."""
+    from flask import redirect
+    return redirect("/" + rest, code=301)
 
 
 def _cat_page(cat, region):
@@ -227,13 +236,13 @@ def _cat_page(cat, region):
 
 @app.route("/c/<cat>")
 def category(cat):
-    """One game or category in India: /c/bgmi, /c/free-fire, /c/news ..."""
-    return _cat_page(cat, "in")
-
-
-@app.route("/global/c/<cat>")
-def category_global(cat):
+    """One game or category worldwide: /c/bgmi, /c/free-fire, /c/news ..."""
     return _cat_page(cat, "global")
+
+
+@app.route("/india/c/<cat>")
+def category_india(cat):
+    return _cat_page(cat, "in")
 
 
 def _scene_args():
@@ -254,13 +263,13 @@ def _sec_page(sec, region):
 
 @app.route("/s/<sec>")
 def section(sec):
-    """A section in India: /s/gaming, /s/esports, /s/irl, /s/just-chatting, /s/news ..."""
-    return _sec_page(sec, "in")
-
-
-@app.route("/global/s/<sec>")
-def section_global(sec):
+    """A section worldwide: /s/gaming, /s/esports, /s/irl, /s/just-chatting, /s/news ..."""
     return _sec_page(sec, "global")
+
+
+@app.route("/india/s/<sec>")
+def section_india(sec):
+    return _sec_page(sec, "in")
 
 
 @app.route("/api/scene/live")

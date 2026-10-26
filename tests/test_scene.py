@@ -100,7 +100,7 @@ h = sc.data("today"); assert h["series"] and {c["slug"] for c in h["categories"]
 c = web.app.test_client()
 for u, code in [("/", 200), ("/c/bgmi", 200), ("/c/free-fire", 200), ("/c/nonexistent", 404), ("/c/../x", 404), ("/api/scene?cat=bgmi", 200), ("/india", 200)]:
     r = c.get(u); assert r.status_code == code, (u, r.status_code)
-assert b"Live Streaming in India" in c.get("/").data
+assert b"Live Streaming Worldwide" in c.get("/").data and b"Live Streaming in India" in c.get("/india").data
 store.kv_set("site_home", "nope"); assert c.get("/").status_code == 200
 print("HUB OK")
 # Kick/Twitch India detection: Hindi-language streams plus Indian-titled streams from top/category lists
@@ -159,7 +159,7 @@ assert "VALORANT Esports" in gn and "Citizen TV Kenya" in gn and "VALORANT Espor
 assert g["live_total"] > i_["live_total"] and g["tournaments"][0]["name"] == "VCT", g["tournaments"][:1]
 print("tournaments:", [(t["name"], t["viewers"], t["streams"]) for t in g["tournaments"]])
 c = web.app.test_client()
-for u in ["/global", "/global/c/valorant", "/api/scene?region=global", "/api/scene/live?region=global&cat=valorant"]:
+for u in ["/", "/c/valorant", "/india/c/bgmi", "/api/scene?region=global", "/api/scene/live?region=global&cat=valorant"]:
     assert c.get(u).status_code == 200, u
 lv = json.loads(c.get("/api/scene/live?region=global", headers={"Accept-Encoding": ""}).data)
 assert lv["tournaments"] and lv["live_total"] >= 250000
@@ -178,7 +178,7 @@ assert e["board"] == [] and e["tour_day"] and e["tour_day"][0]["name"] == "VCT"
 lvd = sc.live_data(region="in", sec="news"); assert all(x["section"] == "news" for x in lvd["live"]) and "kpis" in lvd
 assert all("last_live" in x for x in sc.data("7d")["board"])
 c = web.app.test_client()
-for u, code in [("/s/gaming", 200), ("/global/s/esports", 200), ("/s/nope", 404), ("/api/scene?sec=irl", 200), ("/api/scene/live?region=global&sec=esports", 200)]:
+for u, code in [("/s/gaming", 200), ("/s/esports", 200), ("/india/s/gaming", 200), ("/global/s/esports", 301), ("/global", 301), ("/s/nope", 404), ("/api/scene?sec=irl", 200), ("/api/scene/live?region=global&sec=esports", 200)]:
     assert c.get(u).status_code == code, u
 print("SECTIONS OK")
 # cover art: exact names only, BGMI never gets PUBG's cover
@@ -198,3 +198,5 @@ assert sc.resolve_art("PUBG: Battlegrounds")[0] == "https://tw/PUBG: BATTLEGROUN
 assert sc.resolve_art("Hollow Knight") == ("", "none")          # inexact search results are never used
 assert sc.cat_art("Call of Duty") == "" and sc.cat_art("Cricket games") == ""
 print("ART OK")
+r = web.app.test_client().get("/global/c/bgmi"); assert r.status_code == 301 and r.headers["Location"].endswith("/c/bgmi")
+print("ROUTES OK")

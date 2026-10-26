@@ -93,11 +93,10 @@ site within ~10 minutes. New Python packages in requirements.txt still need `pip
 
 | Route | Page |
 |---|---|
-| `/` | India hub (default). `track.py home bmic` makes an event the front page for a tournament day; `track.py home hub` switches back |
-| `/india` | India hub, always |
-| `/s/<key>`, `/global/s/<key>` | One section (gaming, esports, irl, just-chatting, news, music, sports, devotional, podcasts, other) |
-| `/global` | Worldwide overview |
-| `/c/<slug>`, `/global/c/<slug>` | One game/category |
+| `/` | Worldwide overview (default). `track.py home bmic` makes an event the front page for a tournament day; `track.py home hub` switches back |
+| `/india`, `/india/s/<key>`, `/india/c/<slug>` | India overview, sections, games |
+| `/s/<key>` | One section worldwide (gaming, esports, irl, just-chatting, news, music, sports, devotional, podcasts, other) |
+| `/c/<slug>` | One game/category worldwide |
 | `/api/scene?period=today\|7d\|30d&cat=<slug>` | JSON behind the hub and category pages (cached 20s) |
 | `/e/<key>/` (+ `data`, `series`, `daystreams/<date>`) | One tournament dashboard |
 | `/events` | List of tournaments |
@@ -116,10 +115,10 @@ site within ~10 minutes. New Python packages in requirements.txt still need `pip
 | `sc_cat` | Per scan: total viewers and streams per category and India (`__all__`) | always (charts, peaks) |
 | `pw_*` | Predict & Win players and picks (private) | always |
 
-## India and Global (owner's choice, 26 Oct: India stays the front page, Global is a tab, track everything)
+## India and Global (owner's choice, 26 Oct: the site opens on Global; India is the INDIA tab; track everything)
 
-One scan finds both. Every channel is stored with `sc_channels.india` (1/0). India pages (`/`, `/c/<slug>`) show
-india=1; Global pages (`/global`, `/global/c/<slug>`) show everything. Global sources: Twitch top
+One scan finds both. Every channel is stored with `sc_channels.india` (1/0). Global pages (`/`, `/s/<key>`, `/c/<slug>`) show
+everything; India pages (`/india`, `/india/s/<key>`, `/india/c/<slug>`) show india=1. Old `/global...` links redirect. Global sources: Twitch top
 `SCENE_TWITCH_PAGES`x100 streams + official esports channels (`ESPORTS_TWITCH`), Kick top 100, YouTube's Live page
 (US edition) and `GLOBAL_QUERIES` (US edition). Non-Indian streams under `SCENE_GLOBAL_MIN` (100) are left out.
 Per-scan totals: India in `sc_cat`, Global in `sc_reg` (region 'global'), tournaments in `sc_reg` ('tour:in',
