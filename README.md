@@ -1,6 +1,6 @@
 # Live Viewership Tracker
 
-> Picking this up fresh? Read [docs/HANDOFF.md](docs/HANDOFF.md): what runs where, the rules, the code map and the current state.
+> Picking this up fresh? Read [docs/HANDOFF.md](docs/HANDOFF.md): what runs where, the rules, the code map and the current state. Moving it to another machine or domain: [docs/MOVING.md](docs/MOVING.md).
 
 Runs [live.letsgrowesports.com](https://live.letsgrowesports.com): India's live streaming rankings across YouTube, Kick and Twitch by game and category, and live trackers for esports tournaments. For tournaments it counts every stream carrying an event at once: the official broadcast, the watch parties and community restreams. Produces peak concurrent viewers, average concurrent, hours watched and airtime, split by day, by channel and by stream type.
 

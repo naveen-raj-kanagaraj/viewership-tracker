@@ -7,7 +7,7 @@ self-contained preview with sample players that runs entirely in the browser.
 import json
 import os
 
-PUBLIC_URL = os.getenv("EVENT_PUBLIC_URL", "https://live.letsgrowesports.com").rstrip("/")
+PUBLIC_URL = (os.getenv("EVENT_PUBLIC_URL") or "https://live.letsgrowesports.com").rstrip("/")
 
 
 TLOGO_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "teamlogos")

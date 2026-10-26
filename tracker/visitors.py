@@ -2,6 +2,7 @@
 
 Country comes from Cloudflare's CF-IPCountry header. Live = pinged in the last 75s (pages ping every 30s).
 """
+import os
 import threading
 import time
 from collections import Counter
@@ -85,7 +86,7 @@ def summary() -> str:
     pk = s["peak"]
     when = datetime.fromtimestamp(pk["ts"], TZ).strftime("%d %b, %I:%M %p IST") if pk.get("ts") else "-"
     fmtc = lambda pairs: ", ".join(f"{k} {v}" for k, v in pairs) or "-"
-    lines = ["Dashboard visitors (live.letsgrowesports.com)",
+    lines = [f"Dashboard visitors ({(os.getenv('EVENT_PUBLIC_URL') or 'https://live.letsgrowesports.com').split('//')[-1]})",
              f"\nOn the page now: {s['active']}" + (f" ({fmtc(s['active_countries'])})" if s["active"] else ""),
              f"Visitors today (IST): {s['today']}",
              f"Most at once: {pk.get('n', 0)} at {when}",
