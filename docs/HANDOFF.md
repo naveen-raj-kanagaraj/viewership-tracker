@@ -93,6 +93,20 @@ tracker folder once; it was re-cloned).
 | `sc_cat` | Per scan: total viewers and streams per category and India (`__all__`) | always (charts, peaks) |
 | `pw_*` | Predict & Win players and picks (private) | always |
 
+## India and Global (owner's choice, 26 Oct: India stays the front page, Global is a tab, track everything)
+
+One scan finds both. Every channel is stored with `sc_channels.india` (1/0). India pages (`/`, `/c/<slug>`) show
+india=1; Global pages (`/global`, `/global/c/<slug>`) show everything. Global sources: Twitch top
+`SCENE_TWITCH_PAGES`x100 streams + official esports channels (`ESPORTS_TWITCH`), Kick top 100, YouTube's Live page
+(US edition) and `GLOBAL_QUERIES` (US edition). Non-Indian streams under `SCENE_GLOBAL_MIN` (100) are left out.
+Per-scan totals: India in `sc_cat`, Global in `sc_reg` (region 'global'), tournaments in `sc_reg` ('tour:in',
+'tour:global'). Raw readings kept `SCENE_KEEP_DAYS` (3: the global scan writes ~1,000+ rows per scan).
+
+**Live tournaments:** `tournament(title, game)` matches named tournaments (`TOURNAMENTS`: VCT, LCK, IEM, BLAST, PGL,
+TI, EWC, PMGC, BGIS, BMIC, FFWS, MPL, RLCS ...; add new ones there) or a generic tournament word plus a match word
+(Grand Final + vs/Day/Stage...), never scrims/ranked. Streams of the same tournament (official + co-streams) are
+grouped; `TOUR_GAME` sets the game. Shown in the "Live tournaments" section with today's peak.
+
 ## How the India scan counts (`tracker/scene.py`)
 
 Every `SCENE_SEC` (120s):

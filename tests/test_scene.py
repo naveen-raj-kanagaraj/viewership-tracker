@@ -129,15 +129,38 @@ assert all(x["logo"] for x in sc.live_data()["live"] if x["sid"].startswith("twi
 r = web.app.test_client().get("/api/scene/live?cat=bgmi", headers={"Accept-Encoding": ""})
 assert r.status_code == 200 and all(x["game"] == "BGMI" for x in json.loads(r.data)["live"])
 print("FAST OK")
-# clean(): a channel found to be foreign loses its readings; totals are rebuilt
+# clean(): a channel found to be foreign leaves the India view (totals rebuilt) but stays in the global view
 with store._lock:
     cc = sc._db(); cc.execute("UPDATE sc_channels SET country='US' WHERE sid='yt:UCtg'"); cc.commit()
 res = sc.clean(); print("clean:", res)
-assert "Total Gaming" in res["examples_removed"]
+assert "Total Gaming" in res["examples_not_indian"]
 with store._lock:
     cc = sc._db()
-    assert cc.execute("SELECT COUNT(*) FROM sc_samples WHERE sid='yt:UCtg'").fetchone()[0] == 0
-    assert cc.execute("SELECT COUNT(*) FROM sc_daily WHERE sid='yt:UCtg'").fetchone()[0] == 0
     assert cc.execute("SELECT COUNT(*) FROM sc_cat WHERE game='Free Fire'").fetchone()[0] == 0
 assert all(x["name"] != "Total Gaming" for x in sc.data("7d")["board"])
+assert any(x["name"] == "Total Gaming" for x in sc.data("7d", region="global")["board"])
 print("CLEAN OK")
+
+# global view and tournaments
+for title, game, exp in [("VCT Masters Toronto - Grand Final", "Valorant", "VCT"), ("LCK Spring Week 3 T1 vs GEN", "League of Legends", "LCK"),
+                         ("BGIS 2026 Grand Finals Day 2", "BGMI", "BGIS"), ("ranked grind to radiant", "Valorant", None),
+                         ("Worlds 2026 Finals", "League of Legends", "LoL Worlds"), ("Minecraft worlds tour", "Minecraft", None),
+                         ("Regional Championship Day 2 | Team A vs Team B", "Free Fire", "Free Fire tournaments"),
+                         ("BGMI scrims finals", "BGMI", None), ("having a blast lol", "Fortnite", None)]:
+    assert sc.tournament(title, game) == exp, (title, sc.tournament(title, game))
+SEARCH["contents"]["twoColumnSearchResultsRenderer"]["primaryContents"]["sectionListRenderer"]["contents"][0]["itemSectionRenderer"]["contents"].append(
+    vr("v10", "VALORANT Esports", "UCvct", "VCT Champions 2026 - Grand Final - FNC vs SEN", 250000))
+LIVE["v10"] = 251000; CTRY["UCvct"] = "US"
+sc._STATE["yt"] = 0
+r = sc.cycle(now=t + 240); print("global cycle:", r)
+g = sc.data("today", region="global"); i_ = sc.data("today")
+gn = {x["name"] for x in g["live"]}
+assert "VALORANT Esports" in gn and "Citizen TV Kenya" in gn and "VALORANT Esports" not in {x["name"] for x in i_["live"]}
+assert g["live_total"] > i_["live_total"] and g["tournaments"][0]["name"] == "VCT", g["tournaments"][:1]
+print("tournaments:", [(t["name"], t["viewers"], t["streams"]) for t in g["tournaments"]])
+c = web.app.test_client()
+for u in ["/global", "/global/c/valorant", "/api/scene?region=global", "/api/scene/live?region=global&cat=valorant"]:
+    assert c.get(u).status_code == 200, u
+lv = json.loads(c.get("/api/scene/live?region=global", headers={"Accept-Encoding": ""}).data)
+assert lv["tournaments"] and lv["live_total"] >= 250000
+print("GLOBAL OK")

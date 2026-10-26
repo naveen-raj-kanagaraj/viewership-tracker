@@ -52,7 +52,7 @@ def _headers(resp):
     if path.startswith("/e/"):                       # /e/<key>/data caches like /data
         parts = path.split("/", 3)                   # ['', 'e', key, rest]
         path = "/" + (parts[3] if len(parts) > 3 else "")
-    elif path.startswith("/c/"):
+    elif path.startswith(("/c/", "/global")):
         path = "/india"
     secs = CACHE.get(path)
     if request.path.startswith("/predict/api/profile/") and request.method == "GET":
@@ -208,25 +208,48 @@ def india():
     return _memo("/india", 300, scenepage.build_html, "text/html")
 
 
-@app.route("/c/<cat>")
-def category(cat):
-    """One game or category: /c/bgmi, /c/free-fire, /c/news ..."""
+@app.route("/global")
+def global_hub():
+    """Everything live worldwide on YouTube, Kick and Twitch."""
+    from tracker import scenepage
+    return _memo("/global", 300, lambda: scenepage.build_html(region="global"), "text/html")
+
+
+def _cat_page(cat, region):
     from tracker import scene, scenepage
     if not __import__("re").fullmatch(r"[a-z0-9-]{1,40}", cat or ""):
         return Response("Not found", status=404, mimetype="text/plain")
     name = scene.category_name(cat)
     if not name:
         return Response("Not found", status=404, mimetype="text/plain")
-    return _memo(f"/c/{cat}", 300, lambda: scenepage.build_html(cat, name), "text/html")
+    return _memo(f"/c/{region}/{cat}", 300, lambda: scenepage.build_html(cat, name, region), "text/html")
+
+
+@app.route("/c/<cat>")
+def category(cat):
+    """One game or category in India: /c/bgmi, /c/free-fire, /c/news ..."""
+    return _cat_page(cat, "in")
+
+
+@app.route("/global/c/<cat>")
+def category_global(cat):
+    return _cat_page(cat, "global")
+
+
+def _scene_args():
+    from tracker import scene
+    cat = request.args.get("cat", "")
+    cat = cat if __import__("re").fullmatch(r"[a-z0-9-]{1,40}", cat) and scene.category_name(cat) else ""
+    region = request.args.get("region", "in")
+    return cat, region if region in scene.REGIONS else "in"
 
 
 @app.route("/api/scene/live")
 def scene_live():
-    """The 2-second part: totals, platforms, live categories, live streams."""
+    """The 2-second part: totals, platforms, live categories, tournaments, live streams."""
     from tracker import scene
-    cat = request.args.get("cat", "")
-    cat = cat if __import__("re").fullmatch(r"[a-z0-9-]{1,40}", cat) and scene.category_name(cat) else ""
-    return _memo(f"/api/scene/live:{cat}", 1.5, _jdump(lambda: scene.live_data(cat)), "application/json")
+    cat, region = _scene_args()
+    return _memo(f"/api/scene/live:{region}:{cat}", 1.5, _jdump(lambda: scene.live_data(cat, region)), "application/json")
 
 
 @app.route("/api/scene")
@@ -235,9 +258,8 @@ def india_data():
     from tracker import scene
     per = request.args.get("period", "today")
     per = per if per in scene.PERIODS else "today"
-    cat = request.args.get("cat", "")
-    cat = cat if __import__("re").fullmatch(r"[a-z0-9-]{1,40}", cat) and scene.category_name(cat) else ""
-    return _memo(f"/api/scene:{per}:{cat}", 20, _jdump(lambda: scene.data(per, cat)), "application/json")
+    cat, region = _scene_args()
+    return _memo(f"/api/scene:{region}:{per}:{cat}", 20, _jdump(lambda: scene.data(per, cat, region)), "application/json")
 
 
 @app.route("/events")
