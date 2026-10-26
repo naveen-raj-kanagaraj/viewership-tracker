@@ -181,3 +181,20 @@ c = web.app.test_client()
 for u, code in [("/s/gaming", 200), ("/global/s/esports", 200), ("/s/nope", 404), ("/api/scene?sec=irl", 200), ("/api/scene/live?region=global&sec=esports", 200)]:
     assert c.get(u).status_code == code, u
 print("SECTIONS OK")
+# cover art: exact names only, BGMI never gets PUBG's cover
+def art_get(url, params=None, headers=None, **k):
+    if url.endswith("/helix/games"):
+        n = params["name"]
+        return R({"data": [{"name": n, "box_art_url": f"https://tw/{n}-{{width}}x{{height}}.jpg"}]} if n in ("PUBG MOBILE", "PUBG: BATTLEGROUNDS") else {"data": []})
+    if url.endswith("/public/v1/categories"):
+        return R({"data": [{"name": "PUBG Mobile", "thumbnail": "https://k/pubgm.jpg"},
+                           {"name": "Battlegrounds Mobile India", "thumbnail": "https://k/bgmi.jpg"}] if "Battlegrounds" in params["q"] or "PUBG" in params["q"]
+                          else [{"name": "Something Else", "thumbnail": "https://k/x.jpg"}]})
+    raise AssertionError(url)
+platforms._http.get = art_get
+assert sc.resolve_art("BGMI") == ("https://k/bgmi.jpg", "Kick 'Battlegrounds Mobile India'"), sc.resolve_art("BGMI")
+assert sc.resolve_art("PUBG Mobile")[0] == "https://tw/PUBG MOBILE-144x192.jpg"
+assert sc.resolve_art("PUBG: Battlegrounds")[0] == "https://tw/PUBG: BATTLEGROUNDS-144x192.jpg"
+assert sc.resolve_art("Hollow Knight") == ("", "none")          # inexact search results are never used
+assert sc.cat_art("Call of Duty") == "" and sc.cat_art("Cricket games") == ""
+print("ART OK")
