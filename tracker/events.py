@@ -79,16 +79,12 @@ PRESETS = {
         "game": "BGMI",
         "home": True,                           # the event shown at / (every event also has its own page at /e/<key>/)
         "hist": ["BMIC", "26"],                 # its place in the BGMI history chart (series key, 2-digit year)
-        "roster": True,                         # show the watch-party roster (ROSTER below) and send the NOT LIVE alert
-        "allowed": ["dynamo", "bixi", "zgod", "neyoo", "mizo", "mrspike", "lolzz", "sharkshe", "mafianinja", "ruthless",
-                    "rakazone", "ansh", "casetoo", "sheek", "ipreeet", "shreeman", "mortal", "vaadhiyaar", "regaltos",
-                    "snax", "sriop", "neonxpawan", "pawanop", "ladypredator", "soulaman"],
+        "roster": True,                         # show the watch-party roster (ROSTERS["bmic"]) and send the NOT LIVE alert
+        # Watch-party streamers for BMIC: none yet. Until the list is added only the official broadcast counts.
+        "allowed": [],
+        "official_only": True,                  # remove once "allowed" has the BMIC watch parties
         "official_channels": ["UCugG6-k5QGbq_iDEPAnG4NQ"],   # KRAFTON INDIA ESPORTS: every live stream is tracked
-        "always_check": ["@shreemanlegendliveofficial", "@Casetoolive", "@ShreemanLegend", "@VAADHIYAAR", "@SoulAman",
-                         "@DynamoGaming", "@TheBixiOP", "@ZGODGAMING", "@NEYOOGAMINGYT", "@MizoPlays", "@MrSpike",
-                         "@LoLzZzGaming", "@SHARKSHE", "@MafiaNinja", "@ImRuthlessceopubg", "@RakaZoneGaming", "@AnshYT",
-                         "@casetooop", "@thecasetoopapa", "@sheekgaming", "@IPREEET.69", "@MortaLyt", "@soulregaltos9810",
-                         "@SnaxGaming", "@sriop-sr70", "@NEONXPAWANOP", "@LadyPredatorGaming", "@LadyPredator"],
+        "always_check": [],                     # BMIC watch-party @handles, checked directly every minute
         "ended": False,
         "next_start": "2026-10-30 13:00",       # IST; countdown until the official stream goes live
         "match": ["bmic", "bgmi international cup", "battlegrounds mobile india international cup",
@@ -109,7 +105,7 @@ def preset(key: str) -> dict:
     return PRESETS.get(key or "", {})
 
 
-SETTINGS = ("game", "need_official", "any_title", "kick", "twitch")   # can live on the event itself (track.py new/kick/twitch)
+SETTINGS = ("game", "need_official", "any_title", "official_only", "kick", "twitch")   # can live on the event itself (track.py new/kick/twitch)
 
 
 def opt(ev: dict, name: str, default=None):
@@ -308,6 +304,11 @@ def permitted(ev: dict, s: dict) -> bool:
     """With an allow-list: only official channels and the listed watch-party channels count."""
     if platforms.listed(ev, preset(ev.get("key")), s.get("vid", "")):
         return True                              # named in the event's Kick/Twitch config
+    if s.get("vid") in PRESETS.get(ev.get("key", ""), {}).get("videos_extra", []):
+        return True
+    if opt(ev, "official_only"):                 # no watch parties permitted (yet): official channels only
+        ch = s.get("channel", "").lower()
+        return any(o and o in ch for o in ev.get("official", [])) or (s.get("channel_id") or "").lower() in ev.get("official", [])
     al = allowed_list(ev)
     if not al or s.get("vid") in PRESETS.get(ev.get("key", ""), {}).get("videos_extra", []):
         return True
@@ -1126,7 +1127,7 @@ def stream_tail(key: str, vids: list, n: int = 90) -> dict:
     return {v: [list(x) for x in list(h[v])[-n:]] for v in vids if v in h}
 
 
-ROSTER = [  # (match token, display name, channel handle) of the permitted watch-party streamers
+ROSTER = [  # BMSD 2026: (match token, display name, channel handle) of the permitted watch-party streamers
     ("dynamo", "Dynamo Gaming", "@DynamoGaming"), ("bixi", "Bixi", "@TheBixiOP"), ("zgod", "ZGOD Gaming", "@ZGODGAMING"),
     ("neyoo", "Neyoo Gaming", "@NEYOOGAMINGYT"), ("mizo", "Mizo Plays", "@MizoPlays"), ("mrspike", "Mr Spike", "@MrSpike"),
     ("lolzz", "LoLzZz Gaming", "@LoLzZzGaming"), ("sharkshe", "Sharkshe", "@SHARKSHE"), ("mafianinja", "Mafia Ninja", "@MafiaNinja"),
@@ -1136,6 +1137,13 @@ ROSTER = [  # (match token, display name, channel handle) of the permitted watch
     ("regaltos", "Soul Regaltos", "@soulregaltos9810"), ("snax", "Snax Gaming", "@SnaxGaming"), ("sriop", "SRI OP", "@sriop-sr70"),
     ("neonxpawan", "Neon X Pawan", "@NEONXPAWANOP"),
     ("ladypredator", "Lady Predator", "@LadyPredatorGaming"), ("soulaman", "Soul Aman", "@SoulAman")]
+ROSTERS = {"bmsd": ROSTER, "bmic": []}   # per event; BMIC's list is added before it starts
+
+
+def roster(key: str) -> list:
+    return ROSTERS.get(key, [])
+
+
 _RBUSY = set()
 
 

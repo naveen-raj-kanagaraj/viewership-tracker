@@ -64,7 +64,7 @@ def data(key: str = None) -> dict:
         if hit and time.time() - hit[0] < 1.5:
             return {**hit[1], "now": time.time()}
     st = events.stats(ev["key"])
-    out = {"name": ev["name"], "ticks": st.get("ticks", 0), "now": time.time(), "every": events.FAST_SEC,
+    out = {"key": ev["key"], "name": ev["name"], "ticks": st.get("ticks", 0), "now": time.time(), "every": events.FAST_SEC,
            "next_start": events.next_start(ev["key"]),
            "links": ev.get("links") or {}}
     if st.get("ticks"):
@@ -137,7 +137,7 @@ def _roster(out: dict) -> list:
     lb = out.get("last_broadcast") or {}
     done = [] if countdown else [x for x in lb.get("streams", []) if x["kind"] != "official"]
     rows = []
-    for token, name, handle in events.ROSTER:
+    for token, name, handle in events.roster(out.get("key", "")):
         card = events.channel_card(handle)
         if card.get("name") and token not in n(card["name"]) and n(name)[:5] not in n(card["name"]):
             card = {}
