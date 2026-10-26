@@ -1,0 +1,89 @@
+"""India scan, hub and category pages, against mocked YouTube/Kick/Twitch. Run: python tests/test_scene.py"""
+import os, sys, time, json
+import tempfile; T = tempfile.mkdtemp()
+os.environ["TRACKER_DB"] = T + "/sc.db"
+for f in ("sc.db", "sc.db-wal", "sc.db-shm"):
+    try: os.remove(T + "/" + f)
+    except FileNotFoundError: pass
+os.environ.update(TWITCH_CLIENT_ID="x", TWITCH_CLIENT_SECRET="y", KICK_CLIENT_ID="k", KICK_CLIENT_SECRET="s")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))); os.chdir(sys.path[0])
+from tracker import events, platforms, scene, store, web
+
+def vr(vid, ch, cid, title, watching, logo="//yt3.ggpht.com/a.jpg"):
+    return {"videoRenderer": {"videoId": vid, "title": {"runs": [{"text": title}]},
+            "ownerText": {"runs": [{"text": ch, "navigationEndpoint": {"browseEndpoint": {"browseId": cid}}}]},
+            "viewCountText": {"runs": [{"text": f"{watching:,}"}, {"text": " watching"}]},
+            "channelThumbnailSupportedRenderers": {"channelThumbnailWithLinkRenderer": {"thumbnail": {"thumbnails": [{"url": logo}]}}}}}
+SEARCH = {"contents": {"twoColumnSearchResultsRenderer": {"primaryContents": {"sectionListRenderer": {"contents": [
+    {"itemSectionRenderer": {"contents": [
+        vr("v1", "Soul Aman", "UCaman", "BGMI LIVE scrims day 2", 41000),
+        vr("v2", "Total Gaming", "UCtg", "FREE FIRE MAX live rush", 88000),
+        vr("v3", "Soul Aman", "UCaman", "BGMI second cam", 2000),
+        vr("v4", "Tiny", "UCtiny", "bgmi live", 5),
+        {"videoRenderer": {"videoId": "v5", "title": {"runs": [{"text": "replay"}]}, "viewCountText": {"simpleText": "1.2M views"},
+                           "ownerText": {"runs": [{"text": "X", "navigationEndpoint": {"browseEndpoint": {"browseId": "UCx"}}}]}}}]}}]}}}}}
+class R:
+    def __init__(s, j): s._j = j; s.status_code = 200
+    def json(s): return s._j
+    def raise_for_status(s): pass
+events._http.post = lambda url, json=None, **k: R(SEARCH)
+LIVE = {"v1": 42000, "v2": 90000, "v3": 2100}
+events.count_live = lambda vid: LIVE.get(vid)
+def pget(url, params=None, headers=None, **k):
+    if url.endswith("/oauth/token") or "oauth2" in url: return R({"access_token": "t", "expires_in": 3600})
+    if url.endswith("/public/v1/livestreams"):
+        return R({"data": [{"slug": "skyesports", "stream_title": "BMIC qualifiers", "viewer_count": 3200, "category": {"name": "PUBG Mobile"}},
+                           {"slug": "desichatter", "stream_title": "chill stream", "viewer_count": 700, "category": {"name": "Just Chatting"}}]})
+    if url.endswith("/public/v1/channels"):
+        return R({"data": [{"slug": "skyesports", "stream_title": "BMIC qualifiers", "stream": {"is_live": True, "viewer_count": 3200}, "category": {"name": "PUBG Mobile"}}]})
+    if url.endswith("/helix/streams"):
+        return R({"data": [{"type": "live", "user_login": "indiavalo", "user_name": "IndiaValo", "title": "ranked", "viewer_count": 1500, "game_name": "VALORANT"},
+                           {"type": "live", "user_login": "smallguy", "user_name": "small", "title": "x", "viewer_count": 3, "game_name": "Minecraft"}]})
+    if url.endswith("/helix/users"): return R({"data": [{"login": "indiavalo", "profile_image_url": "https://t/iv.png"}]})
+    raise AssertionError(url)
+platforms._http.get = pget
+platforms._http.post = lambda url, data=None, **k: R({"access_token": "t", "expires_in": 3600})
+events.check_channel = lambda h: {"vid": "v9", "title": "Dynamo BGMI live", "channel": "Dynamo Gaming", "channel_id": "UCdyn", "viewers": 15000} if h == "@DynamoGaming" else None
+LIVE["v9"] = 15500
+
+t = time.time()
+r = scene.cycle(now=t); print("cycle1:", r)
+d = scene.data("today")
+print([(x["name"], x["platform"], x["game"], x["viewers"]) for x in d["live"]])
+names = {x["name"]: x for x in d["live"]}
+assert names["Soul Aman"]["viewers"] == 43000 and names["Soul Aman"]["game"] == "BGMI"     # two streams summed
+assert names["Total Gaming"]["game"] == "Free Fire" and names["Total Gaming"]["logo"].startswith("https://")
+assert names["skyesports"]["game"] == "BGMI" and names["skyesports"]["platform"] == "kick"
+assert names["IndiaValo"]["game"] == "Valorant" and "Tiny" not in names and "small" not in names and "X" not in names
+assert names["Dynamo Gaming"]["viewers"] == 15000
+assert d["platforms"][0]["platform"] == "youtube"
+# second cycle: YouTube re-counted from the live counter, no new search
+LIVE["v2"] = 120000; del LIVE["v3"]
+r = scene.cycle(now=t + 120); print("cycle2:", r)
+d = scene.data("today"); names = {x["name"]: x for x in d["live"]}
+assert names["Total Gaming"]["viewers"] == 120000 and names["Soul Aman"]["viewers"] == 42000, names["Soul Aman"]
+b = {x["name"]: x for x in d["board"]}
+print("board:", [(x["name"], x["hw"], x["peak"], x["avg"], x["airtime_h"]) for x in d["board"][:5]])
+assert b["Total Gaming"]["peak"] == 120000 and b["Total Gaming"]["airtime_h"] == 0.1
+print("games:", d["categories"][:3])
+print(scene.top())
+# CLI-equivalent: block
+store.kv_set("scene_blocked", ["kick:desichatter"])
+assert all(x["sid"] != "kick:desichatter" for x in scene.data()["live"])
+c = web.app.test_client()
+assert c.get("/india").status_code == 200
+jj = json.loads(c.get("/india/data?period=7d", headers={"Accept-Encoding": ""}).data); assert jj["period"] == "7d" and jj["board"]
+assert c.get("/india/data?period=evil").status_code == 200
+print("SCENE OK")
+# hub / categories
+from tracker import scene as sc
+d = sc.data("today", "bgmi"); print("bgmi:", d["cat_name"], d["live_total"], [x["name"] for x in d["live"]], len(d["series"]), d["peak"])
+assert d["cat_name"] == "BGMI" and all(x["game"] == "BGMI" for x in d["live"]) and d["events"] == []
+assert all(x["game"] == "BGMI" for x in d["board"]) and len(d["series"]) == 2 and d["india_total"] >= d["live_total"]
+h = sc.data("today"); assert h["series"] and {c["slug"] for c in h["categories"]} >= {"bgmi", "free-fire"}
+c = web.app.test_client()
+for u, code in [("/", 200), ("/c/bgmi", 200), ("/c/free-fire", 200), ("/c/nonexistent", 404), ("/c/../x", 404), ("/api/scene?cat=bgmi", 200), ("/india", 200)]:
+    r = c.get(u); assert r.status_code == code, (u, r.status_code)
+assert b"INDIA LIVE" in c.get("/").data or b"India Live" in c.get("/").data
+store.kv_set("site_home", "nope"); assert c.get("/").status_code == 200
+print("HUB OK")

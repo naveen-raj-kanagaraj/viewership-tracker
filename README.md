@@ -1,6 +1,8 @@
 # Live Viewership Tracker
 
-Tracks live viewership for esports events on YouTube, Kick and Twitch, counting every stream carrying an event at once: the official broadcast, the watch parties and community restreams. Produces peak concurrent viewers, average concurrent, hours watched and airtime, split by day, by channel and by stream type.
+> Picking this up fresh? Read [docs/HANDOFF.md](docs/HANDOFF.md): what runs where, the rules, the code map and the current state.
+
+Runs [live.letsgrowesports.com](https://live.letsgrowesports.com): India's live streaming rankings across YouTube, Kick and Twitch by game and category, and live trackers for esports tournaments. For tournaments it counts every stream carrying an event at once: the official broadcast, the watch parties and community restreams. Produces peak concurrent viewers, average concurrent, hours watched and airtime, split by day, by channel and by stream type.
 
 Built because published tournament viewership arrives days late and often counts the official broadcast alone. In Indian esports that misses a large share of the audience, because much of it watches through creators' watch parties rather than the official stream.
 
