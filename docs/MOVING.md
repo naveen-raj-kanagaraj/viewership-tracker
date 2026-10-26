@@ -57,6 +57,26 @@ iCloud Drive: `BACKUP_DIR=~/Library/Mobile Documents/com~apple~CloudDocs/tracker
 6. Keep it running: on a Linux server use systemd (or `tmux`), on a Mac keep the Terminal window open (or a
    launchd agent). The tracker updates itself from GitHub (`AUTO_UPDATE`) and backs itself up every night.
 
+## Move to the Oracle Cloud server (one command)
+
+Create the server in the Oracle console (Ubuntu image, Always Free shape VM.Standard.A1.Flex or, if Ampere is out of
+capacity, VM.Standard.E2.1.Micro; public subnet with a public IPv4 address; download the generated private key).
+Then on the Mac, from the tracker folder:
+
+```bash
+bash scripts/deploy_oracle.sh <public IP> ~/Downloads/ssh-key-XXXX.key
+```
+
+It stops the Mac copy, clones the code on the server, copies `.env`, the database, `cookies.txt`, your covers and
+`~/.cloudflared`, installs everything and runs it as the `tracker` systemd service (restarts on crash and reboot,
+updates itself from GitHub, backs up nightly to the server's `backups/`). Afterwards, from the Mac:
+`bash scripts/oracle.sh status | logs | restart | probe | backup | ssh | run <track.py command>`.
+`oracle.sh backup` copies the newest server backup to the Mac's `backups/`.
+
+Risk to watch: YouTube sometimes challenges requests from cloud servers ("confirm you're not a bot"). The deploy ends
+with `scene probe`; if YouTube fails there, add `cookies.txt` (exported from a logged-in browser) and/or a
+`YOUTUBE_API_KEY`, then `oracle.sh restart`.
+
 ## Move to a new domain
 
 Set `EVENT_PUBLIC_URL=https://your-new-domain` in `.env` (share links and cards use it), point the tunnel at the

@@ -24,3 +24,4 @@ __pycache__/
 
 # database copies (hold private Predict & Win data)
 backups/
+.server
