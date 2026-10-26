@@ -146,9 +146,11 @@ Between scans, every live Kick/Twitch channel is re-read every `SCENE_FAST_SEC` 
    The platforms refresh their own counts about every 30-60s, so the 2s readings often repeat. YouTube streams are
    re-counted once per scan (2 min): re-reading hundreds of YouTube streams every 2s would get the tracker blocked.
    Logos: YouTube channel page picture (`events.avatar`), Twitch users API, Kick users API (fallback: public page).
-   Category art: Twitch box art by the game's Twitch name (`TWITCH_NAMES`), else Kick's category image, cached in
-   kv `cat_art:<game>` (delete that key to refetch); News, Music, Devotional, Cricket (live), Podcast, Other use
-   drawn icons.
+   Category art (`resolve_art`): exact names only. Twitch box art by the game's Twitch name (`TWITCH_NAMES`), else
+   Kick's category image by exact name (`KICK_NAMES`), else initials; never a near match (BGMI, PUBG: Battlegrounds
+   and PUBG Mobile are separate games and covers). `NO_ART` names that cover several games (Call of Duty, EA Sports
+   FC, Cricket games) get no art. Files in `static/gameart/<slug>.png|webp|jpg` win over everything. Cached in kv
+   `cat_art2:<game>` (delete the key to refetch). `scene probe` prints where each main game's cover comes from.
 Who counts as Indian (`verdict()`): YouTube channels by their own country setting (YouTube Data API with
    `YOUTUBE_API_KEY`, else the channel's About page; cached in `sc_channels.country`): India = yes, another country =
    no. No country set, and all Kick/Twitch (no country exposed): Hindi language tag (Kick/Twitch), or an Indian script

@@ -59,7 +59,7 @@ def _headers(resp):
         secs = 15
     if request.method != "GET" or resp.status_code >= 400:
         secs = None                       # POSTs, personal and error responses are never cached
-    if request.path.startswith(("/elogo/", "/tlogo/", "/pimg/", "/tmark/")):
+    if request.path.startswith(("/elogo/", "/tlogo/", "/pimg/", "/tmark/", "/gameart/")):
         return resp
     resp.headers["Cache-Control"] = f"public, max-age={secs}, s-maxage={secs}" if secs else "no-store"
     if secs:   # Cloudflare's Browser Cache TTL can override max-age; this one it passes through for its own cache
@@ -338,6 +338,20 @@ def _hit_writer():   # visitor counts are written here, one at a time, so page r
 
 
 threading.Thread(target=_hit_writer, daemon=True).start()
+
+
+@app.route("/gameart/<name>")
+def gameart(name):
+    """Game covers the owner placed in static/gameart (they win over Twitch/Kick art)."""
+    import re as _re
+    from tracker import scene
+    m = _re.fullmatch(r"([a-z0-9-]{1,40})\.(webp|png|jpg)", name)
+    path = os.path.join(scene.ART_DIR, name)
+    if not m or not os.path.isfile(path):
+        return Response(status=404)
+    r = _memo(path, 3600, _file(path), {"webp": "image/webp", "png": "image/png", "jpg": "image/jpeg"}[m.group(2)])
+    r.headers["Cache-Control"] = "public, max-age=86400"
+    return r
 
 
 @app.route("/elogo/<name>")

@@ -204,7 +204,7 @@ def platform_india(p: str, errors: dict) -> list:
 
 # (game, words in a platform category or a stream title). Order matters: the first match wins.
 GAMES = [
-    ("PUBG PC", ["pubg: battlegrounds", "pubg pc", "pubg battlegrounds", "pubg steam"]),
+    ("PUBG: Battlegrounds", ["pubg: battlegrounds", "pubg pc", "pubg battlegrounds", "pubg steam"]),
     ("BGMI", ["bgmi", "battlegrounds mobile india", "bmps", "bgis", "bmsd", "bmic", "bmoc"]),
     ("PUBG Mobile", ["pubg mobile", "pmgc", "pmwi", "pmsl", "pmpl", "pmrc", "battlegrounds mobile", "pubg"]),
     ("Mobile Legends", ["mobile legends", "mlbb", "mpl ", "msc "]),
@@ -215,7 +215,10 @@ GAMES = [
     ("Valorant", ["valorant", "valo "]),
     ("Minecraft", ["minecraft"]),
     ("COD Mobile", ["cod mobile", "call of duty mobile", "codm", "call of duty: mobile"]),
-    ("Call of Duty", ["call of duty", "warzone"]),
+    ("Call of Duty: Warzone", ["warzone"]),
+    ("Call of Duty: Black Ops 7", ["black ops 7", "bo7"]),
+    ("Call of Duty: Black Ops 6", ["black ops 6", "bo6"]),
+    ("Call of Duty", ["call of duty"]),
     ("Counter-Strike 2", ["counter-strike", "counter strike", "cs2", "csgo", "cs:go"]),
     ("Indus", ["indus battle royale", "indus game"]),
     ("Clash of Clans", ["clash of clans"]),
@@ -340,6 +343,14 @@ def _db():
     CREATE TABLE IF NOT EXISTS sc_reg (ts INTEGER, region TEXT, game TEXT, viewers INTEGER, streams INTEGER,
         PRIMARY KEY (region, game, ts));
     """)
+    if not _COLS and not store.kv_get("scene_mig_pubg"):
+        for t in ("sc_samples", "sc_daily", "sc_cat", "sc_reg", "sc_channels"):
+            try:
+                c.execute(f"UPDATE OR IGNORE {t} SET game='PUBG: Battlegrounds' WHERE game='PUBG PC'")
+            except Exception:
+                pass
+        c.commit()
+        store.kv_set("scene_mig_pubg", True)
     if not _COLS:
         have = {r[1] for r in c.execute("PRAGMA table_info(sc_channels)")}
         for col, typ in (("country", "TEXT"), ("india", "INTEGER"), ("language", "TEXT")):
@@ -389,39 +400,67 @@ _NON_GAMING_WORDS = ("irl", "chatting", "music", "talk", "sports", "slots", "cas
 
 
 # Cover art for each game: the name it has on Twitch (tried in order), else Kick's category image.
-TWITCH_NAMES = {"BGMI": ["Battlegrounds Mobile India", "PUBG MOBILE"], "PUBG PC": ["PUBG: BATTLEGROUNDS"],
-                "Free Fire": ["Garena Free Fire", "Free Fire"], "GTA V": ["Grand Theft Auto V"], "Valorant": ["VALORANT"],
-                "COD Mobile": ["Call of Duty: Mobile"], "Call of Duty": ["Call of Duty: Warzone", "Call of Duty: Black Ops 6"],
-                "Counter-Strike 2": ["Counter-Strike", "Counter-Strike 2"], "Indus": ["Indus Battle Royale", "Indus"],
-                "Pokemon Unite": ["Pokémon UNITE"], "PUBG Mobile": ["PUBG MOBILE"], "Mobile Legends": ["Mobile Legends: Bang Bang"],
-                "Overwatch 2": ["Overwatch 2"], "EA Sports FC": ["EA Sports FC 26", "EA Sports FC 25"],
-                "Cricket games": ["Real Cricket 24", "Cricket 24"], "Just Chatting": ["Just Chatting"], "Music": ["Music"]}
+# Cover art, exact names only. Each game is looked up by the name it has on Twitch, then on Kick; a name that does
+# not match exactly gives no art (an initials tile) rather than another game's cover. BGMI, PUBG: Battlegrounds and
+# PUBG Mobile are three different games with three different covers. A file in static/gameart/<slug>.webp|png|jpg
+# (slug: 'bgmi', 'free-fire' ...) overrides everything.
+TWITCH_NAMES = {"BGMI": ["Battlegrounds Mobile India"], "PUBG: Battlegrounds": ["PUBG: BATTLEGROUNDS"],
+                "PUBG Mobile": ["PUBG MOBILE"], "Free Fire": ["Garena Free Fire", "Free Fire"],
+                "GTA V": ["Grand Theft Auto V"], "Valorant": ["VALORANT"], "COD Mobile": ["Call of Duty: Mobile"],
+                "Call of Duty: Warzone": ["Call of Duty: Warzone"], "Call of Duty: Black Ops 7": ["Call of Duty: Black Ops 7"],
+                "Call of Duty: Black Ops 6": ["Call of Duty: Black Ops 6"], "Counter-Strike 2": ["Counter-Strike"],
+                "Pokemon Unite": ["Pokémon UNITE"], "Mobile Legends": ["Mobile Legends: Bang Bang"],
+                "Indus": ["Indus Battle Royale"], "IRL": ["IRL"], "Just Chatting": ["Just Chatting"], "Music": ["Music"]}
+KICK_NAMES = {"BGMI": ["Battlegrounds Mobile India"], "PUBG Mobile": ["PUBG Mobile"], "Free Fire": ["Free Fire", "Garena Free Fire"],
+              "GTA V": ["Grand Theft Auto V (GTA)", "Grand Theft Auto V"], "Counter-Strike 2": ["Counter-Strike 2"],
+              "Indus": ["Indus Battle Royale", "Indus"], "PUBG: Battlegrounds": ["PUBG: Battlegrounds", "PUBG"]}
+NO_ART = {"Call of Duty", "EA Sports FC", "Cricket games", "Other", "Other tournaments"}   # several games share these names
+ART_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "gameart")
 _ART_BUSY = set()
+
+
+def _local_art(game: str) -> str:
+    for ext in ("webp", "png", "jpg"):
+        if os.path.isfile(os.path.join(ART_DIR, f"{slug(game)}.{ext}")):
+            return f"/gameart/{slug(game)}.{ext}"
+    return ""
+
+
+def resolve_art(game: str):
+    """(url, where it came from) for a game's cover, exact names only; ('', 'none') if nothing matches exactly."""
+    if platforms._keys("twitch"):
+        for name in TWITCH_NAMES.get(game, [game]):
+            g = platforms._get("twitch", "https://api.twitch.tv/helix/games", {"name": name}).get("data") or []
+            g = [x for x in g if (x.get("name") or "").lower() == name.lower() and x.get("box_art_url")]
+            if g:
+                return g[0]["box_art_url"].replace("{width}", "144").replace("{height}", "192"), f"Twitch '{g[0]['name']}'"
+    if platforms._keys("kick"):
+        for name in KICK_NAMES.get(game, [game]):
+            c = platforms._get("kick", "https://api.kick.com/public/v1/categories", {"q": name}).get("data") or []
+            hit = next((x for x in c if (x.get("name") or "").lower() == name.lower()), None)
+            if hit and hit.get("thumbnail"):
+                return hit["thumbnail"], f"Kick '{hit['name']}'"
+    return "", "none"
 
 
 def cat_art(game: str) -> str:
     """Cover art URL for a game or platform category (cached; looked up in the background the first time)."""
-    if not game or game in NON_GAMING - {"Just Chatting"}:
+    if not game or game in NO_ART or game in NON_GAMING - {"Just Chatting", "IRL", "Music"}:
         return ""
-    k = f"cat_art:{game}"
+    local = _local_art(game)
+    if local:
+        return local
+    k = f"cat_art2:{game}"
     v = store.kv_get(k)
     if v is None and game not in _ART_BUSY:
         _ART_BUSY.add(game)
 
         def fetch():
-            url = ""
             try:
-                if platforms._keys("twitch"):
-                    for name in TWITCH_NAMES.get(game, []) + [game]:
-                        g = platforms._get("twitch", "https://api.twitch.tv/helix/games", {"name": name}).get("data") or []
-                        if g and g[0].get("box_art_url"):
-                            url = g[0]["box_art_url"].replace("{width}", "144").replace("{height}", "192")
-                            break
-                if not url and platforms._keys("kick"):
-                    c = platforms._get("kick", "https://api.kick.com/public/v1/categories", {"q": game}).get("data") or []
-                    hit = next((x for x in c if (x.get("name") or "").lower() == game.lower()), c[0] if c else None)
-                    url = (hit or {}).get("thumbnail") or ""
+                url, _src = resolve_art(game)
                 store.kv_set(k, url)
+                if not url:
+                    print(f"No exact cover art found for {game}: showing initials (add static/gameart/{slug(game)}.png to fix)")
             except Exception as e:
                 print(f"Cover art for {game} failed: {str(e)[:100]}")
             _ART_BUSY.discard(game)
@@ -1185,6 +1224,13 @@ def probe() -> str:
                      (f", top {res[0]['channel']} {res[0]['viewers']:,}" if res else ""))
     except Exception as e:
         lines.append(f"YouTube search failed: {str(e)[:150]}")
+    for g in ("BGMI", "PUBG Mobile", "PUBG: Battlegrounds", "Free Fire", "GTA V", "Valorant"):
+        try:
+            loc = _local_art(g)
+            url, src = (loc, "static/gameart") if loc else resolve_art(g)
+            lines.append(f"Cover art {g}: {src}" + ("" if url else " (initials shown; add static/gameart/" + slug(g) + ".png)"))
+        except Exception as e:
+            lines.append(f"Cover art {g} failed: {str(e)[:100]}")
     for p in ("twitch", "kick"):            # the India-wide discovery the page uses
         if not platforms._keys(p):
             lines.append(f"{platforms.NAMES[p]} India streams: no keys")
