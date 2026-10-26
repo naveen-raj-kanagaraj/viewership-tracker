@@ -125,7 +125,8 @@ def _get(p, url, params):
         if r.status_code == 401 and not attempt:
             _tok.pop(p, None)            # expired or revoked: fetch a new app token once
             continue
-        r.raise_for_status()
+        if r.status_code >= 400:          # keep the platform's own reason in the error (shown by scene probe)
+            raise RuntimeError(f"HTTP {r.status_code} from {url.split('/')[2]}: {r.text[:160]}")
         return r.json()
 
 
@@ -140,7 +141,7 @@ def _tw_streams(params) -> list:
         login = (s.get("user_login") or "").lower()
         out.append({"vid": f"twitch:{login}", "channel_id": f"twitch:{login}", "channel": s.get("user_name") or login,
                     "title": s.get("title") or "", "viewers": int(s.get("viewer_count") or 0),
-                    "category": s.get("game_name") or "", "platform": "twitch"})
+                    "category": s.get("game_name") or "", "platform": "twitch", "language": s.get("language") or ""})
     return out
 
 
@@ -169,12 +170,12 @@ def _tw_logos(logins):
 
 # ---------- Kick ----------
 
-def _kick_row(slug, title, viewers, name="", category="", pic=""):
+def _kick_row(slug, title, viewers, name="", category="", pic="", language=""):
     slug = slug.lower()
     if pic:
         _logos[f"kick:{slug}"] = pic
     return {"vid": f"kick:{slug}", "channel_id": f"kick:{slug}", "channel": name or slug, "title": title or "",
-            "viewers": int(viewers or 0), "category": category or "", "platform": "kick"}
+            "viewers": int(viewers or 0), "category": category or "", "platform": "kick", "language": language or ""}
 
 
 def _kick_api_slugs(slugs) -> list:

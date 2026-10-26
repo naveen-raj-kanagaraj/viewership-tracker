@@ -29,6 +29,65 @@ SCENE_YT_SEC = int(os.getenv("SCENE_YT_SEC", "300"))
 MIN_VIEWERS = int(os.getenv("SCENE_MIN_VIEWERS", "20"))
 KEEP_DAYS = int(os.getenv("SCENE_KEEP_DAYS", "14"))
 LANGS = [x.strip() for x in os.getenv("SCENE_LANGS", "hi").split(",") if x.strip()]
+# Kick and Twitch have no country filter. Besides the India languages above, the top streams overall and in the
+# categories Indians stream most are read, and a stream counts as Indian if its title is written in an Indian script
+# or says so (hindi, india, desi, tamil, bgmi ...).
+INDIA_MARK = re.compile(r"[\u0900-\u0D7F]|\b(hindi|india|indian|desi|bharat|hinglish|tamil|telugu|kannada|malayalam|"
+                        r"marathi|bengali|bangla|punjabi|gujarati|odia|assamese|bgmi|bmps|bgis|bmsd|bmic|"
+                        r"soulcity|mumbai|delhi|bangalore|bengaluru|hyderabad|chennai|kolkata|pune)\b", re.I)
+INDIA_CATS = {"kick": [x.strip() for x in os.getenv("SCENE_KICK_CATS", "PUBG Mobile,Free Fire,Grand Theft Auto V,"
+                                                   "Valorant,Just Chatting,Battlegrounds Mobile India").split(",") if x.strip()],
+              "twitch": [x.strip() for x in os.getenv("SCENE_TWITCH_CATS", "PUBG MOBILE,Garena Free Fire,Grand Theft Auto V,"
+                                                     "VALORANT,Just Chatting,Battlegrounds Mobile India").split(",") if x.strip()]}
+
+
+def indian(row: dict) -> bool:
+    return (row.get("language") or "").lower() in LANGS or bool(INDIA_MARK.search(row.get("title") or ""))
+
+
+def _kick_live(params) -> list:
+    j = platforms._get("kick", "https://api.kick.com/public/v1/livestreams", {"sort": "viewer_count", "limit": 100, **params})
+    return [platforms._kick_row(s.get("slug") or "", s.get("stream_title"), s.get("viewer_count"),
+                                category=(s.get("category") or {}).get("name", ""), pic=s.get("profile_picture") or "",
+                                language=s.get("language") or "")
+            for s in j.get("data") or [] if s.get("slug")]
+
+
+def _category_id(p: str, name: str):
+    k = (p, name.lower())
+    if k not in platforms._cats:
+        if p == "twitch":
+            g = platforms._get("twitch", "https://api.twitch.tv/helix/games", {"name": name}).get("data") or []
+            platforms._cats[k] = g[0]["id"] if g else ""
+        else:
+            c = platforms._get("kick", "https://api.kick.com/public/v1/categories", {"q": name}).get("data") or []
+            hit = next((x for x in c if (x.get("name") or "").lower() == name.lower()), c[0] if c else None)
+            platforms._cats[k] = hit["id"] if hit else ""
+    return platforms._cats[k]
+
+
+def platform_india(p: str, errors: dict) -> list:
+    """Indian live streams on Kick or Twitch: the India languages, plus the top streams overall and in the main
+    Indian categories whose language or title marks them as Indian."""
+    rows, wide = [], []
+    get = (lambda prm: platforms._tw_streams({"first": 100, **prm})) if p == "twitch" else _kick_live
+    for lang in LANGS:
+        try:
+            rows += get({"language": lang})
+        except Exception as e:
+            errors[f"{p} language {lang}"] = str(e)[:120]
+    try:
+        wide += get({})
+    except Exception as e:
+        errors[f"{p} top streams"] = str(e)[:120]
+    for name in INDIA_CATS[p]:
+        try:
+            cid = _category_id(p, name)
+            if cid:
+                wide += get({"game_id": cid} if p == "twitch" else {"category_id": cid})
+        except Exception as e:
+            errors[f"{p} category {name}"] = str(e)[:120]
+    return rows + [r for r in wide if indian(r)]
 
 # (game, words in a platform category or a stream title). Order matters: the first match wins.
 GAMES = [
@@ -249,19 +308,7 @@ def cycle(now: float = None) -> dict:
     for p in ("kick", "twitch"):
         rows = []
         if platforms._keys(p):
-            for lang in LANGS:
-                try:
-                    if p == "twitch":
-                        rows += platforms._tw_streams({"language": lang, "first": 100})
-                    else:
-                        j = platforms._get("kick", "https://api.kick.com/public/v1/livestreams",
-                                           {"language": lang, "sort": "viewer_count", "limit": 100})
-                        rows += [platforms._kick_row(s.get("slug") or "", s.get("stream_title"), s.get("viewer_count"),
-                                                     category=(s.get("category") or {}).get("name", ""),
-                                                     pic=s.get("profile_picture") or "")
-                                 for s in j.get("data") or [] if s.get("slug")]
-                except Exception as e:
-                    errors[f"{p} {lang}"] = str(e)[:120]
+            rows += platform_india(p, errors)
         if sd[p] and (p == "kick" or platforms._keys(p)):
             try:
                 rows += platforms._by_ids(p, [x.lower() for x in sd[p]])
@@ -553,26 +600,17 @@ def probe() -> str:
                      (f", top {res[0]['channel']} {res[0]['viewers']:,}" if res else ""))
     except Exception as e:
         lines.append(f"YouTube search failed: {str(e)[:150]}")
-    for lang in LANGS:                      # the language-wide discovery the India page uses
-        for p in ("twitch", "kick"):
-            if not platforms._keys(p):
-                lines.append(f"{platforms.NAMES[p]} '{lang}' streams: no keys")
-                continue
-            try:
-                if p == "twitch":
-                    rows = platforms._tw_streams({"language": lang, "first": 100})
-                else:
-                    j = platforms._get("kick", "https://api.kick.com/public/v1/livestreams",
-                                       {"language": lang, "sort": "viewer_count", "limit": 100})
-                    rows = j.get("data") or []
-                    rows = [{"channel": r.get("slug", ""), "viewers": r.get("viewer_count") or 0} for r in rows]
-                top = max(rows, key=lambda r: r["viewers"]) if rows else None
-                lines.append(f"{platforms.NAMES[p]} '{lang}' streams: {len(rows)} live" +
-                             (f", top {top['channel']} {top['viewers']:,}" if top else ""))
-            except Exception as e:
-                r = getattr(e, "response", None)
-                body = (r.text[:200] if r is not None else "")
-                lines.append(f"{platforms.NAMES[p]} '{lang}' streams FAILED: {str(e)[:150]} {body}")
+    for p in ("twitch", "kick"):            # the India-wide discovery the page uses
+        if not platforms._keys(p):
+            lines.append(f"{platforms.NAMES[p]} India streams: no keys")
+            continue
+        errs = {}
+        rows = {r["vid"]: r for r in platform_india(p, errs)}.values()
+        top = sorted(rows, key=lambda r: -r["viewers"])[:3]
+        lines.append(f"{platforms.NAMES[p]} India streams: {len(rows)} live" +
+                     (", top " + ", ".join(f"{r['channel']} {r['viewers']:,} ({r.get('category') or '-'})" for r in top) if top else ""))
+        for k, v in errs.items():
+            lines.append(f"  {k} FAILED: {v}")
     for p in ("kick", "twitch"):
         st = platforms.status()[p]
         try:
