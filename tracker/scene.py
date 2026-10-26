@@ -1062,7 +1062,7 @@ def _common(lv: dict, region: str) -> dict:
             "live_total": lv["live_total"], "live_count": len(lv["_live"]), "now": lv["now"], "sections": lv["sections"],
             "platforms": [{"platform": k, "name": platforms.NAMES[k], "viewers": v}
                           for k, v in sorted(lv["_by_plat"].items(), key=lambda kv: -kv[1])],
-            "categories": sorted(lv["_by_game"].values(), key=lambda g: -g["viewers"])[:60],
+            "categories": sorted(lv["_by_game"].values(), key=lambda g: -g["viewers"])[:200],
             "tournaments": _tour_list(lv["_tours"], region),
             "live": [{k: x.get(k) for k in ("sid", "platform", "name", "url", "logo", "game", "title", "viewers", "section")}
                      for x in lv["_live"][:300]]}

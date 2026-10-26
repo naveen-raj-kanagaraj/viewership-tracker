@@ -34,11 +34,11 @@ a{color:inherit}.wrap{max-width:1200px;margin:0 auto;padding:0 16px 24px}
 .rg{display:inline-flex;border:1px solid var(--line);font:12px "Share Tech Mono",monospace;flex:none}.rg a{padding:4px 10px;text-decoration:none;color:var(--muted)}.rg a.on{background:var(--lime);color:#0b0b12}
 .upd{margin-left:auto;font:12px "Share Tech Mono",monospace;color:var(--muted);white-space:nowrap}.upd b{color:var(--ink);font-weight:400}
 .beta{font:700 10px "Share Tech Mono",monospace;color:#0b0b12;background:var(--lime);padding:2px 6px;letter-spacing:.08em;margin-left:-6px;flex:none}
-.secnav a i{display:none}
+.secnav a i{display:none}.gmore{margin-top:12px;border:1px solid var(--line)}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red);margin-right:6px;box-shadow:0 0 8px var(--red);animation:pl 2s infinite}
 @keyframes pl{50%{opacity:.35}}
-.secnav{max-width:1200px;margin:0 auto;padding:0 16px;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}.secnav::-webkit-scrollbar{display:none}
-.secnav a{flex:none;padding:9px 12px;text-decoration:none;color:var(--muted);font-size:14px;border-bottom:2px solid transparent;white-space:nowrap}
+.secnav{max-width:1200px;margin:0 auto;padding:0 16px;display:flex;flex-wrap:wrap;gap:0 2px;scrollbar-width:none}.secnav::-webkit-scrollbar{display:none}
+.secnav a{flex:none;padding:9px 10px;text-decoration:none;color:var(--muted);font-size:14px;border-bottom:2px solid transparent;white-space:nowrap}
 .secnav a b{font:12px "Share Tech Mono",monospace;font-weight:400;margin-left:6px;color:var(--muted)}
 .secnav a.on{color:var(--ink);border-bottom-color:var(--lime)}.secnav a:hover{color:var(--ink)}
 .crumb{font:12px "Share Tech Mono",monospace;color:var(--muted);margin-top:18px}.crumb a{text-decoration:none}.crumb a:hover{color:var(--lime)}
@@ -102,7 +102,7 @@ details.how{margin-top:14px;color:var(--muted);font-size:13px;line-height:1.6}de
 @media(max-width:600px){
 body{font-size:14px}.wrap{padding:0 12px 20px}
 .top .in{padding:9px 12px;gap:10px}.brand{font-size:14px}.rg a{padding:3px 8px}.upd span{display:none}.upd{font-size:11px}
-.secnav{padding:8px 12px 10px;gap:6px;-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
+.secnav{padding:8px 12px 10px;gap:6px;flex-wrap:nowrap;overflow-x:auto;-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
 .secnav a{display:flex;align-items:center;gap:6px;padding:6px 11px;border:1px solid var(--line);border-radius:99px;font-size:13px;background:var(--card)}
 .secnav a i{display:inline-flex;color:var(--lime)}.secnav a b{margin-left:2px;font-size:11px}
 .secnav a.on{background:var(--lime);color:#0b0b12;border-color:var(--lime)}.secnav a.on i,.secnav a.on b{color:#0b0b12}.secnav a.z{opacity:.5}
@@ -140,7 +140,7 @@ body{font-size:14px}.wrap{padding:0 12px 20px}
 </div>
 <div id="evwrap"></div>
 <div class="card" id="secard"><div class="head"><div><div class="lbl">// Sections</div><h2>What people are watching</h2><div class="sub">Viewers right now in each section. Tap one to open it.</div></div><button class="btn" data-share="sections">SHARE</button></div><div class="secs" id="secs"></div></div>
-<div class="card" id="gcard"><div class="head"><div><div class="lbl" id="gl">// Games</div><h2 id="gh">Games live now</h2><div class="sub">Tap one for its streams and top streamers.</div></div><button class="btn" data-share="cats">SHARE</button></div><div class="grid" id="grid"></div></div>
+<div class="card" id="gcard"><div class="head"><div><div class="lbl" id="gl">// Games</div><h2 id="gh">Games live now</h2><div class="sub">Tap one for its streams and top streamers.</div></div><button class="btn" data-share="cats">SHARE</button></div><div class="grid" id="grid"></div><button class="more gmore" id="gmore"></button></div>
 <div class="two">
  <div class="list"><div class="lh"><span class="dot"></span><h2>Top live streams</h2><div class="r"><div class="seg" id="plat"></div><button class="btn" data-share="live">SHARE</button></div></div>
   <div class="tools"><input id="q" placeholder="Search a streamer, title or game"></div>
@@ -198,7 +198,7 @@ const boardList=()=>{const lm=liveMap();return (D.board||[]).filter(x=>bplat==='
 function render(){if(!D)return;const K=D.kpis||{};
  const a=Math.max(0,Math.round(Date.now()/1000-D.updated));setT('upd',D.updated?(a<90?a+'s ago':Math.round(a/60)+' min ago'):'-');
  const S=D.sections||[];
- setH('secnav',`<a href="${HOME}" class="${!SEC&&!CAT?'on':''}"><i>${svg('overview',14)}</i>Overview<b>${D.fresh?fmt(D.india_total):''}</b></a>`+S.map(s=>`<a href="${SU(s.key)}" class="${SEC===s.key?'on':''}${s.viewers?'':' z'}"><i>${svg(s.key,14)}</i>${esc(s.name)}<b>${s.viewers?fmt(s.viewers):''}</b></a>`).join(''));
+ setH('secnav',`<a href="${HOME}" class="${!SEC&&!CAT?'on':''}"><i>${svg('overview',14)}</i>Overview<b>${D.fresh?fmt(D.india_total):''}</b></a>`+S.slice().sort((a,b)=>b.viewers-a.viewers).map(s=>`<a href="${SU(s.key)}" class="${SEC===s.key?'on':''}${s.viewers?'':' z'}"><i>${svg(s.key,14)}</i>${esc(s.name)}<b>${s.viewers?fmt(s.viewers):''}</b></a>`).join(''));
  if(!window._navScrolled){const on=document.querySelector('.secnav a.on');if(on&&on.scrollIntoView){on.scrollIntoView({inline:'center',block:'nearest'});window._navScrolled=1}}
  setT('k1l','Watching now'+(CAT||SEC?' // '+(CAT?CATNAME:SECNAME[SEC]):''));setT('k1',D.fresh?full(K.watching):'-');
  const tot=K.watching||1;setH('pbar',(D.platforms||[]).map(p=>`<div style="width:${100*p.viewers/tot}%;background:${COL[p.platform]}"></div>`).join(''));
@@ -211,7 +211,9 @@ function render(){if(!D)return;const K=D.kpis||{};
  setH('secs',S.slice().sort((a,b)=>b.viewers-a.viewers).map(s=>`<a class="sc${s.viewers?'':' zero'}" href="${SU(s.key)}"><div class="n">${svg(s.key)}${esc(s.name)}</div><div class="v">${fmt(s.viewers)}</div><div class="s">${s.channels} live${s.items&&s.items.length?' // '+s.items.map(i=>esc(i.name)).join(', '):''}</div></a>`).join(''));
  const C=(D.categories||[]);
  setT('gl',SEC?'// '+SECNAME[SEC]:'// Games & categories');setT('gh',SEC?`${SECNAME[SEC]} live now, by ${SEC==='gaming'||SEC==='esports'?'game':'category'}`:'Games & categories live now');
- setH('grid',C.slice(0,SEC?60:18).map(g=>`<a class="gc" href="${CU(esc(g.slug))}">${art(g.game,g.art)}<span style="min-width:0"><div class="n">${esc(g.game)}</div><div class="v">${fmt(g.viewers)}</div><div class="s">${g.streams} live // ${esc(g.top)}</div></span></a>`).join('')||'<div class="empty">Nothing live here right now.</div>');
+ const gAll=window._gAll,gN=window.innerWidth<600?C.length:(gAll?C.length:18);
+ setH('grid',C.slice(0,gN).map(g=>`<a class="gc" href="${CU(esc(g.slug))}">${art(g.game,g.art)}<span style="min-width:0"><div class="n">${esc(g.game)}</div><div class="v">${fmt(g.viewers)}</div><div class="s">${g.streams} live // ${esc(g.top)}</div></span></a>`).join('')||'<div class="empty">Nothing live here right now.</div>');
+ {const gm=document.getElementById('gmore');gm.style.display=window.innerWidth>=600&&C.length>18?'block':'none';gm.textContent=gAll?'Show top 18':`Show all ${C.length} games & categories`;gm.onclick=()=>{window._gAll=!gAll;render()}}
  seg('plat',[['all','ALL'],['youtube','YT'],['kick','KICK'],['twitch','TWITCH']],plat,v=>{plat=v;lAll=false;render()});
  const L=liveList(),ll=lAll||q?L.slice(0,300):L.slice(0,10);
  setH('live',ll.map((x,i)=>`<a class="row" href="${esc(x.url)}" target="_blank" rel="noopener"><span class="rk${i<3?' t':''}">${i+1}</span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">${CAT?'':esc(x.game)+' // '}${esc(x.title)}</div></span><span class="vv">${full(x.viewers)}</span></a>`).join('')||'<div class="empty">Nothing live matches.</div>');
