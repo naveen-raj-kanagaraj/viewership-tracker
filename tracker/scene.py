@@ -237,7 +237,8 @@ GAMES = [
                     "pooja", "mantra", "chalisa", "namaz", "jagran"]),
     ("Music", ["songs", "song", "music", "lofi", "lo-fi", "radio", "jukebox"]),
     ("Podcast / Talk", ["podcast", "talk show", "interview", "debate"]),
-    ("Just Chatting", ["just chatting", "irl", "chatting", "q&a", "q & a"]),
+    ("IRL", ["irl", "vlog", "travel", "walking tour", "road trip", "outdoors", "food & drink", "cooking"]),
+    ("Just Chatting", ["just chatting", "chatting", "q&a", "q & a"]),
 ]
 # YouTube searches (India region). Each finds up to ~20 live streams.
 QUERIES = ["BGMI live", "BGMI live tamil", "BGMI live telugu", "Free Fire live", "Free Fire max live hindi",
@@ -358,7 +359,31 @@ def slug(game: str) -> str:
 
 
 ALL = "__all__"          # the India-wide total in sc_cat
-NON_GAMING = {"News", "Devotional", "Music", "Podcast / Talk", "Just Chatting", "Cricket (live)", "Other"}
+NON_GAMING = {"News", "Devotional", "Music", "Podcast / Talk", "Just Chatting", "IRL", "Cricket (live)", "Other"}
+# Top-level sections shown in the site's menu. A stream's section comes from its tournament (Esports) or its game/category.
+SECTIONS = [("gaming", "Gaming"), ("esports", "Esports"), ("irl", "IRL"), ("just-chatting", "Just Chatting"),
+            ("news", "News"), ("music", "Music"), ("sports", "Sports"), ("devotional", "Devotional"),
+            ("podcasts", "Podcasts & Talk"), ("other", "Other")]
+SECTION_NAMES = dict(SECTIONS)
+_SEC_FIXED = {"Just Chatting": "just-chatting", "IRL": "irl", "News": "news", "Music": "music",
+              "Cricket (live)": "sports", "Devotional": "devotional", "Podcast / Talk": "podcasts", "Other": "other"}
+_SEC_WORDS = [("irl", ("irl", "travel", "outdoor", "food", "cooking", "vlog")), ("sports", ("sport", "football", "cricket",
+              "basketball", "wrestling", "racing")), ("music", ("music", "dj", "concert")), ("podcasts", ("podcast", "talk")),
+              ("news", ("news", "politic")), ("other", ("slots", "casino", "pools", "asmr", "art", "special events"))]
+
+
+def section_of(game: str, tour=None) -> str:
+    if tour:
+        return "esports"
+    if game in _SEC_FIXED:
+        return _SEC_FIXED[game]
+    if any(g == game for g, _ in GAMES):
+        return "gaming"
+    low = (game or "").lower()
+    for sec, words in _SEC_WORDS:
+        if any(w in low for w in words):
+            return sec
+    return "gaming" if game else "other"
 _NON_GAMING_WORDS = ("irl", "chatting", "music", "talk", "sports", "slots", "casino", "pools", "asmr", "travel",
                      "podcast", "news", "special events", "art", "food", "politics")
 
@@ -707,6 +732,10 @@ def _store(rows, now, last):
         reg = [("global", g, v, n) for g, (v, n) in totals(rows, "game").items()]
         reg.append(("global", ALL, sum(x["viewers"] for x in rows), len(rows)))
         reg += [("tour:global", t, v, n) for t, (v, n) in totals(rows, "tour").items()]
+        for x in rows:
+            x["section"] = section_of(x["game"], x.get("tour"))
+        reg += [("sec:global", t, v, n) for t, (v, n) in totals(rows, "section").items()]
+        reg += [("sec:in", t, v, n) for t, (v, n) in totals(ind, "section").items()]
         reg += [("tour:in", t, v, n) for t, (v, n) in totals(ind, "tour").items()]
         c.executemany("INSERT OR REPLACE INTO sc_reg VALUES (?,?,?,?,?)", [(int(now), *r_) for r_ in reg])
         if int(now) % 3600 < SCENE_SEC:          # about once an hour: drop raw readings older than KEEP_DAYS
@@ -851,9 +880,9 @@ def _logo(x: dict) -> str:
     return events.avatar(sid[3:]) if sid.startswith("yt:") else platforms.logo(sid)
 
 
-def _live_part(game=None, region: str = "in") -> dict:
-    """Who is live now in a region: the latest scan (read from the database once per scan) with Kick/Twitch viewers
-    replaced by the 2-second readings when they're fresh."""
+def _live_part(game=None, region: str = "in", sec: str = "") -> dict:
+    """Who is live now in a region (and section or game): the latest scan (read from the database once per scan) with
+    Kick/Twitch viewers replaced by the 2-second readings when they're fresh."""
     blk = blocked()
     with store._lock:
         c = _db()
@@ -865,6 +894,7 @@ def _live_part(game=None, region: str = "in") -> dict:
                    WHERE s.ts=? ORDER BY s.viewers DESC""", (last,))]
             for r in _SCAN["rows"]:
                 r["tour"] = tournament(r.get("title") or "", r["game"])
+                r["section"] = section_of(r["game"], r["tour"])
             _SCAN["ts"] = last
     fresh = time.time() - last < SCENE_SEC * 3
     now, seen, live = time.time(), set(), []
@@ -882,11 +912,23 @@ def _live_part(game=None, region: str = "in") -> dict:
         live.append(x)
     live.sort(key=lambda x: -x["viewers"])
     region_total = sum(x["viewers"] for x in live)
+    secs = {}
+    for x in live:
+        z = secs.setdefault(x["section"], {"key": x["section"], "name": SECTION_NAMES[x["section"]], "viewers": 0,
+                                           "channels": 0, "top": [], "items": {}})
+        z["viewers"] += x["viewers"]
+        z["channels"] += 1
+        if len(z["top"]) < 3:
+            z["top"].append({"name": x["name"], "viewers": x["viewers"], "logo": x["logo"], "platform": x["platform"]})
+        k = x["tour"] if x["section"] == "esports" else x["game"]
+        z["items"][k] = z["items"].get(k, 0) + x["viewers"]
+    if sec:
+        live = [x for x in live if x["section"] == sec]
     by_game = {}
     for x in live:
         g = by_game.setdefault(x["game"], {"game": x["game"], "slug": slug(x["game"]), "viewers": 0, "streams": 0,
                                            "top": x["name"], "top_logo": x.get("logo") or "", "top_viewers": x["viewers"],
-                                           "art": cat_art(x["game"])})
+                                           "art": cat_art(x["game"]), "section": section_of(x["game"])})
         g["viewers"] += x["viewers"]
         g["streams"] += 1
     tours = {}
@@ -903,8 +945,13 @@ def _live_part(game=None, region: str = "in") -> dict:
     by_plat = {}
     for x in live:
         by_plat[x["platform"]] = by_plat.get(x["platform"], 0) + x["viewers"]
-    return {"_blk": blk, "_live": live, "_by_game": by_game, "_by_plat": by_plat, "_tours": tours, "updated": last,
-            "fresh": fresh, "india_total": region_total, "region_total": region_total,
+    sections = []
+    for k, name in SECTIONS:
+        z = secs.get(k) or {"key": k, "name": name, "viewers": 0, "channels": 0, "top": [], "items": {}}
+        z["items"] = [{"name": n, "viewers": v} for n, v in sorted(z["items"].items(), key=lambda kv: -kv[1])[:3]]
+        sections.append(z)
+    return {"_blk": blk, "_live": live, "_by_game": by_game, "_by_plat": by_plat, "_tours": tours, "sections": sections,
+            "updated": last, "fresh": fresh, "india_total": region_total, "region_total": region_total,
             "live_total": sum(x["viewers"] for x in live), "now": now}
 
 
@@ -927,63 +974,118 @@ def _region(region: str) -> str:
     return region if region in REGIONS else "in"
 
 
-def live_data(cat: str = "", region: str = "in") -> dict:
-    """The part of the page that moves every 2 seconds: totals, platforms, live categories, live streams."""
-    region = _region(region)
-    game = category_name(cat) if cat else None
-    lv = _live_part(game, region)
+def _scope(region: str, sec: str, game):
+    """(totals table, extra WHERE, args, key) for the chart/peak numbers of what a page shows."""
+    if game:
+        tbl, w, a = _totals_sql(region)
+        return tbl, w, a, game
+    if sec:
+        return "sc_reg", " AND region=?", (f"sec:{region}",), sec
+    tbl, w, a = _totals_sql(region)
+    return tbl, w, a, ALL
+
+
+def _kpis(c, region: str, sec: str, game, lv: dict) -> dict:
+    """The headline numbers: watching now, live channels, today's peak (IST day) and hours watched today."""
+    tbl, w, a, key = _scope(region, sec, game)
+    d0 = datetime.combine(datetime.now(events.REPORT_TZ).date(), datetime.min.time(), events.REPORT_TZ)
+    pk = c.execute(f"SELECT ts, viewers FROM {tbl} WHERE game=? AND ts>=?{w} ORDER BY viewers DESC LIMIT 1",
+                   (key, d0.timestamp(), *a)).fetchone()
+    # hours watched today: every scan's total x the time between scans (works the same for sections and tournaments)
+    rows = c.execute(f"SELECT ts, viewers FROM {tbl} WHERE game=? AND ts>=?{w} ORDER BY ts", (key, d0.timestamp(), *a)).fetchall()
+    hw = sum(v * min(rows[i + 1][0] - ts if i + 1 < len(rows) else SCENE_SEC, SCENE_SEC * 2) for i, (ts, v) in enumerate(rows)) / 3600
+    if sec == "esports":
+        chans = c.execute("SELECT COUNT(DISTINCT game) FROM sc_reg WHERE region=? AND ts>=?", (f"tour:{region}", d0.timestamp())
+                          ).fetchone()[0]
+    else:
+        q = """SELECT COUNT(DISTINCT d.sid) FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid
+               WHERE d.day=?""" + (" AND COALESCE(c.india,1)=1" if region == "in" else "")
+        args = [d0.strftime("%Y-%m-%d")]
+        if game:
+            q += " AND d.game=?"
+            args.append(game)
+        elif sec:
+            games = [g for (g,) in c.execute("SELECT DISTINCT game FROM sc_daily WHERE day=?", (args[0],)) if section_of(g) == sec]
+            q += f" AND d.game IN ({','.join('?' * len(games)) or 'NULL'})"
+            args += games
+        chans = c.execute(q, args).fetchone()[0]
+    top = lv["_live"][0] if lv["_live"] else None
+    return {"watching": lv["live_total"], "live_channels": len(lv["_live"]),
+            "peak_today": max(pk[1] if pk else 0, lv["live_total"]), "peak_today_at": pk[0] if pk else None,
+            "hw_today": round(hw), "channels_today": chans,
+            "top": {k: top.get(k) for k in ("name", "viewers", "platform", "url", "logo", "game", "title")} if top else None}
+
+
+def _common(lv: dict, region: str) -> dict:
     return {"updated": lv["updated"], "fresh": lv["fresh"], "india_total": lv["region_total"],
-            "live_total": lv["live_total"], "live_count": len(lv["_live"]), "now": lv["now"],
+            "live_total": lv["live_total"], "live_count": len(lv["_live"]), "now": lv["now"], "sections": lv["sections"],
             "platforms": [{"platform": k, "name": platforms.NAMES[k], "viewers": v}
                           for k, v in sorted(lv["_by_plat"].items(), key=lambda kv: -kv[1])],
-            "categories": sorted(lv["_by_game"].values(), key=lambda g: -g["viewers"])[:40],
+            "categories": sorted(lv["_by_game"].values(), key=lambda g: -g["viewers"])[:60],
             "tournaments": _tour_list(lv["_tours"], region),
-            "live": [{k: x.get(k) for k in ("sid", "platform", "name", "url", "logo", "game", "title", "viewers")}
+            "live": [{k: x.get(k) for k in ("sid", "platform", "name", "url", "logo", "game", "title", "viewers", "section")}
                      for x in lv["_live"][:300]]}
 
 
-def data(period: str = "today", cat: str = "", region: str = "in") -> dict:
-    """Everything the hub (cat='') or a category page shows, for India (region 'in') or the world ('global')."""
-    period = period if period in PERIODS else "today"
-    region = _region(region)
+def _sec(sec: str) -> str:
+    return sec if sec in SECTION_NAMES else ""
+
+
+def live_data(cat: str = "", region: str = "in", sec: str = "") -> dict:
+    """The part of the page that moves every 2 seconds: KPIs, sections, categories, tournaments, live streams."""
+    region, sec = _region(region), _sec(sec)
     game = category_name(cat) if cat else None
-    lv = _live_part(game, region)
-    blk, last, fresh, live, region_total, by_game, tot, by_plat = (lv[k] for k in (
-        "_blk", "updated", "fresh", "_live", "region_total", "_by_game", "live_total", "_by_plat"))
+    lv = _live_part(game, region, sec)
+    with store._lock:
+        k = _kpis(_db(), region, sec, game, lv)
+    return {**_common(lv, region), "kpis": k}
+
+
+def data(period: str = "today", cat: str = "", region: str = "in", sec: str = "") -> dict:
+    """Everything a page shows: the overview (no cat/sec), a section (sec) or one game (cat), for India or the world."""
+    period = period if period in PERIODS else "today"
+    region, sec = _region(region), _sec(sec)
+    game = category_name(cat) if cat else None
+    lv = _live_part(game, region, sec)
+    blk, live = lv["_blk"], lv["_live"]
     today = datetime.now(events.REPORT_TZ).date()
     d0 = (today - timedelta(days=PERIODS[period])).strftime("%Y-%m-%d")
-    key = game or ALL
-    tbl, w, a = _totals_sql(region)
+    tbl, w, a, key = _scope(region, sec, game)
     with store._lock:
         c = _db()
         q = """SELECT d.sid, d.game, MAX(d.peak) peak, SUM(d.mins) mins, SUM(d.hw) hw, c.name, c.platform,
-               c.url, c.logo FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid WHERE d.day >= ?"""
+               c.url, c.logo, c.last_live FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid WHERE d.day >= ?"""
         q += " AND COALESCE(c.india, 1)=1" if region == "in" else ""
         rows = c.execute(q + (" AND d.game = ?" if game else "") + " GROUP BY d.sid, d.game",
                          (d0, game) if game else (d0,)).fetchall()
-        series = _series(c, key, period, region)
+        series = _series_any(c, tbl, w, a, key, period)
         p0 = datetime.combine(today - timedelta(days=PERIODS[period]), datetime.min.time(), events.REPORT_TZ).timestamp()
-        scans = c.execute(f"SELECT COUNT(*) FROM {tbl} WHERE game=? AND ts>=?{w}", (ALL, p0, *a)).fetchone()[0] or 0
-        cstats = c.execute(f"SELECT game, SUM(viewers) s, MAX(viewers) pk FROM {tbl} WHERE ts>=? AND game!=?{w} GROUP BY game",
-                           (p0, ALL, *a)).fetchall()
+        rt, rw, ra = _totals_sql(region)
+        scans = c.execute(f"SELECT COUNT(*) FROM {rt} WHERE game=? AND ts>=?{rw}", (ALL, p0, *ra)).fetchone()[0] or 0
+        cstats = c.execute(f"SELECT game, SUM(viewers) s, MAX(viewers) pk FROM {rt} WHERE ts>=? AND game!=?{rw} GROUP BY game",
+                           (p0, ALL, *ra)).fetchall()
         tracked = c.execute("SELECT COUNT(*) FROM sc_channels" + (" WHERE COALESCE(india,1)=1" if region == "in" else "")
                             ).fetchone()[0]
         pk = c.execute(f"SELECT ts, viewers FROM {tbl} WHERE game=? AND ts>=?{w} ORDER BY viewers DESC LIMIT 1",
                        (key, time.time() - SERIES_SEC[period], *a)).fetchone()
         pk_all = c.execute(f"SELECT ts, viewers FROM {tbl} WHERE game=?{w} ORDER BY viewers DESC LIMIT 1", (key, *a)).fetchone()
+        tour_day = [{"name": r[0], "peak": r[1], "at": r[2]} for r in c.execute(
+            "SELECT game, MAX(viewers), ts FROM sc_reg WHERE region=? AND ts>=? GROUP BY game ORDER BY MAX(viewers) DESC LIMIT 20",
+            (f"tour:{region}", p0))]
+        kp = _kpis(c, region, sec, game, lv)
     ch, games = {}, {}
     for r in rows:
-        if r["sid"] in blk:
+        if r["sid"] in blk or (sec and sec != "esports" and section_of(r["game"]) != sec):
             continue
         x = ch.setdefault(r["sid"], {"sid": r["sid"], "name": r["name"] or r["sid"], "platform": r["platform"] or "",
                                       "url": r["url"] or "", "logo": _logo({"sid": r["sid"], "logo": r["logo"]}),
-                                      "peak": 0, "mins": 0.0, "hw": 0.0, "games": {}})
+                                      "peak": 0, "mins": 0.0, "hw": 0.0, "games": {}, "last_live": r["last_live"]})
         x["peak"] = max(x["peak"], r["peak"])
         x["mins"] += r["mins"]
         x["hw"] += r["hw"]
         x["games"][r["game"]] = x["games"].get(r["game"], 0) + r["hw"]
         g = games.setdefault(r["game"], {"game": r["game"], "slug": slug(r["game"]), "hw": 0.0, "peak_stream": 0,
-                                         "channels": 0, "art": cat_art(r["game"])})
+                                         "channels": 0, "art": cat_art(r["game"]), "section": section_of(r["game"])})
         g["hw"] += r["hw"]
         g["peak_stream"] = max(g["peak_stream"], r["peak"])
         g["channels"] += 1
@@ -995,29 +1097,37 @@ def data(period: str = "today", cat: str = "", region: str = "in") -> dict:
         del x["games"], x["mins"]
         board.append(x)
     board.sort(key=lambda x: -x["hw"])
-    return {"updated": last, "fresh": fresh, "period": period, "every": SCENE_SEC, "region": region,
-            "cat": cat if game else "", "cat_name": game or "",
-            "live_total": tot, "live_count": len(live), "india_total": region_total,
+    if sec == "esports":
+        board = []                            # esports is ranked by tournament (tour_day), not by channel
+    cat_period = [{"game": r["game"], "slug": slug(r["game"]), "avg": round(r["s"] / scans) if scans else 0, "peak": r["pk"],
+                   "gaming": is_gaming(r["game"]), "section": section_of(r["game"]), "art": cat_art(r["game"])}
+                  for r in cstats]
+    if sec:
+        cat_period = [x for x in cat_period if x["section"] == sec]
+    return {**_common(lv, region), "kpis": kp, "period": period, "every": SCENE_SEC, "region": region,
+            "sec": sec, "sec_name": SECTION_NAMES.get(sec, ""), "cat": cat if game else "", "cat_name": game or "",
             "peak": {"viewers": pk[1], "ts": pk[0]} if pk else None,
             "peak_all": {"viewers": pk_all[1], "ts": pk_all[0]} if pk_all else None,
-            "series": series,
-            "platforms": [{"platform": k, "name": platforms.NAMES[k], "viewers": v}
-                          for k, v in sorted(by_plat.items(), key=lambda kv: -kv[1])],
-            "categories": sorted(by_game.values(), key=lambda g: -g["viewers"])[:40],
-            "tournaments": _tour_list(lv["_tours"], region),
-            "live": [{k: x.get(k) for k in ("sid", "platform", "name", "url", "logo", "game", "title", "viewers")}
-                     for x in live[:300]],
-            "board": board[:300],
-            "games": [{**g, "hw": round(g["hw"])} for g in sorted(games.values(), key=lambda g: -g["hw"])][:40],
-            "events": [] if game else _events(),
-            # per category over the period: average concurrent viewers (missing scans count as 0) and peak
-            "cat_period": sorted(({"game": r["game"], "slug": slug(r["game"]), "avg": round(r["s"] / scans) if scans else 0,
-                                   "peak": r["pk"], "gaming": is_gaming(r["game"]), "art": cat_art(r["game"])}
-                                  for r in cstats),
-                                 key=lambda x: -x["avg"]),
-            "tracked": tracked,
+            "series": series, "board": board[:300], "tour_day": tour_day,
+            "games": [{**g, "hw": round(g["hw"])} for g in sorted(games.values(), key=lambda g: -g["hw"])][:60],
+            "events": [] if (game or sec) else _events(),
+            "cat_period": sorted(cat_period, key=lambda x: -x["avg"]), "tracked": tracked,
             "langs": LANGS, "min": MIN_VIEWERS if region == "in" else GLOBAL_MIN,
             "keys": {p: bool(platforms._keys(p)) for p in ("kick", "twitch")}}
+
+
+def _series_any(c, tbl, w, a, key, period) -> list:
+    t0 = time.time() - SERIES_SEC[period]
+    rows = c.execute(f"SELECT ts, viewers FROM {tbl} WHERE game=? AND ts>=?{w} ORDER BY ts", (key, t0, *a)).fetchall()
+    if len(rows) <= 600:
+        return [[r[0], r[1]] for r in rows]
+    step = (rows[-1][0] - rows[0][0]) / 600 or 1
+    b = {}
+    for ts, v in rows:
+        k = int((ts - rows[0][0]) / step)
+        if k not in b or v > b[k][1]:
+            b[k] = [ts, v]
+    return [b[k] for k in sorted(b)]
 
 
 def clean() -> dict:
