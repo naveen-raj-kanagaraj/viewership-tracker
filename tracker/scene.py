@@ -912,6 +912,7 @@ def _live_part(game=None, region: str = "in", sec: str = "") -> dict:
         live.append(x)
     live.sort(key=lambda x: -x["viewers"])
     region_total = sum(x["viewers"] for x in live)
+    now_map = {x["sid"]: x["viewers"] for x in live}      # everyone live in the region, before any section filter
     secs = {}
     for x in live:
         z = secs.setdefault(x["section"], {"key": x["section"], "name": SECTION_NAMES[x["section"]], "viewers": 0,
@@ -951,6 +952,7 @@ def _live_part(game=None, region: str = "in", sec: str = "") -> dict:
         z["items"] = [{"name": n, "viewers": v} for n, v in sorted(z["items"].items(), key=lambda kv: -kv[1])[:3]]
         sections.append(z)
     return {"_blk": blk, "_live": live, "_by_game": by_game, "_by_plat": by_plat, "_tours": tours, "sections": sections,
+            "_now": now_map,
             "updated": last, "fresh": fresh, "india_total": region_total, "region_total": region_total,
             "live_total": sum(x["viewers"] for x in live), "now": now}
 
@@ -1097,6 +1099,8 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
         del x["games"], x["mins"]
         board.append(x)
     board.sort(key=lambda x: -x["hw"])
+    for x in board:
+        x["now"] = lv["_now"].get(x["sid"], 0)   # live right now (in any section), else last_live says when
     if sec == "esports":
         board = []                            # esports is ranked by tournament (tour_day), not by channel
     cat_period = [{"game": r["game"], "slug": slug(r["game"]), "avg": round(r["s"] / scans) if scans else 0, "peak": r["pk"],

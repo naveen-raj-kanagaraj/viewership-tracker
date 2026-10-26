@@ -13,7 +13,7 @@ import json
 from tracker import eventpage, scene
 
 PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><title>__TITLE__ | __BRAND__</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>__TITLE__ | __BRAND__ (beta)</title>
 <meta name="description" content="__DESC__">
 <meta property="og:title" content="__TITLE__ | __BRAND__"><meta property="og:description" content="__DESC__">
 <meta property="og:type" content="website"><meta name="theme-color" content="#07051a">
@@ -33,6 +33,8 @@ a{color:inherit}.wrap{max-width:1200px;margin:0 auto;padding:0 16px 24px}
 .brand{color:var(--lime);font:16px "Share Tech Mono",monospace;text-decoration:none;white-space:nowrap}
 .rg{display:inline-flex;border:1px solid var(--line);font:12px "Share Tech Mono",monospace;flex:none}.rg a{padding:4px 10px;text-decoration:none;color:var(--muted)}.rg a.on{background:var(--lime);color:#0b0b12}
 .upd{margin-left:auto;font:12px "Share Tech Mono",monospace;color:var(--muted);white-space:nowrap}.upd b{color:var(--ink);font-weight:400}
+.beta{font:700 10px "Share Tech Mono",monospace;color:#0b0b12;background:var(--lime);padding:2px 6px;letter-spacing:.08em;margin-left:-6px;flex:none}
+.secnav a i{display:none}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red);margin-right:6px;box-shadow:0 0 8px var(--red);animation:pl 2s infinite}
 @keyframes pl{50%{opacity:.35}}
 .secnav{max-width:1200px;margin:0 auto;padding:0 16px;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}.secnav::-webkit-scrollbar{display:none}
@@ -97,9 +99,34 @@ details.how{margin-top:14px;color:var(--muted);font-size:13px;line-height:1.6}de
 .modal.on{display:flex}.mbox{background:var(--bg2);border:1px solid var(--line);padding:14px;max-width:440px;width:100%;max-height:94vh;overflow:auto}
 .mbox img{width:100%;display:block;border:1px solid var(--line);margin:10px 0;min-height:120px}.mrow{display:flex;gap:8px;flex-wrap:wrap}#mhint{font-size:12px;color:var(--muted);margin-top:8px}
 @media(max-width:1000px){.kpis{grid-template-columns:1fr 1fr}.kpi.main{grid-column:1/-1}.kpi.topk{grid-column:1/-1}.secs{grid-template-columns:repeat(3,1fr)}.two{grid-template-columns:1fr}}
-@media(max-width:560px){.kpi.hwk{grid-column:1/-1}h1{font-size:26px}.kpi .v{font-size:24px}.kpi.main .v{font-size:36px}.secs{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr 1fr}.row{grid-template-columns:18px 34px minmax(0,1fr) auto;gap:8px;padding:8px 10px}.av,.av img,.av .ph{width:34px;height:34px}.top .in{gap:10px}.upd span{display:none}#cv{height:190px}}
+@media(max-width:600px){
+body{font-size:14px}.wrap{padding:0 12px 20px}
+.top .in{padding:9px 12px;gap:10px}.brand{font-size:14px}.rg a{padding:3px 8px}.upd span{display:none}.upd{font-size:11px}
+.secnav{padding:8px 12px 10px;gap:6px;-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
+.secnav a{display:flex;align-items:center;gap:6px;padding:6px 11px;border:1px solid var(--line);border-radius:99px;font-size:13px;background:var(--card)}
+.secnav a i{display:inline-flex;color:var(--lime)}.secnav a b{margin-left:2px;font-size:11px}
+.secnav a.on{background:var(--lime);color:#0b0b12;border-color:var(--lime)}.secnav a.on i,.secnav a.on b{color:#0b0b12}.secnav a.z{opacity:.5}
+.crumb{margin-top:12px;font-size:11px}h1{font-size:24px;margin:4px 0}.intro{font-size:13px;color:var(--muted)}
+.kpis{grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.kpi{padding:10px}.kpi.main,.kpi.topk{grid-column:1/-1}.kpi.hwk{grid-column:auto}
+.kpi .k{font-size:9.5px;letter-spacing:.03em}.kpi .v{font-size:19px}.kpi .s{display:none}.kpi.main .v{font-size:34px}.kpi.main .leg{font-size:10px}
+.kpi.topk .row{grid-template-columns:34px minmax(0,1fr) auto!important}
+.card{padding:12px}h2{font-size:16px}.head .sub{display:none}.head .lbl{font-size:10px}
+.btn{font-size:10px;padding:4px 8px}
+.secs{grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.sc{padding:9px}.sc .n{font-size:12px;gap:5px}.sc .n svg{width:14px;height:14px}
+.sc .v{font-size:16px;margin-top:3px}.sc .s{display:none}.sc.zero{display:none}
+.grid{display:flex;overflow-x:auto;gap:8px;scroll-snap-type:x mandatory;padding-bottom:4px;margin-right:-12px;scrollbar-width:none}.grid::-webkit-scrollbar{display:none}
+.gc{flex:0 0 152px;scroll-snap-align:start;padding:8px;gap:8px}
+.gc img,.gc .ph{width:36px;height:48px}.gc .n{font-size:13px}.gc .v{font-size:15px}.gc .s{display:none}
+.two{gap:0}.list{margin-top:12px}.lh{padding:11px 12px;gap:6px}.lh h2{font-size:16px}.lh .r{margin-left:0;width:100%;justify-content:space-between}
+.tools{padding:0 12px 8px}.seg button{padding:5px 7px;font-size:10px}.lth{padding:5px 12px}
+.row{grid-template-columns:18px 34px minmax(0,1fr) auto;gap:8px;padding:8px 12px}.av,.av img,.av .ph{width:34px;height:34px}.row .nm{font-size:14px}.row .ds{font-size:11px}.row .vv{font-size:13px}
+.tours{display:flex;overflow-x:auto;gap:8px;scroll-snap-type:x mandatory;margin-right:-12px;scrollbar-width:none}.tours::-webkit-scrollbar{display:none}
+.tc{flex:0 0 86%;scroll-snap-align:start}
+.evs{gap:8px}.ev{min-width:0;flex:1 1 100%;padding:10px 12px}
+#cv{height:190px}details.how{font-size:12px}.foot{font-size:11px}
+}
 </style></head><body>
-<div class="top"><div class="in"><a class="brand" href="__HOME__">__BRAND__</a><span class="rg" id="rg"></span><span class="upd"><span class="dot"></span><span>UPDATED </span><b id="upd">-</b></span></div>
+<div class="top"><div class="in"><a class="brand" href="__HOME__">__BRAND__</a><span class="beta" title="Under testing: numbers may be incomplete or change">BETA</span><span class="rg" id="rg"></span><span class="upd"><span class="dot"></span><span>UPDATED </span><b id="upd">-</b></span></div>
 <nav class="secnav" id="secnav"></nav></div>
 <div class="wrap">
 <div class="crumb" id="crumb"></div>
@@ -148,7 +175,7 @@ const ini=s=>esc(String(s||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCa
 const HUE=g=>{let h=0;for(const ch of String(g))h=(h*31+ch.charCodeAt(0))%360;return `hsl(${h} 70% 62%)`};
 const PER={today:'last 24 hours','7d':'last 7 days','30d':'last 30 days'},PERB={today:'today','7d':'last 7 days','30d':'last 30 days'};
 const SCOPE=()=>(CAT?CATNAME:SEC?SECNAME[SEC]:'Live streaming')+' '+WHERE;
-const ICON={gaming:'<path d="M6 11h4M8 9v4M15 12h.01M18 10h.01M17.3 5H6.7a4 4 0 0 0-4 3.6L2 15a3 3 0 0 0 5.2 2L9 15h6l1.8 2a3 3 0 0 0 5.2-2l-.7-6.4A4 4 0 0 0 17.3 5z"/>',
+const ICON={overview:'<path d="M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z"/>',gaming:'<path d="M6 11h4M8 9v4M15 12h.01M18 10h.01M17.3 5H6.7a4 4 0 0 0-4 3.6L2 15a3 3 0 0 0 5.2 2L9 15h6l1.8 2a3 3 0 0 0 5.2-2l-.7-6.4A4 4 0 0 0 17.3 5z"/>',
  esports:'<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/>',irl:'<path d="M12 21s-6-5.3-6-11a6 6 0 0 1 12 0c0 5.7-6 11-6 11z"/><circle cx="12" cy="10" r="2"/>',
  'just-chatting':'<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',news:'<path d="M4 5h13v14H6a2 2 0 0 1-2-2zM17 9h3v8a2 2 0 0 1-2 2M7 8h7M7 11h7M7 14h4"/>',
  music:'<path d="M9 18V6l11-2v12M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM20 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/>',sports:'<circle cx="12" cy="12" r="9"/><path d="M12 3a15 15 0 0 1 0 18M3 12h18"/>',
@@ -167,11 +194,12 @@ if(CAT||SEC)document.getElementById('secard').style.display='none';
 if(CAT)document.getElementById('gcard').style.display='none';
 const liveMap=()=>{const m={};(D.live||[]).forEach(x=>m[x.sid]=x.viewers);return m};
 const liveList=()=>(D.live||[]).filter(x=>(plat==='all'||x.platform===plat)&&(!q||(x.name+' '+x.title+' '+x.game).toLowerCase().includes(q)));
-const boardList=()=>{const lm=liveMap();return (D.board||[]).filter(x=>bplat==='all'||x.platform===bplat).map(x=>({...x,now:lm[x.sid]||0})).sort((a,b)=>b[sort]-a[sort])};
+const boardList=()=>{const lm=liveMap();return (D.board||[]).filter(x=>bplat==='all'||x.platform===bplat).map(x=>({...x,now:lm[x.sid]||x.now||0})).sort((a,b)=>b[sort]-a[sort])};
 function render(){if(!D)return;const K=D.kpis||{};
  const a=Math.max(0,Math.round(Date.now()/1000-D.updated));setT('upd',D.updated?(a<90?a+'s ago':Math.round(a/60)+' min ago'):'-');
  const S=D.sections||[];
- setH('secnav',`<a href="${HOME}" class="${!SEC&&!CAT?'on':''}">Overview<b>${D.fresh?fmt(D.india_total):''}</b></a>`+S.map(s=>`<a href="${SU(s.key)}" class="${SEC===s.key?'on':''}">${esc(s.name)}<b>${s.viewers?fmt(s.viewers):''}</b></a>`).join(''));
+ setH('secnav',`<a href="${HOME}" class="${!SEC&&!CAT?'on':''}"><i>${svg('overview',14)}</i>Overview<b>${D.fresh?fmt(D.india_total):''}</b></a>`+S.map(s=>`<a href="${SU(s.key)}" class="${SEC===s.key?'on':''}${s.viewers?'':' z'}"><i>${svg(s.key,14)}</i>${esc(s.name)}<b>${s.viewers?fmt(s.viewers):''}</b></a>`).join(''));
+ if(!window._navScrolled){const on=document.querySelector('.secnav a.on');if(on&&on.scrollIntoView){on.scrollIntoView({inline:'center',block:'nearest'});window._navScrolled=1}}
  setT('k1l','Watching now'+(CAT||SEC?' // '+(CAT?CATNAME:SECNAME[SEC]):''));setT('k1',D.fresh?full(K.watching):'-');
  const tot=K.watching||1;setH('pbar',(D.platforms||[]).map(p=>`<div style="width:${100*p.viewers/tot}%;background:${COL[p.platform]}"></div>`).join(''));
  setH('pleg',(D.platforms||[]).map(p=>`<span><span class="sw" style="background:${COL[p.platform]}"></span>${p.name.toUpperCase()} <b>${fmt(p.viewers)}</b></span>`).join(''));
@@ -189,7 +217,8 @@ function render(){if(!D)return;const K=D.kpis||{};
  setH('live',ll.map((x,i)=>`<a class="row" href="${esc(x.url)}" target="_blank" rel="noopener"><span class="rk${i<3?' t':''}">${i+1}</span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">${CAT?'':esc(x.game)+' // '}${esc(x.title)}</div></span><span class="vv">${full(x.viewers)}</span></a>`).join('')||'<div class="empty">Nothing live matches.</div>');
  const lm=document.getElementById('lmore');lm.style.display=L.length>10&&!q?'block':'none';lm.textContent=lAll?'Show top 10':`Show all ${L.length} live streams`;lm.onclick=()=>{lAll=!lAll;render()};
  seg('per',[['today','TODAY'],['7d','7D'],['30d','30D']],per,v=>{per=v;bAll=false;load()});
- seg('sort',[['hw','HOURS WATCHED'],['peak','PEAK'],['avg','AVERAGE']],sort,v=>{sort=v;render()});
+ const PH=window.innerWidth<600;
+ seg('sort',[['hw',PH?'HOURS':'HOURS WATCHED'],['peak','PEAK'],['avg',PH?'AVG':'AVERAGE']],sort,v=>{sort=v;render()});
  seg('bplat',[['all','ALL'],['youtube','YT'],['kick','KICK'],['twitch','TWITCH']],bplat,v=>{bplat=v;bAll=false;render()});
  setT('bh',(SEC==='esports'?'Biggest tournaments ':'Top streamers ')+PERB[per]);setT('bm',SEC==='esports'?'PEAK VIEWERS':{hw:'HOURS WATCHED',peak:'PEAK VIEWERS',avg:'AVERAGE VIEWERS'}[sort]);
  document.getElementById('btools').style.display=SEC==='esports'?'none':'';
@@ -219,7 +248,7 @@ function plot(x,W,H,S,fs){const pl=8*fs,pr=58*fs,pt=14*fs,pb=24*fs;
  if(S.length<2){x.fillText('The chart fills in as readings come in (one every 2 minutes).',pl,H/2);return}
  const t0=S[0][0],t1=S[S.length-1][0],mx=Math.max(...S.map(p=>p[1]))*1.12||1,X=t=>pl+(W-pl-pr)*(t-t0)/((t1-t0)||1),Y=v=>pt+(H-pt-pb)*(1-v/mx);
  x.strokeStyle='#262636';x.lineWidth=1;for(let i=0;i<=4;i++){const y=pt+(H-pt-pb)*i/4;x.beginPath();x.moveTo(pl,y);x.lineTo(W-pr,y);x.stroke();x.fillText(fmt(mx*(1-i/4)),W-pr+6*fs,y+4*fs)}
- const span=t1-t0;for(let i=0;i<=4;i++){const t=t0+span*i/4;x.textAlign=i===0?'left':i===4?'right':'center';x.fillText(span>2*86400?ist(t,{day:'numeric',month:'short'}):ist(t,{hour:'numeric',minute:'2-digit'}),X(t),H-6*fs)}x.textAlign='left';
+ const span=t1-t0,nt=W<500?2:4;for(let i=0;i<=nt;i++){const t=t0+span*i/nt;x.textAlign=i===0?'left':i===nt?'right':'center';x.fillText(span>2*86400?ist(t,{day:'numeric',month:'short'}):ist(t,{hour:'numeric',minute:'2-digit'}),X(t),H-6*fs)}x.textAlign='left';
  const g=x.createLinearGradient(0,pt,0,H-pb);g.addColorStop(0,'rgba(182,242,58,.28)');g.addColorStop(1,'rgba(182,242,58,0)');
  x.beginPath();S.forEach((p,i)=>i?x.lineTo(X(p[0]),Y(p[1])):x.moveTo(X(p[0]),Y(p[1])));x.lineTo(X(t1),H-pb);x.lineTo(X(t0),H-pb);x.closePath();x.fillStyle=g;x.fill();
  x.beginPath();S.forEach((p,i)=>i?x.lineTo(X(p[0]),Y(p[1])):x.moveTo(X(p[0]),Y(p[1])));x.strokeStyle='#b6f23a';x.lineWidth=2.2*fs;x.shadowColor='rgba(182,242,58,.6)';x.shadowBlur=10*fs;x.stroke();x.shadowBlur=0;
