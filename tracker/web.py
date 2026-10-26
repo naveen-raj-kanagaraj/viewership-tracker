@@ -52,7 +52,7 @@ def _headers(resp):
     if path.startswith("/e/"):                       # /e/<key>/data caches like /data
         parts = path.split("/", 3)                   # ['', 'e', key, rest]
         path = "/" + (parts[3] if len(parts) > 3 else "")
-    elif path.startswith(("/c/", "/global")):
+    elif path.startswith(("/c/", "/s/", "/global")):
         path = "/india"
     secs = CACHE.get(path)
     if request.path.startswith("/predict/api/profile/") and request.method == "GET":
@@ -241,15 +241,35 @@ def _scene_args():
     cat = request.args.get("cat", "")
     cat = cat if __import__("re").fullmatch(r"[a-z0-9-]{1,40}", cat) and scene.category_name(cat) else ""
     region = request.args.get("region", "in")
-    return cat, region if region in scene.REGIONS else "in"
+    sec = request.args.get("sec", "")
+    return cat, region if region in scene.REGIONS else "in", sec if sec in scene.SECTION_NAMES else ""
+
+
+def _sec_page(sec, region):
+    from tracker import scene, scenepage
+    if sec not in scene.SECTION_NAMES:
+        return Response("Not found", status=404, mimetype="text/plain")
+    return _memo(f"/s/{region}/{sec}", 300, lambda: scenepage.build_html(region=region, sec=sec), "text/html")
+
+
+@app.route("/s/<sec>")
+def section(sec):
+    """A section in India: /s/gaming, /s/esports, /s/irl, /s/just-chatting, /s/news ..."""
+    return _sec_page(sec, "in")
+
+
+@app.route("/global/s/<sec>")
+def section_global(sec):
+    return _sec_page(sec, "global")
 
 
 @app.route("/api/scene/live")
 def scene_live():
     """The 2-second part: totals, platforms, live categories, tournaments, live streams."""
     from tracker import scene
-    cat, region = _scene_args()
-    return _memo(f"/api/scene/live:{region}:{cat}", 1.5, _jdump(lambda: scene.live_data(cat, region)), "application/json")
+    cat, region, sec = _scene_args()
+    return _memo(f"/api/scene/live:{region}:{sec}:{cat}", 1.5, _jdump(lambda: scene.live_data(cat, region, sec)),
+                 "application/json")
 
 
 @app.route("/api/scene")
@@ -258,8 +278,9 @@ def india_data():
     from tracker import scene
     per = request.args.get("period", "today")
     per = per if per in scene.PERIODS else "today"
-    cat, region = _scene_args()
-    return _memo(f"/api/scene:{region}:{per}:{cat}", 20, _jdump(lambda: scene.data(per, cat, region)), "application/json")
+    cat, region, sec = _scene_args()
+    return _memo(f"/api/scene:{region}:{sec}:{per}:{cat}", 20, _jdump(lambda: scene.data(per, cat, region, sec)),
+                 "application/json")
 
 
 @app.route("/events")

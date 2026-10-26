@@ -96,6 +96,9 @@ def cmd_run(args) -> int:
         from tracker import scene
         threading.Thread(target=scene.run_forever, daemon=True).start()
 
+    from tracker import autoupdate
+    autoupdate.start()                     # pulls new code from GitHub and restarts itself (AUTO_UPDATE=false to stop)
+
     from tracker import web
     if os.getenv("EVENT_PUBLIC_LINK", "true").lower() == "true":
         from tracker import tunnel

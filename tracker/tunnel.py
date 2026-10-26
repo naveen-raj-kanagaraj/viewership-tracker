@@ -84,6 +84,7 @@ def _run_once(binary: str, port: int):
     else:
         cmd = [binary, "tunnel", "--no-autoupdate", "--url", f"http://127.0.0.1:{port}"]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    _state["proc"] = proc
     _state["status"] = "starting"
     for line in proc.stdout:
         if NAMED and ("Registered tunnel connection" in line or "Connection registered" in line):
@@ -104,6 +105,17 @@ def _run_once(binary: str, port: int):
                         "If the link changes, the new one is sent here.")
     proc.wait()
     _state["status"] = "restarting"
+
+
+def stop():
+    """End the cloudflared child (before the tracker restarts itself, so it doesn't leave one behind)."""
+    p = _state.get("proc")
+    if p and p.poll() is None:
+        p.terminate()
+        try:
+            p.wait(timeout=5)
+        except Exception:
+            p.kill()
 
 
 def start(port: int):

@@ -100,7 +100,7 @@ h = sc.data("today"); assert h["series"] and {c["slug"] for c in h["categories"]
 c = web.app.test_client()
 for u, code in [("/", 200), ("/c/bgmi", 200), ("/c/free-fire", 200), ("/c/nonexistent", 404), ("/c/../x", 404), ("/api/scene?cat=bgmi", 200), ("/india", 200)]:
     r = c.get(u); assert r.status_code == code, (u, r.status_code)
-assert b"INDIA LIVE" in c.get("/").data or b"India Live" in c.get("/").data
+assert b"Live Streaming in India" in c.get("/").data
 store.kv_set("site_home", "nope"); assert c.get("/").status_code == 200
 print("HUB OK")
 # Kick/Twitch India detection: Hindi-language streams plus Indian-titled streams from top/category lists
@@ -164,3 +164,20 @@ for u in ["/global", "/global/c/valorant", "/api/scene?region=global", "/api/sce
 lv = json.loads(c.get("/api/scene/live?region=global", headers={"Accept-Encoding": ""}).data)
 assert lv["tournaments"] and lv["live_total"] >= 250000
 print("GLOBAL OK")
+# sections, KPIs, section pages
+d = sc.data("today", region="global")
+secs = {s["key"]: s for s in d["sections"]}
+assert [s["key"] for s in d["sections"]] == [k for k, _ in sc.SECTIONS]
+assert secs["esports"]["viewers"] >= 250000 and secs["gaming"]["viewers"] > 0 and secs["news"]["viewers"] > 0
+k = d["kpis"]; print("kpis:", {x: k[x] for x in ("watching", "live_channels", "peak_today", "hw_today", "channels_today")})
+assert k["watching"] == d["live_total"] and k["live_channels"] == len(d["live"]) and k["peak_today"] >= k["watching"]
+g = sc.data("today", region="global", sec="gaming")
+assert all(x["section"] == "gaming" for x in g["live"]) and g["kpis"]["watching"] < k["watching"]
+e = sc.data("today", region="global", sec="esports")
+assert e["board"] == [] and e["tour_day"] and e["tour_day"][0]["name"] == "VCT"
+lvd = sc.live_data(region="in", sec="news"); assert all(x["section"] == "news" for x in lvd["live"]) and "kpis" in lvd
+assert all("last_live" in x for x in sc.data("7d")["board"])
+c = web.app.test_client()
+for u, code in [("/s/gaming", 200), ("/global/s/esports", 200), ("/s/nope", 404), ("/api/scene?sec=irl", 200), ("/api/scene/live?region=global&sec=esports", 200)]:
+    assert c.get(u).status_code == code, u
+print("SECTIONS OK")

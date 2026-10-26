@@ -111,7 +111,7 @@ assert c.get("/events").status_code == 200 and b"VCT Pacific" in c.get("/events"
 # BMIC home + unchanged YouTube path
 cli("create", "bmic")
 assert events.get(None)["key"] == "bmic", events.get(None)["key"]      # home preset wins over the newer valo
-assert b"India Live Streaming Rankings" in c.get("/").data; cli("home", "bmic"); hb = c.get("/").data
+assert b"Live Streaming in India" in c.get("/").data; cli("home", "bmic"); hb = c.get("/").data
 assert b"CUR=[\"BMIC\", \"26\"]" in hb
 assert events._count_one.__name__ and events.yt_link("abcdefghijk") == "https://youtu.be/abcdefghijk"
 cli("kick", "valo", "remove", "tarik")

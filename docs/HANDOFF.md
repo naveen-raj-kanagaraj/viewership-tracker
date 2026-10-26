@@ -68,13 +68,31 @@ tracker folder once; it was re-cloned).
 | `tracker/store.py` | SQLite connection (WAL) and the `kv` table |
 | `tracker/tunnel.py` | Cloudflare tunnel |
 
+## Site layout (owner's brief, 26 Oct: "a user must understand it at a glance")
+
+Every page: sticky top bar (brand, INDIA | GLOBAL, updated), section menu (Overview, Gaming, Esports, IRL, Just
+Chatting, News, Music, Sports, Devotional, Podcasts & Talk, Other with live viewers), breadcrumb, one-line intro,
+KPI row (Watching now with platform split, Live channels, Peak today, Hours watched today, Biggest stream now).
+Overview adds section cards and games grid; then Top live streams | Top streamers today (LIVE + viewers, or
+"Last live 2 h ago"), Live tournaments, chart, "How these numbers are counted". Section pages (`/s/<key>`) show their
+games/categories; Esports ranks tournaments. Numbers move every 2s (`/api/scene/live`), rankings every 30s.
+
+## Updates without touching the Mac
+
+`tracker/autoupdate.py`: the running tracker checks GitHub every `AUTO_UPDATE_MIN` (10) minutes, fast-forwards to
+origin/main if the folder has no hand edits, checks everything compiles (else rolls back), and restarts itself in
+place. Never during a live tournament broadcast. `AUTO_UPDATE=false` turns it off. So: merge to main = live on the
+site within ~10 minutes. New Python packages in requirements.txt still need `pip install` by hand.
+
 ## Site routes
 
 | Route | Page |
 |---|---|
 | `/` | India hub (default). `track.py home bmic` makes an event the front page for a tournament day; `track.py home hub` switches back |
 | `/india` | India hub, always |
-| `/c/<slug>` | One game/category |
+| `/s/<key>`, `/global/s/<key>` | One section (gaming, esports, irl, just-chatting, news, music, sports, devotional, podcasts, other) |
+| `/global` | Worldwide overview |
+| `/c/<slug>`, `/global/c/<slug>` | One game/category |
 | `/api/scene?period=today\|7d\|30d&cat=<slug>` | JSON behind the hub and category pages (cached 20s) |
 | `/e/<key>/` (+ `data`, `series`, `daystreams/<date>`) | One tournament dashboard |
 | `/events` | List of tournaments |
