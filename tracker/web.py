@@ -23,7 +23,7 @@ PORT = int(os.getenv("EVENT_WEB_PORT", "8092"))
 app = Flask(__name__)
 
 
-CACHE = {"/india": 30, "/india/data": 20, "/api/scene": 20, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
+CACHE = {"/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
 
 
 
@@ -218,6 +218,15 @@ def category(cat):
     if not name:
         return Response("Not found", status=404, mimetype="text/plain")
     return _memo(f"/c/{cat}", 300, lambda: scenepage.build_html(cat, name), "text/html")
+
+
+@app.route("/api/scene/live")
+def scene_live():
+    """The 2-second part: totals, platforms, live categories, live streams."""
+    from tracker import scene
+    cat = request.args.get("cat", "")
+    cat = cat if __import__("re").fullmatch(r"[a-z0-9-]{1,40}", cat) and scene.category_name(cat) else ""
+    return _memo(f"/api/scene/live:{cat}", 1.5, _jdump(lambda: scene.live_data(cat)), "application/json")
 
 
 @app.route("/api/scene")

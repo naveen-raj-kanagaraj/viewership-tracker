@@ -31,7 +31,9 @@ import time
 import requests
 
 NAMES = {"youtube": "YouTube", "kick": "Kick", "twitch": "Twitch"}
-COUNT_TTL = float(os.getenv("PLATFORM_COUNT_SEC", "15"))   # Kick/Twitch update their counts about every 30-60s
+# Re-read Kick/Twitch counts this often (one batched request per platform covers every stream). The platforms
+# themselves refresh a stream's viewer count roughly every 30-60s, so most 2s readings repeat the last value.
+COUNT_TTL = float(os.getenv("PLATFORM_COUNT_SEC", "2"))
 _http = requests.Session()
 _UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) "
        "Version/17.0 Safari/605.1.15")
@@ -170,10 +172,12 @@ def _tw_logos(logins):
 
 # ---------- Kick ----------
 
-def _kick_row(slug, title, viewers, name="", category="", pic="", language=""):
+def _kick_row(slug, title, viewers, name="", category="", pic="", language="", uid=None):
     slug = slug.lower()
     if pic:
         _logos[f"kick:{slug}"] = pic
+    if uid:
+        _kick_uid[f"kick:{slug}"] = uid
     return {"vid": f"kick:{slug}", "channel_id": f"kick:{slug}", "channel": name or slug, "title": title or "",
             "viewers": int(viewers or 0), "category": category or "", "platform": "kick", "language": language or ""}
 
@@ -186,8 +190,39 @@ def _kick_api_slugs(slugs) -> list:
             st = c.get("stream") or {}
             if st.get("is_live"):
                 out.append(_kick_row(c.get("slug") or "", c.get("stream_title"), st.get("viewer_count"),
-                                     category=(c.get("category") or {}).get("name", "")))
+                                     category=(c.get("category") or {}).get("name", ""),
+                                     uid=c.get("broadcaster_user_id")))
     return out
+
+
+_kick_uid = {}            # kick:<slug> -> broadcaster user id (for profile pictures)
+_logo_tried = set()
+
+
+def kick_logos(vids):
+    """Profile pictures for Kick channels that don't have one yet: official users endpoint (by user id), else the
+    public channel page. Each channel is tried once per run."""
+    need = [v for v in vids if v.startswith("kick:") and not _logos.get(v) and v not in _logo_tried]
+    if not need:
+        return
+    _logo_tried.update(need)
+    ids = {_kick_uid[v]: v for v in need if _kick_uid.get(v)}
+    if ids and _keys("kick"):
+        try:
+            for i in range(0, len(ids), 50):
+                part = list(ids)[i:i + 50]
+                j = _get("kick", "https://api.kick.com/public/v1/users", [("id", x) for x in part])
+                for u in j.get("data") or []:
+                    v = ids.get(u.get("user_id"))
+                    if v and u.get("profile_picture"):
+                        _logos[v] = u["profile_picture"]
+        except Exception as e:
+            print(f"Kick profile pictures failed: {str(e)[:120]}")
+    for v in [v for v in need if not _logos.get(v)][:20]:
+        try:
+            _kick_page(split(v)[1])          # fills _logos from the public page when it isn't blocked
+        except Exception:
+            pass
 
 
 def _kick_page(slug):
@@ -239,7 +274,8 @@ def _kick_category(name) -> list:
     j = _get("kick", "https://api.kick.com/public/v1/livestreams",
              {"category_id": cid, "sort": "viewer_count", "limit": 100})
     return [_kick_row(s.get("slug") or "", s.get("stream_title"), s.get("viewer_count"),
-                      category=(s.get("category") or {}).get("name", ""), pic=s.get("profile_picture") or "")
+                      category=(s.get("category") or {}).get("name", ""), pic=s.get("profile_picture") or "",
+                      uid=s.get("broadcaster_user_id"))
             for s in j.get("data") or [] if s.get("slug")]
 
 
@@ -286,6 +322,8 @@ def discover(ev: dict, preset: dict) -> list:
                 _tw_logos([split(v)[1] for v in out if v.startswith("twitch:")])
             except Exception:
                 pass
+        if p == "kick":
+            kick_logos([v for v in out if v.startswith("kick:")])
     for s in out.values():
         s["official"] = official(ev, preset, s["vid"])
         s["listed"] = listed(ev, preset, s["vid"])

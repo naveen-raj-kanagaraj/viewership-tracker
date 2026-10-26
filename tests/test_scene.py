@@ -98,3 +98,18 @@ got = {r["vid"] for r in sc.platform_india("kick", {})}
 sc._kick_live = _saved
 print("kick india:", sorted(got)); assert got == {"kick:hindi1", "kick:en1", "kick:dev"}
 print("INDIA FILTER OK")
+# 2-second Kick/Twitch readings override the scan values; ended channels drop out
+sc.cycle(now=time.time())
+_by = platforms._by_ids
+platforms._by_ids = lambda p, ids: ([{"vid": "kick:skyesports", "viewers": 4100, "channel": "skyesports"}] if p == "kick"
+                                    else [{"vid": "twitch:indiavalo", "viewers": 1750, "channel": "IndiaValo"}])
+for k in range(3):
+    sc.fast_once()
+platforms._by_ids = _by
+lv = {x["sid"]: x["viewers"] for x in sc.live_data()["live"]}
+print("2s overlay:", {k: v for k, v in lv.items() if not k.startswith("yt:")})
+assert lv["kick:skyesports"] == 4100 and lv["twitch:indiavalo"] == 1750 and "kick:desichatter" not in lv
+assert all(x["logo"] for x in sc.live_data()["live"] if x["sid"].startswith("twitch:indiavalo"))
+r = web.app.test_client().get("/api/scene/live?cat=bgmi", headers={"Accept-Encoding": ""})
+assert r.status_code == 200 and all(x["game"] == "BGMI" for x in json.loads(r.data)["live"])
+print("FAST OK")

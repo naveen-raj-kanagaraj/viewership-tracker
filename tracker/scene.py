@@ -49,7 +49,7 @@ def _kick_live(params) -> list:
     j = platforms._get("kick", "https://api.kick.com/public/v1/livestreams", {"sort": "viewer_count", "limit": 100, **params})
     return [platforms._kick_row(s.get("slug") or "", s.get("stream_title"), s.get("viewer_count"),
                                 category=(s.get("category") or {}).get("name", ""), pic=s.get("profile_picture") or "",
-                                language=s.get("language") or "")
+                                language=s.get("language") or "", uid=s.get("broadcaster_user_id"))
             for s in j.get("data") or [] if s.get("slug")]
 
 
@@ -319,6 +319,8 @@ def cycle(now: float = None) -> dict:
                 platforms._tw_logos(sorted({platforms.split(r["vid"])[1] for r in rows}))
             except Exception:
                 pass
+        if p == "kick" and rows:
+            platforms.kick_logos([r["vid"] for r in rows])
         for r in rows:
             sid = r["vid"]
             found[sid] = {"sid": sid, "platform": p, "name": r["channel"], "url": platforms.link(sid),
@@ -366,6 +368,8 @@ def cycle(now: float = None) -> dict:
         if sid in blk or x["viewers"] < MIN_VIEWERS:
             continue
         x["game"] = classify(x.get("category", ""), x.get("title", ""))
+        if not x.get("logo"):                 # the channel's real picture: YouTube channel page / Kick / Twitch
+            x["logo"] = events.avatar(sid[3:]) if x["platform"] == "youtube" else platforms.logo(sid)
         x["seen"] = now
         rows.append(x)
     with _lock:
@@ -423,10 +427,51 @@ def _store(rows, now, last):
         c.commit()
 
 
+FAST_SEC = float(os.getenv("SCENE_FAST_SEC", "2"))
+_FASTV = {}          # sid -> [ts, viewers or None, misses]: Kick/Twitch re-read every FAST_SEC between scans
+
+
+def fast_once(now: float = None) -> int:
+    """Re-read every live Kick/Twitch channel (one batched request per platform). Returns how many were read."""
+    with _lock:
+        ids = {p: [sid for sid, x in _LIVE.items() if x["platform"] == p] for p in ("kick", "twitch")}
+    n = 0
+    for p, sids in ids.items():
+        if not sids or not platforms._keys(p):
+            continue
+        rows = platforms._by_ids(p, [platforms.split(s)[1] for s in sids])
+        got = {r["vid"]: r["viewers"] for r in rows}
+        t = now or time.time()
+        for s in sids:
+            f = _FASTV.setdefault(s, [t, None, 0])
+            if s in got:
+                f[:] = [t, got[s], 0]
+                n += 1
+            else:
+                f[0], f[2] = t, f[2] + 1
+                if f[2] >= 3:                 # gone from the platform's live list three times running: ended
+                    f[1] = 0
+    return n
+
+
+def run_fast():
+    wait = FAST_SEC
+    while True:
+        t0 = time.time()
+        try:
+            fast_once()
+            wait = FAST_SEC
+        except Exception as e:                # rate limited or a network blip: back off, up to 30s
+            wait = min(wait * 2, 30)
+            print(f"Kick/Twitch fast count failed (next in {wait:g}s): {str(e)[:120]}")
+        time.sleep(max(0.2, wait - (time.time() - t0)))
+
+
 def run_forever():
     if _STATE["running"]:
         return
     _STATE["running"] = True
+    threading.Thread(target=run_fast, daemon=True).start()
     time.sleep(20)                           # let the event counter start first
     while True:
         t0 = time.time()
@@ -494,20 +539,43 @@ def category_name(cat: str):
     return None
 
 
-def data(period: str = "today", cat: str = "") -> dict:
-    """Everything the hub (cat='') or a category page shows."""
-    period = period if period in PERIODS else "today"
-    game = category_name(cat) if cat else None
+_SCAN = {"ts": None, "rows": []}
+
+
+def _logo(x: dict) -> str:
+    if x.get("logo"):
+        return x["logo"]
+    sid = x.get("sid", "")
+    return events.avatar(sid[3:]) if sid.startswith("yt:") else platforms.logo(sid)
+
+
+def _live_part(game=None) -> dict:
+    """Who is live now: the latest scan (read from the database once per scan) with Kick/Twitch viewers replaced by
+    the 2-second readings when they're fresh."""
     blk = blocked()
-    with store._lock:      # the latest scan, from the database, so the CLI sees what the running tracker sees
+    with store._lock:
         c = _db()
         last = (c.execute("SELECT MAX(ts) FROM sc_samples").fetchone()[0] or 0)
-        live = [dict(r) for r in c.execute(
-            """SELECT s.sid, s.viewers, s.game, c.platform, c.name, c.url, c.logo, c.title FROM sc_samples s
-               LEFT JOIN sc_channels c ON c.sid=s.sid WHERE s.ts=? ORDER BY s.viewers DESC""", (last,))]
+        if _SCAN["ts"] != last:
+            _SCAN["rows"] = [dict(r) for r in c.execute(
+                """SELECT s.sid, s.viewers, s.game, c.platform, c.name, c.url, c.logo, c.title FROM sc_samples s
+                   LEFT JOIN sc_channels c ON c.sid=s.sid WHERE s.ts=? ORDER BY s.viewers DESC""", (last,))]
+            _SCAN["ts"] = last
     fresh = time.time() - last < SCENE_SEC * 3
-    seen = set()
-    live = [x for x in live if x["sid"] not in blk and not (x["sid"] in seen or seen.add(x["sid"]))] if fresh else []
+    now, seen, live = time.time(), set(), []
+    for r in (_SCAN["rows"] if fresh else []):
+        if r["sid"] in blk or r["sid"] in seen:
+            continue
+        seen.add(r["sid"])
+        x = dict(r)
+        f = _FASTV.get(x["sid"])
+        if f and f[1] is not None and now - f[0] < 15:
+            x["viewers"] = f[1]
+        if x["viewers"] <= 0:
+            continue                          # ended since the scan
+        x["logo"] = _logo(x)
+        live.append(x)
+    live.sort(key=lambda x: -x["viewers"])
     india_total = sum(x["viewers"] for x in live)
     by_game = {}
     for x in live:
@@ -517,10 +585,33 @@ def data(period: str = "today", cat: str = "") -> dict:
         g["streams"] += 1
     if game:
         live = [x for x in live if x["game"] == game]
-    tot = sum(x["viewers"] for x in live)
     by_plat = {}
     for x in live:
         by_plat[x["platform"]] = by_plat.get(x["platform"], 0) + x["viewers"]
+    return {"_blk": blk, "_live": live, "_by_game": by_game, "_by_plat": by_plat, "updated": last, "fresh": fresh,
+            "india_total": india_total, "live_total": sum(x["viewers"] for x in live), "now": now}
+
+
+def live_data(cat: str = "") -> dict:
+    """The part of the page that moves every 2 seconds: totals, platforms, live categories, live streams."""
+    game = category_name(cat) if cat else None
+    lv = _live_part(game)
+    return {"updated": lv["updated"], "fresh": lv["fresh"], "india_total": lv["india_total"],
+            "live_total": lv["live_total"], "live_count": len(lv["_live"]), "now": lv["now"],
+            "platforms": [{"platform": k, "name": platforms.NAMES[k], "viewers": v}
+                          for k, v in sorted(lv["_by_plat"].items(), key=lambda kv: -kv[1])],
+            "categories": sorted(lv["_by_game"].values(), key=lambda g: -g["viewers"])[:40],
+            "live": [{k: x.get(k) for k in ("sid", "platform", "name", "url", "logo", "game", "title", "viewers")}
+                     for x in lv["_live"][:300]]}
+
+
+def data(period: str = "today", cat: str = "") -> dict:
+    """Everything the hub (cat='') or a category page shows."""
+    period = period if period in PERIODS else "today"
+    game = category_name(cat) if cat else None
+    lv = _live_part(game)
+    blk, last, fresh, live, india_total, by_game, tot, by_plat = (lv[k] for k in (
+        "_blk", "updated", "fresh", "_live", "india_total", "_by_game", "live_total", "_by_plat"))
     today = datetime.now(events.REPORT_TZ).date()
     d0 = (today - timedelta(days=PERIODS[period])).strftime("%Y-%m-%d")
     key = game or ALL
@@ -544,7 +635,8 @@ def data(period: str = "today", cat: str = "") -> dict:
         if r["sid"] in blk:
             continue
         x = ch.setdefault(r["sid"], {"sid": r["sid"], "name": r["name"] or r["sid"], "platform": r["platform"] or "",
-                                      "url": r["url"] or "", "logo": r["logo"] or "", "peak": 0, "mins": 0.0, "hw": 0.0,
+                                      "url": r["url"] or "", "logo": _logo({"sid": r["sid"], "logo": r["logo"]}),
+                                      "peak": 0, "mins": 0.0, "hw": 0.0,
                                       "games": {}})
         x["peak"] = max(x["peak"], r["peak"])
         x["mins"] += r["mins"]
