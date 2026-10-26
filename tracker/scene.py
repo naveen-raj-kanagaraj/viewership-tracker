@@ -54,14 +54,26 @@ GAMES = [
     ("Cricket games", ["real cricket", "cricket 24", "cricket 22", "world cricket championship", "wcc3"]),
     ("Chess", ["chess"]),
     ("Among Us", ["among us"]),
-    ("Just Chatting", ["just chatting", "irl", "chatting"]),
+    ("Cricket (live)", ["ipl", "live cricket", "cricket live", "ind vs", "india vs", "t20", " odi ", "test match"]),
+    ("News", ["news", "khabar", "samachar", "headlines", "breaking", "aaj tak", "ndtv", "republic", "tv9", "abp ",
+              "zee ", "india tv", "lok sabha", "rajya sabha", "sansad"]),
+    ("Devotional", ["bhajan", "aarti", "kirtan", "gurbani", "darshan", "katha", "satsang", "mandir", "temple", "puja",
+                    "pooja", "mantra", "chalisa", "namaz", "jagran"]),
+    ("Music", ["songs", "song", "music", "lofi", "lo-fi", "radio", "jukebox"]),
+    ("Podcast / Talk", ["podcast", "talk show", "interview", "debate"]),
+    ("Just Chatting", ["just chatting", "irl", "chatting", "q&a", "q & a"]),
 ]
 # YouTube searches (India region). Each finds up to ~20 live streams.
 QUERIES = ["BGMI live", "BGMI live tamil", "BGMI live telugu", "Free Fire live", "Free Fire max live hindi",
            "GTA 5 live hindi", "GTA 5 roleplay live hindi", "Valorant live hindi", "Minecraft live hindi",
            "COD mobile live india", "Indus battle royale live", "Pokemon Unite live hindi", "CS2 live hindi",
            "Clash of Clans live hindi", "Real cricket live", "hindi gaming live", "tamil gaming live",
-           "telugu gaming live", "PUBG PC live hindi", "Roblox live hindi"]
+           "telugu gaming live", "PUBG PC live hindi", "Roblox live hindi",
+           # beyond gaming: everything live in India
+           "live hindi", "live stream india", "news live hindi", "news live", "live tamil", "live telugu", "live bengali",
+           "live marathi", "live kannada", "live malayalam", "live gujarati", "live punjabi", "bhajan live",
+           "live darshan", "cricket live", "podcast live hindi", "live chat hindi", "music live hindi"]
+LIVE_PAGE = "UC4R8DWoMoI7CAwX8_LjQHig"   # YouTube's own "Live" page, India edition: what's trending live now
 SEEDS = {"kick": ["skyesports"], "twitch": [],
          "youtube": ["@SoulAman", "@DynamoGaming", "@TheBixiOP", "@ZGODGAMING", "@NEYOOGAMINGYT", "@MizoPlays",
                      "@MrSpike", "@LoLzZzGaming", "@SHARKSHE", "@MafiaNinja", "@ImRuthlessceopubg", "@RakaZoneGaming",
@@ -137,24 +149,16 @@ def yt_search(query: str) -> list:
                           headers={"User-Agent": events._UA, "Content-Type": "application/json",
                                    "Origin": "https://www.youtube.com"}, timeout=10)
     r.raise_for_status()
-    found = []
+    return _parse(_renderers(r.json()))
 
-    def walk(o):
-        if isinstance(o, dict):
-            if "videoRenderer" in o:
-                found.append(o["videoRenderer"])
-            for v in o.values():
-                walk(v)
-        elif isinstance(o, list):
-            for v in o:
-                walk(v)
-    walk(r.json())
+
+def _parse(found: list) -> list:
     out = []
     for v in found:
         watching = _text(v.get("viewCountText"))
         if "watching" not in watching.lower():
             continue                            # not live now (premieres, replays)
-        by = (v.get("ownerText") or v.get("longBylineText") or {}).get("runs") or [{}]
+        by = (v.get("ownerText") or v.get("longBylineText") or v.get("shortBylineText") or {}).get("runs") or [{}]
         cid = ((by[0].get("navigationEndpoint") or {}).get("browseEndpoint") or {}).get("browseId", "")
         th = (((v.get("channelThumbnailSupportedRenderers") or {}).get("channelThumbnailWithLinkRenderer") or {})
               .get("thumbnail") or {}).get("thumbnails") or [{}]
@@ -165,6 +169,33 @@ def yt_search(query: str) -> list:
             out.append({"vid": v["videoId"], "channel": by[0].get("text", ""), "channel_id": cid,
                         "title": _text(v.get("title")), "viewers": _num(watching) or 0, "logo": logo})
     return out
+
+
+def _renderers(j) -> list:
+    found = []
+
+    def walk(o):
+        if isinstance(o, dict):
+            for k in ("videoRenderer", "gridVideoRenderer"):
+                if k in o:
+                    found.append(o[k])
+            for v in o.values():
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+    walk(j)
+    return found
+
+
+def yt_live_page() -> list:
+    """YouTube's Live page for India (the streams YouTube itself features as live now)."""
+    r = events._http.post("https://www.youtube.com/youtubei/v1/browse?prettyPrint=false",
+                          json={"context": {"client": _ITV_IN}, "browseId": LIVE_PAGE},
+                          headers={"User-Agent": events._UA, "Content-Type": "application/json",
+                                   "Origin": "https://www.youtube.com"}, timeout=10)
+    r.raise_for_status()
+    return _parse(_renderers(r.json()))
 
 
 def _yt_add(found: dict, s: dict, logo: str = ""):
@@ -242,7 +273,10 @@ def cycle(now: float = None) -> dict:
     yt_every = SCENE_YT_SEC * (3 if _event_on_air() else 1)
     if now - _STATE["yt"] >= yt_every:
         _STATE["yt"] = now
-        for q, res in zip(QUERIES, _pool.map(lambda q: _try(yt_search, q), QUERIES)):
+        res_live = _try(yt_live_page)
+        if res_live == "err":
+            errors["youtube live page"] = "failed"
+        for q, res in [("live page", res_live)] + list(zip(QUERIES, _pool.map(lambda q: _try(yt_search, q), QUERIES))):
             if res == "err":
                 errors[f"youtube '{q}'"] = "search failed"
                 continue
@@ -395,6 +429,12 @@ def data(period: str = "today") -> dict:
 def probe() -> str:
     """One check of every source, for setting up (no secret values printed)."""
     lines = []
+    try:
+        res = yt_live_page()
+        lines.append(f"YouTube Live page (India): {len(res)} live streams" +
+                     (f", top {res[0]['channel']} {res[0]['viewers']:,}" if res else ""))
+    except Exception as e:
+        lines.append(f"YouTube Live page failed: {str(e)[:150]}")
     try:
         res = yt_search(QUERIES[0])
         lines.append(f"YouTube search '{QUERIES[0]}': {len(res)} live streams" +

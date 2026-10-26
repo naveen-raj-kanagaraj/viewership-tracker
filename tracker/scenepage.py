@@ -5,7 +5,7 @@ from tracker import eventpage
 
 PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>India Live Streaming Rankings | __BRAND__</title>
-<meta name="description" content="Every Indian live stream we can find on YouTube, Kick and Twitch, by game, ranked by viewers and hours watched.">
+<meta name="description" content="Every Indian live stream we can find on YouTube, Kick and Twitch, by game and category, ranked by viewers and hours watched.">
 <meta property="og:title" content="India Live Streaming Rankings | __BRAND__">
 <meta property="og:description" content="Who is live in India right now on YouTube, Kick and Twitch, by game, and who leads today, this week and this month.">
 <meta name="theme-color" content="#07051a">
@@ -65,18 +65,18 @@ td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}.num{te
  <div class="card"><div class="lbl">// Biggest stream right now</div><div id="topone" style="margin-top:10px"></div></div>
 </div>
 <div class="grid">
- <div class="card"><div class="lbl">// Games, live now</div><div class="sub">Tap a game to filter the streams.</div><div id="games" style="margin-top:8px"></div></div>
+ <div class="card"><div class="lbl">// Games &amp; categories, live now</div><div class="sub">Tap one to filter the streams.</div><div id="games" style="margin-top:8px"></div></div>
  <div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap"><div><div class="lbl">// Live now</div><h2 id="lh">Live streams</h2></div></div>
   <div class="tools"><div class="seg" id="plat"></div><select id="gsel"></select><input id="q" placeholder="Search streamer or title" style="flex:1;min-width:140px"></div>
-  <div class="scroll"><table><thead><tr><th>#</th><th>STREAMER</th><th class="hide-m">GAME</th><th class="num">VIEWERS</th></tr></thead><tbody id="live"></tbody></table></div>
+  <div class="scroll"><table><thead><tr><th>#</th><th>STREAMER</th><th class="hide-m">CATEGORY</th><th class="num">VIEWERS</th></tr></thead><tbody id="live"></tbody></table></div>
   <button class="more" id="lmore"></button></div>
 </div>
 <div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap"><div><div class="lbl">// Leaderboard</div><h2 id="bh">Top streamers</h2></div></div>
  <div class="tools"><div class="seg" id="per"></div><div class="seg" id="sort"></div><div class="seg" id="bplat"></div></div>
- <div class="scroll"><table id="bt" class="s-hw"><thead><tr><th>#</th><th>STREAMER</th><th class="hide-m">MAIN GAME</th><th class="num m c-hw">HOURS WATCHED</th><th class="num m c-peak">PEAK</th><th class="num m c-avg">AVG</th><th class="num hide-m">AIRTIME</th></tr></thead><tbody id="board"></tbody></table></div>
+ <div class="scroll"><table id="bt" class="s-hw"><thead><tr><th>#</th><th>STREAMER</th><th class="hide-m">MAIN CATEGORY</th><th class="num m c-hw">HOURS WATCHED</th><th class="num m c-peak">PEAK</th><th class="num m c-avg">AVG</th><th class="num hide-m">AIRTIME</th></tr></thead><tbody id="board"></tbody></table></div>
  <button class="more" id="bmore"></button></div>
-<div class="card"><div class="lbl">// Games</div><h2 id="gh">Games by hours watched</h2>
- <div class="scroll" style="margin-top:12px"><table><thead><tr><th>#</th><th>GAME</th><th class="num">HOURS WATCHED</th><th class="num">BIGGEST STREAM</th><th class="num hide-m">STREAMERS</th></tr></thead><tbody id="gboard"></tbody></table></div></div>
+<div class="card"><div class="lbl">// Categories</div><h2 id="gh">Games &amp; categories by hours watched</h2>
+ <div class="scroll" style="margin-top:12px"><table><thead><tr><th>#</th><th>CATEGORY</th><th class="num">HOURS WATCHED</th><th class="num">BIGGEST STREAM</th><th class="num hide-m">STREAMERS</th></tr></thead><tbody id="gboard"></tbody></table></div></div>
 <div class="note" id="note"></div>
 <div class="foot"><span>Unofficial rankings by __BRAND__. Not affiliated with YouTube, Kick or Twitch.</span><span>__SOCIAL__</span></div>
 </div>
@@ -99,7 +99,7 @@ function render(){if(!D)return;
  const gm=D.games_live[0]?D.games_live[0].viewers:1;
  document.getElementById('games').innerHTML=D.games_live.map((g,i)=>`<div class="g${g.game===game?' on':''}" data-g="${esc(g.game)}"><span class="r">${i+1}</span><span class="n">${esc(g.game)}</span><span class="v">${fmt(g.viewers)}</span><span class="t"><i style="width:${100*g.viewers/gm}%"></i></span><span class="s">${g.streams} stream${g.streams>1?'s':''} // top: ${esc(g.top)}</span></div>`).join('')||'<span class="muted">No live games yet.</span>';
  document.querySelectorAll('.g').forEach(e=>e.onclick=()=>{game=game===e.dataset.g?'':e.dataset.g;lAll=false;render()});
- const gs=document.getElementById('gsel');gs.innerHTML='<option value="">All games</option>'+D.games_live.map(g=>`<option${g.game===game?' selected':''}>${esc(g.game)}</option>`).join('');
+ const gs=document.getElementById('gsel');gs.innerHTML='<option value="">All games &amp; categories</option>'+D.games_live.map(g=>`<option${g.game===game?' selected':''}>${esc(g.game)}</option>`).join('');
  seg('plat',[['all','ALL'],...['youtube','kick','twitch'].map(p=>[p,p.toUpperCase()])],plat,v=>{plat=v;lAll=false;render()});
  const L=D.live.filter(x=>(plat==='all'||x.platform===plat)&&(!game||x.game===game)&&(!q||(x.name+' '+x.title).toLowerCase().includes(q)));
  const ll=lAll||q?L:L.slice(0,25);
@@ -114,10 +114,10 @@ function render(){if(!D)return;
  document.getElementById('bh').textContent=`Top streamers, ${per==='today'?'today (IST)':per==='7d'?'last 7 days':'last 30 days'}`;
  document.getElementById('board').innerHTML=bb.map((x,i)=>`<tr><td class="rk${i<3?' t1':''}">${i+1}</td><td>${who(x)}</td><td class="gm hide-m">${esc(x.game)}</td><td class="num m c-hw">${fmt(x.hw)}h</td><td class="num m c-peak">${fmt(x.peak)}</td><td class="num m c-avg">${fmt(x.avg)}</td><td class="num hide-m">${x.airtime_h}h</td></tr>`).join('')||'<tr><td colspan=7 class="muted">No data for this period yet.</td></tr>';
  const bm=document.getElementById('bmore');bm.style.display=B.length>25?'block':'none';bm.textContent=bAll?'SHOW FEWER':`SHOW ALL ${B.length}`;bm.onclick=()=>{bAll=!bAll;render()};
- document.getElementById('gh').textContent=`Games by hours watched, ${per==='today'?'today':per==='7d'?'last 7 days':'last 30 days'}`;
+ document.getElementById('gh').textContent=`Games & categories by hours watched, ${per==='today'?'today':per==='7d'?'last 7 days':'last 30 days'}`;
  document.getElementById('gboard').innerHTML=D.games.map((g,i)=>`<tr><td class="rk${i<3?' t1':''}">${i+1}</td><td><b>${esc(g.game)}</b></td><td class="num">${fmt(g.hw)}h</td><td class="num">${fmt(g.peak_stream)}</td><td class="num hide-m">${g.channels}</td></tr>`).join('')||'<tr><td colspan=5 class="muted">No data yet.</td></tr>';
  const miss=['kick','twitch'].filter(p=>!D.keys[p]).map(p=>NAMES[p]);
- document.getElementById('note').innerHTML=`<b>How this is counted.</b> Every ${Math.round(D.every/60)} minutes: YouTube live searches for each game, localised to India, plus hand-added channels; Kick and Twitch streams in ${esc(D.langs.join(', '))} plus hand-added channels. Viewers are each platform's own concurrent count; a channel streaming twice at once is added together; streams under ${D.min} viewers are left out. Games come from the platform category (Kick, Twitch) or the stream title (YouTube). Hours watched = viewers x time live. <b>Not a census:</b> a stream that doesn't show up in these searches or languages is missed, so totals are a floor, not the whole of India.${miss.length?` ${miss.join(' and ')} language-wide discovery is off until API keys are added; only hand-added channels are counted there.`:''}`;
+ document.getElementById('note').innerHTML=`<b>How this is counted.</b> Every ${Math.round(D.every/60)} minutes: YouTube's Live page for India and live searches for each game, language and category (news, devotional, music, cricket, talk), localised to India, plus hand-added channels; Kick and Twitch streams in ${esc(D.langs.join(', '))} plus hand-added channels. Viewers are each platform's own concurrent count; a channel streaming twice at once is added together; streams under ${D.min} viewers are left out. Games and categories come from the platform category (Kick, Twitch) or the stream title (YouTube); a title that names neither is Other. Hours watched = viewers x time live. <b>Not a census:</b> a stream that doesn't show up in these searches or languages is missed, so totals are a floor, not the whole of India.${miss.length?` ${miss.join(' and ')} language-wide discovery is off until API keys are added; only hand-added channels are counted there.`:''}`;
 }
 async function load(){try{const r=await fetch('/india/data?period='+per+'&t='+Math.floor(Date.now()/30000),{cache:'no-store'});D=await r.json();render()}catch(e){}}
 document.getElementById('q').oninput=e=>{q=e.target.value.trim().toLowerCase();render()};
