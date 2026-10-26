@@ -104,6 +104,11 @@ Every `SCENE_SEC` (120s):
    news, devotional, music, cricket, talk) every `SCENE_YT_SEC` (300s; 15 min while a tournament broadcast is live so
    the 2s tournament counter keeps priority). Every YouTube stream already found is re-counted each scan from the
    live counter. Hand-added `@handles` are checked every 10 min.
+Between scans, every live Kick/Twitch channel is re-read every `SCENE_FAST_SEC` (2s, one batched request per
+   platform, backs off to 30s on errors) and the page polls `/api/scene/live` every 2s; rankings and charts every 30s.
+   The platforms refresh their own counts about every 30-60s, so the 2s readings often repeat. YouTube streams are
+   re-counted once per scan (2 min): re-reading hundreds of YouTube streams every 2s would get the tracker blocked.
+   Logos: YouTube channel page picture (`events.avatar`), Twitch users API, Kick users API (fallback: public page).
 3. Streams under `SCENE_MIN_VIEWERS` (20) are dropped. A channel is one streamer; two streams at once are summed.
 4. Category = platform category (Kick/Twitch) or title keywords (YouTube), first match in `GAMES`; else `Other`.
 

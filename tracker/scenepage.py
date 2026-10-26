@@ -145,6 +145,7 @@ td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}.num{te
 <div class="modal" id="modal"><div class="mbox"><div class="head"><h2>Share</h2><button class="btn ghost" id="mclose">Close</button></div>
  <img id="mimg" alt="Share card"><div class="mrow"><button class="btn" id="mig">INSTAGRAM</button><button class="btn" id="mxb">X</button><button class="btn ghost" id="mdl">DOWNLOAD</button><button class="btn ghost" id="mcp">COPY LINK</button></div><div id="mhint"></div></div></div>
 <script>
+const _H={};function setH(id,h){const e=document.getElementById(id);if(e&&_H[id]!==h){_H[id]=h;e.innerHTML=h}}
 const CAT=__CAT__,CATNAME=__CATNAME__,SITE='https://live.letsgrowesports.com',PAGEURL=SITE+(CAT?'/c/'+CAT:'/');
 const NAMES={youtube:'YouTube',kick:'Kick',twitch:'Twitch'},COL={youtube:'#ff4d5e',kick:'#53fc18',twitch:'#a970ff'};
 let D=null,per='today',sort='hw',plat='all',bplat='all',q='',lAll=false,bAll=false,LOGOS=true;
@@ -158,8 +159,8 @@ const SCOPE=()=>CAT?CATNAME+' in India':'India';
 const who=(x,t)=>`<div class="who">${x.logo?`<img src="${esc(x.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=ph></span>'">`:'<span class="ph"></span>'}<div style="min-width:0"><div class="nl"><a class="nm" href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)}</a><span class="pf ${esc(x.platform)}">${esc((NAMES[x.platform]||x.platform||'').toUpperCase())}</span></div>${t?`<span class="tt">${esc(t)}</span>`:''}</div></div>`;
 const slug=g=>String(g||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'other';
 const catLink=g=>`<a class="gm" href="/c/${esc(slug(g))}">${esc(g)}</a>`;
-function seg(id,opts,cur,on){const e=document.getElementById(id);e.innerHTML=opts.map(([v,l])=>`<button data-v="${v}" class="${v===cur?'on':''}">${l}</button>`).join('');e.onclick=ev=>{const b=ev.target.closest('button');if(b)on(b.dataset.v)}}
-document.getElementById('h1').innerHTML=CAT?`<em>${esc(CATNAME)}</em> live in India, <span>counted</span>`:'India\'s <em>live streaming</em>, counted and ranked';
+function seg(id,opts,cur,on){const e=document.getElementById(id);setH(id,opts.map(([v,l])=>`<button data-v="${v}" class="${v===cur?'on':''}">${l}</button>`).join(''));e.onclick=ev=>{const b=ev.target.closest('button');if(b)on(b.dataset.v)}}
+setH('h1',CAT?`<em>${esc(CATNAME)}</em> live in India, <span>counted</span>`:'India\'s <em>live streaming</em>, counted and ranked');
 const PL=[['all','All platforms','#eeeef5','\u2731'],['youtube','YouTube',COL.youtube,'\u25B6'],['kick','Kick',COL.kick,'K'],['twitch','Twitch',COL.twitch,'T']];
 const ini=s=>esc(String(s||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase()||'?');
 const HUE=g=>{let h=0;for(const ch of String(g))h=(h*31+ch.charCodeAt(0))%360;return `hsl(${h} 70% 62%)`};
@@ -170,25 +171,25 @@ let c1sort='hw';
 function renderTop(){const per3=PERB[per];
  document.getElementById('lead').textContent=CAT?`Every ${CATNAME} live stream in India on YouTube, Kick and Twitch: who is live now, who leads ${per3}.`:`YouTube, Kick and Twitch, every game and category. ${full(D.tracked||0)} Indian channels tracked so far, updated every ${Math.round(D.every/60)} minutes.`;
  const byp={};(D.platforms||[]).forEach(p=>byp[p.platform]=p.viewers);
- document.getElementById('tiles').innerHTML=PL.map(([k,n,c,ic])=>`<button class="tile${plat===k?' on':''}" data-p="${k}"><span class="pi" style="background:${c}">${ic}</span><span><div class="tn">${n}</div><div class="tv">${fmt(k==='all'?D.live_total:byp[k]||0)}</div></span></button>`).join('');
+ setH('tiles',PL.map(([k,n,c,ic])=>`<button class="tile${plat===k?' on':''}" data-p="${k}"><span class="pi" style="background:${c}">${ic}</span><span><div class="tn">${n}</div><div class="tv">${fmt(k==='all'?D.live_total:byp[k]||0)}</div></span></button>`).join(''));
  document.querySelectorAll('.tile').forEach(t=>t.onclick=()=>{plat=bplat=t.dataset.p;lAll=bAll=false;render()});
  seg('perG',[['today','TODAY'],['7d','LAST 7 DAYS'],['30d','LAST 30 DAYS']],per,v=>{per=v;bAll=false;load()});
  document.getElementById('pernote').textContent=plat==='all'?'':`Streamers: ${NAMES[plat]} only. Categories count every platform.`;
  const B=D.board.filter(x=>plat==='all'||x.platform===plat).sort((a,b)=>b[c1sort]-a[c1sort]).slice(0,10),m1=B[0]?B[0][c1sort]:1;
  seg('c1s',[['hw','HOURS'],['peak','PEAK']],c1sort,v=>{c1sort=v;renderTop()});
  document.getElementById('c1t').textContent=CAT?`Most watched ${CATNAME} streamers`:'Most watched streamers';document.getElementById('c1p').textContent=per3;
- document.getElementById('c1').innerHTML=B.map((x,i)=>crow(i,x.url,avS(x),x.name,CAT?NAMES[x.platform]:x.game,c1sort==='hw'?fmt(x.hw)+'h':fmt(x.peak),x[c1sort]/m1,'#4cc9f0',1)).join('')||'<div class="cr muted" style="display:block">No data for this period yet.</div>';
+ setH('c1',B.map((x,i)=>crow(i,x.url,avS(x),x.name,CAT?NAMES[x.platform]:x.game,c1sort==='hw'?fmt(x.hw)+'h':fmt(x.peak),x[c1sort]/m1,'#4cc9f0',1)).join('')||'<div class="cr muted" style="display:block">No data for this period yet.</div>');
  if(CAT){const L=liveList().slice(0,10),ml=L[0]?L[0].viewers:1,P=D.board.filter(x=>plat==='all'||x.platform===plat).sort((a,b)=>b.peak-a.peak).slice(0,10),mp=P[0]?P[0].peak:1;
   document.getElementById('c2t').textContent='Live now';document.getElementById('c2p').textContent=`${L.length?D.live.length:0} live`;document.getElementById('c2h').textContent='CHANNEL';document.getElementById('c2m').textContent='VIEWERS';
-  document.getElementById('c2').innerHTML=L.map((x,i)=>crow(i,x.url,avS(x),x.name,x.title,full(x.viewers),x.viewers/ml,'#ff4d5e',1)).join('')||'<div class="cr muted" style="display:block">Nothing live right now.</div>';
-  document.getElementById('c2f').href='#livecard';document.getElementById('c2f').innerHTML='All live streams &rarr;';
+  setH('c2',L.map((x,i)=>crow(i,x.url,avS(x),x.name,x.title,full(x.viewers),x.viewers/ml,'#ff4d5e',1)).join('')||'<div class="cr muted" style="display:block">Nothing live right now.</div>');
+  document.getElementById('c2f').href='#livecard';setH('c2f','All live streams &rarr;');
   document.getElementById('c3t').textContent='Highest peaks';document.getElementById('c3p').textContent=per3;document.getElementById('c3h').textContent='CHANNEL';document.getElementById('c3m').textContent='PEAK VIEWERS';
-  document.getElementById('c3').innerHTML=P.map((x,i)=>crow(i,x.url,avS(x),x.name,NAMES[x.platform],fmt(x.peak),x.peak/mp,'#b6f23a',1)).join('')||'<div class="cr muted" style="display:block">No data for this period yet.</div>';
-  document.getElementById('c3f').href='#boardcard';document.getElementById('c3f').innerHTML='Full leaderboard &rarr;';return}
+  setH('c3',P.map((x,i)=>crow(i,x.url,avS(x),x.name,NAMES[x.platform],fmt(x.peak),x.peak/mp,'#b6f23a',1)).join('')||'<div class="cr muted" style="display:block">No data for this period yet.</div>');
+  document.getElementById('c3f').href='#boardcard';setH('c3f','Full leaderboard &rarr;');return}
  const CP=D.cat_period||[],A=CP.slice(0,10),G=CP.filter(c=>c.gaming).slice(0,10),ma=A[0]?A[0].avg:1,mg=G[0]?G[0].avg:1;
  document.getElementById('c2p').textContent=per3;document.getElementById('c3p').textContent=per3;
- document.getElementById('c2').innerHTML=A.map((c,i)=>crow(i,'/c/'+c.slug,avC(c.game),c.game,'peak '+fmt(c.peak),fmt(c.avg),c.avg/ma,'#ff8a3d')).join('')||'<div class="cr muted" style="display:block">No data for this period yet.</div>';
- document.getElementById('c3').innerHTML=G.map((c,i)=>crow(i,'/c/'+c.slug,avC(c.game),c.game,'peak '+fmt(c.peak),fmt(c.avg),c.avg/mg,'#b6f23a')).join('')||'<div class="cr muted" style="display:block">No data for this period yet.</div>';
+ setH('c2',A.map((c,i)=>crow(i,'/c/'+c.slug,avC(c.game),c.game,'peak '+fmt(c.peak),fmt(c.avg),c.avg/ma,'#ff8a3d')).join('')||'<div class="cr muted" style="display:block">No data for this period yet.</div>');
+ setH('c3',G.map((c,i)=>crow(i,'/c/'+c.slug,avC(c.game),c.game,'peak '+fmt(c.peak),fmt(c.avg),c.avg/mg,'#b6f23a')).join('')||'<div class="cr muted" style="display:block">No data for this period yet.</div>');
 }
 // search: channels and categories in what's loaded
 const sq=document.getElementById('sq'),sres=document.getElementById('sres');
@@ -208,24 +209,24 @@ const boardList=()=>D.board.filter(x=>bplat==='all'||x.platform===bplat).sort((a
 function render(){if(!D)return;
  const ago=Math.max(0,Math.round(Date.now()/1000-D.updated));document.getElementById('upd').textContent=D.updated?(ago<90?ago+'s ago':Math.round(ago/60)+' min ago'):'-';
  const C=D.categories||[];
- document.getElementById('nav').innerHTML=`<a href="/" class="${CAT?'':'on'}">ALL INDIA<b>${D.fresh?fmt(D.india_total):''}</b></a>`+C.slice(0,14).map(g=>`<a href="/c/${esc(g.slug)}" class="${g.slug===CAT?'on':''}">${esc(g.game.toUpperCase())}<b>${fmt(g.viewers)}</b></a>`).join('');
+ setH('nav',`<a href="/" class="${CAT?'':'on'}">ALL INDIA<b>${D.fresh?fmt(D.india_total):''}</b></a>`+C.slice(0,14).map(g=>`<a href="/c/${esc(g.slug)}" class="${g.slug===CAT?'on':''}">${esc(g.game.toUpperCase())}<b>${fmt(g.viewers)}</b></a>`).join(''));
  renderEvents();renderTop();
  document.getElementById('wl').textContent=`// Watching now, ${SCOPE()}`;
  document.getElementById('tot').textContent=D.fresh?full(D.live_total):'-';
  document.getElementById('cnt').textContent=D.fresh?`across ${D.live_count} live stream${D.live_count===1?'':'s'}${CAT&&D.india_total?` // ${(100*D.live_total/D.india_total).toFixed(1)}% of India`:''}`:'Waiting for the first scan (every '+D.every+'s)';
- const tot=D.live_total||1;document.getElementById('pbar').innerHTML=D.platforms.map(p=>`<div style="width:${100*p.viewers/tot}%;background:${COL[p.platform]}"></div>`).join('');
- document.getElementById('pleg').innerHTML=D.platforms.map(p=>`<span><span class="sw" style="background:${COL[p.platform]}"></span>${p.name.toUpperCase()} <b>${fmt(p.viewers)}</b> (${(100*p.viewers/tot).toFixed(0)}%)</span>`).join('');
+ const tot=D.live_total||1;setH('pbar',D.platforms.map(p=>`<div style="width:${100*p.viewers/tot}%;background:${COL[p.platform]}"></div>`).join(''));
+ setH('pleg',D.platforms.map(p=>`<span><span class="sw" style="background:${COL[p.platform]}"></span>${p.name.toUpperCase()} <b>${fmt(p.viewers)}</b> (${(100*p.viewers/tot).toFixed(0)}%)</span>`).join(''));
  document.getElementById('pkl').textContent='// Peak, '+PER[per];document.getElementById('pk').textContent=D.peak?fmt(D.peak.viewers):'-';document.getElementById('pkw').textContent=D.peak?when(D.peak.ts):'';
  document.getElementById('pka').textContent=D.peak_all?fmt(D.peak_all.viewers):'-';document.getElementById('pkaw').textContent=D.peak_all?when(D.peak_all.ts):'';
- const t=D.live[0];document.getElementById('topone').innerHTML=t?`${who(t,t.title)}<div class="big mono" style="font-size:40px">${full(t.viewers)}</div><div class="muted">${CAT?'':esc(t.game)+' // '}${(100*t.viewers/tot).toFixed(1)}% of ${CAT?esc(CATNAME)+' viewers':'everyone watching'}</div>`:'<span class="muted">Nothing live in the last scan.</span>';
+ const t=D.live[0];setH('topone',t?`${who(t,t.title)}<div class="big mono" style="font-size:40px">${full(t.viewers)}</div><div class="muted">${CAT?'':esc(t.game)+' // '}${(100*t.viewers/tot).toFixed(1)}% of ${CAT?esc(CATNAME)+' viewers':'everyone watching'}</div>`:'<span class="muted">Nothing live in the last scan.</span>');
  document.getElementById('ch').textContent=`Concurrent viewers, ${SCOPE()}, ${PER[per]}`;
  seg('per1',[['today','24H'],['7d','7D'],['30d','30D']],per,v=>{per=v;bAll=false;load()});drawChart();
  const gm=C[0]?C[0].viewers:1;
- document.getElementById('cats').innerHTML=C.slice(0,24).map(g=>`<a class="cat" href="/c/${esc(g.slug)}"><div class="n">${esc(g.game)}</div><div class="v">${fmt(g.viewers)}</div><div class="s">${g.streams} live // top: ${esc(g.top)}</div><div class="t"><i style="width:${100*g.viewers/gm}%"></i></div></a>`).join('')||'<span class="muted">Nothing live in the last scan.</span>';
+ setH('cats',C.slice(0,24).map(g=>`<a class="cat" href="/c/${esc(g.slug)}"><div class="n">${esc(g.game)}</div><div class="v">${fmt(g.viewers)}</div><div class="s">${g.streams} live // top: ${esc(g.top)}</div><div class="t"><i style="width:${100*g.viewers/gm}%"></i></div></a>`).join('')||'<span class="muted">Nothing live in the last scan.</span>');
  seg('plat',[['all','ALL'],...['youtube','kick','twitch'].map(p=>[p,p.toUpperCase()])],plat,v=>{plat=v;lAll=false;render()});
  const L=liveList(),ll=lAll||q?L:L.slice(0,25);
  document.getElementById('lh').textContent=`Live streams (${L.length})`;
- document.getElementById('live').innerHTML=ll.map((x,i)=>`<tr><td class="rk${i<3?' t1':''}">${i+1}</td><td>${who(x,x.title)}</td>${CAT?'':`<td class="hide-m">${catLink(x.game)}</td>`}<td class="num">${full(x.viewers)}</td></tr>`).join('')||'<tr><td colspan=4 class="muted">Nothing live matches.</td></tr>';
+ setH('live',ll.map((x,i)=>`<tr><td class="rk${i<3?' t1':''}">${i+1}</td><td>${who(x,x.title)}</td>${CAT?'':`<td class="hide-m">${catLink(x.game)}</td>`}<td class="num">${full(x.viewers)}</td></tr>`).join('')||'<tr><td colspan=4 class="muted">Nothing live matches.</td></tr>');
  const lm=document.getElementById('lmore');lm.style.display=L.length>25&&!q?'block':'none';lm.textContent=lAll?'SHOW FEWER':`SHOW ALL ${L.length}`;lm.onclick=()=>{lAll=!lAll;render()};
  seg('per',[['today','TODAY'],['7d','7 DAYS'],['30d','30 DAYS']],per,v=>{per=v;bAll=false;load()});
  seg('sort',[['hw','HOURS WATCHED'],['peak','PEAK'],['avg','AVERAGE']],sort,v=>{sort=v;render()});
@@ -233,12 +234,12 @@ function render(){if(!D)return;
  document.getElementById('bt').className='s-'+sort;
  const B=boardList(),bb=bAll?B:B.slice(0,25);
  document.getElementById('bh').textContent=`Top ${CAT?CATNAME+' ':''}streamers, ${PERB[per]}`;
- document.getElementById('board').innerHTML=bb.map((x,i)=>`<tr><td class="rk${i<3?' t1':''}">${i+1}</td><td>${who(x)}</td>${CAT?'':`<td class="hide-m">${catLink(x.game)}</td>`}<td class="num m c-hw">${fmt(x.hw)}h</td><td class="num m c-peak">${fmt(x.peak)}</td><td class="num m c-avg">${fmt(x.avg)}</td><td class="num hide-m">${x.airtime_h}h</td></tr>`).join('')||'<tr><td colspan=7 class="muted">No data for this period yet.</td></tr>';
+ setH('board',bb.map((x,i)=>`<tr><td class="rk${i<3?' t1':''}">${i+1}</td><td>${who(x)}</td>${CAT?'':`<td class="hide-m">${catLink(x.game)}</td>`}<td class="num m c-hw">${fmt(x.hw)}h</td><td class="num m c-peak">${fmt(x.peak)}</td><td class="num m c-avg">${fmt(x.avg)}</td><td class="num hide-m">${x.airtime_h}h</td></tr>`).join('')||'<tr><td colspan=7 class="muted">No data for this period yet.</td></tr>');
  const bm=document.getElementById('bmore');bm.style.display=B.length>25?'block':'none';bm.textContent=bAll?'SHOW FEWER':`SHOW ALL ${B.length}`;bm.onclick=()=>{bAll=!bAll;render()};
  document.getElementById('gh').textContent=`Games & categories by hours watched, ${PERB[per]}`;
- document.getElementById('gboard').innerHTML=D.games.map((g,i)=>`<tr><td class="rk${i<3?' t1':''}">${i+1}</td><td><a href="/c/${esc(g.slug)}" style="text-decoration:none"><b>${esc(g.game)}</b></a></td><td class="num">${fmt(g.hw)}h</td><td class="num">${fmt(g.peak_stream)}</td><td class="num hide-m">${g.channels}</td></tr>`).join('')||'<tr><td colspan=5 class="muted">No data yet.</td></tr>';
+ setH('gboard',D.games.map((g,i)=>`<tr><td class="rk${i<3?' t1':''}">${i+1}</td><td><a href="/c/${esc(g.slug)}" style="text-decoration:none"><b>${esc(g.game)}</b></a></td><td class="num">${fmt(g.hw)}h</td><td class="num">${fmt(g.peak_stream)}</td><td class="num hide-m">${g.channels}</td></tr>`).join('')||'<tr><td colspan=5 class="muted">No data yet.</td></tr>');
  const miss=['kick','twitch'].filter(p=>!D.keys[p]).map(p=>NAMES[p]);
- document.getElementById('note').innerHTML=`<b>How this is counted.</b> A scan every ${Math.round(D.every/60)} minutes: YouTube's Live page for India and live searches for each game, language and category (news, devotional, music, cricket, talk), localised to India, plus hand-added channels; Kick and Twitch streams in ${esc(D.langs.join(', '))} plus hand-added channels. Viewers are each platform's own concurrent count; a channel streaming twice at once is added together; streams under ${D.min} viewers are left out. Categories come from the platform category (Kick, Twitch) or the stream title (YouTube); a title that names none is Other. Hours watched = viewers x time live. <b>Not a census:</b> a stream that doesn't show up in these searches or languages is missed, so totals are a floor, not the whole of India.${miss.length?` ${miss.join(' and ')} language-wide discovery is off until API keys are added; only hand-added channels are counted there.`:''}`;
+ setH('note',`<b>How this is counted.</b> A scan every ${Math.round(D.every/60)} minutes: YouTube's Live page for India and live searches for each game, language and category (news, devotional, music, cricket, talk), localised to India, plus hand-added channels; Kick and Twitch streams in ${esc(D.langs.join(', '))} plus hand-added channels. Viewers are each platform's own concurrent count; a channel streaming twice at once is added together; streams under ${D.min} viewers are left out. Categories come from the platform category (Kick, Twitch) or the stream title (YouTube); a title that names none is Other. Hours watched = viewers x time live. <b>Not a census:</b> a stream that doesn't show up in these searches or languages is missed, so totals are a floor, not the whole of India.${miss.length?` ${miss.join(' and ')} language-wide discovery is off until API keys are added; only hand-added channels are counted there.`:''}`);
 }
 function drawChart(){const cv=document.getElementById('cv'),dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;if(!W)return;
  cv.width=W*dpr;cv.height=H*dpr;const x=cv.getContext('2d');x.scale(dpr,dpr);x.clearRect(0,0,W,H);plot(x,W,H,D.series||[],1)}
@@ -311,7 +312,9 @@ async function shareTo(app){if(!cur)return;const f=new File([cur.blob],cur.name,
 document.getElementById('mig').onclick=()=>shareTo('ig');document.getElementById('mxb').onclick=()=>shareTo('x');
 document.getElementById('q').oninput=e=>{q=e.target.value.trim().toLowerCase();render()};
 async function load(){try{const r=await fetch('/api/scene?period='+per+(CAT?'&cat='+CAT:'')+'&t='+Math.floor(Date.now()/20000),{cache:'no-store'});D=await r.json();render()}catch(e){}}
-load();setInterval(load,30000);
+async function loadLive(){if(!D||document.hidden)return;try{const r=await fetch('/api/scene/live'+(CAT?'?cat='+CAT:'')+(CAT?'&':'?')+'t='+Math.floor(Date.now()/2000),{cache:'no-store'});const j=await r.json();
+ ['updated','fresh','india_total','live_total','live_count','platforms','categories','live'].forEach(k=>D[k]=j[k]);render()}catch(e){}}
+load();setInterval(load,30000);setInterval(loadLive,2000);   // live numbers every 2s, rankings and charts every 30s
 setInterval(()=>{if(!D)return;const a=Math.round(Date.now()/1000-D.updated);document.getElementById('upd').textContent=D.updated?(a<90?a+'s ago':Math.round(a/60)+' min ago'):'-';
  document.querySelectorAll('.ev .v[data-ns]').forEach(e=>{if(e.dataset.ns)e.textContent=cdTxt(+e.dataset.ns)})},1000);
 </script></body></html>"""
