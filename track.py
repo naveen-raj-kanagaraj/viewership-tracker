@@ -86,8 +86,12 @@ def cmd_run(args) -> int:
     print(f"Live counter:  every {events.FAST_SEC}s")
     print(f"Discovery:     every {events.POLL_SEC}s")
     print(f"Counting from: {'YouTube Data API' if os.getenv('YOUTUBE_API_KEY') else 'public pages via yt-dlp (no API key)'}")
+    if os.getenv("SCENE_ENABLED", "true").lower() == "true":
+        print("Rankings:      worldwide + India live streams (YouTube, Kick, Twitch), new streams every 2 min, counts every 2s")
     if active:
-        print(f"Tracking:      {', '.join(e['name'] for e in active)}")
+        ended = [e['name'] for e in active if events.PRESETS.get(e['key'], {}).get('ended')]
+        live = [e['name'] for e in active if e['name'] not in ended]
+        print(f"Tournaments:   {', '.join(live) or '-'}" + (f"  (finished, history only: {', '.join(ended)})" if ended else ""))
     print()
 
     # Live counters, the per-minute export thread and the one-time repair all start here.
