@@ -48,7 +48,7 @@ h2{margin:2px 0 0;font-size:18px}.muted{color:var(--muted)}.sub{color:var(--mute
 .ev .n{font-size:18px;font-weight:700;margin-top:6px}.ev .v{font:22px "Share Tech Mono",monospace;margin-top:4px}.ev .go{position:absolute;right:14px;top:14px;color:var(--muted);font:12px "Share Tech Mono",monospace}
 .cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:12px}
 .cat{display:block;text-decoration:none;background:var(--card2);border:1px solid var(--line);padding:12px;min-width:0}
-.cat:hover{border-color:var(--lime)}.cat .n{font-weight:700;font-size:16px}.cat .v{font:22px "Share Tech Mono",monospace;margin-top:2px}
+.cat{position:relative;padding-right:56px}.cimg{position:absolute;right:10px;top:10px;width:36px;height:48px;object-fit:cover;border-radius:4px;border:1px solid var(--line)}.cat:hover{border-color:var(--lime)}.cat .n{font-weight:700;font-size:16px}.cat .v{font:22px "Share Tech Mono",monospace;margin-top:2px}
 .cat .s{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cat .t{height:3px;background:var(--line);margin-top:8px}.cat .t i{display:block;height:100%;background:var(--lime)}
 .tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
 .seg{display:inline-flex;border:1px solid var(--line)}.seg button{background:none;border:0;color:var(--muted);font:12px "Share Tech Mono",monospace;padding:6px 10px;cursor:pointer}
@@ -97,7 +97,7 @@ td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}.num{te
 .cr{display:grid;grid-template-columns:18px 36px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 14px;text-decoration:none;border-bottom:1px solid #1c1c29}
 .cr .r{font:12px "Share Tech Mono",monospace;color:var(--muted)}.cr .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cr .sb{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .av{position:relative;width:36px;height:36px}.av img,.av .ph{width:36px;height:36px;border-radius:50%;object-fit:cover;background:var(--card2);border:1px solid var(--line);display:grid;place-items:center;font:700 12px "Chakra Petch",sans-serif;color:var(--muted)}
-.av .ph.sq{border-radius:6px;color:#0b0b12}.av .bd{position:absolute;right:-3px;bottom:-3px;width:15px;height:15px;border-radius:4px;display:grid;place-items:center;font:700 9px "Chakra Petch",sans-serif;color:#0b0b12;border:2px solid var(--card)}
+.av .ph.sq{border-radius:6px;color:#0b0b12}.av img.art{border-radius:4px;width:30px;height:40px;margin:-2px 3px;object-fit:cover;border:1px solid var(--line)}.av .ph.ico{background:var(--card2);color:var(--lime);border:1px solid var(--line)}.av .bd{position:absolute;right:-3px;bottom:-3px;width:15px;height:15px;border-radius:4px;display:grid;place-items:center;font:700 9px "Chakra Petch",sans-serif;color:#0b0b12;border:2px solid var(--card)}
 .cv{text-align:right;font:14px "Share Tech Mono",monospace;min-width:84px}.cv i{display:block;height:2px;margin:5px 0 0 auto}
 .cf{margin-top:auto;display:block;text-align:center;padding:12px;border-top:1px solid var(--line);text-decoration:none;font-size:14px;background:var(--card2)}.cf:hover{color:var(--lime)}
 .hero2{display:grid;grid-template-columns:1.25fr 1fr;gap:12px}
@@ -165,7 +165,10 @@ const PL=[['all','All platforms','#eeeef5','\u2731'],['youtube','YouTube',COL.yo
 const ini=s=>esc(String(s||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase()||'?');
 const HUE=g=>{let h=0;for(const ch of String(g))h=(h*31+ch.charCodeAt(0))%360;return `hsl(${h} 70% 62%)`};
 const avS=x=>`<span class="av">${x.logo?`<img src="${esc(x.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=ph>${ini(x.name)}</span>'">`:`<span class="ph">${ini(x.name)}</span>`}<span class="bd" style="background:${COL[x.platform]||'#888'}">${(x.platform||'?')[0].toUpperCase()}</span></span>`;
-const avC=g=>`<span class="av"><span class="ph sq" style="background:${HUE(g)}">${ini(g)}</span></span>`;
+const ICON={News:'<path d="M4 5h13v14H6a2 2 0 0 1-2-2zM17 9h3v8a2 2 0 0 1-2 2M7 8h7M7 11h7M7 14h4"/>',Music:'<path d="M9 18V6l11-2v12M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM20 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/>',
+ Devotional:'<path d="M12 3c1.5 2.5 3 4 3 6a3 3 0 0 1-6 0c0-2 1.5-3.5 3-6zM4 15h16l-2 5H6z"/>','Cricket (live)':'<path d="M15 3l6 6-9.5 9.5-6-6zM5.5 12.5L3 15l6 6 2.5-2.5M18 18a2 2 0 1 0 0 .01"/>',
+ 'Podcast / Talk':'<path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/>',Other:'<path d="M4 6h16v10H4zM9 20h6M12 16v4"/>'};
+const avC=(g,art)=>art?`<span class="av"><img class="art" src="${esc(art)}" alt="" loading="lazy" referrerpolicy="no-referrer"></span>`:ICON[g]?`<span class="av"><span class="ph sq ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[g]}</svg></span></span>`:`<span class="av"><span class="ph sq" style="background:${HUE(g)}">${ini(g)}</span></span>`;
 const crow=(i,href,av,name,sub,val,w,col,ext)=>`<a class="cr" href="${esc(href)}"${ext?' target="_blank" rel="noopener"':''}><span class="r">${i+1}</span>${av}<span style="min-width:0"><div class="nm">${esc(name)}</div>${sub?`<div class="sb">${esc(sub)}</div>`:''}</span><span class="cv">${val}<i style="width:${Math.max(4,w*100)}%;background:${col}"></i></span></a>`;
 let c1sort='hw';
 function renderTop(){const per3=PERB[per];
@@ -188,8 +191,8 @@ function renderTop(){const per3=PERB[per];
   document.getElementById('c3f').href='#boardcard';setH('c3f','Full leaderboard &rarr;');return}
  const CP=D.cat_period||[],A=CP.slice(0,10),G=CP.filter(c=>c.gaming).slice(0,10),ma=A[0]?A[0].avg:1,mg=G[0]?G[0].avg:1;
  document.getElementById('c2p').textContent=per3;document.getElementById('c3p').textContent=per3;
- setH('c2',A.map((c,i)=>crow(i,'/c/'+c.slug,avC(c.game),c.game,'peak '+fmt(c.peak),fmt(c.avg),c.avg/ma,'#ff8a3d')).join('')||'<div class="cr muted" style="display:block">No data for this period yet.</div>');
- setH('c3',G.map((c,i)=>crow(i,'/c/'+c.slug,avC(c.game),c.game,'peak '+fmt(c.peak),fmt(c.avg),c.avg/mg,'#b6f23a')).join('')||'<div class="cr muted" style="display:block">No data for this period yet.</div>');
+ setH('c2',A.map((c,i)=>crow(i,'/c/'+c.slug,avC(c.game,c.art),c.game,'peak '+fmt(c.peak),fmt(c.avg),c.avg/ma,'#ff8a3d')).join('')||'<div class="cr muted" style="display:block">No data for this period yet.</div>');
+ setH('c3',G.map((c,i)=>crow(i,'/c/'+c.slug,avC(c.game,c.art),c.game,'peak '+fmt(c.peak),fmt(c.avg),c.avg/mg,'#b6f23a')).join('')||'<div class="cr muted" style="display:block">No data for this period yet.</div>');
 }
 // search: channels and categories in what's loaded
 const sq=document.getElementById('sq'),sres=document.getElementById('sres');
@@ -222,7 +225,7 @@ function render(){if(!D)return;
  document.getElementById('ch').textContent=`Concurrent viewers, ${SCOPE()}, ${PER[per]}`;
  seg('per1',[['today','24H'],['7d','7D'],['30d','30D']],per,v=>{per=v;bAll=false;load()});drawChart();
  const gm=C[0]?C[0].viewers:1;
- setH('cats',C.slice(0,24).map(g=>`<a class="cat" href="/c/${esc(g.slug)}"><div class="n">${esc(g.game)}</div><div class="v">${fmt(g.viewers)}</div><div class="s">${g.streams} live // top: ${esc(g.top)}</div><div class="t"><i style="width:${100*g.viewers/gm}%"></i></div></a>`).join('')||'<span class="muted">Nothing live in the last scan.</span>');
+ setH('cats',C.slice(0,24).map(g=>`<a class="cat" href="/c/${esc(g.slug)}">${g.art?`<img class="cimg" src="${esc(g.art)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}<div class="n">${esc(g.game)}</div><div class="v">${fmt(g.viewers)}</div><div class="s">${g.streams} live // top: ${esc(g.top)}</div><div class="t"><i style="width:${100*g.viewers/gm}%"></i></div></a>`).join('')||'<span class="muted">Nothing live in the last scan.</span>');
  seg('plat',[['all','ALL'],...['youtube','kick','twitch'].map(p=>[p,p.toUpperCase()])],plat,v=>{plat=v;lAll=false;render()});
  const L=liveList(),ll=lAll||q?L:L.slice(0,25);
  document.getElementById('lh').textContent=`Live streams (${L.length})`;
@@ -237,7 +240,7 @@ function render(){if(!D)return;
  setH('board',bb.map((x,i)=>`<tr><td class="rk${i<3?' t1':''}">${i+1}</td><td>${who(x)}</td>${CAT?'':`<td class="hide-m">${catLink(x.game)}</td>`}<td class="num m c-hw">${fmt(x.hw)}h</td><td class="num m c-peak">${fmt(x.peak)}</td><td class="num m c-avg">${fmt(x.avg)}</td><td class="num hide-m">${x.airtime_h}h</td></tr>`).join('')||'<tr><td colspan=7 class="muted">No data for this period yet.</td></tr>');
  const bm=document.getElementById('bmore');bm.style.display=B.length>25?'block':'none';bm.textContent=bAll?'SHOW FEWER':`SHOW ALL ${B.length}`;bm.onclick=()=>{bAll=!bAll;render()};
  document.getElementById('gh').textContent=`Games & categories by hours watched, ${PERB[per]}`;
- setH('gboard',D.games.map((g,i)=>`<tr><td class="rk${i<3?' t1':''}">${i+1}</td><td><a href="/c/${esc(g.slug)}" style="text-decoration:none"><b>${esc(g.game)}</b></a></td><td class="num">${fmt(g.hw)}h</td><td class="num">${fmt(g.peak_stream)}</td><td class="num hide-m">${g.channels}</td></tr>`).join('')||'<tr><td colspan=5 class="muted">No data yet.</td></tr>');
+ setH('gboard',D.games.map((g,i)=>`<tr><td class="rk${i<3?' t1':''}">${i+1}</td><td><a href="/c/${esc(g.slug)}" style="text-decoration:none;display:flex;align-items:center;gap:10px">${avC(g.game,g.art)}<b>${esc(g.game)}</b></a></td><td class="num">${fmt(g.hw)}h</td><td class="num">${fmt(g.peak_stream)}</td><td class="num hide-m">${g.channels}</td></tr>`).join('')||'<tr><td colspan=5 class="muted">No data yet.</td></tr>');
  const miss=['kick','twitch'].filter(p=>!D.keys[p]).map(p=>NAMES[p]);
  setH('note',`<b>How this is counted.</b> A scan every ${Math.round(D.every/60)} minutes: YouTube's Live page for India and live searches for each game, language and category (news, devotional, music, cricket, talk), localised to India, plus hand-added channels; Kick and Twitch streams in ${esc(D.langs.join(', '))} plus hand-added channels. Viewers are each platform's own concurrent count; a channel streaming twice at once is added together; streams under ${D.min} viewers are left out. Categories come from the platform category (Kick, Twitch) or the stream title (YouTube); a title that names none is Other. Hours watched = viewers x time live. <b>Not a census:</b> a stream that doesn't show up in these searches or languages is missed, so totals are a floor, not the whole of India.${miss.length?` ${miss.join(' and ')} language-wide discovery is off until API keys are added; only hand-added channels are counted there.`:''}`);
 }

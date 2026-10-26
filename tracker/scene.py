@@ -137,7 +137,7 @@ QUERIES = ["BGMI live", "BGMI live tamil", "BGMI live telugu", "Free Fire live",
            "Clash of Clans live hindi", "Real cricket live", "hindi gaming live", "tamil gaming live",
            "telugu gaming live", "PUBG PC live hindi", "Roblox live hindi",
            # beyond gaming: everything live in India
-           "live hindi", "live stream india", "news live hindi", "news live", "live tamil", "live telugu", "live bengali",
+           "live hindi", "live stream india", "news live hindi", "live tamil", "live telugu", "live bengali",
            "live marathi", "live kannada", "live malayalam", "live gujarati", "live punjabi", "bhajan live",
            "live darshan", "cricket live", "podcast live hindi", "live chat hindi", "music live hindi"]
 LIVE_PAGE = "UC4R8DWoMoI7CAwX8_LjQHig"   # YouTube's own "Live" page, India edition: what's trending live now
@@ -178,6 +178,46 @@ ALL = "__all__"          # the India-wide total in sc_cat
 NON_GAMING = {"News", "Devotional", "Music", "Podcast / Talk", "Just Chatting", "Cricket (live)", "Other"}
 _NON_GAMING_WORDS = ("irl", "chatting", "music", "talk", "sports", "slots", "casino", "pools", "asmr", "travel",
                      "podcast", "news", "special events", "art", "food", "politics")
+
+
+# Cover art for each game: the name it has on Twitch (tried in order), else Kick's category image.
+TWITCH_NAMES = {"BGMI": ["Battlegrounds Mobile India", "PUBG MOBILE"], "PUBG PC": ["PUBG: BATTLEGROUNDS"],
+                "Free Fire": ["Garena Free Fire", "Free Fire"], "GTA V": ["Grand Theft Auto V"], "Valorant": ["VALORANT"],
+                "COD Mobile": ["Call of Duty: Mobile"], "Call of Duty": ["Call of Duty: Warzone", "Call of Duty: Black Ops 6"],
+                "Counter-Strike 2": ["Counter-Strike", "Counter-Strike 2"], "Indus": ["Indus Battle Royale", "Indus"],
+                "Pokemon Unite": ["Pokémon UNITE"], "EA Sports FC": ["EA Sports FC 26", "EA Sports FC 25"],
+                "Cricket games": ["Real Cricket 24", "Cricket 24"], "Just Chatting": ["Just Chatting"], "Music": ["Music"]}
+_ART_BUSY = set()
+
+
+def cat_art(game: str) -> str:
+    """Cover art URL for a game or platform category (cached; looked up in the background the first time)."""
+    if not game or game in NON_GAMING - {"Just Chatting"}:
+        return ""
+    k = f"cat_art:{game}"
+    v = store.kv_get(k)
+    if v is None and game not in _ART_BUSY:
+        _ART_BUSY.add(game)
+
+        def fetch():
+            url = ""
+            try:
+                if platforms._keys("twitch"):
+                    for name in TWITCH_NAMES.get(game, []) + [game]:
+                        g = platforms._get("twitch", "https://api.twitch.tv/helix/games", {"name": name}).get("data") or []
+                        if g and g[0].get("box_art_url"):
+                            url = g[0]["box_art_url"].replace("{width}", "144").replace("{height}", "192")
+                            break
+                if not url and platforms._keys("kick"):
+                    c = platforms._get("kick", "https://api.kick.com/public/v1/categories", {"q": game}).get("data") or []
+                    hit = next((x for x in c if (x.get("name") or "").lower() == game.lower()), c[0] if c else None)
+                    url = (hit or {}).get("thumbnail") or ""
+                store.kv_set(k, url)
+            except Exception as e:
+                print(f"Cover art for {game} failed: {str(e)[:100]}")
+            _ART_BUSY.discard(game)
+        _pool.submit(fetch)
+    return v or ""
 
 
 def is_gaming(game: str) -> bool:
@@ -588,7 +628,8 @@ def _live_part(game=None) -> dict:
     by_game = {}
     for x in live:
         g = by_game.setdefault(x["game"], {"game": x["game"], "slug": slug(x["game"]), "viewers": 0, "streams": 0,
-                                           "top": x["name"], "top_logo": x.get("logo") or "", "top_viewers": x["viewers"]})
+                                           "top": x["name"], "top_logo": x.get("logo") or "", "top_viewers": x["viewers"],
+                                           "art": cat_art(x["game"])})
         g["viewers"] += x["viewers"]
         g["streams"] += 1
     if game:
@@ -651,7 +692,7 @@ def data(period: str = "today", cat: str = "") -> dict:
         x["hw"] += r["hw"]
         x["games"][r["game"]] = x["games"].get(r["game"], 0) + r["hw"]
         g = games.setdefault(r["game"], {"game": r["game"], "slug": slug(r["game"]), "hw": 0.0, "peak_stream": 0,
-                                         "channels": 0})
+                                         "channels": 0, "art": cat_art(r["game"])})
         g["hw"] += r["hw"]
         g["peak_stream"] = max(g["peak_stream"], r["peak"])
         g["channels"] += 1
@@ -679,7 +720,8 @@ def data(period: str = "today", cat: str = "") -> dict:
             "events": [] if game else _events(),
             # per category over the period: average concurrent viewers (missing scans count as 0) and peak
             "cat_period": sorted(({"game": r["game"], "slug": slug(r["game"]), "avg": round(r["s"] / scans) if scans else 0,
-                                   "peak": r["pk"], "gaming": is_gaming(r["game"])} for r in cstats),
+                                   "peak": r["pk"], "gaming": is_gaming(r["game"]), "art": cat_art(r["game"])}
+                                  for r in cstats),
                                  key=lambda x: -x["avg"]),
             "tracked": tracked,
             "langs": LANGS, "min": MIN_VIEWERS, "keys": {p: bool(platforms._keys(p)) for p in ("kick", "twitch")}}
