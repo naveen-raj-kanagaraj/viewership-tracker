@@ -11,6 +11,20 @@ Everything that runs the site is in three places. Move all three and it carries 
 Optional, also not in git: `cookies.txt` (YouTube cookies, if you made one), `static/gameart/` files you added
 (those are in git only if you committed them), `exports/private/` (Predict & Win player exports).
 
+## Where it is on the owner's Mac (Oct 2026)
+
+`/Users/naveenrajkanagaraj/Downloads/Projects/viewership-tracker` (data in `data/tracker.db`, keys in `.env`; `.env`
+is hidden: Cmd+Shift+. in Finder shows it). It runs with `~/my-agent/venv/bin/python` (the venv of the separate agent
+repo); on a new machine make its own venv as below. The Cloudflare tunnel login is in `~/.cloudflared/`.
+
+## Should the database go to GitHub if the repo is made private?
+
+No. A private repo hides it from the public, but git is the wrong tool for a database that changes every 2 seconds:
+every commit stores a full new copy (the history balloons past GitHub's limits within weeks; single files over
+100 MB are refused), pushing it mid-write can capture a half-written file, and everyone given repo access sees
+Predict & Win players' data. Keep code in git, the database in backups (synced folder below). Note: if the repo goes
+private, the Mac needs GitHub credentials for `git pull` and the tracker's self-update (`gh auth login` once).
+
 ## Keep a copy (do this regardless of moving)
 
 The tracker saves a copy of the database every night to `backups/` (newest 3). Make one any time with:
