@@ -200,3 +200,10 @@ assert sc.cat_art("Call of Duty") == "" and sc.cat_art("Cricket games") == ""
 print("ART OK")
 r = web.app.test_client().get("/global/c/bgmi"); assert r.status_code == 301 and r.headers["Location"].endswith("/c/bgmi")
 print("ROUTES OK")
+# biggest YouTube channels re-counted every 2s
+sc._YTF["next"] = 0
+events.count_live = lambda vid: {"v10": 260000, "v2": 125000}.get(vid, 0)
+n = sc.yt_fast_once(); lv = {x["sid"]: x["viewers"] for x in sc.live_data(region="global")["live"]}
+print("yt fast:", n, lv.get("yt:UCvct"), lv.get("yt:UCtg"))
+assert lv["yt:UCvct"] == 260000 and lv["yt:UCtg"] == 125000
+print("YT FAST OK")
