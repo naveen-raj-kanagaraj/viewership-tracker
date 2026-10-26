@@ -153,6 +153,24 @@ Changes are picked up within a minute by a running tracker. The same fields work
   (`"home": True` in a preset, or `python track.py home <key>`). The dashboard labels each stream's platform and splits
   the total by platform.
 
+## India rankings (/india)
+
+Alongside events, an always-on scan of Indian live streaming on YouTube, Kick and Twitch, sorted into games and ranked:
+live now, the top streamers today / last 7 days / last 30 days by hours watched, peak or average, and games by hours
+watched. Every 2 minutes it takes Kick and Twitch streams in the India languages (`SCENE_LANGS`, needs the platform
+keys), runs India-localised YouTube live searches for each game (every 5 minutes, every 15 while an event broadcast is
+live), re-counts every YouTube stream already found, and checks hand-added channels.
+
+```bash
+python track.py scene top 7d
+python track.py scene add kick skyesports        # youtube @handle, kick slug or twitch login
+python track.py scene block "Some Channel"       # hide from the rankings
+python track.py scene probe                      # check each source once
+```
+
+It is not a census: streams that never appear in those searches or languages are missed, and the page says so.
+Tables: `sc_channels`, `sc_samples` (raw, kept `SCENE_KEEP_DAYS`), `sc_daily` (per IST day, kept).
+
 **When an event ends.** Set `"ended": True`, run `python track.py export <key>`, and add a row to the Events tracked table above. The dashboard keeps serving its history.
 
 ## Data

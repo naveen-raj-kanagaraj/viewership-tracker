@@ -20,6 +20,13 @@
     python track.py home bmic                          which event the site shows at /  (every event: /e/<key>/)
     python track.py platforms                          which connectors have keys
 
+  India rankings (every streamer, every game; page at /india):
+    python track.py scene top [today|7d|30d]           who is live now and who leads
+    python track.py scene add kick skyesports          add a channel (youtube @handle, kick slug, twitch login)
+    python track.py scene remove kick skyesports
+    python track.py scene block <name or url>          hide a channel from the rankings (unblock to undo)
+    python track.py scene probe                        check each source once
+
 Running with no arguments starts three things: the live counter (every
 EVENT_FAST_SEC), stream discovery (every EVENT_POLL_SEC) and the web dashboard.
 """
@@ -83,6 +90,9 @@ def cmd_run(args) -> int:
     # Live counters, the per-minute export thread and the one-time repair all start here.
     threading.Thread(target=events.run_fast_forever, daemon=True).start()
     threading.Thread(target=_discovery_loop, daemon=True).start()
+    if os.getenv("SCENE_ENABLED", "true").lower() == "true":     # India rankings at /india
+        from tracker import scene
+        threading.Thread(target=scene.run_forever, daemon=True).start()
 
     from tracker import web
     if os.getenv("EVENT_PUBLIC_LINK", "true").lower() == "true":
@@ -208,6 +218,42 @@ def cmd_platforms(args) -> int:
     return 0
 
 
+def cmd_scene(args) -> int:
+    from tracker import scene
+    a = args.args
+    if not a or a[0] == "top":
+        print(scene.top(a[1] if len(a) > 1 else "today"))
+        return 0
+    if a[0] == "probe":
+        print(scene.probe())
+        return 0
+    if a[0] in ("add", "remove") and len(a) == 3 and a[1] in ("youtube", "kick", "twitch"):
+        sd = scene.seeds()
+        x = a[2].strip().rstrip("/").rsplit("/", 1)[-1]
+        x = ("@" + x.lstrip("@")) if a[1] == "youtube" and not x.startswith("UC") else x.lower().lstrip("@")
+        sd[a[1]] = [y for y in sd[a[1]] if y.lower() != x.lower()] + ([x] if a[0] == "add" else [])
+        store.kv_set("scene_seeds", sd)
+        print(f"{a[1]}: {', '.join(sd[a[1]]) or '-'}  (picked up in the next scan)")
+        return 0
+    if a[0] in ("block", "unblock") and len(a) >= 2:
+        want = " ".join(a[1:]).strip().lower().rstrip("/")
+        with store._lock:
+            rows = scene._db().execute("SELECT sid, name, url FROM sc_channels").fetchall()
+        hit = [r["sid"] for r in rows if want in (r["sid"].lower(), (r["name"] or "").lower(), (r["url"] or "").lower())
+               or (want.startswith("http") and want.rsplit("/", 1)[-1] == r["sid"].split(":", 1)[-1].lower())]
+        if not hit:
+            print(f"No channel called {want} has been seen yet.", file=sys.stderr)
+            return 1
+        b = scene.blocked()
+        b = (b | set(hit)) if a[0] == "block" else (b - set(hit))
+        store.kv_set("scene_blocked", sorted(b))
+        print(f"{a[0]}ed: {', '.join(hit)}")
+        return 0
+    print("Usage: track.py scene [top [today|7d|30d] | probe | add|remove <youtube|kick|twitch> <channel> | block|unblock <name>]",
+          file=sys.stderr)
+    return 1
+
+
 def cmd_visitors(args) -> int:
     from tracker import visitors
     print(visitors.summary())
@@ -245,6 +291,8 @@ def main() -> int:
     s = sub.add_parser("home", help="the event shown at /")
     s.add_argument("key")
     sub.add_parser("platforms", help="which connectors have keys")
+    s = sub.add_parser("scene", help="India rankings: top, probe, add/remove a channel, block")
+    s.add_argument("args", nargs="*")
     for name, help_text in (("stats", "peak, average, hours watched"),
                             ("export", "write the CSV and xlsx exports")):
         s = sub.add_parser(name, help=help_text)
@@ -254,7 +302,8 @@ def main() -> int:
     handlers = {None: cmd_run, "run": cmd_run, "events": cmd_events, "create": cmd_create,
                 "pause": cmd_pause, "resume": cmd_resume, "stats": cmd_stats,
                 "export": cmd_export, "visitors": cmd_visitors, "new": cmd_new, "kick": cmd_platform,
-                "twitch": cmd_platform, "home": cmd_home, "platforms": cmd_platforms}
+                "twitch": cmd_platform, "home": cmd_home, "platforms": cmd_platforms,
+                "scene": cmd_scene}
     try:
         return handlers[args.cmd](args)
     except KeyboardInterrupt:

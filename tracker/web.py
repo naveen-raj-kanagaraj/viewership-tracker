@@ -23,7 +23,7 @@ PORT = int(os.getenv("EVENT_WEB_PORT", "8092"))
 app = Flask(__name__)
 
 
-CACHE = {"/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
+CACHE = {"/india": 30, "/india/data": 20, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
 
 
 
@@ -195,6 +195,20 @@ def ev_elogo(key, name):
     return elogo(name)
 
 
+@app.route("/india")
+def india():
+    from tracker import scenepage
+    return _memo("/india", 300, scenepage.build_html, "text/html")
+
+
+@app.route("/india/data")
+def india_data():
+    from tracker import scene
+    per = request.args.get("period", "today")
+    per = per if per in scene.PERIODS else "today"
+    return _memo(f"/india/data:{per}", 20, _jdump(lambda: scene.data(per)), "application/json")
+
+
 @app.route("/events")
 def events_index():
     return _memo("/events", 30, _events_html, "text/html")
@@ -219,7 +233,9 @@ def _events_html():
             ".r span{color:#9a9ab0;font-size:13px}.r i{font:normal 11px monospace;padding:2px 6px;border:1px solid}"
             ".live{color:#b6f23a}.ended{color:#9a9ab0}.paused{color:#f5a524}@media(max-width:560px){.r{grid-template-"
             "columns:1fr auto}.r span{display:none}}</style></head><body><main><h1>Tracked events</h1>"
-            + ("".join(rows) or "<p>No events yet.</p>") + "</main></body></html>")
+            + ("".join(rows) or "<p>No events yet.</p>")
+            + '<a class="r" href="/india"><b>India live streaming rankings</b><span>every game</span><span>YouTube + Kick + Twitch</span>'
+            '<i class="live">ALWAYS ON</i></a></main></body></html>')
 
 
 @app.route("/hit", methods=["POST"])
