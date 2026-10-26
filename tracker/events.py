@@ -24,7 +24,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 
-from tracker import store
+from tracker import platforms, store
 
 # A browser-exported cookies.txt at the repo root unblocks Instagram and age-gated streams.
 COOKIES_FILE = pathlib.Path(__file__).resolve().parent.parent / "cookies.txt"
@@ -50,6 +50,7 @@ WATCH_PARTY = re.compile(r"watch\s*-?\s*party|co-?\s*stream|watch\s*-?\s*along|r
 PRESETS = {
     "bmsd": {
         "name": "BMSD 2026",
+        "game": "BGMI",
         # only these watch-party channels are permitted to restream; everyone else is ignored (with official channels kept)
         "allowed": ["dynamo", "bixi", "zgod", "neyoo", "mizo", "mrspike", "lolzz", "sharkshe", "mafianinja", "ruthless",
                     "rakazone", "ansh", "casetoo", "sheek", "ipreeet", "shreeman", "mortal", "vaadhiyaar", "regaltos",
@@ -75,6 +76,8 @@ PRESETS = {
     },
     "bmic": {
         "name": "BMIC 2026",
+        "game": "BGMI",
+        "home": True,                           # the event shown at / (every event also has its own page at /e/<key>/)
         "hist": ["BMIC", "26"],                 # its place in the BGMI history chart (series key, 2-digit year)
         "roster": True,                         # show the watch-party roster (ROSTER below) and send the NOT LIVE alert
         "allowed": ["dynamo", "bixi", "zgod", "neyoo", "mizo", "mrspike", "lolzz", "sharkshe", "mafianinja", "ruthless",
@@ -98,7 +101,28 @@ PRESETS = {
 
 
 def yt_link(vid: str) -> str:
-    return f"https://youtu.be/{vid}"
+    """Watch link for any tracked stream (YouTube id, or kick:/twitch: id)."""
+    return platforms.link(vid)
+
+
+def preset(key: str) -> dict:
+    return PRESETS.get(key or "", {})
+
+
+SETTINGS = ("game", "need_official", "any_title", "kick", "twitch")   # can live on the event itself (track.py new/kick/twitch)
+
+
+def opt(ev: dict, name: str, default=None):
+    """An event setting: the event's own value (set from the CLI), else its preset's."""
+    if ev and name in ev:
+        return ev[name]
+    return preset((ev or {}).get("key")).get(name, default)
+
+
+def need_official(ev: dict) -> bool:
+    """Most events only record while the official broadcast is live. "need_official": False (say, a game category
+    with no single broadcast) records whenever any of its streams is live."""
+    return bool(opt(ev, "need_official", True))
 
 
 # ---------- storage ----------
@@ -139,6 +163,9 @@ def get(key: str = None):
         return evs.get(key.lower())
     active = [e for e in evs.values() if e.get("active")]
     live = [e for e in active if not PRESETS.get(e["key"], {}).get("ended")]   # a running event wins over a finished one
+    home = store.kv_get("event_home") or next((e["key"] for e in live if preset(e["key"]).get("home")), None)
+    if home and any(e["key"] == home for e in active):
+        return evs[home]
     pick = live or active
     return pick[-1] if pick else (list(evs.values())[-1] if evs else None)
 
@@ -279,6 +306,8 @@ def allowed_list(ev: dict) -> list:
 
 def permitted(ev: dict, s: dict) -> bool:
     """With an allow-list: only official channels and the listed watch-party channels count."""
+    if platforms.listed(ev, preset(ev.get("key")), s.get("vid", "")):
+        return True                              # named in the event's Kick/Twitch config
     al = allowed_list(ev)
     if not al or s.get("vid") in PRESETS.get(ev.get("key", ""), {}).get("videos_extra", []):
         return True
@@ -297,6 +326,9 @@ def relevant(ev: dict, s: dict) -> bool:
         return False
     if s["vid"] in ev.get("videos", []) + PRESETS.get(ev.get("key", ""), {}).get("videos_extra", []) or _forced_channel(ev, s):
         return True
+    if platforms.official(ev, preset(ev.get("key")), s["vid"]) or \
+            (platforms.is_other(s["vid"]) and opt(ev, "any_title")):
+        return True
     text = f"{s.get('title', '')} {s.get('channel', '')}".lower()
     return any(m in text for m in ev["match"])
 
@@ -307,6 +339,8 @@ def _forced_channel(ev, s) -> bool:
 
 
 def kind_of(ev: dict, s: dict) -> str:
+    if platforms.official(ev, preset(ev.get("key")), s.get("vid", "")):
+        return "official"
     ch = s.get("channel", "").lower()
     if any(o and o in ch for o in ev.get("official", [])) or (s.get("channel_id") or "").lower() in ev.get("official", []):
         return "official"
@@ -361,6 +395,13 @@ def count_live(vid: str):
 def _count_one(vid: str):
     """Live counter first; if it has no 'watching' count (or fails), read the watch page before calling it ended.
     The counter sometimes stops answering for one big stream while the stream is still live."""
+    if platforms.is_other(vid):                 # Kick / Twitch: one batched API call per platform covers every stream
+        p = platforms.platform_of(vid)
+        try:
+            return vid, platforms.count(vid), f"{platforms.NAMES[p]} API"
+        except Exception as e:
+            print(f"{platforms.NAMES[p]} count failed for {vid}: {str(e)[:120]}")
+            return vid, "err", ""
     try:
         n = count_live(vid)
         if n:                                   # 0 / None: confirm on the watch page (cached 10s, it is slow)
@@ -446,7 +487,7 @@ def fast_tick(ev: dict, now: float = None) -> dict:
         f = fast.get(vid)
         base = f["viewers"] if f else live.get(vid, {}).get("viewers", 0)
         jump = (base >= 500 and n > base * 2.5) or (base > 0 and n >= 20000 and n > base * 2.5)
-        if jump and how != "YouTube live counter":
+        if jump and how not in ("YouTube live counter", "Kick API", "Twitch API"):
             # A big jump from the watch page can be total views after the stream ended. Accept it only when the next
             # reading agrees. (The live counter only returns "N watching", so its jumps are real: a stream going
             # from 16K to 100K when the matches start is normal and was wrongly being thrown away.)
@@ -484,7 +525,7 @@ def fast_tick(ev: dict, now: float = None) -> dict:
         return {}
     total = sum(r["viewers"] for r in rows)
     by = {k: sum(r["viewers"] for r in rows if r["kind"] == k) for k in ("official", "watch party", "community")}
-    if by["official"] <= 0:
+    if by["official"] <= 0 and (need_official(ev) or total <= 0):
         return {"total": total, "live": len(rows), "official_live": False}   # only record while the official broadcast is live
     if anomalies:
         with store._lock:
@@ -717,6 +758,11 @@ def poll(ev: dict, now: int = None) -> dict:
             print(f"Official channel check failed: {str(e)[:120]}")
     for v in official_now:           # the channel itself says these are live: never drop them as ended
         _ENDED.pop(v, None)
+    if platforms.enabled(ev, preset(ev["key"])):
+        for s in platforms.discover(ev, preset(ev["key"])):
+            if relevant(ev, s):
+                found[s["vid"]] = s
+                _ENDED.pop(s["vid"], None)       # the platform API says it's live now (no search lag to guard against)
     chans = list(dict.fromkeys(ev.get("channels", []) + PRESETS.get(ev["key"], {}).get("always_check", [])))[:40]
     with ThreadPoolExecutor(max_workers=8) as pool:
         for s in pool.map(check_channel, chans):
@@ -729,7 +775,8 @@ def poll(ev: dict, now: int = None) -> dict:
             (ev["key"], now - RECHECK_MIN * 60))]
     api = {}
     vids = ev.get("videos", []) + PRESETS.get(ev["key"], {}).get("videos_extra", [])
-    known = list({*found, *[r["vid"] for r in recent], *vids})
+    known = [v for v in {*found, *[r["vid"] for r in recent], *vids} if not platforms.is_other(v)]
+    recent = [r for r in recent if not platforms.is_other(r["vid"])]   # Kick/Twitch are re-checked by discover()
     try:
         api = api_counts(known)
     except Exception as e:
@@ -766,7 +813,7 @@ def poll(ev: dict, now: int = None) -> dict:
     _LIVE[ev["key"]] = {s["vid"]: s for s in streams}
     total = sum(s["viewers"] for s in streams)
     by = {k: sum(s["viewers"] for s in streams if s["kind"] == k) for k in ("official", "watch party", "community")}
-    official_live = by["official"] > 0 and not paused(ev["key"])
+    official_live = (by["official"] > 0 or (not need_official(ev) and total > 0)) and not paused(ev["key"])
     with store._lock:
         c = _db()
         for s in streams:
@@ -839,14 +886,14 @@ def stats(key: str, since: float = 0, until: float = None) -> dict:
     nxt = {t: min((times[i + 1] - t) if i + 1 < len(times) else POLL_SEC, gap_cap) for i, t in enumerate(times)}
     for s in samples:
         p = per.setdefault(s["vid"], {"vid": s["vid"], "channel": s["channel"], "title": s["title"], "kind": s["kind"],
-                                      "peak": 0, "hw": 0.0, "air": 0})
+                                      "platform": platforms.platform_of(s["vid"]), "peak": 0, "hw": 0.0, "air": 0})
         p["peak"] = max(p["peak"], s["viewers"])
         p["hw"] += s["viewers"] * nxt[s["ts"]] / 3600
         p["air"] += nxt[s["ts"]]
     chans = {}
     for p in per.values():
-        ch = chans.setdefault(p["channel"], {"channel": p["channel"], "kind": p["kind"], "peak": 0, "hw": 0.0,
-                                             "streams": 0, "air": 0})
+        ch = chans.setdefault((p["platform"], p["channel"]), {"channel": p["channel"], "kind": p["kind"],
+                                             "platform": p["platform"], "peak": 0, "hw": 0.0, "streams": 0, "air": 0})
         if p["hw"] >= ch.get("best_hw", -1):
             ch["best_hw"], ch["url"], ch["title"] = p["hw"], yt_link(p["vid"]), p["title"]
         ch["peak"] = max(ch["peak"], p["peak"])
@@ -858,6 +905,19 @@ def stats(key: str, since: float = 0, until: float = None) -> dict:
     out["channels"] = sorted(chans.values(), key=lambda c: -c["hw"])
     out["by_kind_hw"] = {k: sum(c["hw"] for c in chans.values() if c["kind"] == k)
                          for k in ("official", "watch party", "community")}
+    # per platform: hours watched, own peak (from the 30s per-stream readings) and share of the event peak
+    plat, pts, one = {}, {}, {(s["ts"], s["vid"]): s["viewers"] for s in samples}   # one reading per stream per second
+    for (ts, vid), v in one.items():
+        k = (ts, platforms.platform_of(vid))
+        pts[k] = pts.get(k, 0) + v
+    for (ts, pl), v in pts.items():
+        x = plat.setdefault(pl, {"platform": pl, "name": platforms.NAMES[pl], "peak": 0, "peak_at": ts, "hw": 0.0})
+        if v > x["peak"]:
+            x.update(peak=v, peak_at=ts)
+    for c_ in chans.values():
+        if c_["platform"] in plat:
+            plat[c_["platform"]]["hw"] += c_["hw"]
+    out["platforms"] = sorted(plat.values(), key=lambda x: -x["hw"])
     # per day (event's local time)
     days, dayname = {}, {}
 
@@ -903,7 +963,8 @@ def stats(key: str, since: float = 0, until: float = None) -> dict:
                 lastv[x["vid"]] = x
         out["live_now"] = sorted((x for x in lastv.values() if x["viewers"] > 0 and (not evx or permitted(evx, x))),
                                  key=lambda x: -x["viewers"])
-    out["official_live"] = (recent and ticks[-1]["official"] > 0) or any(x["kind"] == "official" for x in out["live_now"])
+    out["official_live"] = (recent and ticks[-1]["official"] > 0) or any(x["kind"] == "official" for x in out["live_now"]) \
+        or (not need_official(evx) and bool(out["live_now"]))
     if paused(key):
         out["official_live"] = False
     if not out["official_live"]:
@@ -929,6 +990,7 @@ def stats(key: str, since: float = 0, until: float = None) -> dict:
                 a[1] += 1
             if ls["start"] - 60 <= x["ts"] <= ls["end"] + 60 and x["viewers"] > per.get(x["vid"], {}).get("peak", 0):
                 per[x["vid"]] = {"vid": x["vid"], "channel": x["channel"], "title": x["title"], "kind": x["kind"],
+                                 "platform": platforms.platform_of(x["vid"]),
                                  "channel_id": x.get("channel_id") or "",
                                  "peak": x["viewers"], "peak_at": x["ts"]}
         for v, p_ in per.items():
@@ -944,6 +1006,9 @@ def stats(key: str, since: float = 0, until: float = None) -> dict:
         ls["peak_official"] = max((t["official"] for t in bt), default=0)
         ls["peak_watch"] = max((t["watch"] for t in bt), default=0)
         out["last_broadcast"] = ls
+    pl_used = sorted({platforms.platform_of(s["vid"]) for s in samples} - {"youtube"})
+    out["platform_names"] = ["YouTube"] * any(not platforms.is_other(s["vid"]) for s in samples) + \
+        [platforms.NAMES[p] for p in pl_used]
     out["method"] = (f"{_FASTSTATE['method']}, every {FAST_SEC * 2 ** _FASTSTATE.get('slow', 0):g}s" if fast_healthy()
                      else f"search results, every {POLL_SEC}s")
     with store._lock:
@@ -976,6 +1041,13 @@ def avatar(cid: str) -> str:
     """Channel logo URL (cached). Unknown ones are fetched in the background."""
     if not cid:
         return ""
+    if platforms.is_other(cid):
+        u = platforms.logo(cid)
+        if u:
+            if store.kv_get(f"ev_avatar:{cid}") != u:
+                store.kv_set(f"ev_avatar:{cid}", u)
+            return u
+        return store.kv_get(f"ev_avatar:{cid}") or ""
     u = store.kv_get(f"ev_avatar:{cid}")
     if u is None and cid not in _AV_BUSY:
         _AV_BUSY.add(cid)
@@ -1041,6 +1113,7 @@ def day_streams(key: str, date: str) -> dict:
         if tag:   # the official channel runs several streams at once: say which one
             name = f"KRAFTON {tag.group(1).upper()}"
         x = {"vid": r["vid"], "channel": name, "title": m.get("title", ""), "kind": m.get("kind", ""),
+             "platform": platforms.platform_of(r["vid"]),
              "logo": avatar(m.get("channel_id", "")), "url": yt_link(r["vid"]), "peak": int(r["peak"]),
              "at": datetime.fromtimestamp(r["at"], REPORT_TZ).strftime("%I:%M %p"), "avg": int(round(r["avg"] or 0))}
         out["watch" if x["kind"] == "watch party" else "official"].append(x)
@@ -1116,6 +1189,11 @@ def _when(ts) -> str:
     return datetime.fromtimestamp(ts, REPORT_TZ).strftime("%a %d %b, %I:%M %p IST")
 
 
+def _ptag(vid: str) -> str:
+    p = platforms.platform_of(vid)
+    return "" if p == "youtube" else f"{platforms.NAMES[p]}, "
+
+
 def summary(key: str = None, top: int = 10) -> str:
     ev = get(key)
     if not ev:
@@ -1124,12 +1202,12 @@ def summary(key: str = None, top: int = 10) -> str:
     if not st.get("ticks"):
         return (f"{ev['name']}: tracking, but no data yet. The first numbers appear within {POLL_SEC}s of a "
                 "live stream being found.")
-    lines = [f"{ev['name']}: concurrent viewers (YouTube, all streams)"]
+    lines = [f"{ev['name']}: concurrent viewers ({', '.join(st.get('platform_names') or ['YouTube'])}, all streams)"]
     if st["live_now"]:
         lines.append(f"\nLIVE NOW: {fmt_n(sum(s['viewers'] for s in st['live_now']))} viewers across "
                      f"{len(st['live_now'])} streams")
         for s in st["live_now"]:
-            lines.append(f"  {fmt_n(s['viewers'])}  {s['channel']} ({s['kind']})\n     {yt_link(s['vid'])}")
+            lines.append(f"  {fmt_n(s['viewers'])}  {s['channel']} ({_ptag(s['vid'])}{s['kind']})\n     {yt_link(s['vid'])}")
     else:
         lines.append("\nOfficial broadcast is offline (numbers are recorded only while it's live).")
         lb = st.get("last_broadcast")
@@ -1137,7 +1215,7 @@ def summary(key: str = None, top: int = 10) -> str:
             lines.append(f"\nLAST BROADCAST ({_when(lb['start'])} to {datetime.fromtimestamp(lb['end'], REPORT_TZ).strftime('%I:%M %p')}):"
                          f"\n  peak {fmt_n(lb['peak'])} concurrent at {_when(lb['peak_at'])}")
             for x in lb["streams"][:8]:
-                lines.append(f"  {fmt_n(x['peak'])}  {x['channel']} ({x['kind']})\n     {yt_link(x['vid'])}")
+                lines.append(f"  {fmt_n(x['peak'])}  {x['channel']} ({_ptag(x['vid'])}{x['kind']})\n     {yt_link(x['vid'])}")
     sp = st["peak_split"]
     lines += [f"\nPEAK CONCURRENT: {fmt_n(st['peak'])} at {_when(st['peak_at'])}",
               f"  official {fmt_n(sp['official'])}, watch parties {fmt_n(sp['watch'])}, community {fmt_n(sp['community'])}"]
@@ -1147,7 +1225,10 @@ def summary(key: str = None, top: int = 10) -> str:
     if len(st["days"]) > 1:
         lines.append("\nBy day (IST): peak / average concurrent")
         lines += [f"  {d['day']}: {fmt_n(d['peak'])} / {fmt_n(d['avg_broadcast'])}" for d in st["days"]]
-    lines.append(f"\nYouTube, counted from: {st.get('method')}.")
+    if len(st.get("platforms") or []) > 1:
+        lines.append("\nBy platform: peak / hours watched")
+        lines += [f"  {x['name']}: {fmt_n(x['peak'])} / {fmt_n(x['hw'])}h" for x in st["platforms"]]
+    lines.append(f"\nCounted from: {st.get('method')}.")
     for label, url in (ev.get("links") or {}).items():
         lines.append(f"{label}: {url}")
     return "\n".join(lines)

@@ -1,6 +1,6 @@
 """Analysis-ready exports, written inside the repo folder so the data lives with the code.
 
-exports/<event>/            public YouTube numbers (safe to push to GitHub)
+exports/<event>/            public stream numbers (safe to push to GitHub)
   viewership_2min.csv       one row every 2 minutes while the official stream was live
   streams_2min.csv          every live stream's viewers every 2 minutes (long format)
   daily_peaks.csv           per day: peak, time, official/watch-party split, average

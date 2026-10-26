@@ -1,6 +1,6 @@
 """Live viewership tracker for esports events.
 
-Counts concurrent viewers across every YouTube stream carrying an event: the
+Counts concurrent viewers across every YouTube, Kick and Twitch stream carrying an event: the
 official broadcast, permitted watch parties and community restreams. Produces
 peak viewers, average viewers, hours watched and airtime, broken down by day
 and by channel.
