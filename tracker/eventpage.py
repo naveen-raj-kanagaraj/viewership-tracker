@@ -69,12 +69,15 @@ def data(key: str = None) -> dict:
            "links": ev.get("links") or {}}
     if st.get("ticks"):
         live = [{"vid": s["vid"], "channel": s.get("channel", ""), "title": s.get("title", ""), "kind": s["kind"],
-                 "viewers": s["viewers"], "url": events.yt_link(s["vid"]), "logo": events.avatar(s.get("channel_id", ""))}
+                 "platform": events.platforms.platform_of(s["vid"]), "viewers": s["viewers"], "url": events.yt_link(s["vid"]), "logo": events.avatar(s.get("channel_id", ""))}
                 for s in st["live_now"]]
         series = [list(t) for t in st["series"]]
         recent = [t for t in series if t[0] >= series[-1][0] - 6 * 3600]
         out.update(
             live=live, method=st.get("method", ""), updated=st["last"]["ts"],
+            platforms=[{"platform": x["platform"], "name": x["name"], "peak": x["peak"], "hw": round(x["hw"])}
+                       for x in st.get("platforms", [])],
+            platform_names=st.get("platform_names") or ["YouTube"],
             peak=st["peak"], peak_when=events._when(st["peak_at"]), avg=round(st["avg_broadcast"]),
             peak_official=st["peak_official"], peak_watch=st["peak_watch"],
             days=[{"day": d["day"], "peak": d["peak"], "avg": round(d["avg_broadcast"]),
@@ -98,6 +101,7 @@ def data(key: str = None) -> dict:
                 "split": lb["split"], "avg": round(lb.get("avg", 0)),
                 "peak_official": lb.get("peak_official", 0), "peak_watch": lb.get("peak_watch", 0),
                 "streams": [{"vid": x["vid"], "channel": x["channel"], "title": x["title"], "kind": x["kind"],
+                             "platform": x.get("platform", "youtube"),
                              "logo": events.avatar(x.get("channel_id", "")), "avg": x.get("avg", 0),
                              "viewers": x["peak"], "at": tf(x["peak_at"]).strftime("%I:%M %p"), "url": events.yt_link(x["vid"])}
                             for x in lb["streams"][:100]]}
@@ -192,8 +196,11 @@ def _elogos(embed: bool = False) -> dict:
 
 
 def _preset(key) -> dict:
+    """The event's preset with any settings stored on the event itself (track.py new ...) on top."""
     ev = events.get(key)
-    return events.PRESETS.get(ev["key"], {}) if ev else {}
+    if not ev:
+        return {}
+    return {**events.PRESETS.get(ev["key"], {}), **{f: ev[f] for f in events.SETTINGS if f in ev}}
 
 
 def _ended(key) -> bool:
@@ -210,6 +217,8 @@ def build_html(key: str = None, live: bool = False, style: str = None) -> str:
                 .replace("__LIVE__", "true" if live else "false")
                 .replace("__ELOGO__", json.dumps(_elogos(embed=not live)))
                 .replace("__CUR__", json.dumps(_preset(key).get("hist") or []))
+                .replace("__GAME__", json.dumps(_preset(key).get("game") or ""))
+                .replace("__NEEDOFF__", "false" if _preset(key).get("need_official") is False else "true")
                 .replace("__ENDED__", "true" if _ended(key) else "false")
                 .replace("__V2__", "true" if (style or os.getenv("EVENT_STYLE", "v1")) == "v2" else "false")
                 .replace("__ROSTERN__", json.dumps([n for _, n, _ in events.ROSTER]))
@@ -361,6 +370,8 @@ td.t{white-space:normal;min-width:0}.lg{width:22px;height:22px;border-radius:50%
 .lv i{width:7px;height:7px;border-radius:50%;background:#ff4d5e;box-shadow:0 0 8px #ff4d5e}
 @keyframes lvb{50%{box-shadow:0 0 2px rgba(255,77,94,.2);opacity:.65}}
 .tag{font:11px "Share Tech Mono",monospace;padding:1px 6px;margin-left:6px;border:1px solid currentColor}
+.pf{font:10px "Share Tech Mono",monospace;padding:0 5px;margin-left:6px;border:1px solid currentColor;vertical-align:1px}
+.pf.kick{color:#53fc18}.pf.twitch{color:#a970ff}
 .tag.official{color:var(--orange)}.tag.watch{color:var(--cyan)}.tag.community{color:#a78bfa}
 .mini{height:3px;background:linear-gradient(90deg,var(--purple),var(--lime));margin-top:5px;transition:width .6s}
 tr.fu td.num{animation:fu 1.2s}tr.fd td.num{animation:fd 1.2s}@keyframes fu{0%{color:var(--up)}}@keyframes fd{0%{color:var(--down)}}
@@ -420,7 +431,10 @@ tr.fu td.num{animation:fu 1.2s}tr.fd td.num{animation:fd 1.2s}@keyframes fu{0%{c
  <img id="mimg" alt="Share card"><div class="mrow"><button class="btn" id="mig">Instagram</button><button class="btn" id="mxb">X</button><button class="btn ghost" id="mdl">Download</button></div>
  <p class="muted" id="mhint" style="font-size:12px;margin:10px 0 0">On your phone, Instagram and X open the share menu with the image attached: pick Instagram (Story or Post) or X.</p></div></div>
 <script>
-const ENDED=__ENDED__, CUR=__CUR__;
+const ENDED=__ENDED__, CUR=__CUR__, GAME=__GAME__, NEEDOFF=__NEEDOFF__;
+const PLATS=()=>((typeof D!=='undefined'&&D&&D.platform_names)||['YouTube']).join(' + ');
+const DISC=()=>GAME==='BGMI'?'Not affiliated with or endorsed by KRAFTON.':'Not affiliated with or endorsed by the organisers or the platforms.';
+const PB=s=>s&&s.platform&&s.platform!=='youtube'?`<span class="pf ${esc(s.platform)}">${esc(s.platform.toUpperCase())}</span>`:'';
 const DEMO=false, DLOGO={}, ELOGO=__ELOGO__, V2=__V2__, ROSTERN=__ROSTERN__;
 const LIVE=__LIVE__||DEMO, EVERY=__REFRESH__*1000, URLX='https://live.letsgrowesports.com', BRAND='__BRAND__', TITLE='__TITLE__';
 let D=__DATA__, prev={}, prevTotal=null, view='total', range='full', wpAll=false, kind='all', q='', skew=0, lastFetch=Date.now(), failing=false, mode=null, showAll=false, hover=null, hidden={};
@@ -456,7 +470,7 @@ function drawHist(ctx,W,H,fs){fs=fs||1;const h=hist(),n=h.length,pl=34*fs,pr=34*
   else{ctx.fillStyle=css('--muted');ctx.font=`700 ${(small?8:11)*fs}px "Chakra Petch",sans-serif`;ctx.textBaseline='middle';ctx.fillText(x[0]==='LAUNCH'?(small?'LP':'LAUNCH'):x[0],X(i),ly+LS/2)}
   ctx.textBaseline='top';ctx.fillStyle=last?'#ff4d5e':hi?'#b6f23a':css('--muted');ctx.font=`${(small?9:11)*fs}px "Share Tech Mono",monospace`;ctx.fillText((small?'':x[0]+' ')+`'${x[1]}`,X(i),ly+LS+4*fs)});
  ctx.textAlign='left';ctx.textBaseline='top';ctx.fillStyle='#b6f23a';ctx.font=`700 ${13*fs}px "Chakra Petch",sans-serif`;ctx.fillText(`ALL-TIME HIGH ${h[top][2]}K // ${HNAME[h[top][0]]} 20${h[top][1]}`,pl,6*fs)}
-function historyHTML(){const h=hist(),top=[...h].sort((a,b)=>b[2]-a[2]),best={},yr={};
+function historyHTML(){if(!CUR.length)return '';const h=hist(),top=[...h].sort((a,b)=>b[2]-a[2]),best={},yr={};
  h.forEach(x=>{if(!best[x[0]]||x[2]>best[x[0]][2])best[x[0]]=x;const y='20'+x[1];if(!yr[y]||x[2]>yr[y][2])yr[y]=x});
  const eimg=(k,sz)=>ELOGO[k]?`<img src="${ELOGO[k]}" alt="" style="height:${sz}px;width:${sz}px;object-fit:contain;flex:none">`:'';
  const tile=(l,v,s,c,k)=>`<div style="display:flex;gap:10px;align-items:center">${k?eimg(k,44):''}<div><div class="muted mono" style="font-size:12px">${l}</div><div style="font:700 26px 'Chakra Petch',sans-serif;color:${c||'var(--ink)'}">${v}</div><div class="muted" style="font-size:12px">${s}</div></div></div>`;
@@ -474,7 +488,7 @@ function cdMode(){const ns=D.next_start,LB=D.last_broadcast;if(!ns||D.official_l
  // keep the countdown ('starting soon') after the scheduled time until that day's broadcast actually starts (max 12h)
  const started=LB&&LB.end>=ns-1800;return ns-nowS()>0||(!started&&nowS()-ns<12*3600)}
 let OPEN_DAY=null;const DAYC={};
-function dayTable(list,title){if(!list.length)return '';return `<div class="dxt"><div class="lbl">// ${title}</div><table><thead><tr><th>#</th><th>Stream</th><th class="num">Peak</th><th class="hide-m">At</th><th class="num">Avg</th></tr></thead><tbody>${list.map((x,i)=>`<tr><td class="mono muted">${i+1}</td><td><a class="dxs" href="${esc(x.url)}" target="_blank" rel="noopener">${x.logo?`<img src="${esc(x.logo)}" alt="" referrerpolicy="no-referrer" loading="lazy">`:''}<span>${esc(x.channel)}</span></a></td><td class="num">${fmt(x.peak)}</td><td class="hide-m muted">${esc(x.at)}</td><td class="num muted">${fmt(x.avg)}</td></tr>`).join('')}</tbody></table></div>`}
+function dayTable(list,title){if(!list.length)return '';return `<div class="dxt"><div class="lbl">// ${title}</div><table><thead><tr><th>#</th><th>Stream</th><th class="num">Peak</th><th class="hide-m">At</th><th class="num">Avg</th></tr></thead><tbody>${list.map((x,i)=>`<tr><td class="mono muted">${i+1}</td><td><a class="dxs" href="${esc(x.url)}" target="_blank" rel="noopener">${x.logo?`<img src="${esc(x.logo)}" alt="" referrerpolicy="no-referrer" loading="lazy">`:''}<span>${esc(x.channel)}</span>${PB(x)}</a></td><td class="num">${fmt(x.peak)}</td><td class="hide-m muted">${esc(x.at)}</td><td class="num muted">${fmt(x.avg)}</td></tr>`).join('')}</tbody></table></div>`}
 function dayHTML(j){const a=dayTable(j.official||[],'Official &amp; live streams'),b=dayTable(j.watch||[],'Watch parties');return (a+b)||'<span class="muted">No stream data for this day.</span>'}
 async function toggleDay(d){const row=document.getElementById('dx-'+d),hd=document.querySelector(`.dayr[data-d="${d}"]`);if(!row)return;
  if(OPEN_DAY===d){OPEN_DAY=null;row.hidden=true;hd.classList.remove('open');return}
@@ -491,15 +505,15 @@ function render(){
  if(ENDED){   // tournament over: history + the day-by-day breakdown only
   if(mode!=='ended'){mode='ended';app.innerHTML=`${historyHTML()}
    <div class="card" style="margin-top:12px"><div class="head"><div><h2>${TITLE}, day by day</h2><div class="muted" style="font-size:12px">Peak and average concurrent viewers each broadcast day. Tap a day for every live stream and watch party.</div></div></div><div class="scroll"><table><thead><tr><th>Day (IST)</th><th class="num">Peak</th><th>At</th><th class="num">Average</th></tr></thead><tbody id="days"></tbody></table></div></div>
-   <div class="foot" id="foot"><div class="follow"><span>FOLLOW __BRAND__</span>__SOCIAL__</div><div class="disc">Unofficial viewership tracker by __BRAND__. Not affiliated with or endorsed by KRAFTON. YouTube only.</div></div>`;
-   document.getElementById('shareHist').onclick=()=>openShare('history');window.addEventListener('resize',drawHistCanvas)}
+   <div class="foot" id="foot"><div class="follow"><span>FOLLOW __BRAND__</span>__SOCIAL__</div><div class="disc">Unofficial viewership tracker by __BRAND__. ${DISC()} ${esc(PLATS())} only.</div></div>`;
+   {const sh=document.getElementById('shareHist');if(sh)sh.onclick=()=>openShare('history')}window.addEventListener('resize',drawHistCanvas)}
   fillDays();drawHistCanvas();return}
  if(cdMode()&&!(D.ticks&&D.last_broadcast)){   // no broadcast yet: countdown page. After a broadcast the countdown sits on top of its numbers
   if(mode!=='cd'){mode='cd';app.innerHTML=`<div class="card cd" id="cd" style="margin-top:12px"><div class="lbl">// ${TITLE} goes live in</div><div class="cdv mono" id="cdv"></div><div class="muted" id="cdw"></div></div>${historyHTML()}
    <div class="card" id="wpCard" style="margin-top:12px"><div class="head"><div><h2 id="wph">Watch party streamers</h2><div class="muted" style="font-size:12px">Official watch parties for ${TITLE}.</div></div><button class="btn sm" id="shareBoard">Share</button></div>
    <div class="scroll"><table><thead><tr><th>#</th><th>Streamer</th><th class="num" id="wpth">Status</th><th class="num hide-m">Peak</th><th></th></tr></thead><tbody id="wprows"></tbody></table></div><button class="more" id="wpmore"></button></div>
-   <div class="foot" id="foot"><div class="follow"><span>FOLLOW __BRAND__</span>__SOCIAL__</div><div class="disc">Unofficial viewership tracker by __BRAND__. Not affiliated with or endorsed by KRAFTON.</div></div>`;
-   document.getElementById('shareHist').onclick=()=>openShare('history');window.addEventListener('resize',drawHistCanvas)}
+   <div class="foot" id="foot"><div class="follow"><span>FOLLOW __BRAND__</span>__SOCIAL__</div><div class="disc">Unofficial viewership tracker by __BRAND__. ${DISC()}</div></div>`;
+   {const sh=document.getElementById('shareHist');if(sh)sh.onclick=()=>openShare('history')}window.addEventListener('resize',drawHistCanvas)}
   wpRows();drawHistCanvas();return}
  if(mode==='cd'){mode=null;app.innerHTML=''}
  if(!D.ticks){app.innerHTML='<div class="card" style="margin-top:12px">No data yet. Numbers are recorded only while the official broadcast is live.</div>';return}
@@ -560,14 +574,14 @@ function render(){
  document.getElementById('nlive').textContent=off?`across ${live.length} streams`:live.length?`across ${live.length} live streams`:'Nothing live right now';
  const cols={official:css('--orange'),'watch party':css('--cyan'),community:css('--purple')};
  document.getElementById('split').innerHTML=Object.keys(by).map(k=>`<div style="width:${tot?100*by[k]/tot:0}%;background:${cols[k]}"></div>`).join('');
- document.getElementById('leg').innerHTML=Object.keys(by).filter(k=>k!=='community'||by[k]>0).map(k=>`<span><span class="sw" style="background:${cols[k]}"></span>${k==='watch party'?'WATCH PARTIES':k.toUpperCase()} <b>${fmt(by[k])}</b>${tot?` (${(100*by[k]/tot).toFixed(0)}%)`:''}</span>`).join('');
+ document.getElementById('leg').innerHTML=Object.keys(by).filter(k=>k!=='community'||by[k]>0).map(k=>`<span><span class="sw" style="background:${cols[k]}"></span>${k==='watch party'?'WATCH PARTIES':k.toUpperCase()} <b>${fmt(by[k])}</b>${tot?` (${(100*by[k]/tot).toFixed(0)}%)`:''}</span>`).join('')+platLeg(off?(D.platforms||[]).map(x=>({platform:x.platform,viewers:x.peak})):live,off);
  {const e=document.getElementById('ktp');if(e){e.textContent=fmt(D.peak);document.getElementById('ktpw').textContent=(D.peak_when||'')+' // all days so far'}}
  const bc=LB.peak!=null;document.getElementById('kp').textContent=fmt(bc?LB.peak:D.peak);document.getElementById('kpw').textContent=bc?LB.peak_when:D.peak_when;
  document.getElementById('ka').textContent=fmt(bc&&LB.avg!=null?LB.avg:D.avg);document.getElementById('ko').textContent=fmt(bc&&LB.peak_official!=null?LB.peak_official:D.peak_official);document.getElementById('kw').textContent=fmt(bc&&LB.peak_watch!=null?LB.peak_watch:D.peak_watch);
  fillDays();
- document.getElementById('foot').innerHTML=`Concurrent viewers = people watching at the same moment, summed across every live YouTube stream (official, watch parties, community). Recorded only while the official broadcast is live. Counted from: ${esc(D.method)}.
+ document.getElementById('foot').innerHTML=`Concurrent viewers = people watching at the same moment, summed across every live ${esc(PLATS())} stream (official, watch parties, community).${NEEDOFF?' Recorded only while the official broadcast is live.':''} Counted from: ${esc(D.method)}.
   <div class="follow"><span>FOLLOW __BRAND__</span>__SOCIAL__</div>
-  <div class="disc">Unofficial viewership tracker by __BRAND__. Not affiliated with or endorsed by KRAFTON. YouTube only; other platforms are not included.</div>`;
+  <div class="disc">Unofficial viewership tracker by __BRAND__. ${DISC()} Platforms counted: ${esc(PLATS())}; others are not included.</div>`;
  rows();wpRows();chips();drawChart();mark();
 }
 function wpRows(){const sb=document.getElementById('shareBoard');if(sb)sb.onclick=()=>openShare('board');
@@ -588,6 +602,9 @@ function wpRows(){const sb=document.getElementById('shareBoard');if(sb)sb.onclic
   <td style="text-align:right">${w.vid&&has?`<button class="btn sm ghost" data-share="${esc(w.vid)}">Share</button>`:''}</td></tr>`}).join('')||`<tr><td colspan=5 class="muted">${D.official_live?'No watch parties live yet. They appear here as soon as they go live.':'No watch parties yet'}</td></tr>`;
  document.querySelectorAll('[data-share]').forEach(b=>b.onclick=()=>openShare('streamer',b.dataset.share));
 }
+function platLeg(list,peaks){const m={};(list||[]).forEach(s=>{const p=s.platform||'youtube';m[p]=(m[p]||0)+s.viewers});
+ const k=Object.keys(m);if(k.length<2)return '';const t=k.reduce((a,p)=>a+m[p],0)||1,N={youtube:'YOUTUBE',kick:'KICK',twitch:'TWITCH'};
+ return '<span class="muted">'+(peaks?'// PEAK BY PLATFORM':'//')+'</span>'+k.sort((a,b)=>m[b]-m[a]).map(p=>`<span>${N[p]||esc(p.toUpperCase())} <b>${fmt(m[p])}</b>${peaks?'':` (${(100*m[p]/t).toFixed(0)}%)`}</span>`).join('')}
 function rows(){
  const off=isOff(),src=off?D.last_broadcast.streams:(D.live||[]);
  const all=src.filter(s=>(kind==='all'||s.kind===kind)&&(!q||(s.channel+' '+s.title).toLowerCase().includes(q)));
@@ -596,7 +613,7 @@ function rows(){
  const tot=src.reduce((a,s)=>a+s.viewers,0)||1,top=Math.max(1,...list.map(s=>s.viewers));
  document.getElementById('lh').textContent=off?`Last broadcast streams (${all.length})`:`Live streams (${all.length})`;
  document.getElementById('rows').innerHTML=list.map((s,i)=>{const p=prev[s.vid];const cl=p===undefined&&Object.keys(prev).length?'':p<s.viewers?'fu':p>s.viewers?'fd':'';
-  return `<tr class="${cl}"><td class="rk ${K[s.kind]}">${i+1}</td><td class="t">${s.logo?`<img class="lg" src="${esc(s.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}<span class="ch">${esc(s.channel)}</span><span class="tag ${K[s.kind]}">${esc(s.kind)}</span>${off?'':'<span class="lv"><i></i>LIVE</span>'}
+  return `<tr class="${cl}"><td class="rk ${K[s.kind]}">${i+1}</td><td class="t">${s.logo?`<img class="lg" src="${esc(s.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}<span class="ch">${esc(s.channel)}</span>${PB(s)}<span class="tag ${K[s.kind]}">${esc(s.kind)}</span>${off?'':'<span class="lv"><i></i>LIVE</span>'}
   <a class="st" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title.slice(0,100))}</a><div class="mini" style="width:${100*s.viewers/top}%"></div></td>
   <td class="num">${full(s.viewers)}</td><td class="num muted hide-m">${off?esc(s.at):(100*s.viewers/tot).toFixed(1)+'%'}</td></tr>`}).join('')||'<tr><td colspan=4 class="muted">Nothing live right now</td></tr>';
  prev={};src.forEach(s=>prev[s.vid]=s.viewers);
@@ -842,9 +859,9 @@ async function openShare(type,vid){
  if(type==='streams'){const S=isOff()?LB.streams||[]:D.live||[],tt=isOff()?LB.peak:nowT;text=isOff()?`${TITLE}: ${full(tt||0)} combined peak across ${S.length} streams. Top: ${S.slice(0,3).map(s=>`${s.channel} ${fmt(s.viewers)}`).join(' | ')}.`:`${TITLE} live now: ${full(tt)} watching across ${S.length} streams. Top: ${S.slice(0,3).map(s=>`${s.channel} ${fmt(s.viewers)}`).join(' | ')}.`}else
  if(type==='board'){const R=(D.roster||[]).filter(r=>r.status==='live');text=R.length?`${TITLE} watch parties live now: ${R.slice(0,3).map((r,j)=>`${j+1}. ${r.name} ${fmt(r.viewers)}`).join(' | ')}.`:`${TITLE} official watch parties: ${(D.roster||[]).length} streamers.`}
  else if(type==='streamer'){const j=wpp.findIndex(w=>w.vid===vid),w=wpp[j]||{};text=`${w.channel} was the #${j+1} watch party of ${TITLE} on ${LB.date||'the day'}, peaking at ${full(w.peak)} concurrent viewers${w.avg?` (average ${full(w.avg)})`:''}.`}
- else if(type==='split')text=`${TITLE} ${LB.date||''}: official streams peaked at ${full(D.peak_official)}, watch parties at ${full(D.peak_watch)} concurrent viewers on YouTube.`;
+ else if(type==='split')text=`${TITLE} ${LB.date||''}: official streams peaked at ${full(D.peak_official)}, watch parties at ${full(D.peak_watch)} concurrent viewers on ${PLATS()}.`;
  else if(type==='battle'){const w=wpp[0]||{};text=`${TITLE} watch party battle (${LB.date||''}): ${wpp.slice(0,3).map((x,j)=>`${j+1}. ${x.channel} ${fmt(x.peak)}`).join(' | ')}.`}
- else text=`${TITLE} peaked at ${full(LB.peak||D.peak)} concurrent viewers on YouTube on ${LB.date||'the day'} (${LB.peak_when||''})${D.official_live?`, ${full((D.live||[]).reduce((a,s)=>a+s.viewers,0))} watching right now`:''}.`;
+ else text=`${TITLE} peaked at ${full(LB.peak||D.peak)} concurrent viewers on ${PLATS()} on ${LB.date||'the day'} (${LB.peak_when||''})${D.official_live?`, ${full((D.live||[]).reduce((a,s)=>a+s.viewers,0))} watching right now`:''}.`;
  text+=' Live tracker:';
  document.getElementById('mt').textContent=type==='streamer'?'Share your rank':'Share';
  window._xurl='https://x.com/intent/post?text='+encodeURIComponent(text+' '+URLX+' via @letsgrowesports');
@@ -963,7 +980,7 @@ def chart_png(key: str = None):
     pk = max(st["series"], key=lambda s: s[1])
     ax.annotate(f"Peak {events.fmt_n(pk[1])} concurrent", (datetime.fromtimestamp(pk[0], events.REPORT_TZ), pk[1]),
                 textcoords="offset points", xytext=(0, 8), ha="center", fontsize=9)
-    ax.set_title(f"{ev['name']}: concurrent viewers on YouTube (IST)", fontsize=12, loc="left")
+    ax.set_title(f"{ev['name']}: concurrent viewers on {' + '.join(st.get('platform_names') or ['YouTube'])} (IST)", fontsize=12, loc="left")
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b\n%H:%M", tz=events.REPORT_TZ))
     ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: events.fmt_n(v)))
     ax.grid(alpha=.25)

@@ -1,4 +1,8 @@
-"""Public, read-only live dashboard for the tracked event (only public YouTube numbers, nothing about users).
+"""Public, read-only live dashboard for the tracked events (only public stream numbers, nothing about users).
+
+/            the home event (preset "home": True, or `track.py home <key>`)
+/e/<key>/    any event's own dashboard (same page; its relative fetches resolve under /e/<key>/)
+/events      every event, with links
 
 Runs on its own port (EVENT_WEB_PORT, default 8092, this computer only) so the owner dashboard on 8090 is never
 exposed. core/tunnel.py gives it a public https link that opens on any device.
@@ -44,7 +48,11 @@ def _predict_closed():
 
 @app.after_request
 def _headers(resp):
-    secs = CACHE.get(request.path)
+    path = request.path
+    if path.startswith("/e/"):                       # /e/<key>/data caches like /data
+        parts = path.split("/", 3)                   # ['', 'e', key, rest]
+        path = "/" + (parts[3] if len(parts) > 3 else "")
+    secs = CACHE.get(path)
     if request.path.startswith("/predict/api/profile/") and request.method == "GET":
         secs = 15
     if request.method != "GET" or resp.status_code >= 400:
@@ -129,6 +137,89 @@ def daystreams(date):
 @app.route("/series")
 def series():
     return _memo("/series", 20, _jdump(eventpage.series_data), "application/json")
+
+
+_KEY = __import__("re").compile(r"[a-z0-9_-]{1,20}")
+
+
+def _ev(key):
+    from tracker import events
+    return events.get(key) if _KEY.fullmatch(key or "") else None
+
+
+@app.route("/e/<key>")
+def ev_bare(key):
+    from flask import redirect
+    return redirect(f"/e/{key}/", code=301) if _ev(key) else Response("Not found", status=404, mimetype="text/plain")
+
+
+@app.route("/e/<key>/")
+def ev_index(key):
+    if not _ev(key):
+        return Response("Not found", status=404, mimetype="text/plain")
+    return _memo(f"/e/{key}/", 5, lambda: eventpage.build_html(key, live=True), "text/html")
+
+
+@app.route("/e/<key>/data")
+def ev_data(key):
+    if not _ev(key):
+        return Response(status=404)
+    return _memo(f"/e/{key}/data", 1, _jdump(lambda: eventpage.live_data(key)), "application/json")
+
+
+@app.route("/e/<key>/series")
+def ev_series(key):
+    if not _ev(key):
+        return Response(status=404)
+    return _memo(f"/e/{key}/series", 20, _jdump(lambda: eventpage.series_data(key)), "application/json")
+
+
+@app.route("/e/<key>/daystreams/<date>")
+def ev_daystreams(key, date):
+    import re as _re
+    from tracker import events
+    if not _ev(key) or not _re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
+        return Response(status=404)
+    r = _memo(f"/e/{key}/daystreams/{date}", 30, _jdump(lambda: events.day_streams(key, date)), "application/json")
+    r.headers["Cache-Control"] = "public, max-age=30, s-maxage=30"
+    return r
+
+
+@app.route("/e/<key>/hit", methods=["POST"])
+def ev_hit(key):
+    return hit()
+
+
+@app.route("/e/<key>/elogo/<name>")
+def ev_elogo(key, name):
+    return elogo(name)
+
+
+@app.route("/events")
+def events_index():
+    return _memo("/events", 30, _events_html, "text/html")
+
+
+def _events_html():
+    import html as _h
+    from tracker import events, platforms
+    rows = []
+    for ev in sorted(events.events().values(), key=lambda e: -(e.get("created") or 0)):
+        pr = events.preset(ev["key"])
+        state = "ended" if pr.get("ended") else "live tracking" if ev.get("active") else "paused"
+        plats = ["YouTube"] + [platforms.NAMES[p] for p in platforms.enabled(ev, pr)]
+        rows.append(f'<a class="r" href="/e/{_h.escape(ev["key"])}/"><b>{_h.escape(ev["name"])}</b>'
+                    f'<span>{_h.escape(pr.get("game") or "")}</span><span>{_h.escape(" + ".join(plats))}</span>'
+                    f'<i class="{state.split()[0]}">{state.upper()}</i></a>')
+    return ("<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content='width=device-width,"
+            "initial-scale=1'><title>Events</title><style>:root{color-scheme:dark}body{margin:0;background:#0b0b12;"
+            "color:#eee;font:15px system-ui,sans-serif}main{max-width:760px;margin:0 auto;padding:24px 16px}"
+            "h1{font-size:22px}.r{display:grid;grid-template-columns:1fr auto auto auto;gap:12px;align-items:center;"
+            "padding:14px;border:1px solid #23233a;margin:8px 0;color:inherit;text-decoration:none;background:#12121c}"
+            ".r span{color:#9a9ab0;font-size:13px}.r i{font:normal 11px monospace;padding:2px 6px;border:1px solid}"
+            ".live{color:#b6f23a}.ended{color:#9a9ab0}.paused{color:#f5a524}@media(max-width:560px){.r{grid-template-"
+            "columns:1fr auto}.r span{display:none}}</style></head><body><main><h1>Tracked events</h1>"
+            + ("".join(rows) or "<p>No events yet.</p>") + "</main></body></html>")
 
 
 @app.route("/hit", methods=["POST"])

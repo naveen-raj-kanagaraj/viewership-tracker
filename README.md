@@ -1,6 +1,6 @@
 # Live Viewership Tracker
 
-Tracks live viewership for esports events on YouTube, counting every stream carrying an event at once: the official broadcast, the watch parties and community restreams. Produces peak concurrent viewers, average concurrent, hours watched and airtime, split by day, by channel and by stream type.
+Tracks live viewership for esports events on YouTube, Kick and Twitch, counting every stream carrying an event at once: the official broadcast, the watch parties and community restreams. Produces peak concurrent viewers, average concurrent, hours watched and airtime, split by day, by channel and by stream type.
 
 Built because published tournament viewership arrives days late and often counts the official broadcast alone. In Indian esports that misses a large share of the audience, because much of it watches through creators' watch parties rather than the official stream.
 
@@ -120,6 +120,39 @@ python track.py
 
 **Tracking channels.** `always_check` is the list of YouTube channels the tracker looks at directly every minute, whether or not they surface in search. Use it for the creators who usually host watch parties. `allowed` decides which of those channels count toward the event's total, so an unrelated stream that mentions the tournament is left out. Leave `allowed` empty to count every matching stream.
 
+## Other games and platforms (Kick, Twitch)
+
+Any game works; YouTube is always on, and Kick and Twitch are added per event. Without editing code:
+
+```bash
+python track.py new valo "VCT Pacific" --game Valorant --match "vct,pacific" --queries "VCT Pacific"
+python track.py kick valo official valorant        # kick.com/valorant is the official broadcast
+python track.py kick valo add tarik                # counted while the stream title matches the event
+python track.py twitch valo official valorant
+python track.py twitch valo category VALORANT      # top live streams in the category, title must match
+python track.py kick valo remove tarik
+python track.py platforms                          # which connectors have keys
+```
+
+Changes are picked up within a minute by a running tracker. The same fields work in a preset:
+
+```python
+"kick":   {"official": ["slug"], "channels": ["slug"], "category": "PUBG Mobile"},
+"twitch": {"official": ["login"], "channels": ["login"], "category": "VALORANT"},
+"game": "Valorant",
+"need_official": False,   # record whenever anything is live, not only while the official broadcast is
+"any_title": True,        # count listed Kick/Twitch channels whatever their title says
+```
+
+- Twitch uses the official Helix API and needs `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET` in `.env`.
+- Kick uses its official API with `KICK_CLIENT_ID` and `KICK_CLIENT_SECRET`. Without keys it reads the public channel pages
+  kick.com itself uses (unofficial: may be rate limited or change); category discovery needs the keys.
+- A Kick/Twitch stream is stored as `kick:<slug>` / `twitch:<login>`, one per channel, in the same tables as YouTube
+  streams. Counts refresh every `PLATFORM_COUNT_SEC` (15s) in one batched request per platform.
+- Every event has its own page at `/e/<key>/`, `/events` lists them, and `/` shows the home event
+  (`"home": True` in a preset, or `python track.py home <key>`). The dashboard labels each stream's platform and splits
+  the total by platform.
+
 **When an event ends.** Set `"ended": True`, run `python track.py export <key>`, and add a row to the Events tracked table above. The dashboard keeps serving its history.
 
 ## Data
@@ -161,9 +194,9 @@ It copies the event tables, the prediction game and the related key-value rows, 
 
 ## Limits
 
-**YouTube only.** Events also stream on Loco, Rooter and JioCinema in India, and those are not counted. The totals are YouTube totals and are labelled as such.
+**YouTube, Kick and Twitch only.** Events also stream on Loco, Rooter and JioCinema in India, and those are not counted. The dashboard names the platforms its totals cover.
 
-**Concurrent viewers are YouTube's number.** What is recorded is what YouTube reports, including however it counts a viewer. The tracker's contribution is combining streams, attributing them and catching bad readings, not auditing YouTube.
+**Concurrent viewers are each platform's number.** What is recorded is what YouTube, Kick or Twitch reports, including however each counts a viewer (Twitch and Kick refresh theirs about every 30-60 seconds). The tracker's contribution is combining streams, attributing them and catching bad readings, not auditing the platforms.
 
 **The allow-list is a judgement.** Which watch parties count is a decision, and a different allow-list gives a different total. It is kept explicit in `PRESETS` rather than hidden in a heuristic.
 

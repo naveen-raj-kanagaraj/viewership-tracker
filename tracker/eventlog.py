@@ -45,7 +45,7 @@ def export_xlsx(key: str = None) -> bytes:
         ["Average concurrent (while official live)", round(st.get("avg_broadcast", 0))],
         ["Official peak", st.get("peak_official", 0)], ["Watch parties peak (combined)", st.get("peak_watch", 0)],
         ["Hours watched", round(st.get("hours_watched", 0))], ["Exported (IST)", _t(time.time())],
-        ["Source", "YouTube only, counted from each stream's live counter; recorded while the official broadcast is live"]],
+        ["Source", f"{', '.join(st.get('platform_names') or ['YouTube'])}, counted from each stream's live counter; recorded while the official broadcast is live"]],
         first=True)
     sheet("By day", ["Day (IST)", "Peak concurrent", "Peak at", "Average concurrent (broadcast)", "Hours watched"],
           [[d["day"], d["peak"], _t(d.get("peak_at")), round(d.get("avg_broadcast", 0)), round(d.get("hw", 0))] for d in st.get("days", [])])
