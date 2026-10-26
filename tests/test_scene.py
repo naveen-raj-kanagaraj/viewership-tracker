@@ -32,13 +32,13 @@ events.count_live = lambda vid: LIVE.get(vid)
 def pget(url, params=None, headers=None, **k):
     if url.endswith("/oauth/token") or "oauth2" in url: return R({"access_token": "t", "expires_in": 3600})
     if url.endswith("/public/v1/livestreams"):
-        return R({"data": [{"slug": "skyesports", "stream_title": "BMIC qualifiers", "viewer_count": 3200, "category": {"name": "PUBG Mobile"}},
-                           {"slug": "desichatter", "stream_title": "chill stream", "viewer_count": 700, "category": {"name": "Just Chatting"}}]})
+        return R({"data": [{"slug": "skyesports", "stream_title": "BMIC qualifiers", "viewer_count": 3200, "category": {"name": "PUBG Mobile"}, "language": "hi"},
+                           {"slug": "desichatter", "stream_title": "chill stream", "viewer_count": 700, "category": {"name": "Just Chatting"}, "language": "hi"}]})
     if url.endswith("/public/v1/channels"):
         return R({"data": [{"slug": "skyesports", "stream_title": "BMIC qualifiers", "stream": {"is_live": True, "viewer_count": 3200}, "category": {"name": "PUBG Mobile"}}]})
     if url.endswith("/helix/streams"):
-        return R({"data": [{"type": "live", "user_login": "indiavalo", "user_name": "IndiaValo", "title": "ranked", "viewer_count": 1500, "game_name": "VALORANT"},
-                           {"type": "live", "user_login": "smallguy", "user_name": "small", "title": "x", "viewer_count": 3, "game_name": "Minecraft"}]})
+        return R({"data": [{"type": "live", "user_login": "indiavalo", "user_name": "IndiaValo", "title": "ranked", "viewer_count": 1500, "game_name": "VALORANT", "language": "hi"},
+                           {"type": "live", "user_login": "smallguy", "user_name": "small", "title": "x", "viewer_count": 3, "game_name": "Minecraft", "language": "hi"}]})
     if url.endswith("/helix/users"): return R({"data": [{"login": "indiavalo", "profile_image_url": "https://t/iv.png"}]})
     raise AssertionError(url)
 platforms._http.get = pget
