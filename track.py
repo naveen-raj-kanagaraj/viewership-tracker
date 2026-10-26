@@ -19,6 +19,7 @@
     python track.py kick valo remove tarik
     python track.py home hub                           the front page: India hub (default) or an event (home bmic)
     python track.py platforms                          which connectors have keys
+    python track.py backup                             copy the database to backups/ (also automatic every night)
 
   India rankings (every streamer, every game; page at /india):
     python track.py scene top [today|7d|30d]           who is live now and who leads
@@ -96,8 +97,9 @@ def cmd_run(args) -> int:
         from tracker import scene
         threading.Thread(target=scene.run_forever, daemon=True).start()
 
-    from tracker import autoupdate
-    autoupdate.start()                     # pulls new code from GitHub and restarts itself (AUTO_UPDATE=false to stop)
+    from tracker import autoupdate, backup
+    autoupdate.start()
+    backup.start()                         # a copy of the database every night (backups/, newest 3 kept)                     # pulls new code from GitHub and restarts itself (AUTO_UPDATE=false to stop)
 
     from tracker import web
     if os.getenv("EVENT_PUBLIC_LINK", "true").lower() == "true":
@@ -280,6 +282,14 @@ def cmd_scene(args) -> int:
     return 1
 
 
+def cmd_backup(args) -> int:
+    from tracker import backup
+    path = backup.make()
+    print(f"Backup saved: {path} ({os.path.getsize(path) / 1e6:.1f} MB). Copy it somewhere safe; it holds private "
+          "Predict & Win data, so never put it on GitHub.")
+    return 0
+
+
 def cmd_visitors(args) -> int:
     from tracker import visitors
     print(visitors.summary())
@@ -317,6 +327,7 @@ def main() -> int:
     s = sub.add_parser("home", help="the event shown at /")
     s.add_argument("key")
     sub.add_parser("platforms", help="which connectors have keys")
+    sub.add_parser("backup", help="save a copy of the database to backups/")
     s = sub.add_parser("scene", help="India rankings: top, probe, add/remove a channel, block")
     s.add_argument("args", nargs="*")
     for name, help_text in (("stats", "peak, average, hours watched"),
@@ -329,7 +340,7 @@ def main() -> int:
                 "pause": cmd_pause, "resume": cmd_resume, "stats": cmd_stats,
                 "export": cmd_export, "visitors": cmd_visitors, "new": cmd_new, "kick": cmd_platform,
                 "twitch": cmd_platform, "home": cmd_home, "platforms": cmd_platforms,
-                "scene": cmd_scene}
+                "scene": cmd_scene, "backup": cmd_backup}
     try:
         return handlers[args.cmd](args)
     except KeyboardInterrupt:

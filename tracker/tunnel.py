@@ -75,7 +75,7 @@ def _notify(text: str):
 
 
 NAMED = os.getenv("EVENT_TUNNEL_NAME", "").strip()            # permanent tunnel (cloudflared tunnel create <name>)
-NAMED_URL = os.getenv("EVENT_PUBLIC_URL", "https://live.letsgrowesports.com").strip()
+NAMED_URL = (os.getenv("EVENT_PUBLIC_URL") or "https://live.letsgrowesports.com").strip()
 
 
 def _run_once(binary: str, port: int):

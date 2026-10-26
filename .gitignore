@@ -21,3 +21,6 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# database copies (hold private Predict & Win data)
+backups/

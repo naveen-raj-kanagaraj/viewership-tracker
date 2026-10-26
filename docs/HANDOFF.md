@@ -40,6 +40,10 @@ Telegram/news agent. It used to contain this tracker; the tracker was split out 
 (`EVENT_WEB_ENABLED=false` there). Do not run git commands for one repo inside the other's folder (that wiped the
 tracker folder once; it was re-cloned).
 
+Backups and moving: the database is copied every night to `backups/` (`tracker/backup.py`, newest 3, git-ignored);
+`python track.py backup` makes one now. `docs/MOVING.md` is the step-by-step for a new machine, server or domain
+(code from GitHub + `data/tracker.db` + `.env`). The site's own address comes from `EVENT_PUBLIC_URL`.
+
 ## Rules (owner's standing instructions)
 
 - Never print `.env` values, never ask the owner to paste keys into chat, never commit secrets. Repo stays public.

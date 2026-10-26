@@ -158,7 +158,7 @@ body{font-size:14px}.wrap{padding:0 12px 20px}
  <img id="mimg" alt="Share card"><div class="mrow"><button class="btn" id="mig">INSTAGRAM</button><button class="btn" id="mxb">X</button><button class="btn ghost" id="mdl">DOWNLOAD</button><button class="btn ghost" id="mcp">COPY LINK</button></div><div id="mhint"></div></div></div>
 <script>
 const CAT=__CAT__,CATNAME=__CATNAME__,SEC=__SEC__,REGION=__REGION__,SECTIONS=__SECTIONS__,GL=REGION==='global',RP=GL?'':'/india';
-const SITE='https://live.letsgrowesports.com',PATH=RP+(CAT?'/c/'+CAT:SEC?'/s/'+SEC:'')||'/',PAGEURL=SITE+PATH;
+const SITE=__SITEURL__,PATH=RP+(CAT?'/c/'+CAT:SEC?'/s/'+SEC:'')||'/',PAGEURL=SITE+PATH;
 const NAMES={youtube:'YouTube',kick:'Kick',twitch:'Twitch'},COL={youtube:'#ff4d5e',kick:'#53fc18',twitch:'#a970ff'};
 const SECNAME=Object.fromEntries(SECTIONS),WHERE=GL?'worldwide':'in India';
 let D=null,per='today',sort='hw',plat='all',bplat='all',q='',lAll=false,bAll=false,LOGOS=true;
@@ -334,6 +334,6 @@ def build_html(cat: str = "", cat_name: str = "", region: str = "in", sec: str =
                 .replace("__CATNAME__", json.dumps(cat_name)).replace("__CAT__", json.dumps(cat))
                 .replace("__SEC__", json.dumps(sec)).replace("__REGION__", json.dumps(region))
                 .replace("__SECTIONS__", json.dumps(scene.SECTIONS)).replace("__HOME__", home)
-                .replace("__BRAND__", html.escape(eventpage.BRAND))
+                .replace("__BRAND__", html.escape(eventpage.BRAND)).replace("__SITEURL__", json.dumps(eventpage.SITE_URL))
                 .replace("__SOCIAL__", " // ".join(f'<a href="{html.escape(u, quote=True)}" target="_blank" rel="noopener">{html.escape(h)}</a>'
                                                      for _, u, h in eventpage.SOCIAL)))

@@ -32,6 +32,7 @@ def _thin(rows, limit):
 
 BRAND = os.getenv("EVENT_BRAND", "letsgrowesports")
 BRAND_URL = os.getenv("EVENT_BRAND_URL", "https://letsgrowesports.com")
+SITE_URL = (os.getenv("EVENT_PUBLIC_URL") or "https://live.letsgrowesports.com").rstrip("/")   # the site's own address
 SOCIAL = [("X", "https://x.com/letsgrowesports", "@letsgrowesports"),
           ("Instagram", "https://www.instagram.com/letsgrowesports.igc/", "@letsgrowesports.igc")]
 
@@ -225,7 +226,8 @@ def build_html(key: str = None, live: bool = False, style: str = None) -> str:
                 .replace("__REFRESH__", str(REFRESH_SEC))
                 .replace("__SOCIAL__", _social())
                 .replace("__PWB__", "" if (_ended(key) or not _preset(key).get("predict")) else PWB if os.getenv("PREDICT_OPEN", "0") == "1" else (PWR if os.getenv("PREDICT_SPLIT", "1") == "1" else ""))
-                .replace("__BRAND__", html.escape(BRAND)).replace("__BRANDURL__", html.escape(BRAND_URL, quote=True)))
+                .replace("__BRAND__", html.escape(BRAND)).replace("__BRANDURL__", html.escape(BRAND_URL, quote=True))
+                .replace("__SITEURL__", SITE_URL))
 
 CROWD = r"""<style>
 .cw{margin-top:12px}.cw .sub{color:var(--muted);font-size:12px;margin-top:2px}
@@ -436,7 +438,7 @@ const PLATS=()=>((typeof D!=='undefined'&&D&&D.platform_names)||['YouTube']).joi
 const DISC=()=>GAME==='BGMI'?'Not affiliated with or endorsed by KRAFTON.':'Not affiliated with or endorsed by the organisers or the platforms.';
 const PB=s=>s&&s.platform&&s.platform!=='youtube'?`<span class="pf ${esc(s.platform)}">${esc(s.platform.toUpperCase())}</span>`:'';
 const DEMO=false, DLOGO={}, ELOGO=__ELOGO__, V2=__V2__, ROSTERN=__ROSTERN__;
-const LIVE=__LIVE__||DEMO, EVERY=__REFRESH__*1000, URLX='https://live.letsgrowesports.com', BRAND='__BRAND__', TITLE='__TITLE__';
+const LIVE=__LIVE__||DEMO, EVERY=__REFRESH__*1000, URLX='__SITEURL__', BRAND='__BRAND__', TITLE='__TITLE__';
 let D=__DATA__, prev={}, prevTotal=null, view='total', range='full', wpAll=false, kind='all', q='', skew=0, lastFetch=Date.now(), failing=false, mode=null, showAll=false, hover=null, hidden={};
 const PAL=['#b6f23a','#4cc9f0','#ff8a3d','#ff5fa2','#a78bfa','#ffd23f','#2dd4bf','#ff6b6b'];
 const fmt=n=>{n=+n||0;return n>=1e7?(n/1e7).toFixed(2)+' Cr':n>=1e5?(n/1e5).toFixed(2)+' L':n>=1e3?(n/1e3).toFixed(1)+'K':Math.round(n)+''};
