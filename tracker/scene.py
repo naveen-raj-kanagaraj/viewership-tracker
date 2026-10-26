@@ -384,7 +384,9 @@ def run_forever():
     while True:
         t0 = time.time()
         try:
-            cycle()
+            r = cycle()
+            if r["errors"]:                  # shown in the tracker window so a failing source is visible
+                print("India scan problems: " + "; ".join(f"{k}: {v}" for k, v in list(r["errors"].items())[:6]))
         except Exception as e:
             print(f"Scene cycle failed: {str(e)[:200]}")
         time.sleep(max(10, SCENE_SEC - (time.time() - t0)))
@@ -551,6 +553,26 @@ def probe() -> str:
                      (f", top {res[0]['channel']} {res[0]['viewers']:,}" if res else ""))
     except Exception as e:
         lines.append(f"YouTube search failed: {str(e)[:150]}")
+    for lang in LANGS:                      # the language-wide discovery the India page uses
+        for p in ("twitch", "kick"):
+            if not platforms._keys(p):
+                lines.append(f"{platforms.NAMES[p]} '{lang}' streams: no keys")
+                continue
+            try:
+                if p == "twitch":
+                    rows = platforms._tw_streams({"language": lang, "first": 100})
+                else:
+                    j = platforms._get("kick", "https://api.kick.com/public/v1/livestreams",
+                                       {"language": lang, "sort": "viewer_count", "limit": 100})
+                    rows = j.get("data") or []
+                    rows = [{"channel": r.get("slug", ""), "viewers": r.get("viewer_count") or 0} for r in rows]
+                top = max(rows, key=lambda r: r["viewers"]) if rows else None
+                lines.append(f"{platforms.NAMES[p]} '{lang}' streams: {len(rows)} live" +
+                             (f", top {top['channel']} {top['viewers']:,}" if top else ""))
+            except Exception as e:
+                r = getattr(e, "response", None)
+                body = (r.text[:200] if r is not None else "")
+                lines.append(f"{platforms.NAMES[p]} '{lang}' streams FAILED: {str(e)[:150]} {body}")
     for p in ("kick", "twitch"):
         st = platforms.status()[p]
         try:
