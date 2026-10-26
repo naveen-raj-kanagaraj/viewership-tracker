@@ -157,8 +157,8 @@ body{font-size:14px}.wrap{padding:0 12px 20px}
 <div class="modal" id="modal"><div class="mbox"><div class="head"><h2>Share</h2><button class="btn ghost" id="mclose">CLOSE</button></div>
  <img id="mimg" alt="Share card"><div class="mrow"><button class="btn" id="mig">INSTAGRAM</button><button class="btn" id="mxb">X</button><button class="btn ghost" id="mdl">DOWNLOAD</button><button class="btn ghost" id="mcp">COPY LINK</button></div><div id="mhint"></div></div></div>
 <script>
-const CAT=__CAT__,CATNAME=__CATNAME__,SEC=__SEC__,REGION=__REGION__,SECTIONS=__SECTIONS__,GL=REGION==='global',RP=GL?'/global':'';
-const SITE='https://live.letsgrowesports.com',PATH=RP+(CAT?'/c/'+CAT:SEC?'/s/'+SEC:'/'),PAGEURL=SITE+(PATH==='/global/'?'/global':PATH);
+const CAT=__CAT__,CATNAME=__CATNAME__,SEC=__SEC__,REGION=__REGION__,SECTIONS=__SECTIONS__,GL=REGION==='global',RP=GL?'':'/india';
+const SITE='https://live.letsgrowesports.com',PATH=RP+(CAT?'/c/'+CAT:SEC?'/s/'+SEC:'')||'/',PAGEURL=SITE+PATH;
 const NAMES={youtube:'YouTube',kick:'Kick',twitch:'Twitch'},COL={youtube:'#ff4d5e',kick:'#53fc18',twitch:'#a970ff'};
 const SECNAME=Object.fromEntries(SECTIONS),WHERE=GL?'worldwide':'in India';
 let D=null,per='today',sort='hw',plat='all',bplat='all',q='',lAll=false,bAll=false,LOGOS=true;
@@ -170,7 +170,7 @@ const full=n=>Math.round(+n||0).toLocaleString('en-IN');
 const ist=(ts,o)=>new Date(ts*1000).toLocaleString('en-IN',Object.assign({timeZone:'Asia/Kolkata'},o));
 const when=ts=>ts?ist(ts,{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})+' IST':'';
 const ago=ts=>{const s=Date.now()/1000-ts;return s<120?'just now':s<3600?Math.round(s/60)+' min ago':s<86400?Math.round(s/3600)+' h ago':Math.round(s/86400)+' d ago'};
-const CU=sl=>RP+'/c/'+sl,SU=k=>RP+'/s/'+k,HOME=GL?'/global':'/';
+const CU=sl=>RP+'/c/'+sl,SU=k=>RP+'/s/'+k,HOME=GL?'/':'/india';
 const ini=s=>esc(String(s||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase()||'?');
 const HUE=g=>{let h=0;for(const ch of String(g))h=(h*31+ch.charCodeAt(0))%360;return `hsl(${h} 70% 62%)`};
 const PER={today:'last 24 hours','7d':'last 7 days','30d':'last 30 days'},PERB={today:'today','7d':'last 7 days','30d':'last 30 days'};
@@ -184,7 +184,7 @@ const svg=(k,s)=>`<svg viewBox="0 0 24 24" width="${s||18}" height="${s||18}" fi
 const av=x=>`<span class="av">${x.logo?`<img src="${esc(x.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=ph>${ini(x.name)}</span>'">`:`<span class="ph">${ini(x.name)}</span>`}<span class="bd" style="background:${COL[x.platform]||'#888'}">${(x.platform||'?')[0].toUpperCase()}</span></span>`;
 const art=(g,a,cls)=>a?`<img class="${cls||''}" src="${esc(a)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:`<span class="${cls||''} ph" style="background:${HUE(g)}">${ini(g)}</span>`;
 function seg(id,opts,cur,on){const e=document.getElementById(id);setH(id,opts.map(([v,l])=>`<button data-v="${v}" class="${v===cur?'on':''}">${l}</button>`).join(''));e.onclick=ev=>{const b=ev.target.closest('button');if(b)on(b.dataset.v)}}
-setH('rg',`<a href="${CAT?'/c/'+CAT:SEC?'/s/'+SEC:'/'}" class="${GL?'':'on'}">INDIA</a><a href="${'/global'+(CAT?'/c/'+CAT:SEC?'/s/'+SEC:'')}" class="${GL?'on':''}">GLOBAL</a>`);
+{const tail=CAT?'/c/'+CAT:SEC?'/s/'+SEC:'';setH('rg',`<a href="${tail||'/'}" class="${GL?'on':''}">GLOBAL</a><a href="/india${tail}" class="${GL?'':'on'}">INDIA</a>`)}
 setH('crumb',`<a href="${HOME}">${GL?'WORLDWIDE':'INDIA'}</a>`+(SEC||CAT?` / ${SEC?esc(SECNAME[SEC].toUpperCase()):''}${CAT?esc(CATNAME.toUpperCase()):''}`:' / OVERVIEW'));
 setH('h1',CAT?`<em>${esc(CATNAME)}</em> live ${WHERE}`:SEC?`<em>${esc(SECNAME[SEC])}</em> live ${WHERE}`:GL?`Live streaming <em>worldwide</em>, right now`:`Live streaming <em>in India</em>, right now`);
 setT('intro',CAT?`Everyone streaming ${CATNAME} ${WHERE} on YouTube, Kick and Twitch: who is live, how many are watching, and who leads today.`:
@@ -329,7 +329,7 @@ def build_html(cat: str = "", cat_name: str = "", region: str = "in", sec: str =
         title = "Live Streaming " + ("Worldwide" if region == "global" else "in India") + ", Right Now"
         desc = (f"How many people are watching live streams {where} on YouTube, Kick and Twitch right now: top streams, "
                 "top streamers, gaming, esports tournaments, IRL, news and more, updated every 2 seconds.")
-    home = "/global" if region == "global" else "/"
+    home = "/" if region == "global" else "/india"
     return (PAGE.replace("__TITLE__", html.escape(title)).replace("__DESC__", html.escape(desc))
                 .replace("__CATNAME__", json.dumps(cat_name)).replace("__CAT__", json.dumps(cat))
                 .replace("__SEC__", json.dumps(sec)).replace("__REGION__", json.dumps(region))
