@@ -20,6 +20,9 @@ SEARCH = {"contents": {"twoColumnSearchResultsRenderer": {"primaryContents": {"s
         vr("v2", "Total Gaming", "UCtg", "FREE FIRE MAX live rush", 88000),
         vr("v3", "Soul Aman", "UCaman", "BGMI second cam", 2000),
         vr("v4", "Tiny", "UCtiny", "bgmi live", 5),
+        vr("v6", "Citizen TV Kenya", "UCkenya", "Citizen Live news", 9000),
+        vr("v7", "Desi Vlogs", "UCnoctry", "हिंदी लाइव", 800),
+        vr("v8", "Mystery Gamer", "UCnoctry2", "ranked grind", 700),
         {"videoRenderer": {"videoId": "v5", "title": {"runs": [{"text": "replay"}]}, "viewCountText": {"simpleText": "1.2M views"},
                            "ownerText": {"runs": [{"text": "X", "navigationEndpoint": {"browseEndpoint": {"browseId": "UCx"}}}]}}}]}}]}}}}}
 class R:
@@ -46,8 +49,21 @@ platforms._http.post = lambda url, data=None, **k: R({"access_token": "t", "expi
 events.check_channel = lambda h: {"vid": "v9", "title": "Dynamo BGMI live", "channel": "Dynamo Gaming", "channel_id": "UCdyn", "viewers": 15000} if h == "@DynamoGaming" else None
 LIVE["v9"] = 15500
 
+LIVE.update({"v6": 9100, "v7": 820, "v8": 710})
+CTRY = {"UCaman": "IN", "UCtg": "IN", "UCkenya": "KE", "UCnoctry": "-", "UCnoctry2": "-", "UCdyn": "IN"}
+scene.yt_countries = lambda ids: {i: CTRY.get(i, "-") for i in ids}
 t = time.time()
 r = scene.cycle(now=t); print("cycle1:", r)
+_names = {x["name"] for x in scene.data("today")["live"]}
+assert "Citizen TV Kenya" not in _names and "Mystery Gamer" not in _names and "Desi Vlogs" in _names, _names
+for x, ctry, exp in [({"platform": "youtube", "title": "FREE FIRE rush", "name": "TG"}, "IN", True),
+                     ({"platform": "youtube", "title": "IND vs PAK live", "name": "PTV"}, "PK", False),
+                     ({"platform": "youtube", "title": "BGMI live", "name": "x"}, "-", True),
+                     ({"platform": "twitch", "title": "ranked", "name": "a", "language": "en"}, None, False),
+                     ({"platform": "twitch", "title": "ranked", "name": "a", "language": "hi"}, None, True),
+                     ({"platform": "kick", "title": "ranked", "name": "七兔", "language": "hi"}, None, False)]:
+    assert scene.verdict(x, ctry) == exp, (x, ctry)
+print("VERDICT OK")
 d = scene.data("today")
 print([(x["name"], x["platform"], x["game"], x["viewers"]) for x in d["live"]])
 names = {x["name"]: x for x in d["live"]}
@@ -113,3 +129,15 @@ assert all(x["logo"] for x in sc.live_data()["live"] if x["sid"].startswith("twi
 r = web.app.test_client().get("/api/scene/live?cat=bgmi", headers={"Accept-Encoding": ""})
 assert r.status_code == 200 and all(x["game"] == "BGMI" for x in json.loads(r.data)["live"])
 print("FAST OK")
+# clean(): a channel found to be foreign loses its readings; totals are rebuilt
+with store._lock:
+    cc = sc._db(); cc.execute("UPDATE sc_channels SET country='US' WHERE sid='yt:UCtg'"); cc.commit()
+res = sc.clean(); print("clean:", res)
+assert "Total Gaming" in res["examples_removed"]
+with store._lock:
+    cc = sc._db()
+    assert cc.execute("SELECT COUNT(*) FROM sc_samples WHERE sid='yt:UCtg'").fetchone()[0] == 0
+    assert cc.execute("SELECT COUNT(*) FROM sc_daily WHERE sid='yt:UCtg'").fetchone()[0] == 0
+    assert cc.execute("SELECT COUNT(*) FROM sc_cat WHERE game='Free Fire'").fetchone()[0] == 0
+assert all(x["name"] != "Total Gaming" for x in sc.data("7d")["board"])
+print("CLEAN OK")

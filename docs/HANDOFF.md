@@ -112,6 +112,13 @@ Between scans, every live Kick/Twitch channel is re-read every `SCENE_FAST_SEC` 
    Category art: Twitch box art by the game's Twitch name (`TWITCH_NAMES`), else Kick's category image, cached in
    kv `cat_art:<game>` (delete that key to refetch); News, Music, Devotional, Cricket (live), Podcast, Other use
    drawn icons.
+Who counts as Indian (`verdict()`): YouTube channels by their own country setting (YouTube Data API with
+   `YOUTUBE_API_KEY`, else the channel's About page; cached in `sc_channels.country`): India = yes, another country =
+   no. No country set, and all Kick/Twitch (no country exposed): Hindi language tag (Kick/Twitch), or an Indian script
+   or Indian words in the title/name. Hand-added (`scene add`) and `scene allow` always count; `scene block` never.
+   Rejected channels are kept in `sc_channels` with `india=0` and hidden. `scene clean` re-judges everything and
+   deletes non-Indian readings. Twitch's Hindi tag is small and partly mis-tagged (Japanese/Korean channels), so
+   Indian Twitch streamers mostly need adding by hand.
 3. Streams under `SCENE_MIN_VIEWERS` (20) are dropped. A channel is one streamer; two streams at once are summed.
 4. Category = platform category (Kick/Twitch) or title keywords (YouTube), first match in `GAMES`; else `Other`.
 

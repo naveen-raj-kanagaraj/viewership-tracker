@@ -25,6 +25,8 @@
     python track.py scene add kick skyesports          add a channel (youtube @handle, kick slug, twitch login)
     python track.py scene remove kick skyesports
     python track.py scene block <name or url>          hide a channel from the rankings (unblock to undo)
+    python track.py scene allow <name>                 count a channel as Indian whatever the checks say
+    python track.py scene clean                        re-judge every channel seen, delete non-Indian data
     python track.py scene probe                        check each source once
 
 Running with no arguments starts three things: the live counter (every
@@ -231,6 +233,22 @@ def cmd_scene(args) -> int:
         return 0
     if a[0] == "probe":
         print(scene.probe())
+        return 0
+    if a[0] == "clean":
+        print(scene.clean())
+        return 0
+    if a[0] in ("allow", "disallow") and len(a) >= 2:
+        want = " ".join(a[1:]).strip().lower().rstrip("/")
+        with store._lock:
+            rows = scene._db().execute("SELECT sid, name, url FROM sc_channels").fetchall()
+        hit = [r["sid"] for r in rows if want in (r["sid"].lower(), (r["name"] or "").lower(), (r["url"] or "").lower())]
+        if not hit:
+            print(f"No channel called {want} has been seen yet.", file=sys.stderr)
+            return 1
+        al = set(store.kv_get("scene_allowed") or [])
+        al = (al | set(hit)) if a[0] == "allow" else (al - set(hit))
+        store.kv_set("scene_allowed", sorted(al))
+        print(f"{a[0]}ed as Indian: {', '.join(hit)}")
         return 0
     if a[0] in ("add", "remove") and len(a) == 3 and a[1] in ("youtube", "kick", "twitch"):
         sd = scene.seeds()
