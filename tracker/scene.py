@@ -41,8 +41,16 @@ INDIA_CATS = {"kick": [x.strip() for x in os.getenv("SCENE_KICK_CATS", "PUBG Mob
                                                      "VALORANT,Just Chatting,Battlegrounds Mobile India").split(",") if x.strip()]}
 
 
+# Titles in Chinese, Japanese, Korean, Thai, Arabic or Cyrillic script are not Indian streams even when the
+# streamer tagged them Hindi (it happens on Twitch).
+FOREIGN = re.compile(r"[\u0400-\u04FF\u0600-\u06FF\u0E00-\u0E7F\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7AF]")
+
+
 def indian(row: dict) -> bool:
-    return (row.get("language") or "").lower() in LANGS or bool(INDIA_MARK.search(row.get("title") or ""))
+    t = row.get("title") or ""
+    if FOREIGN.search(t + " " + (row.get("channel") or "")) and not INDIA_MARK.search(t):
+        return False
+    return (row.get("language") or "").lower() in LANGS or bool(INDIA_MARK.search(t))
 
 
 def _kick_live(params) -> list:
@@ -87,7 +95,7 @@ def platform_india(p: str, errors: dict) -> list:
                 wide += get({"game_id": cid} if p == "twitch" else {"category_id": cid})
         except Exception as e:
             errors[f"{p} category {name}"] = str(e)[:120]
-    return rows + [r for r in wide if indian(r)]
+    return [r for r in rows + wide if indian(r)]
 
 # (game, words in a platform category or a stream title). Order matters: the first match wins.
 GAMES = [
