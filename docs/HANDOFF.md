@@ -40,6 +40,8 @@ Telegram/news agent. It used to contain this tracker; the tracker was split out 
 (`EVENT_WEB_ENABLED=false` there). Do not run git commands for one repo inside the other's folder (that wiped the
 tracker folder once; it was re-cloned).
 
+Hosting: until moved, the Mac (stops when the Mac sleeps). `scripts/deploy_oracle.sh` moves it to an Oracle Ubuntu server as the `tracker` systemd service; `scripts/oracle.sh` manages it. Update this line once it runs there.
+
 Backups and moving: the database is copied every night to `backups/` (`tracker/backup.py`, newest 3, git-ignored);
 `python track.py backup` makes one now. `docs/MOVING.md` is the step-by-step for a new machine, server or domain
 (code from GitHub + `data/tracker.db` + `.env`). The site's own address comes from `EVENT_PUBLIC_URL`.
