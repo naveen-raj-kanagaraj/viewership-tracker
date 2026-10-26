@@ -77,6 +77,11 @@ Overview adds section cards and games grid; then Top live streams | Top streamer
 "Last live 2 h ago"), Live tournaments, chart, "How these numbers are counted". Section pages (`/s/<key>`) show their
 games/categories; Esports ranks tournaments. Numbers move every 2s (`/api/scene/live`), rankings every 30s.
 
+Phones are the main audience (owner, 26 Oct). Under 600px: section menu becomes icon pills (active one scrolled into
+view), KPIs in a 3-column grid, sections as compact tiles (empty ones hidden), games and tournaments as swipeable rows,
+list controls shortened. A BETA badge sits next to the brand while the site is being tested. Check every UI change at
+390px wide (no horizontal overflow) as well as desktop.
+
 ## Updates without touching the Mac
 
 `tracker/autoupdate.py`: the running tracker checks GitHub every `AUTO_UPDATE_MIN` (10) minutes, fast-forwards to
