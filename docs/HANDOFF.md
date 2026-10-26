@@ -96,7 +96,9 @@ tracker folder once; it was re-cloned).
 ## How the India scan counts (`tracker/scene.py`)
 
 Every `SCENE_SEC` (120s):
-1. Kick and Twitch: every live stream in `SCENE_LANGS` (default `hi`), top 100 per language, needs the platform keys.
+1. Kick and Twitch (needs the platform keys): every live stream in `SCENE_LANGS` (default `hi`), plus the top 100
+   overall and in the main Indian categories (`SCENE_KICK_CATS`, `SCENE_TWITCH_CATS`) whose title is in an Indian
+   script or names India/Hindi/Tamil/BGMI/Indian cities (`INDIA_MARK`). No platform exposes country.
    Plus channels added by hand (`track.py scene add kick <slug>`; Kick works without keys via its public pages).
 2. YouTube (no key needed): YouTube's own Live page for India + ~38 India-localised live searches (games, languages,
    news, devotional, music, cricket, talk) every `SCENE_YT_SEC` (300s; 15 min while a tournament broadcast is live so
@@ -138,7 +140,7 @@ As of 26 Oct 2026:
   then tournaments, peaks, chart, live table, leaderboard. Category pages swap columns 2-3 for live now and highest peaks.
 - India hub and category pages: built and tested against mocked YouTube/Kick/Twitch responses. Not yet verified
   against the real platforms (the build environment could not reach them): run `track.py scene probe` on the Mac.
-- Kick/Twitch keys: not added yet (owner creates developer apps and puts them in `.env`).
+- Kick/Twitch keys: in the Mac's `.env` (26 Oct). Kick API answered; Twitch India discovery not yet confirmed by `scene probe`.
 - Owner wants to move hosting from the Mac to Oracle Cloud (Always Free A1.Flex Ubuntu); not done yet.
 
 ## Ideas not built yet

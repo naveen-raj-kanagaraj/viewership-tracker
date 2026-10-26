@@ -87,3 +87,14 @@ for u, code in [("/", 200), ("/c/bgmi", 200), ("/c/free-fire", 200), ("/c/nonexi
 assert b"INDIA LIVE" in c.get("/").data or b"India Live" in c.get("/").data
 store.kv_set("site_home", "nope"); assert c.get("/").status_code == 200
 print("HUB OK")
+# Kick/Twitch India detection: Hindi-language streams plus Indian-titled streams from top/category lists
+_saved = sc._kick_live
+sc._kick_live = lambda prm: ([{"vid": "kick:hindi1", "title": "chill", "viewers": 50, "language": "hi", "channel": "h"}] if prm.get("language")
+                             else [{"vid": "kick:en1", "title": "BGMI rush with squad", "viewers": 900, "language": "en", "channel": "a"},
+                                   {"vid": "kick:us1", "title": "ranked grind", "viewers": 9000, "language": "en", "channel": "b"},
+                                   {"vid": "kick:dev", "title": "आज का स्ट्रीम", "viewers": 300, "language": "en", "channel": "c"}])
+sc._category_id = lambda p, n: ""
+got = {r["vid"] for r in sc.platform_india("kick", {})}
+sc._kick_live = _saved
+print("kick india:", sorted(got)); assert got == {"kick:hindi1", "kick:en1", "kick:dev"}
+print("INDIA FILTER OK")
