@@ -53,6 +53,82 @@ def indian(row: dict) -> bool:
     return (row.get("language") or "").lower() in LANGS or bool(INDIA_MARK.search(t))
 
 
+# ---------- is this channel Indian? ----------
+# YouTube: the channel's own country setting decides (India = yes, any other country = no). Only when a channel has
+# set no country do the signals below decide: an Indian script or Indian words in the title or name. Kick and
+# Twitch expose no country, so they always go by the stream's language tag (hi ...) and the same signals.
+# Channels added by hand (`scene add`) or allowed (`scene allow`) always count; blocked ones never do.
+_CTRY = {}      # YouTube channel id -> 'IN', another code, or '-' (looked up, none set)
+
+
+def _norm_country(v: str) -> str:
+    v = (v or "").strip()
+    return "IN" if v.lower() in ("in", "india") else (v or "-")
+
+
+def yt_countries(cids: list) -> dict:
+    """Country each YouTube channel has set. YouTube Data API when YOUTUBE_API_KEY is set (1 quota unit per 50
+    channels), else the channel's About page. Missing entries mean the lookup failed (tried again later)."""
+    out, key = {}, os.getenv("YOUTUBE_API_KEY")
+    if not cids:
+        return out
+    if key:
+        for i in range(0, len(cids), 50):
+            r = events._http.get("https://www.googleapis.com/youtube/v3/channels",
+                                 params={"part": "snippet", "id": ",".join(cids[i:i + 50]), "key": key}, timeout=15)
+            r.raise_for_status()
+            got = {it["id"]: _norm_country((it.get("snippet") or {}).get("country")) for it in r.json().get("items", [])}
+            for cid in cids[i:i + 50]:
+                out[cid] = got.get(cid, "-")
+        return out
+
+    def page(cid):
+        try:
+            r = events._http.get(f"https://www.youtube.com/channel/{cid}/about", timeout=10,
+                                 headers={"User-Agent": events._UA, "Accept-Language": "en-US,en;q=0.9"},
+                                 cookies={"CONSENT": "YES+", "SOCS": "CAI"})
+            if r.status_code != 200:
+                return cid, None
+            m = re.search(r'"country"\s*:\s*"([^"]+)"', r.text)
+            return cid, _norm_country(m.group(1) if m else "")
+        except Exception:
+            return cid, None
+    for cid, v in _pool.map(page, cids):
+        if v is not None:
+            out[cid] = v
+    return out
+
+
+def _load_countries():
+    if _CTRY:
+        return
+    with store._lock:
+        for sid, ctry in _db().execute("SELECT sid, country FROM sc_channels WHERE platform='youtube' AND country IS NOT NULL"):
+            _CTRY[sid[3:]] = ctry
+    _CTRY.setdefault("", "-")
+
+
+def allowed() -> set:
+    return set(store.kv_get("scene_allowed") or [])
+
+
+def verdict(x: dict, country: str = None, allow: set = frozenset()) -> bool:
+    """True if this live channel counts as Indian."""
+    sid, t, n = x.get("sid", ""), x.get("title") or "", x.get("name") or ""
+    if sid in allow or x.get("seeded"):
+        return True
+    if x.get("platform") == "youtube":
+        if country == "IN":
+            return True
+        if country and country != "-":
+            return False                      # the channel says it is from another country
+    elif (x.get("language") or "").lower() in LANGS and not FOREIGN.search(t + " " + n):
+        return True
+    if FOREIGN.search(t + " " + n) and not re.search(r"[\u0900-\u0D7F]", t + n):
+        return False
+    return bool(re.search(r"[\u0900-\u0D7F]", t + " " + n) or INDIA_MARK.search(t) or INDIA_MARK.search(n))
+
+
 def _kick_live(params) -> list:
     j = platforms._get("kick", "https://api.kick.com/public/v1/livestreams", {"sort": "viewer_count", "limit": 100, **params})
     return [platforms._kick_row(s.get("slug") or "", s.get("stream_title"), s.get("viewer_count"),
@@ -148,6 +224,7 @@ SEEDS = {"kick": ["skyesports"], "twitch": [],
                      "@MortaLyt", "@VAADHIYAAR", "@soulregaltos9810", "@SnaxGaming", "@sriop-sr70", "@NEONXPAWANOP",
                      "@LadyPredatorGaming"]}
 
+_SEEDED = set()       # YouTube channels found through hand-added @handles: always Indian
 _LIVE = {}            # sid -> {"sid","platform","name","url","logo","game","title","streams": {vid: viewers},"seen","errs"}
 _STATE = {"last": 0.0, "yt": 0.0, "seeds": 0.0, "errors": {}, "running": False}
 _lock = threading.Lock()
@@ -166,7 +243,17 @@ def _db():
     CREATE INDEX IF NOT EXISTS sc_daily_game ON sc_daily(game, day);
     CREATE TABLE IF NOT EXISTS sc_cat (ts INTEGER, game TEXT, viewers INTEGER, streams INTEGER, PRIMARY KEY (game, ts));
     """)
+    if not _COLS:
+        have = {r[1] for r in c.execute("PRAGMA table_info(sc_channels)")}
+        for col, typ in (("country", "TEXT"), ("india", "INTEGER"), ("language", "TEXT")):
+            if col not in have:
+                c.execute(f"ALTER TABLE sc_channels ADD COLUMN {col} {typ}")
+        c.commit()
+        _COLS.append(1)
     return c
+
+
+_COLS = []
 
 
 def slug(game: str) -> str:
@@ -373,7 +460,8 @@ def cycle(now: float = None) -> dict:
             sid = r["vid"]
             found[sid] = {"sid": sid, "platform": p, "name": r["channel"], "url": platforms.link(sid),
                           "logo": platforms.logo(sid), "title": r["title"], "category": r.get("category", ""),
-                          "streams": {sid: r["viewers"]}}
+                          "streams": {sid: r["viewers"]}, "language": r.get("language", ""),
+                          "seeded": sid.split(":", 1)[1] in [x.lower() for x in sd[p]]}
 
     # YouTube: streams already live are re-counted every cycle; searches and hand-added channels less often
     with _lock:
@@ -408,12 +496,27 @@ def cycle(now: float = None) -> dict:
         for s in _pool.map(lambda h: events._safe(events.check_channel, h), sd["youtube"]):
             if s and s.get("channel_id"):
                 _yt_add(found, s)
+                _SEEDED.add(f"yt:{s['channel_id']}")
 
+    # Indian or not: look up the country of YouTube channels not seen before (cached in sc_channels)
+    _load_countries()
+    new = [sid[3:] for sid in found if sid.startswith("yt:") and sid[3:] not in _CTRY][:200]
+    if new:
+        try:
+            _CTRY.update(yt_countries(new))
+        except Exception as e:
+            errors["youtube country lookup"] = str(e)[:120]
+    allow = allowed() | _SEEDED
     # classify, filter, store
-    rows = []
+    rows, rejected = [], []
     for sid, x in found.items():
         x["viewers"] = sum(x["streams"].values())
         if sid in blk or x["viewers"] < MIN_VIEWERS:
+            continue
+        x["country"] = _CTRY.get(sid[3:]) if sid.startswith("yt:") else None
+        x["india"] = verdict(x, x["country"], allow)
+        if not x["india"]:
+            rejected.append(x)
             continue
         x["game"] = classify(x.get("category", ""), x.get("title", ""))
         if not x.get("logo"):                 # the channel's real picture: YouTube channel page / Kick / Twitch
@@ -427,7 +530,16 @@ def cycle(now: float = None) -> dict:
         _STATE["last"] = now
         _STATE["errors"] = errors
     _store(rows, now, last)
-    return {"live": len(rows), "viewers": sum(x["viewers"] for x in rows), "errors": errors}
+    if rejected:                              # remember them (and their country) so they aren't looked up again
+        with store._lock:
+            c = _db()
+            c.executemany("""INSERT INTO sc_channels (sid, platform, name, url, logo, first_seen, last_live, title, game,
+                             country, india, language) VALUES (?,?,?,?,?,?,?,?,?,?,0,?) ON CONFLICT(sid) DO UPDATE SET
+                             country=COALESCE(excluded.country, sc_channels.country), india=0, title=excluded.title""",
+                          [(x["sid"], x["platform"], x["name"], x["url"], x.get("logo") or "", now, now, x.get("title", ""),
+                            "", x.get("country"), x.get("language") or "") for x in rejected])
+            c.commit()
+    return {"live": len(rows), "rejected": len(rejected), "viewers": sum(x["viewers"] for x in rows), "errors": errors}
 
 
 def _safe_count(vid):
@@ -454,11 +566,15 @@ def _store(rows, now, last):
         c = _db()
         c.executemany("INSERT INTO sc_samples VALUES (?,?,?,?)", [(int(now), x["sid"], x["viewers"], x["game"]) for x in rows])
         for x in rows:
-            c.execute("""INSERT INTO sc_channels VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(sid) DO UPDATE SET name=excluded.name,
-                         url=excluded.url, logo=CASE WHEN excluded.logo!='' THEN excluded.logo ELSE sc_channels.logo END,
-                         last_live=excluded.last_live, title=excluded.title, game=excluded.game""",
+            c.execute("""INSERT INTO sc_channels (sid, platform, name, url, logo, first_seen, last_live, title, game,
+                         country, india, language) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(sid) DO UPDATE SET
+                         name=excluded.name, url=excluded.url,
+                         logo=CASE WHEN excluded.logo!='' THEN excluded.logo ELSE sc_channels.logo END,
+                         last_live=excluded.last_live, title=excluded.title, game=excluded.game,
+                         country=COALESCE(excluded.country, sc_channels.country), india=excluded.india,
+                         language=excluded.language""",
                       (x["sid"], x["platform"], x["name"], x["url"], x.get("logo") or "", now, now, x.get("title", ""),
-                       x["game"]))
+                       x["game"], x.get("country"), 1, x.get("language") or ""))
             c.execute("""INSERT INTO sc_daily VALUES (?,?,?,?,?,?,?) ON CONFLICT(day, sid, game) DO UPDATE SET
                          peak_at=CASE WHEN excluded.peak > sc_daily.peak THEN excluded.peak_at ELSE sc_daily.peak_at END,
                          peak=MAX(sc_daily.peak, excluded.peak), mins=sc_daily.mins+excluded.mins, hw=sc_daily.hw+excluded.hw""",
@@ -607,7 +723,8 @@ def _live_part(game=None) -> dict:
         if _SCAN["ts"] != last:
             _SCAN["rows"] = [dict(r) for r in c.execute(
                 """SELECT s.sid, s.viewers, s.game, c.platform, c.name, c.url, c.logo, c.title FROM sc_samples s
-                   LEFT JOIN sc_channels c ON c.sid=s.sid WHERE s.ts=? ORDER BY s.viewers DESC""", (last,))]
+                   LEFT JOIN sc_channels c ON c.sid=s.sid WHERE s.ts=? AND COALESCE(c.india, 1)=1
+                   ORDER BY s.viewers DESC""", (last,))]
             _SCAN["ts"] = last
     fresh = time.time() - last < SCENE_SEC * 3
     now, seen, live = time.time(), set(), []
@@ -667,7 +784,8 @@ def data(period: str = "today", cat: str = "") -> dict:
     with store._lock:
         c = _db()
         q = """SELECT d.sid, d.game, MAX(d.peak) peak, SUM(d.mins) mins, SUM(d.hw) hw, c.name, c.platform,
-               c.url, c.logo FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid WHERE d.day >= ?"""
+               c.url, c.logo FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid
+               WHERE d.day >= ? AND COALESCE(c.india, 1)=1"""
         rows = c.execute(q + (" AND d.game = ?" if game else "") + " GROUP BY d.sid, d.game",
                          (d0, game) if game else (d0,)).fetchall()
         series = _series(c, key, period)
@@ -727,6 +845,39 @@ def data(period: str = "today", cat: str = "") -> dict:
             "langs": LANGS, "min": MIN_VIEWERS, "keys": {p: bool(platforms._keys(p)) for p in ("kick", "twitch")}}
 
 
+def clean() -> dict:
+    """Re-judge every channel seen so far (looking up YouTube countries not yet known), delete the readings of the
+    ones that aren't Indian, and rebuild the per-scan totals. Run on the Mac with the tracker stopped."""
+    with store._lock:
+        chans = [dict(r) for r in _db().execute("SELECT sid, platform, name, title, country, language FROM sc_channels")]
+    need = [x["sid"][3:] for x in chans if x["platform"] == "youtube" and not x["country"]]
+    found = yt_countries(need) if need else {}
+    allow, bad, checked = allowed(), [], 0
+    with store._lock:
+        c = _db()
+        for x in chans:
+            if x["platform"] == "youtube" and not x["country"] and x["sid"][3:] in found:
+                x["country"] = found[x["sid"][3:]]
+                checked += 1
+            ok = verdict(x, x["country"], allow)
+            c.execute("UPDATE sc_channels SET india=?, country=COALESCE(?, country) WHERE sid=?",
+                      (1 if ok else 0, x["country"], x["sid"]))
+            if not ok:
+                bad.append(x["sid"])
+        for i in range(0, len(bad), 500):
+            part = bad[i:i + 500]
+            q = ",".join("?" * len(part))
+            c.execute(f"DELETE FROM sc_samples WHERE sid IN ({q})", part)
+            c.execute(f"DELETE FROM sc_daily WHERE sid IN ({q})", part)
+        c.execute("DELETE FROM sc_cat")
+        c.execute("INSERT INTO sc_cat SELECT ts, game, SUM(viewers), COUNT(*) FROM sc_samples GROUP BY ts, game")
+        c.execute("INSERT INTO sc_cat SELECT ts, ?, SUM(viewers), COUNT(*) FROM sc_samples GROUP BY ts", (ALL,))
+        c.commit()
+    _SCAN["ts"] = None
+    return {"channels": len(chans), "not_indian": len(bad), "countries_looked_up": checked,
+            "examples_removed": [x["name"] for x in chans if x["sid"] in set(bad)][:15]}
+
+
 def probe() -> str:
     """One check of every source, for setting up (no secret values printed)."""
     lines = []
@@ -734,6 +885,11 @@ def probe() -> str:
         res = yt_live_page()
         lines.append(f"YouTube Live page (India): {len(res)} live streams" +
                      (f", top {res[0]['channel']} {res[0]['viewers']:,}" if res else ""))
+        ids = list(dict.fromkeys(r["channel_id"] for r in res))[:8]
+        got = yt_countries(ids)
+        names = {r["channel_id"]: r["channel"] for r in res}
+        lines.append(f"YouTube channel countries ({'Data API' if os.getenv('YOUTUBE_API_KEY') else 'About pages'}): " +
+                     ", ".join(f"{names[c]} {got.get(c, 'failed')}" for c in ids))
     except Exception as e:
         lines.append(f"YouTube Live page failed: {str(e)[:150]}")
     try:
