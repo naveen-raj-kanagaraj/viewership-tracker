@@ -108,6 +108,19 @@ def slug(game: str) -> str:
 
 
 ALL = "__all__"          # the India-wide total in sc_cat
+NON_GAMING = {"News", "Devotional", "Music", "Podcast / Talk", "Just Chatting", "Cricket (live)", "Other"}
+_NON_GAMING_WORDS = ("irl", "chatting", "music", "talk", "sports", "slots", "casino", "pools", "asmr", "travel",
+                     "podcast", "news", "special events", "art", "food", "politics")
+
+
+def is_gaming(game: str) -> bool:
+    """Games vs everything else (news, music, devotional, chatting ...). Unknown Kick/Twitch categories count as
+    games unless their name says otherwise."""
+    if game in NON_GAMING:
+        return False
+    if any(g == game for g, _ in GAMES):
+        return True
+    return not any(w in (game or "").lower() for w in _NON_GAMING_WORDS)
 
 
 def classify(category: str, title: str) -> str:
@@ -469,6 +482,11 @@ def data(period: str = "today", cat: str = "") -> dict:
         rows = c.execute(q + (" AND d.game = ?" if game else "") + " GROUP BY d.sid, d.game",
                          (d0, game) if game else (d0,)).fetchall()
         series = _series(c, key, period)
+        p0 = datetime.combine(today - timedelta(days=PERIODS[period]), datetime.min.time(), events.REPORT_TZ).timestamp()
+        scans = c.execute("SELECT COUNT(*) FROM sc_cat WHERE game=? AND ts>=?", (ALL, p0)).fetchone()[0] or 0
+        cstats = c.execute("SELECT game, SUM(viewers) s, MAX(viewers) pk FROM sc_cat WHERE ts>=? AND game!=? GROUP BY game",
+                           (p0, ALL)).fetchall()
+        tracked = c.execute("SELECT COUNT(*) FROM sc_channels").fetchone()[0]
         pk = c.execute("SELECT ts, viewers FROM sc_cat WHERE game=? AND ts>=? ORDER BY viewers DESC LIMIT 1",
                        (key, time.time() - SERIES_SEC[period])).fetchone()
         pk_all = c.execute("SELECT ts, viewers FROM sc_cat WHERE game=? ORDER BY viewers DESC LIMIT 1", (key,)).fetchone()
@@ -510,6 +528,11 @@ def data(period: str = "today", cat: str = "") -> dict:
             "board": board[:300],
             "games": [{**g, "hw": round(g["hw"])} for g in sorted(games.values(), key=lambda g: -g["hw"])][:40],
             "events": [] if game else _events(),
+            # per category over the period: average concurrent viewers (missing scans count as 0) and peak
+            "cat_period": sorted(({"game": r["game"], "slug": slug(r["game"]), "avg": round(r["s"] / scans) if scans else 0,
+                                   "peak": r["pk"], "gaming": is_gaming(r["game"])} for r in cstats),
+                                 key=lambda x: -x["avg"]),
+            "tracked": tracked,
             "langs": LANGS, "min": MIN_VIEWERS, "keys": {p: bool(platforms._keys(p)) for p in ("kick", "twitch")}}
 
 

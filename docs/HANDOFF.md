@@ -133,6 +133,9 @@ As of 26 Oct 2026:
 - BMIC 2026: preset ready, countdown to 30 Oct 2026 13:00 IST, official KRAFTON INDIA ESPORTS channel only.
   Its watch-party list is empty (`allowed: []`, `official_only: True`, `ROSTERS["bmic"] = []`) until the owner
   sends it; when it arrives fill `allowed`, `always_check`, `ROSTERS["bmic"]` and remove `official_only`.
+- Front page layout (Streams Charts style, owner asked for it): headline + search + watching now + platform tiles,
+  then three columns (most watched streamers, top categories, top games; avg viewers per category over the period),
+  then tournaments, peaks, chart, live table, leaderboard. Category pages swap columns 2-3 for live now and highest peaks.
 - India hub and category pages: built and tested against mocked YouTube/Kick/Twitch responses. Not yet verified
   against the real platforms (the build environment could not reach them): run `track.py scene probe` on the Mac.
 - Kick/Twitch keys: not added yet (owner creates developer apps and puts them in `.env`).
