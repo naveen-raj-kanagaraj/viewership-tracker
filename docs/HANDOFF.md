@@ -40,7 +40,7 @@ Telegram/news agent. It used to contain this tracker; the tracker was split out 
 (`EVENT_WEB_ENABLED=false` there). Do not run git commands for one repo inside the other's folder (that wiped the
 tracker folder once; it was re-cloned).
 
-Hosting: until moved, the Mac (stops when the Mac sleeps). `scripts/deploy_oracle.sh` moves it to an Oracle Ubuntu server as the `tracker` systemd service; `scripts/oracle.sh` manages it. Update this line once it runs there.
+Hosting (since 26 Oct 2026): Oracle Cloud, us-chicago-1, VM.Standard.A1.Flex (2 OCPU / 12 GB, Always Free) on a Pay As You Go account, Ubuntu 24.04, `tracker` systemd service in `/home/ubuntu/viewership-tracker`. Deployed with `scripts/deploy_oracle.sh`; managed from the Mac with `scripts/oracle.sh` (server IP and key path are in the Mac's git-ignored `.server`). The Mac copy must stay stopped. YouTube scraping works from the server (checked at deploy). Nightly backups land on the server; `oracle.sh backup` copies the newest to the Mac.
 
 Backups and moving: the database is copied every night to `backups/` (`tracker/backup.py`, newest 3, git-ignored);
 `python track.py backup` makes one now. `docs/MOVING.md` is the step-by-step for a new machine, server or domain
