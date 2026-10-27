@@ -240,3 +240,32 @@ for u in ("/rankings", "/india/rankings"):
     assert c.get(u).status_code == 200, u
 assert all("delta" in b for b in sc.data("today", region="global")["board"])
 print("RANK OK")
+# Super Chats: chat parsing, money, storage, panel and rankings; channel stats
+from tracker import ytextra as yx
+assert yx.parse_money("₹1,000.00") == (1000.0, "INR") and yx.parse_money("CA$5.00") == (5.0, "CAD")
+assert yx.parse_money("PHP 100.00") == (100.0, "PHP") and yx.parse_money("$2.00") == (2.0, "USD") and yx.parse_money("R$10,00") == (10.0, "BRL")
+acts = [{"addChatItemAction": {"item": {"liveChatPaidMessageRenderer": {"id": "p1", "timestampUsec": str(int(time.time() * 1e6)),
+          "authorName": {"simpleText": "fan1"}, "purchaseAmountText": {"simpleText": "₹500.00"}, "message": {"runs": [{"text": "gg"}]}}}}},
+        {"addChatItemAction": {"item": {"liveChatPaidStickerRenderer": {"id": "p2", "timestampUsec": str(int(time.time() * 1e6)),
+          "authorName": {"simpleText": "fan2"}, "purchaseAmountText": {"simpleText": "$5.00"}}}}},
+        {"addChatItemAction": {"item": {"liveChatSponsorshipsGiftPurchaseAnnouncementRenderer": {"id": "p3", "timestampUsec": "1",
+          "header": {"liveChatSponsorshipsHeaderRenderer": {"authorName": {"simpleText": "fan3"}, "primaryText": {"runs": [{"text": "Gifted "}, {"text": "5"}, {"text": " memberships"}]}}}}}}},
+        {"addChatItemAction": {"item": {"liveChatTextMessageRenderer": {"id": "t1"}}}}]
+pi = yx.paid_items(acts)
+assert [x["kind"] for x in pi] == ["superchat", "sticker", "gift"] and pi[2]["n"] == 5, pi
+yx._FX.update(day=yx._day(), rates=dict(yx._FX_FALLBACK))
+yx._store("v1", "yt:UCaman", pi); yx._store("v1", "yt:UCaman", pi)      # stored once
+ex = sc.channel("yt:UCaman")
+assert ex["superchats"]["today"]["count"] == 2 and ex["superchats"]["today"]["inr"] > 900 and ex["top_superchats"][0]["author"] in ("fan1", "fan2"), ex["superchats"]
+with store._lock:
+    cc = yx._db(); dnow = datetime_now = __import__("datetime")
+    from datetime import datetime as _dt, timedelta as _td
+    _t = _dt.now(events.REPORT_TZ).date()
+    for i, v in ((3, 1000), (1, 1500), (0, 2600)):
+        cc.execute("INSERT OR REPLACE INTO sc_chstats VALUES (?,?,?,?,?,?)", ((_t - _td(days=i)).strftime("%Y-%m-%d"), "yt:UCtg", 100 + i, v, 10, 0))
+    cc.commit()
+assert yx.window_views(_t.strftime("%Y-%m-%d"), _t.strftime("%Y-%m-%d"))["yt:UCtg"]["vg"] == 1100
+assert sc.channel("yt:UCtg")["stats"]["views"] == 2600
+r1 = c.get("/api/rank?region=global&metric=sc").get_json(); assert r1["rows"][0]["sid"] == "yt:UCaman" and r1["rows"][0]["sc"] > 0, r1["rows"][:2]
+r2 = c.get("/api/rank?region=global&metric=vg").get_json(); assert r2["rows"][0]["sid"] == "yt:UCtg" and r2["rows"][0]["vg"] == 1100, r2["rows"][:2]
+print("SUPERCHAT/STATS OK")

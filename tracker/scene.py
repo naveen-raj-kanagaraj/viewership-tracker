@@ -1298,7 +1298,7 @@ def rankings(region="global", metric="hw", period="day", date="", cat="", countr
     average viewers, filtered by game, section, streamer country and platform, with each channel's move against the
     period before."""
     region = _region(region)
-    metric = metric if metric in ("hw", "peak", "avg", "hours") else "hw"
+    metric = metric if metric in ("hw", "peak", "avg", "hours", "sc", "vg") else "hw"
     n = RANK_PERIODS.get(period, 1)
     today = datetime.now(events.REPORT_TZ).date()
     try:
@@ -1342,13 +1342,47 @@ def rankings(region="global", metric="hw", period="day", date="", cat="", countr
             x["hw"] += r["hw"] or 0
             x["g"][r["game"]] = x["g"].get(r["game"], 0) + (r["hw"] or 0)
             games[r["game"]] = games.get(r["game"], 0) + (r["hw"] or 0)
+        # Super Chats and views gained come from their own tables; channels not live in the period still rank by them
+        from tracker import ytextra
+        d0, d1 = args[0], args[1]
+        extra = {"sc": ytextra.window_superchats(d0, d1), "vg": ytextra.window_views(d0, d1)}
+        if metric in ("sc", "vg") and extra[metric]:
+            missing = [sid for sid in extra[metric] if sid not in out and sid not in blk]
+            for i in range(0, len(missing), 500):
+                part = missing[i:i + 500]
+                with store._lock:
+                    chs = _db().execute(f"SELECT * FROM sc_channels WHERE sid IN ({','.join('?' * len(part))})", part).fetchall()
+                for r in chs:
+                    if region == "in" and not r["india"]:
+                        continue
+                    if platform in platforms.NAMES and r["platform"] != platform:
+                        continue
+                    if game and r["game"] != game:
+                        continue
+                    if sec and section_of(r["game"]) != sec:
+                        continue
+                    ct = country_of(r["country"]) or (country_of("IN") if r["india"] else None)
+                    if ct:
+                        ctrs[ct[0]] = ct[2]
+                    if ctry and (not ct or ct[0] != ctry[0]):
+                        continue
+                    out[r["sid"]] = {"sid": r["sid"], "name": r["name"] or r["sid"], "platform": r["platform"] or "",
+                                     "url": r["url"] or "", "logo": _logo({"sid": r["sid"], "logo": r["logo"]}),
+                                     "country": ct[0] if ct else "", "country_name": ct[2] if ct else "",
+                                     "last_live": r["last_live"], "peak": 0, "mins": 0.0, "hw": 0.0, "g": {r["game"] or "": 0}}
+        money = "inr" if region == "in" else "usd"
+        for x in out.values():
+            s_ = extra["sc"].get(x["sid"]) or {}
+            v_ = extra["vg"].get(x["sid"]) or {}
+            x["sc"], x["sc_count"] = s_.get(money, 0), s_.get("count", 0)
+            x["vg"], x["sg"], x["subs"] = v_.get("vg", 0), v_.get("sg"), v_.get("subs")
         for x in out.values():
             x["avg"] = round(x["hw"] * 60 / x["mins"]) if x["mins"] else 0
             x["hours"] = round(x["mins"] / 60, 1)
             x["hw"] = round(x["hw"])
             x["game"] = max(x["g"], key=x["g"].get) if x["g"] else ""
             del x["g"], x["mins"]
-        ranked = sorted(out.values(), key=lambda x: -x[metric])
+        ranked = sorted((x for x in out.values() if metric not in ("sc", "vg") or x[metric] > 0), key=lambda x: -x[metric])
         return ranked, games, ctrs
     cur, games, ctrs = window(end)
     prev = {x["sid"]: i + 1 for i, x in enumerate(window(end - timedelta(days=n))[0])}
@@ -1364,7 +1398,7 @@ def rankings(region="global", metric="hw", period="day", date="", cat="", countr
             "total": len(cur), "rows": cur[:limit],
             "categories": [{"game": g, "slug": slug(g), "hw": round(v)} for g, v in sorted(games.items(), key=lambda kv: -kv[1])[:80]],
             "countries": [{"code": k, "name": v} for k, v in sorted(ctrs.items(), key=lambda kv: kv[1])],
-            "totals": {"hw": sum(x["hw"] for x in cur), "channels": len(cur)}}
+            "totals": {"hw": sum(x["hw"] for x in cur), "channels": len(cur)}, "money": "INR" if region == "in" else "USD"}
 
 
 def _daily(c, tbl, w, a, key, days: int = 30) -> list:
@@ -1461,7 +1495,17 @@ def channel(sid: str) -> dict:
                       "hw": round(z["hw"]), "avg": round(z["hw"] * 60 / z["mins"]) if z["mins"] else 0,
                       "game": max(z["games"], key=z["games"].get) if z["games"] else ""}
                      for d, z in sorted(by.items()) if d >= (today - timedelta(days=29)).strftime("%Y-%m-%d")],
-            "recent": [[r[0], r[1]] for r in samp[::step]]}
+            "recent": [[r[0], r[1]] for r in samp[::step]],
+            **(_yt_extra(sid) if sid.startswith("yt:") else {"superchats": None, "top_superchats": [], "stats": None})}
+
+
+def _yt_extra(sid: str) -> dict:
+    from tracker import ytextra
+    try:
+        return ytextra.channel_extra(sid)
+    except Exception as e:
+        print(f"Channel extras for {sid}: {str(e)[:120]}")
+        return {"superchats": None, "top_superchats": [], "stats": None}
 
 
 _COUNTRIES = None

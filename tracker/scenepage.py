@@ -20,12 +20,16 @@ PANEL_CSS = r""".row.x{cursor:pointer}.row.x.open{background:#171722;border-bott
 .cxt th:first-child,.cxt td:first-child{text-align:left;padding-left:0;color:var(--muted)}.cxt td{text-align:right;padding:5px 6px;font:600 15px "Barlow Condensed",sans-serif;border-bottom:1px solid #1c1c29}
 .cxt td:first-child{font:400 13px "Barlow",sans-serif}.cxt tr td:nth-child(2){color:var(--lime)}
 .cxg{margin-top:8px;color:var(--muted);font-size:12px}.cxg b{color:var(--ink);font-weight:500}
+.cxs{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:10px}.cxs div{background:var(--card);padding:7px 9px;font-size:11px;color:var(--muted)}.cxs b{display:block;font:600 17px "Barlow Condensed",sans-serif;color:var(--ink)}
+@media(max-width:600px){.cxs{grid-template-columns:repeat(3,1fr)}}
 .cxc{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}.cxc svg{width:100%;height:80px;display:block;margin-top:6px;background:var(--card)}.cxc .cap{font-size:11px;color:var(--muted);margin-top:4px}
 .cxd{display:grid;gap:2px;margin-top:6px}.cxd div{display:grid;grid-template-columns:70px minmax(0,1fr) 80px 70px 60px;gap:8px;font-size:12px;padding:4px 0;border-bottom:1px solid #1c1c29;color:var(--muted)}
 .cxd div span:nth-child(2){color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cxd b{color:var(--ink);font-weight:600}"""
 
 PANEL_JS = r"""// ---------- one channel's analytics, opened under its row ----------
 const CH={},CHT={};
+const MONEY=(typeof REGION!=='undefined'&&REGION==='in')?'inr':'usd';
+const money=v=>{v=+v||0;return MONEY==='inr'?'₹'+(v>=1e7?(v/1e7).toFixed(2)+' Cr':v>=1e5?(v/1e5).toFixed(2)+' L':Math.round(v).toLocaleString('en-IN')):'$'+(v>=1e6?(v/1e6).toFixed(2)+'M':v>=1e4?(v/1e3).toFixed(1)+'K':Math.round(v).toLocaleString('en-US'))};
 function rowX(list,x,inner){const k=list+':'+x.sid,o=OPEN===k;return `<div class="row x${o?' open':''}" data-k="${esc(k)}">${inner}</div>${o?panel(x.sid):''}`}
 function toggleRow(k){OPEN=OPEN===k?null:k;render();if(!OPEN)return;const sid=k.slice(2);if(CH[sid]&&Date.now()-CHT[sid]<30000)return;
  fetch('/api/channel?sid='+encodeURIComponent(sid)).then(r=>r.json()).then(j=>{CH[sid]=j;CHT[sid]=Date.now();render()}).catch(()=>{})}
@@ -38,10 +42,15 @@ function lineSVG(S){if(!S||S.length<2)return '<svg viewBox="0 0 300 80"></svg>';
 function panel(sid){const c=CH[sid];if(!c)return '<div class="cx"><span class="muted">Loading channel analytics...</span></div>';if(!c.sid)return '<div class="cx"><span class="muted">No history for this channel yet.</span></div>';
  const P=c.periods,cols=[['today','TODAY'],['7d','7 DAYS'],['30d','30 DAYS'],['all','ALL TIME']],now=liveMap()[sid]||c.now,best=(c.days||[]).reduce((a,d)=>d.peak>(a?a.peak:0)?d:a,null);
  const R=[['Peak viewers','peak',fmt],['Average viewers','avg',fmt],['Hours watched','hw',v=>fmt(v)+'h'],['Hours streamed','hours',v=>v+'h'],['Days live','days',v=>v]];
+ if(c.superchats){cols.forEach(k=>{P[k[0]].sc=c.superchats[k[0]][MONEY];P[k[0]].scn=c.superchats[k[0]].count;P[k[0]].mem=c.superchats[k[0]].members});
+  R.push(['Super Chats','sc',money],['Paid messages','scn',v=>full(v)],['Memberships','mem',v=>full(v)])}
+ const S=c.stats,g=(o,k)=>o&&o[k]!=null?(o[k]>=0?'+':'')+fmt(o[k]):'-';
  return `<div class="cx"><div class="cxh"><div style="min-width:0"><div class="ds">${now?`<span class="lv">LIVE</span>${full(now)} watching now`:c.last_live?'Last live '+ago(c.last_live):''}${c.country?' · '+esc(c.country):''}${c.first_seen?' · tracked since '+ist(c.first_seen,{day:'numeric',month:'short'}):''}</div></div><span style="display:flex;gap:6px"><button class="btn" data-ch="${esc(sid)}">SHARE</button><a class="btn" style="text-decoration:none;text-align:center" href="${esc(c.url)}" target="_blank" rel="noopener">${now?'WATCH':'OPEN'} ON ${(NAMES[c.platform]||'').toUpperCase()}</a></span></div>
  ${now&&c.title?`<div class="cxtt">${esc(c.title)}</div>`:''}
  <table class="cxt"><thead><tr><th></th>${cols.map(k=>`<th>${k[1]}</th>`).join('')}</tr></thead><tbody>${R.map(r=>`<tr><td>${r[0]}</td>${cols.map(k=>`<td>${r[2](P[k[0]][r[1]])}</td>`).join('')}</tr>`).join('')}</tbody></table>
  ${P['30d'].games.length?`<div class="cxg">Streams: <b>${P['30d'].games.map(esc).join(', ')}</b> (last 30 days)</div>`:''}
+ ${S?`<div class="cxs"><div><b>${S.subs!=null?fmt(S.subs):'hidden'}</b>subscribers</div><div><b>${fmt(S.views)}</b>total views</div><div><b>${full(S.videos||0)}</b>videos</div><div><b>${g(S.gain_1d,'views')}</b>views, last day</div><div><b>${g(S.gain_7d,'views')}</b>views, 7 days</div><div><b>${g(S.gain_7d,'subs')}</b>subs, 7 days</div></div>`:''}
+ ${(c.top_superchats||[]).length?`<div class="lbl" style="margin-top:12px">Biggest Super Chats, 30 days</div><div class="cxd">${c.top_superchats.map(t=>`<div><span>${ist(t.ts,{day:'numeric',month:'short'})}</span><span>${esc(t.author)}${t.text?' · '+esc(t.text):''}</span><span><b>${esc(t.currency)} ${full(t.amount)}</b></span><span>${money(t[MONEY])}</span></div>`).join('')}</div>`:''}
  <div class="cxc"><div><div class="lbl">Peak viewers per day, 30 days</div>${barsSVG(c.days||[])}<div class="cap">${best?`Best day ${dshort(best.day)}: ${full(best.peak)} at once`:'No days recorded yet'}</div></div>
   <div><div class="lbl">Viewers, last 3 days</div>${lineSVG(c.recent)}<div class="cap">${(c.recent||[]).length>1?ist(c.recent[0][0],{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})+' to now':'Not enough readings yet'}</div></div></div>
  <div class="lbl" style="margin-top:12px">Recent days live</div><div class="cxd">${(c.days||[]).slice(-7).reverse().map(d=>`<div><span>${dshort(d.day)}</span><span>${esc(d.game)}</span><span>peak <b>${fmt(d.peak)}</b></span><span>avg ${fmt(d.avg)}</span><span>${d.hours}h live</span></div>`).join('')||'<span class="muted">Nothing recorded yet.</span>'}</div></div>`}

@@ -228,6 +228,16 @@ As of 26 Oct 2026:
 - Worldwide scan also reads YouTube's Live page for 20 countries (`SCENE_YT_COUNTRIES`), so the globe fills in.
 - Categories without cover art get an icon tile (cricket, football, news ...), never letters.
 - Numbers count up and list rows glide to new ranks (FLIP); off with prefers-reduced-motion.
+- Super Chats (tracker/ytextra.py): live chat of the top `SUPERCHAT_TOP`=50 YouTube streams is read every 5-15s
+  (chat popout page -> youtubei live_chat/get_live_chat). Paid messages, stickers, memberships, gifts stored once each
+  in `sc_superchat`, converted with open.er-api.com daily rates (built-in fallback). Shown in the streamer panel and
+  as the "Super Chats" ranking. Check from the server: `track.py scene superchat <video id> 60`.
+  Not verified against live YouTube from the build environment (no access): if the probe finds nothing on a stream
+  with visible Super Chats, the chat page format changed.
+- Channel stats: `sc_chstats` daily snapshot (subs, total views, videos) of YouTube channels seen live, most watched
+  first, up to `CHANNEL_STATS_MAX`=3000/day; YouTube Data API if YOUTUBE_API_KEY, else About pages (~120 every
+  15 min). "Views gained" ranking + panel. Check: `track.py scene stats @handle`. Only channels that have gone live
+  are covered; channels that never stream are not discovered.
 - Kick seeds always include `skyesports` and `cegc` (`scene.ALWAYS`); "CEGC" is also a tournament name.
 
 ## Ideas not built yet

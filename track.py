@@ -100,6 +100,8 @@ def cmd_run(args) -> int:
     if os.getenv("SCENE_ENABLED", "true").lower() == "true":     # India rankings at /india
         from tracker import scene
         threading.Thread(target=scene.run_forever, daemon=True).start()
+        from tracker import ytextra
+        ytextra.start()                    # Super Chats on the biggest YouTube streams + daily channel stats
 
     from tracker import autoupdate, backup
     autoupdate.start()
@@ -246,6 +248,14 @@ def cmd_scene(args) -> int:
     if a[0] == "clean":
         print(scene.clean())
         return 0
+    if a[0] == "superchat" and len(a) >= 2:          # read one live stream's chat for a minute: track.py scene superchat <video>
+        from tracker import ytextra
+        print(ytextra.probe_chat(a[1], int(a[2]) if len(a) > 2 else 60))
+        return 0
+    if a[0] == "stats" and len(a) >= 2:              # one channel's subscribers / views / videos: track.py scene stats @handle
+        from tracker import ytextra
+        print(ytextra.probe_stats(a[1]))
+        return 0
     if a[0] in ("allow", "disallow") and len(a) >= 2:
         want = " ".join(a[1:]).strip().lower().rstrip("/")
         with store._lock:
@@ -281,7 +291,7 @@ def cmd_scene(args) -> int:
         store.kv_set("scene_blocked", sorted(b))
         print(f"{a[0]}ed: {', '.join(hit)}")
         return 0
-    print("Usage: track.py scene [top [today|7d|30d] | probe | add|remove <youtube|kick|twitch> <channel> | block|unblock <name>]",
+    print("Usage: track.py scene [top [today|7d|30d] | probe | superchat <video> [seconds] | stats <@handle> | add|remove <youtube|kick|twitch> <channel> | block|unblock <name>]",
           file=sys.stderr)
     return 1
 
