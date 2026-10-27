@@ -928,7 +928,10 @@ def game_history(game: str) -> list:
                 row[2] = max(row[2], round(pk / 1000))
             else:
                 hist.append([h[0], h[1], round(pk / 1000)])
-    return [{"name": f"{SERIES_NAMES.get(a, a)} 20{b}", "short": f"{a} '{b}", "peak": k * 1000} for a, b, k in hist]
+    logos = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "eventlogos")
+    have = set(os.listdir(logos)) if os.path.isdir(logos) else set()
+    return [{"name": f"{SERIES_NAMES.get(a, a)} 20{b}", "series": a, "year": b, "peak": k * 1000,
+             "logo": f"/elogo/{a}{b}.webp" if f"{a}{b}.webp" in have else ""} for a, b, k in hist]
 
 
 def _totals_sql(region: str):
@@ -1195,6 +1198,7 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
         rows = c.execute(q + (" AND d.game = ?" if game else "") + " GROUP BY d.sid, d.game",
                          (d0, game) if game else (d0,)).fetchall()
         series = _series_any(c, tbl, w, a, key, period)
+        daily = _daily(c, tbl, w, a, key)
         p0 = datetime.combine(today - timedelta(days=PERIODS[period]), datetime.min.time(), events.REPORT_TZ).timestamp()
         rt, rw, ra = _totals_sql(region)
         scans = c.execute(f"SELECT COUNT(*) FROM {rt} WHERE game=? AND ts>=?{rw}", (ALL, p0, *ra)).fetchone()[0] or 0
@@ -1246,7 +1250,7 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
             "sec": sec, "sec_name": SECTION_NAMES.get(sec, ""), "cat": cat if game else "", "cat_name": game or "",
             "peak": {"viewers": pk[1], "ts": pk[0]} if pk else None,
             "peak_all": {"viewers": pk_all[1], "ts": pk_all[0]} if pk_all else None,
-            "series": series, "board": board[:300], "tour_day": tour_day,
+            "series": series, "daily": daily, "board": board[:300], "tour_day": tour_day,
             "games": [{**g, "hw": round(g["hw"])} for g in sorted(games.values(), key=lambda g: -g["hw"])][:60],
             "events": ([e for e in _events() if e["state"] in ("live", "upcoming")] if not (game or sec)
                        else [e for e in _events() if game and e["game"] == game]),
@@ -1254,6 +1258,21 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
             "cat_period": sorted(cat_period, key=lambda x: -x["avg"]), "tracked": tracked,
             "langs": LANGS, "min": MIN_VIEWERS if region == "in" else GLOBAL_MIN,
             "keys": {p: bool(platforms._keys(p)) for p in ("kick", "twitch")}}
+
+
+def _daily(c, tbl, w, a, key, days: int = 30) -> list:
+    """Per IST day for the last `days` days: peak watching at once, when, and hours watched. Oldest first."""
+    t0 = datetime.combine(datetime.now(events.REPORT_TZ).date() - timedelta(days=days - 1), datetime.min.time(),
+                          events.REPORT_TZ).timestamp()
+    rows = c.execute(f"SELECT ts, viewers FROM {tbl} WHERE game=? AND ts>=?{w} ORDER BY ts", (key, t0, *a)).fetchall()
+    out = {}
+    for i, (ts, v) in enumerate(rows):
+        d = datetime.fromtimestamp(ts, events.REPORT_TZ).strftime("%Y-%m-%d")
+        z = out.setdefault(d, {"day": d, "peak": 0, "at": ts, "hw": 0.0})
+        if v > z["peak"]:
+            z["peak"], z["at"] = v, ts
+        z["hw"] += v * min(rows[i + 1][0] - ts if i + 1 < len(rows) else SCENE_SEC, SCENE_SEC * 2) / 3600
+    return [{**z, "hw": round(z["hw"])} for _, z in sorted(out.items())]
 
 
 def _series_any(c, tbl, w, a, key, period) -> list:
@@ -1292,12 +1311,59 @@ def search(q: str, region: str = "in", limit: int = 20) -> dict:
             "categories": [{"game": g, "slug": slug(g), "art": cat_art(g)} for g in games]}
 
 
+def channel(sid: str) -> dict:
+    """One channel's analytics: now, today / 7 / 30 days / all time (peak, average, hours watched, hours live,
+    days live), day by day for 30 days, and its viewers over the last 3 days."""
+    with store._lock:
+        c = _db()
+        ch = c.execute("SELECT * FROM sc_channels WHERE sid=?", (sid,)).fetchone()
+        if not ch:
+            return {}
+        days = c.execute("SELECT day, game, peak, peak_at, mins, hw FROM sc_daily WHERE sid=? ORDER BY day", (sid,)).fetchall()
+        t3 = time.time() - 3 * 86400
+        samp = c.execute("SELECT ts, MAX(viewers) FROM sc_samples WHERE sid=? AND ts>=? GROUP BY ts ORDER BY ts", (sid, t3)).fetchall()
+    today = datetime.now(events.REPORT_TZ).date()
+    by = {}
+    for r in days:
+        z = by.setdefault(r["day"], {"day": r["day"], "peak": 0, "at": None, "mins": 0.0, "hw": 0.0, "games": {}})
+        if r["peak"] > z["peak"]:
+            z["peak"], z["at"] = r["peak"], r["peak_at"]
+        z["mins"] += r["mins"] or 0
+        z["hw"] += r["hw"] or 0
+        z["games"][r["game"]] = z["games"].get(r["game"], 0) + (r["hw"] or 0)
+
+    def agg(n):
+        d0 = (today - timedelta(days=n - 1)).strftime("%Y-%m-%d") if n else ""
+        zs = [z for d, z in by.items() if d >= d0]
+        mins, hw = sum(z["mins"] for z in zs), sum(z["hw"] for z in zs)
+        g = {}
+        for z in zs:
+            for k, v in z["games"].items():
+                g[k] = g.get(k, 0) + v
+        return {"peak": max((z["peak"] for z in zs), default=0), "avg": round(hw * 60 / mins) if mins else 0,
+                "hw": round(hw), "hours": round(mins / 60, 1), "days": len(zs),
+                "games": [k for k, _ in sorted(g.items(), key=lambda kv: -kv[1])][:4]}
+    now = _live_part(None, "global")["_now"].get(sid, 0)
+    step = max(1, len(samp) // 240)
+    return {"sid": sid, "name": ch["name"], "platform": ch["platform"], "url": ch["url"],
+            "logo": _logo({"sid": sid, "logo": ch["logo"]}), "title": ch["title"], "game": ch["game"],
+            "country": (country_of(ch["country"]) or ("", 0, ""))[2] or ("India" if ch["india"] else ""),
+            "first_seen": ch["first_seen"], "last_live": ch["last_live"], "now": now,
+            "periods": {"today": agg(1), "7d": agg(7), "30d": agg(30), "all": agg(0)},
+            "days": [{"day": z["day"], "peak": z["peak"], "at": z["at"], "hours": round(z["mins"] / 60, 1),
+                      "hw": round(z["hw"]), "avg": round(z["hw"] * 60 / z["mins"]) if z["mins"] else 0,
+                      "game": max(z["games"], key=z["games"].get) if z["games"] else ""}
+                     for d, z in sorted(by.items()) if d >= (today - timedelta(days=29)).strftime("%Y-%m-%d")],
+            "recent": [[r[0], r[1]] for r in samp[::step]]}
+
+
 _COUNTRIES = None
 # Kick/Twitch give no country, only the stream language. These languages are spoken mainly in one country, so a
-# stream in them is placed there (shown on the map as estimated). English, Spanish, Portuguese, Arabic ... stay unknown.
+# stream in them is placed there (shown on the map as estimated). English, Spanish, Arabic, Chinese stay unknown.
 LANG_COUNTRY = {"ko": "KR", "ja": "JP", "th": "TH", "vi": "VN", "tr": "TR", "pl": "PL", "uk": "UA", "it": "IT",
                 "cs": "CZ", "hu": "HU", "id": "ID", "el": "GR", "fi": "FI", "sv": "SE", "da": "DK", "no": "NO",
-                "ro": "RO", "bg": "BG", "he": "IL", "hi": "IN", "ta": "IN", "te": "IN", "bn": "IN"}
+                "ro": "RO", "bg": "BG", "he": "IL", "hi": "IN", "ta": "IN", "te": "IN", "bn": "IN",
+                "pt": "BR", "de": "DE", "fr": "FR", "ru": "RU", "nl": "NL"}   # Portuguese live streams are overwhelmingly Brazilian
 
 
 def country_of(v: str):
@@ -1335,10 +1401,13 @@ def geo(region: str = "global") -> dict:
         z["viewers"] += x["viewers"]
         z["channels"] += 1
         z["games"][x["game"]] = z["games"].get(x["game"], 0) + x["viewers"]
-        if len(z["top"]) < 6:
-            z["top"].append({k: x.get(k) for k in ("name", "platform", "url", "logo", "game", "viewers")})
+        if len(z["top"]) < 60:
+            z["top"].append({k: x.get(k) for k in ("sid", "name", "platform", "url", "logo", "game", "viewers", "section")})
     for z in out.values():
-        z["games"] = [{"game": g, "slug": slug(g), "viewers": v} for g, v in sorted(z["games"].items(), key=lambda kv: -kv[1])[:5]]
+        z["games"] = [{"game": g, "slug": slug(g), "viewers": v, "section": section_of(g)}
+                      for g, v in sorted(z["games"].items(), key=lambda kv: -kv[1])[:12]]
+        named = [g for g in z["games"] if g["game"] != "Other"]
+        z["label"] = named[0]["game"] if named else (z["top"][0]["name"] if z["top"] else "")
     return {"updated": lv["updated"], "countries": sorted(out.values(), key=lambda z: -z["viewers"]),
             "known": known, "unknown": unknown, "estimated": est}
 

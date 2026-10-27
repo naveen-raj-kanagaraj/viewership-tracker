@@ -207,6 +207,17 @@ As of 26 Oct 2026:
 - `/map`: 3D globe (d3 orthographic on canvas, d3/topojson/world-atlas from jsdelivr), data `/api/geo`
   (`scene.geo`). Country = YouTube channel country, India-detected streams = India, Kick/Twitch by single-country
   language (`scene.LANG_COUNTRY`, marked estimated); the rest is counted as unknown and disclosed on the page.
+- Front page (27 Oct, owner said it felt overwhelming): 4 KPIs + a spinning globe card (iframe `/map?embed=1`),
+  empty sections hidden, tournaments card only when one is live, "Day by day" bar chart (`data()["daily"]`: peak and
+  hours watched per IST day, 30 days) with the old line as a toggle.
+- Tap any streamer row: analytics drops open under it (`/api/channel?sid=`, `scene.channel`): today / 7 / 30 days /
+  all time peak, average, hours watched, hours streamed, days live, 30-day bars, last-3-days line, recent days.
+  Total views are not shown: Kick/Twitch don't publish them for live streams.
+- Game history chart on game pages is the event page's original line chart with event logos (`/elogo/`).
+- Globe: spins 24 deg/s, labels countries (top 3 ranked gold/silver/bronze), faint names for big empty countries,
+  per-country categories filter that country's stream list (India links to `/india/c/<slug>`).
+  `LANG_COUNTRY` also places pt->BR, de->DE, fr->FR, ru->RU, nl->NL (estimated).
+- All pages (event, predict, crowd too) use Barlow / Barlow Condensed.
 - Kick seeds always include `skyesports` and `cegc` (`scene.ALWAYS`); "CEGC" is also a tournament name.
 
 ## Ideas not built yet

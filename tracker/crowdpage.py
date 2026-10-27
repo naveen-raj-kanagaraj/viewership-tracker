@@ -56,32 +56,32 @@ PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#07051a">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{color-scheme:dark;--bg:#0b0b12;--card:#13131c;--card2:#1a1a26;--ink:#eeeef5;--muted:#8d8ca3;--line:#262636;
 --lime:#b6f23a;--purple:#7c5cff;--cyan:#4cc9f0;--orange:#ff8a3d;--red:#ff4d5e;--gold:#f5c451}
-*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Chakra Petch",system-ui,sans-serif}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Barlow",system-ui,sans-serif}
 body{background:radial-gradient(800px 380px at 80% -15%,rgba(124,92,255,.14),transparent 60%),var(--bg);min-height:100vh}
 body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;background:repeating-linear-gradient(0deg,rgba(255,255,255,.012) 0 1px,transparent 1px 3px)}
-a{color:var(--cyan);text-decoration:none}.mono{font-family:"Share Tech Mono",monospace}
+a{color:var(--cyan);text-decoration:none}.mono{font-family:"Barlow Condensed",sans-serif}
 .bar{position:sticky;top:0;z-index:20;background:rgba(11,11,18,.9);backdrop-filter:blur(10px)}
 .bar .in{max-width:1180px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:10px}
-.brand{display:block;font:12px "Share Tech Mono",monospace;color:var(--lime);letter-spacing:.04em}
+.brand{display:block;font:12px "Barlow Condensed",sans-serif;color:var(--lime);letter-spacing:.04em}
 h1{margin:2px 0 0;font-size:19px;text-transform:uppercase;letter-spacing:.02em;line-height:1.1}h1 span{color:var(--muted);font-weight:600}
-.back{margin-left:auto;font:12px "Share Tech Mono",monospace;border:1px solid var(--line);padding:6px 10px;color:var(--ink);background:var(--card);white-space:nowrap}
+.back{margin-left:auto;font:12px "Barlow Condensed",sans-serif;border:1px solid var(--line);padding:6px 10px;color:var(--ink);background:var(--card);white-space:nowrap}
 .back:hover{border-color:var(--lime);color:var(--lime)}
 .wrap{max-width:1180px;margin:0 auto;padding:0 16px 40px}
-.hero{margin-top:18px}.hero .lbl{font:13px "Share Tech Mono",monospace;color:var(--red);letter-spacing:.06em}
+.hero{margin-top:18px}.hero .lbl{font:13px "Barlow Condensed",sans-serif;color:var(--red);letter-spacing:.06em}
 .hero h2{margin:4px 0 2px;font-size:clamp(26px,5vw,40px);text-transform:uppercase;line-height:1.05}
 .hero p{margin:0;color:var(--muted)}
 .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px;margin-top:16px}
 .c{position:relative;background:var(--card);border:1px solid var(--line);padding:16px;grid-column:span 6;min-width:0;opacity:0;transform:translateY(10px);transition:opacity .5s,transform .5s}
 .c.in{opacity:1;transform:none}.c.s4{grid-column:span 4}.c.s8{grid-column:span 8}.c.s12{grid-column:1/-1}
 .c:before{content:"";position:absolute;left:-1px;top:-1px;width:14px;height:14px;border-left:3px solid var(--lime);border-top:3px solid var(--lime)}
-.t{font:12px "Share Tech Mono",monospace;color:var(--red);letter-spacing:.05em}.c h3{margin:2px 0 12px;font-size:17px}
-.ft{font:11px "Share Tech Mono",monospace;color:var(--muted);margin-top:10px}
+.t{font:12px "Barlow Condensed",sans-serif;color:var(--red);letter-spacing:.05em}.c h3{margin:2px 0 12px;font-size:17px}
+.ft{font:11px "Barlow Condensed",sans-serif;color:var(--muted);margin-top:10px}
 @media(max-width:900px){.c,.c.s4,.c.s8{grid-column:1/-1}}
-.lg{width:64px;height:30px;object-fit:contain;flex:none;display:inline-grid;place-items:center;font:700 10px "Chakra Petch",sans-serif;color:var(--muted)}
+.lg{width:64px;height:30px;object-fit:contain;flex:none;display:inline-grid;place-items:center;font:700 10px "Barlow",sans-serif;color:var(--muted)}
 span.lg{width:30px;border:1px solid var(--line);border-radius:4px;background:var(--card2)}
 .tile .lg{width:100%;max-width:120px;height:48px}
 .ok:after{content:" \2713";color:var(--lime)}
@@ -89,37 +89,37 @@ span.lg{width:30px;border:1px solid var(--line);border-radius:4px;background:var
 .dn{display:flex;gap:18px;align-items:center;flex-wrap:wrap}.dn svg{flex:none;width:210px;height:210px}
 .leg{flex:1;min-width:180px;display:flex;flex-direction:column;gap:7px}
 .leg div{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px}.leg i{width:10px;height:10px;flex:none}
-.leg span.p{margin-left:auto;font:15px "Share Tech Mono",monospace}
+.leg span.p{margin-left:auto;font:15px "Barlow Condensed",sans-serif}
 /* rings */
 .rings{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.ring{text-align:center}.ring svg{width:100%;max-width:96px}
-.ring b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ring span{font:13px "Share Tech Mono",monospace;color:var(--muted)}
+.ring b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ring span{font:13px "Barlow Condensed",sans-serif;color:var(--muted)}
 /* heat tiles */
 .tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .tile{position:relative;padding:10px 8px;border:1px solid var(--line);display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;min-width:0}
 .tile b{font-size:12px;line-height:1.15;max-width:100%}
-@media(max-width:640px){.tile{padding:8px 3px}.tile b{font-size:10.5px}.tile span{font-size:15px}}.tile span{font:18px "Share Tech Mono",monospace}
+@media(max-width:640px){.tile{padding:8px 3px}.tile b{font-size:10.5px}.tile span{font-size:15px}}.tile span{font:18px "Barlow Condensed",sans-serif}
 .tile.top6{outline:2px solid var(--lime);outline-offset:-2px}
-.keyrow{display:flex;align-items:center;gap:8px;margin-top:10px;font:11px "Share Tech Mono",monospace;color:var(--muted)}
+.keyrow{display:flex;align-items:center;gap:8px;margin-top:10px;font:11px "Barlow Condensed",sans-serif;color:var(--muted)}
 .keyrow i{flex:1;max-width:160px;height:6px;background:linear-gradient(90deg,rgba(182,242,58,.04),rgba(182,242,58,.9))}
 /* hero stat */
-.big{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.big .n{font:700 clamp(54px,9vw,84px)/1 "Chakra Petch",sans-serif;color:var(--lime);text-shadow:0 0 24px rgba(182,242,58,.35)}
-.big .who{font-size:22px;font-weight:700;text-transform:uppercase}.big .who small{display:block;font:12px "Share Tech Mono",monospace;color:var(--muted);text-transform:none}
+.big{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.big .n{font:700 clamp(54px,9vw,84px)/1 "Barlow",sans-serif;color:var(--lime);text-shadow:0 0 24px rgba(182,242,58,.35)}
+.big .who{font-size:22px;font-weight:700;text-transform:uppercase}.big .who small{display:block;font:12px "Barlow Condensed",sans-serif;color:var(--muted);text-transform:none}
 .pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}.pills span{border:1px solid var(--line);background:var(--card2);padding:5px 10px;font-size:13px;font-weight:600}
-.pills span em{font:normal 13px "Share Tech Mono",monospace;color:var(--muted);margin-left:6px}
+.pills span em{font:normal 13px "Barlow Condensed",sans-serif;color:var(--muted);margin-left:6px}
 /* stacked */
 .stk{display:flex;height:44px;overflow:hidden;border:1px solid var(--line)}.stk div{height:100%;transform-origin:left;transition:flex-grow 1s}
 .stk div+div{border-left:2px solid var(--bg)}
 .sleg{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 14px;margin-top:12px}.sleg div{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600}
-.sleg i{width:10px;height:10px;flex:none}.sleg span:not(.av){margin-left:auto;font:14px "Share Tech Mono",monospace}
+.sleg i{width:10px;height:10px;flex:none}.sleg span:not(.av){margin-left:auto;font:14px "Barlow Condensed",sans-serif}
 /* treemap */
 .tm{position:relative;height:260px}@media(max-width:640px){.tm{height:330px}}@media(min-width:641px){.tm .tight{padding-right:30px}.tm .tight b{font-size:12px}}.tm div{position:absolute;border:2px solid var(--card);padding:8px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
-.tm b{font-size:14px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tm span{font:20px "Share Tech Mono",monospace}
+.tm b{font-size:14px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tm span{font:20px "Barlow Condensed",sans-serif}
 /* gauge */
 .gg{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.gg svg{width:220px;flex:none}
 .rk{flex:1;min-width:170px}.rk div{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px dashed var(--line);font-weight:600}.rk div:last-child{border:0}
-.rk em{font:normal 13px "Share Tech Mono",monospace;color:var(--muted);width:22px;display:inline-block;flex:none}.rk span:not(.av){margin-left:auto;font:14px "Share Tech Mono",monospace}
+.rk em{font:normal 13px "Barlow Condensed",sans-serif;color:var(--muted);width:22px;display:inline-block;flex:none}.rk span:not(.av){margin-left:auto;font:14px "Barlow Condensed",sans-serif}
 /* players */
-.av{width:38px;height:38px;border-radius:4px;object-fit:cover;background:linear-gradient(180deg,#22222f,#15151e);flex:none;display:inline-grid;place-items:center;font:700 11px "Chakra Petch",sans-serif;color:var(--muted)}
+.av{width:38px;height:38px;border-radius:4px;object-fit:cover;background:linear-gradient(180deg,#22222f,#15151e);flex:none;display:inline-grid;place-items:center;font:700 11px "Barlow",sans-serif;color:var(--muted)}
 span.av{border:1px solid var(--line)}
 .c.ph{overflow:hidden}.cut{position:absolute;right:-6px;bottom:0;height:88%;max-height:330px;width:auto;pointer-events:none;
  -webkit-mask-image:linear-gradient(to top,transparent 0,#000 34%);mask-image:linear-gradient(to top,transparent 0,#000 34%);filter:saturate(.95) contrast(1.03)}
@@ -135,20 +135,20 @@ span.av{border:1px solid var(--line)}
 /* leader strip on player cards */
 .lead{position:relative;height:150px;margin:-4px 0 12px;border-bottom:1px solid var(--line);overflow:hidden}
 .lead .lc{position:absolute;right:-10px;bottom:0;height:150px;max-height:none;-webkit-mask-image:linear-gradient(to top,transparent 0,#000 30%);mask-image:linear-gradient(to top,transparent 0,#000 30%)}
-.lead .ln{position:relative;font:700 52px/1 "Chakra Petch",sans-serif;margin-top:18px;text-shadow:0 0 20px rgba(182,242,58,.3)}
-.lead .lw{position:relative;font-size:20px;font-weight:700;text-transform:uppercase;margin-top:4px}.lead small{position:relative;font:11px "Share Tech Mono",monospace;color:var(--muted)}
+.lead .ln{position:relative;font:700 52px/1 "Barlow",sans-serif;margin-top:18px;text-shadow:0 0 20px rgba(182,242,58,.3)}
+.lead .lw{position:relative;font-size:20px;font-weight:700;text-transform:uppercase;margin-top:4px}.lead small{position:relative;font:11px "Barlow Condensed",sans-serif;color:var(--muted)}
 .tm div{gap:2px}.tm .tav{position:absolute;top:6px;right:6px;aspect-ratio:1;border-radius:4px;object-fit:cover;background:rgba(0,0,0,.28);pointer-events:none}.tm b,.tm span{position:relative;z-index:1;text-shadow:0 1px 6px rgba(0,0,0,.25)}
 .res .rh{display:flex;align-items:center;justify-content:space-between;gap:10px}.res h3{margin-bottom:10px}
-.sbtn{font:700 13px "Chakra Petch",sans-serif;background:var(--lime);color:#0b0b12;border:0;padding:8px 14px;cursor:pointer;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
+.sbtn{font:700 13px "Barlow",sans-serif;background:var(--lime);color:#0b0b12;border:0;padding:8px 14px;cursor:pointer;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
 .wg{display:grid;grid-template-columns:1fr 1fr;gap:22px}@media(max-width:780px){.wg{grid-template-columns:1fr}}
-.l2{font:12px "Share Tech Mono",monospace;color:var(--muted);margin-bottom:6px}.wr{display:flex;gap:12px;align-items:center;padding:8px 6px;border-bottom:1px dashed var(--line);font-weight:600}
-.wr.g{background:rgba(245,196,81,.05)}.wr b{width:36px;font:700 18px "Chakra Petch",sans-serif}.wr em{margin-left:auto;font:normal 15px "Share Tech Mono",monospace;text-align:right}.wr em.ans{color:var(--lime)}
+.l2{font:12px "Barlow Condensed",sans-serif;color:var(--muted);margin-bottom:6px}.wr{display:flex;gap:12px;align-items:center;padding:8px 6px;border-bottom:1px dashed var(--line);font-weight:600}
+.wr.g{background:rgba(245,196,81,.05)}.wr b{width:36px;font:700 18px "Barlow",sans-serif}.wr em{margin-left:auto;font:normal 15px "Barlow Condensed",sans-serif;text-align:right}.wr em.ans{color:var(--lime)}
 .shm{position:fixed;inset:0;z-index:60;background:rgba(3,2,12,.85);display:none;align-items:center;justify-content:center;padding:16px}.shm.on{display:flex}
 .shm .bx{background:var(--card);border:1px solid var(--line);padding:14px;max-width:420px;width:100%;max-height:94vh;overflow:auto}.shm img{width:100%;display:block;margin:10px 0}
-.shm .rw{display:flex;gap:8px}.shm .rw button{flex:1;font:700 13px "Chakra Petch",sans-serif;padding:10px;border:1px solid var(--line);background:var(--card2);color:var(--ink);cursor:pointer}.shm .rw button.p{background:var(--lime);color:#0b0b12;border-color:var(--lime)}
+.shm .rw{display:flex;gap:8px}.shm .rw button{flex:1;font:700 13px "Barlow",sans-serif;padding:10px;border:1px solid var(--line);background:var(--card2);color:var(--ink);cursor:pointer}.shm .rw button.p{background:var(--lime);color:#0b0b12;border-color:var(--lime)}
 /* curve */
 .cv svg{width:100%;height:auto;display:block}
-.foot{margin-top:22px;font:12px "Share Tech Mono",monospace;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap}
+.foot{margin-top:22px;font:12px "Barlow Condensed",sans-serif;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap}
 @media(prefers-reduced-motion:reduce){.c{opacity:1;transform:none;transition:none}}
 </style></head><body>
 <div class="bar"><div class="in"><div><span class="brand">letsgrowesports</span><h1>BMSD 2026 <span>// Predict &amp; Win</span></h1></div><a class="back" href="/">LIVE VIEWERSHIP &rarr;</a></div></div>
@@ -184,7 +184,7 @@ async function shareRes(){const R=window._RES;if(!R)return;await document.fonts.
  const c=document.createElement('canvas'),S=2,Wd=1080,H=1350;c.width=Wd*S;c.height=H*S;const x=c.getContext('2d');x.scale(S,S);
  const g=x.createRadialGradient(Wd*.85,0,40,Wd*.85,0,1300);g.addColorStop(0,'#2a1d5c');g.addColorStop(1,'#0b0b12');x.fillStyle=g;x.fillRect(0,0,Wd,H);
  const T=(t,X,Y,f,col,al,mw)=>{x.font=f;if(mw){const w=x.measureText(t).width;if(w>mw){const m=f.match(/(\d+)px/);x.font=f.replace(/\d+px/,Math.floor(+m[1]*mw/w)+'px')}}x.fillStyle=col;x.textAlign=al||'left';x.textBaseline='top';x.fillText(t,X,Y)};
- const M=s=>`${s}px "Share Tech Mono",monospace`,B=s=>`700 ${s}px "Chakra Petch",sans-serif`;
+ const M=s=>`${s}px "Barlow Condensed",sans-serif`,B=s=>`700 ${s}px "Barlow",sans-serif`;
  x.strokeStyle='#b6f23a';x.lineWidth=5;x.beginPath();x.moveTo(40,80);x.lineTo(40,40);x.lineTo(80,40);x.stroke();
  T('letsgrowesports // BMSD 2026',80,72,M(28),'#b6f23a');T('PREDICT & WIN RESULTS',80,110,B(68),'#eeeef5',null,Wd-160);
  const ch=(window._RES.rows[0]||[])[1]||'';const lg=TL[key(ch)];let y=220;
@@ -206,7 +206,7 @@ async function shareRes(){const R=window._RES;if(!R)return;await document.fonts.
 function donut(q){let a=-Math.PI/2;const tot=q.rows.reduce((s,r)=>s+r.pct,0)||1,L=q.rows[0];
  const segs=q.rows.map((r,i)=>{const da=r.pct/tot*2*Math.PI,d=arc(105,105,80,a+.012,a+da-.012);a+=da;return `<path d="${d}" stroke="${r.other?OTH:COL[i]}" stroke-width="30" fill="none" class="seg" style="--d:${i*90}ms"/>`}).join('');
  const lg=TL[key(L.label)];
- return card(q,'s4',`<div class="dn"><svg viewBox="0 0 210 210">${segs}${lg?`<image href="${lg}" x="55" y="58" width="100" height="56" preserveAspectRatio="xMidYMid meet"/>`:''}<text x="105" y="140" text-anchor="middle" fill="#b6f23a" font-family="Share Tech Mono,monospace" font-size="28">${pc(L.pct)}</text><text x="105" y="160" text-anchor="middle" fill="#8d8ca3" font-family="Share Tech Mono,monospace" font-size="11">${esc(L.label.toUpperCase())}</text></svg>
+ return card(q,'s4',`<div class="dn"><svg viewBox="0 0 210 210">${segs}${lg?`<image href="${lg}" x="55" y="58" width="100" height="56" preserveAspectRatio="xMidYMid meet"/>`:''}<text x="105" y="140" text-anchor="middle" fill="#b6f23a" font-family="Barlow Condensed,monospace" font-size="28">${pc(L.pct)}</text><text x="105" y="160" text-anchor="middle" fill="#8d8ca3" font-family="Barlow Condensed,monospace" font-size="11">${esc(L.label.toUpperCase())}</text></svg>
  <div class="leg">${q.rows.map((r,i)=>`<div class="${ok(q,r.label)}"><i style="background:${r.other?OTH:COL[i]}"></i>${logo(r)}${esc(r.label)}<span class="p">${pc(r.pct)}</span></div>`).join('')}</div></div>`)}
 // 2. top 3: rings
 function rings(q){const rows=q.rows.slice(0,8),A=q.answer||[];
@@ -233,7 +233,7 @@ function tree(q){const W=400,H=260,cells=squarify(q.rows.map((r,i)=>({...r,c:r.o
   return `<div class="${ok(q,r.label)} ${tight?'tight':''}" style="left:${r.x/W*100}%;top:${r.y/H*100}%;width:${r.w/W*100}%;height:${r.h/H*100}%;background:${r.c};color:${dark?'#0b0b12':'#eeeef5'};" title="${esc(r.label)} ${pc(r.pct)}">${u?`<img class="tav" src="${u}" alt="${esc(r.label)}" style="width:${sz}px;height:${sz}px">`:''}<b style="${narrow?'font-size:12px':''}">${esc(r.label)}</b><span style="${narrow?'font-size:16px':''}">${pc(r.pct)}</span></div>`}).join('')}</div>`)}
 // 7. eliminator: gauge + ranking
 function gauge(q){const L=q.rows[0],a1=Math.PI+Math.PI*L.pct/100;
- return card(q,'s4 elimP',`<div class="gtop"><svg viewBox="0 0 220 130" style="width:62%;max-width:230px"><path d="${arc(110,115,90,Math.PI,2*Math.PI-.0001)}" stroke="#262636" stroke-width="18" fill="none"/><path d="${arc(110,115,90,Math.PI,a1)}" stroke="#ff4d5e" stroke-width="18" fill="none" class="gp" style="filter:drop-shadow(0 0 6px rgba(255,77,94,.6))"/><text x="110" y="100" text-anchor="middle" fill="#eeeef5" font-family="Chakra Petch,sans-serif" font-weight="700" font-size="34">${pc(L.pct)}</text><text x="110" y="122" text-anchor="middle" fill="#8d8ca3" font-family="Share Tech Mono,monospace" font-size="12">${esc(L.label.toUpperCase())}</text></svg>${cut(L.label)}</div>
+ return card(q,'s4 elimP',`<div class="gtop"><svg viewBox="0 0 220 130" style="width:62%;max-width:230px"><path d="${arc(110,115,90,Math.PI,2*Math.PI-.0001)}" stroke="#262636" stroke-width="18" fill="none"/><path d="${arc(110,115,90,Math.PI,a1)}" stroke="#ff4d5e" stroke-width="18" fill="none" class="gp" style="filter:drop-shadow(0 0 6px rgba(255,77,94,.6))"/><text x="110" y="100" text-anchor="middle" fill="#eeeef5" font-family="Barlow,sans-serif" font-weight="700" font-size="34">${pc(L.pct)}</text><text x="110" y="122" text-anchor="middle" fill="#8d8ca3" font-family="Barlow Condensed,monospace" font-size="12">${esc(L.label.toUpperCase())}</text></svg>${cut(L.label)}</div>
  <div class="rk">${q.rows.map((r,i)=>`<div class="${ok(q,r.label)}"><em>${r.other?'':'#'+(i+1)}</em>${av(r)}${esc(r.label)}<span>${pc(r.pct)}</span></div>`).join('')}</div>`)}
 // 8. peak viewers: smooth distribution curve
 function curve(q){const sm=innerWidth<640,n=q.rows.length,W=sm?440:1000,H=sm?320:420,pl=10,pr=10,pt=50,pb=sm?66:50,fs=sm?1.25:1,lab=l=>sm?l.replace('Under ','<').replace(/K/g,''):l.replace('Under ','<'),mx=Math.max(...q.rows.map(r=>r.pct))*1.15,
@@ -243,8 +243,8 @@ function curve(q){const sm=innerWidth<640,n=q.rows.length,W=sm?440:1000,H=sm?320
  return card(q,'s8',`<div class="cv"><svg viewBox="0 0 ${W} ${H}"><defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4cc9f0" stop-opacity=".45"/><stop offset="1" stop-color="#4cc9f0" stop-opacity="0"/></linearGradient><clipPath id="rv"><rect class="rv" x="0" y="0" width="0" height="${H}"/></clipPath></defs>
  <g clip-path="url(#rv)"><path d="${line}Z" fill="url(#ag)"/><path d="${d}" fill="none" stroke="#4cc9f0" stroke-width="3" style="filter:drop-shadow(0 0 6px rgba(76,201,240,.7))"/></g>
  <line x1="${P[top][0]}" x2="${P[top][0]}" y1="${P[top][1]}" y2="${Y(0)}" stroke="#b6f23a" stroke-dasharray="4 4"/>
- ${q.rows.map((r,i)=>`<circle cx="${P[i][0]}" cy="${P[i][1]}" r="${i===top?7:4}" fill="${i===top?'#b6f23a':'#0b0b12'}" stroke="${i===top?'#b6f23a':'#4cc9f0'}" stroke-width="2"/><text x="${P[i][0]}" y="${P[i][1]-14}" text-anchor="middle" fill="${i===top?'#b6f23a':'#eeeef5'}" font-family="Share Tech Mono,monospace" font-size="${(i===top?20:16)*fs}">${pc(r.pct)}</text><text x="${P[i][0]}" y="${H-(sm?32:18)}" text-anchor="middle" fill="${ok(q,r.label)?'#b6f23a':'#8d8ca3'}" font-family="Share Tech Mono,monospace" font-size="${sm?13:15}">${sm&&r.label.includes('-')?`<tspan x="${P[i][0]}" dy="-8">${esc(lab(r.label.split('-')[0]))}</tspan><tspan x="${P[i][0]}" dy="15">-${esc(lab(r.label.split('-')[1]))}</tspan>`:esc(lab(r.label))}</text>`).join('')}
- <line x1="${pl}" x2="${W-pr}" y1="${Y(0)}" y2="${Y(0)}" stroke="#262636"/>${sm?`<text x="${W-pr}" y="${H-2}" text-anchor="end" fill="#8d8ca3" font-family="Share Tech Mono,monospace" font-size="11">thousands of viewers</text>`:''}</svg></div>`)}
+ ${q.rows.map((r,i)=>`<circle cx="${P[i][0]}" cy="${P[i][1]}" r="${i===top?7:4}" fill="${i===top?'#b6f23a':'#0b0b12'}" stroke="${i===top?'#b6f23a':'#4cc9f0'}" stroke-width="2"/><text x="${P[i][0]}" y="${P[i][1]-14}" text-anchor="middle" fill="${i===top?'#b6f23a':'#eeeef5'}" font-family="Barlow Condensed,monospace" font-size="${(i===top?20:16)*fs}">${pc(r.pct)}</text><text x="${P[i][0]}" y="${H-(sm?32:18)}" text-anchor="middle" fill="${ok(q,r.label)?'#b6f23a':'#8d8ca3'}" font-family="Barlow Condensed,monospace" font-size="${sm?13:15}">${sm&&r.label.includes('-')?`<tspan x="${P[i][0]}" dy="-8">${esc(lab(r.label.split('-')[0]))}</tspan><tspan x="${P[i][0]}" dy="15">-${esc(lab(r.label.split('-')[1]))}</tspan>`:esc(lab(r.label))}</text>`).join('')}
+ <line x1="${pl}" x2="${W-pr}" y1="${Y(0)}" y2="${Y(0)}" stroke="#262636"/>${sm?`<text x="${W-pr}" y="${H-2}" text-anchor="end" fill="#8d8ca3" font-family="Barlow Condensed,monospace" font-size="11">thousands of viewers</text>`:''}</svg></div>`)}
 if(((Q('CHAMPION')||{}).answer||[]).length){document.getElementById('hh').textContent='Predict & Win: results';document.getElementById('hp').textContent=`${Q('CHAMPION').answer[0]} are the BMSD 2026 champions. Here is who called it, and how the community voted.`}
 G.innerHTML=[results(),donut(Q('CHAMPION')),rings(Q('TOP 3')),heat(Q('BMIC')),hero(Q('TOURNAMENT MVP')),stacked(Q('FINAL MVP')),tree(Q('BEST IGL')),gauge(Q('THE ELIMINATOR')),curve(Q('PEAK VIEWERS'))].join('');
 // animate in as cards scroll into view
@@ -258,6 +258,6 @@ const run=c=>{c.classList.add('in');
 const io='IntersectionObserver' in window?new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){io.unobserve(e.target);run(e.target)}}),{threshold:.2}):null;
 document.querySelectorAll('.c').forEach(c=>io?io.observe(c):run(c));
 </script>
-<div class="shm" id="shm" onclick="if(event.target===this)this.classList.remove('on')"><div class="bx"><div style="display:flex;justify-content:space-between;align-items:center"><b>Share the results</b><button onclick="document.getElementById('shm').classList.remove('on')" style="background:none;border:0;color:var(--muted);font:14px 'Share Tech Mono',monospace;cursor:pointer">CLOSE</button></div>
+<div class="shm" id="shm" onclick="if(event.target===this)this.classList.remove('on')"><div class="bx"><div style="display:flex;justify-content:space-between;align-items:center"><b>Share the results</b><button onclick="document.getElementById('shm').classList.remove('on')" style="background:none;border:0;color:var(--muted);font:14px 'Barlow Condensed',sans-serif;cursor:pointer">CLOSE</button></div>
 <img id="shi" alt="Results card"><div class="rw"><button class="p" id="shs">SHARE</button><button id="shx">X</button><button id="shd">DOWNLOAD</button></div>
-<div style="font:11px 'Share Tech Mono',monospace;color:var(--muted);margin-top:8px">On your phone, Share opens Instagram stories, WhatsApp and more.</div></div></div></body></html>"""
+<div style="font:11px 'Barlow Condensed',sans-serif;color:var(--muted);margin-top:8px">On your phone, Share opens Instagram stories, WhatsApp and more.</div></div></div></body></html>"""

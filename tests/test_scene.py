@@ -225,3 +225,8 @@ assert all(e["state"] in ("live", "upcoming") for e in sc.data("today", region="
 for u in ("/map", "/india/c/bgmi"):
     assert c.get(u).status_code == 200, u
 print("SEARCH/GEO/HISTORY OK")
+ca = c.get("/api/channel?sid=yt:UCaman").get_json()
+assert ca["name"] == "Soul Aman" and ca["periods"]["today"]["peak"] > 0 and ca["days"] and set(ca["periods"]) == {"today", "7d", "30d", "all"}, ca
+assert c.get("/api/channel?sid=bad").status_code == 404
+assert "daily" in sc.data("today", region="global") and c.get("/map?embed=1").status_code == 200
+print("CHANNEL OK")
