@@ -23,7 +23,7 @@ PORT = int(os.getenv("EVENT_WEB_PORT", "8092"))
 app = Flask(__name__)
 
 
-CACHE = {"/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
+CACHE = {"/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
 
 
 
@@ -90,6 +90,10 @@ def _memo(key, ttl, build, mimetype):
                 if isinstance(body, str):
                     body = body.encode()
                 hit = (time.time(), body, gzip.compress(body, 5) if len(body) > 1024 else None)
+                if len(_MEMO) > 3000:                 # search keys are open-ended: drop stale entries
+                    for k in [k for k, v in list(_MEMO.items()) if time.time() - v[0] > 120]:
+                        _MEMO.pop(k, None)
+                        _MLOCK.pop(k, None)
                 _MEMO[key] = hit
     _, body, gz = hit
     if gz is not None and "gzip" in request.headers.get("Accept-Encoding", ""):
@@ -290,6 +294,35 @@ def india_data():
     cat, region, sec = _scene_args()
     return _memo(f"/api/scene:{region}:{sec}:{per}:{cat}", 20, _jdump(lambda: scene.data(per, cat, region, sec)),
                  "application/json")
+
+
+@app.route("/api/search")
+def scene_search():
+    """Any streamer ever seen live, plus games/categories: /api/search?q=mortal&region=global"""
+    from tracker import scene
+    q = (request.args.get("q") or "").strip().lower()[:60]
+    region = request.args.get("region", "global")
+    region = region if region in scene.REGIONS else "global"
+    return _memo(f"/api/search:{region}:{q}", 20, _jdump(lambda: scene.search(q, region)), "application/json")
+
+
+@app.route("/api/geo")
+def scene_geo():
+    """Live viewers by streamer country, for the globe."""
+    from tracker import scene
+    return _memo("/api/geo", 4, _jdump(lambda: scene.geo("global")), "application/json")
+
+
+@app.route("/map")
+def world_map():
+    from tracker import mappage
+    return _memo("/map", 300, mappage.build_html, "text/html")
+
+
+@app.route("/india/map")
+def world_map_india():
+    from flask import redirect
+    return redirect("/map", code=302)
 
 
 @app.route("/events")

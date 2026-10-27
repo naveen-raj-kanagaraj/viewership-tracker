@@ -18,80 +18,95 @@ PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta property="og:title" content="__TITLE__ | __BRAND__"><meta property="og:description" content="__DESC__">
 <meta property="og:type" content="website"><meta name="theme-color" content="#07051a">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{color-scheme:dark;--bg:#0b0b12;--bg2:#121219;--card:#13131c;--card2:#1a1a26;--ink:#eeeef5;--muted:#8d8ca3;--line:#262636;
 --lime:#b6f23a;--purple:#a58bff;--red:#ff4d5e;--yt:#ff4d5e;--kick:#53fc18;--twitch:#a970ff}
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Chakra Petch",system-ui,sans-serif}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Barlow",system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.mono,.lbl,.kpi .k,.lth,.crumb,.seg button,.ev .st,.upd,.rg,.brand,.beta{letter-spacing:.04em}
 body{background:radial-gradient(900px 420px at 85% -15%,rgba(124,92,255,.13),transparent 60%),var(--bg);min-height:100vh}
 a{color:inherit}.wrap{max-width:1200px;margin:0 auto;padding:0 16px 24px}
-.mono,.lbl,th{font-family:"Share Tech Mono",monospace}.muted{color:var(--muted)}.sub{color:var(--muted);font-size:13px}
+.mono,.lbl,th{font-family:"Barlow Condensed",sans-serif}.muted{color:var(--muted)}.sub{color:var(--muted);font-size:13px}
 .lbl{color:var(--red);font-size:12px;letter-spacing:.06em;text-transform:uppercase}
 .top{position:sticky;top:0;z-index:30;background:rgba(11,11,18,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
 .top .in{max-width:1200px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:14px}
-.brand{color:var(--lime);font:16px "Share Tech Mono",monospace;text-decoration:none;white-space:nowrap}
-.rg{display:inline-flex;border:1px solid var(--line);font:12px "Share Tech Mono",monospace;flex:none}.rg a{padding:4px 10px;text-decoration:none;color:var(--muted)}.rg a.on{background:var(--lime);color:#0b0b12}
-.upd{margin-left:auto;font:12px "Share Tech Mono",monospace;color:var(--muted);white-space:nowrap}.upd b{color:var(--ink);font-weight:400}
-.beta{font:700 10px "Share Tech Mono",monospace;color:#0b0b12;background:var(--lime);padding:2px 6px;letter-spacing:.08em;margin-left:-6px;flex:none}
+.brand{color:var(--lime);font:700 18px "Barlow Condensed",sans-serif;text-transform:uppercase;text-decoration:none;white-space:nowrap}
+.rg{display:inline-flex;border:1px solid var(--line);font:12px "Barlow Condensed",sans-serif;flex:none}.rg a{padding:4px 10px;text-decoration:none;color:var(--muted)}.rg a.on{background:var(--lime);color:#0b0b12}
+.upd{margin-left:auto;font:12px "Barlow Condensed",sans-serif;color:var(--muted);white-space:nowrap}.upd b{color:var(--ink);font-weight:400}
+.beta{font:700 10px "Barlow Condensed",sans-serif;color:#0b0b12;background:var(--lime);padding:2px 6px;letter-spacing:.08em;margin-left:-6px;flex:none}
 .secnav a i{display:none}.gmore{margin-top:12px;border:1px solid var(--line)}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red);margin-right:6px;box-shadow:0 0 8px var(--red);animation:pl 2s infinite}
 @keyframes pl{50%{opacity:.35}}
 .secnav{max-width:1200px;margin:0 auto;padding:0 16px;display:flex;flex-wrap:wrap;gap:0 2px;scrollbar-width:none}.secnav::-webkit-scrollbar{display:none}
 .secnav a{flex:none;padding:9px 10px;text-decoration:none;color:var(--muted);font-size:14px;border-bottom:2px solid transparent;white-space:nowrap}
-.secnav a b{font:12px "Share Tech Mono",monospace;font-weight:400;margin-left:6px;color:var(--muted)}
+.secnav a b{font:12px "Barlow Condensed",sans-serif;font-weight:400;margin-left:6px;color:var(--muted)}
 .secnav a.on{color:var(--ink);border-bottom-color:var(--lime)}.secnav a:hover{color:var(--ink)}
-.crumb{font:12px "Share Tech Mono",monospace;color:var(--muted);margin-top:18px}.crumb a{text-decoration:none}.crumb a:hover{color:var(--lime)}
-h1{font-size:34px;line-height:1.1;margin:6px 0 4px}h1 em{font-style:normal;color:var(--purple)}
+.crumb{font:12px "Barlow Condensed",sans-serif;color:var(--muted);margin-top:18px}.crumb a{text-decoration:none}.crumb a:hover{color:var(--lime)}
+h1{font:700 38px/1.05 "Barlow Condensed",sans-serif;margin:6px 0 4px;text-transform:uppercase;letter-spacing:.01em}h1 em{font-style:normal;color:var(--purple)}
 .intro{color:#c9c8d8;margin:0;font-size:15px;max-width:780px}
 .kpis{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr 1.4fr;gap:10px;margin-top:16px}
 .kpi{background:var(--card);border:1px solid var(--line);padding:14px;min-width:0;position:relative}
-.kpi .k{font:11px "Share Tech Mono",monospace;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
-.kpi .v{font:700 30px "Chakra Petch",sans-serif;margin-top:4px;line-height:1.1;white-space:nowrap}.kpi .s{font-size:12px;color:var(--muted);margin-top:4px}
-.kpi.main{border-color:#3a2f6b;background:linear-gradient(160deg,rgba(124,92,255,.18),var(--card) 60%)}.kpi.main .v{font-size:44px}
+.kpi .k{font:11px "Barlow Condensed",sans-serif;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.kpi .v{font:700 34px "Barlow Condensed",sans-serif;margin-top:4px;line-height:1.1;white-space:nowrap}.kpi .s{font-size:12px;color:var(--muted);margin-top:4px}
+.kpi.main{border-color:#3a2f6b;background:linear-gradient(160deg,rgba(124,92,255,.18),var(--card) 60%)}.kpi.main .v{font-size:50px}
 .bar{display:flex;height:6px;margin-top:10px;background:var(--line);overflow:hidden}.bar div{height:100%;transition:width .6s}
-.leg{display:flex;flex-wrap:wrap;gap:4px 12px;font:11px "Share Tech Mono",monospace;color:var(--muted);margin-top:6px}.leg b{color:var(--ink);font-weight:400}
+.leg{display:flex;flex-wrap:wrap;gap:4px 12px;font:11px "Barlow Condensed",sans-serif;color:var(--muted);margin-top:6px}.leg b{color:var(--ink);font-weight:400}
 .sw{display:inline-block;width:8px;height:8px;margin-right:5px}
 .kpi .shr{position:absolute;right:10px;top:10px}
 .card{background:var(--card);border:1px solid var(--line);padding:16px;margin-top:12px;min-width:0}
-.head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap}h2{margin:2px 0 0;font-size:19px}
-.btn{background:var(--lime);color:#0b0b12;border:0;font:700 11px "Share Tech Mono",monospace;padding:5px 10px;cursor:pointer;clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px)}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap}h2{margin:2px 0 0;font-size:19px;font-weight:700}
+.btn{background:var(--lime);color:#0b0b12;border:0;font:700 11px "Barlow Condensed",sans-serif;padding:5px 10px;cursor:pointer;clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px)}
 .btn.ghost{background:none;color:var(--muted);border:1px solid var(--line);clip-path:none}
 .secs{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:12px}
 .sc{display:block;text-decoration:none;background:var(--card2);border:1px solid var(--line);padding:12px;min-width:0;transition:border-color .15s}
 .sc:hover{border-color:var(--lime)}.sc .n{display:flex;align-items:center;gap:8px;font-weight:700}.sc .n svg{color:var(--lime);flex:none}
-.sc .v{font:22px "Share Tech Mono",monospace;margin-top:6px}.sc .s{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc .v{font:22px "Barlow Condensed",sans-serif;margin-top:6px}.sc .s{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sc.zero{opacity:.55}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:12px}
 .gc{display:flex;gap:10px;align-items:center;text-decoration:none;background:var(--card2);border:1px solid var(--line);padding:10px;min-width:0}
 .gc:hover{border-color:var(--lime)}.gc img,.gc .ph{width:42px;height:56px;border-radius:4px;object-fit:cover;flex:none;background:var(--card);display:grid;place-items:center;font-weight:700;color:#0b0b12}
-.gc .n{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gc .v{font:17px "Share Tech Mono",monospace}.gc .s{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gc .n{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gc .v{font:17px "Barlow Condensed",sans-serif}.gc .s{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .list{background:var(--card);border:1px solid var(--line);margin-top:12px;display:flex;flex-direction:column;min-width:0}
 .lh{display:flex;align-items:center;gap:8px;padding:13px 14px;flex-wrap:wrap}.lh h2{font-size:17px;margin:0}.lh .r{margin-left:auto;display:flex;gap:6px;align-items:center}
-.lth{display:flex;justify-content:space-between;padding:6px 14px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);font:11px "Share Tech Mono",monospace;color:var(--muted);background:var(--card2)}
+.lth{display:flex;justify-content:space-between;padding:6px 14px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);font:11px "Barlow Condensed",sans-serif;color:var(--muted);background:var(--card2)}
 .row{display:grid;grid-template-columns:22px 38px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 14px;text-decoration:none;border-bottom:1px solid #1c1c29}
-.row:hover{background:#171722}.row .rk{font:12px "Share Tech Mono",monospace;color:var(--muted)}.row .rk.t{color:var(--lime)}
+.row:hover{background:#171722}.row .rk{font:12px "Barlow Condensed",sans-serif;color:var(--muted)}.row .rk.t{color:var(--lime)}
 .row .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row .ds{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.row .vv{text-align:right;font:14px "Share Tech Mono",monospace;white-space:nowrap}.row .vv small{display:block;font-size:11px;color:var(--muted)}
-.lv{color:var(--red);font:10px "Share Tech Mono",monospace;margin-right:4px}.lv:before{content:"\25CF ";}
-.av{position:relative;width:38px;height:38px}.av img,.av .ph{width:38px;height:38px;border-radius:50%;object-fit:cover;background:var(--card2);border:1px solid var(--line);display:grid;place-items:center;font:700 12px "Chakra Petch",sans-serif;color:var(--muted)}
-.av .bd{position:absolute;right:-3px;bottom:-3px;width:15px;height:15px;border-radius:4px;display:grid;place-items:center;font:700 9px "Chakra Petch",sans-serif;color:#0b0b12;border:2px solid var(--card)}
-.more{display:block;width:100%;background:var(--card2);border:0;border-top:1px solid var(--line);color:var(--ink);font:13px "Chakra Petch",sans-serif;padding:11px;cursor:pointer;margin-top:auto}.more:hover{color:var(--lime)}
-.seg{display:inline-flex;border:1px solid var(--line)}.seg button{background:none;border:0;color:var(--muted);font:11px "Share Tech Mono",monospace;padding:5px 8px;cursor:pointer}.seg button.on{background:var(--lime);color:#0b0b12}
+.row .vv{text-align:right;font:14px "Barlow Condensed",sans-serif;white-space:nowrap}.row .vv small{display:block;font-size:11px;color:var(--muted)}
+.lv{color:var(--red);font:10px "Barlow Condensed",sans-serif;margin-right:4px}.lv:before{content:"\25CF ";}
+.av{position:relative;width:38px;height:38px}.av img,.av .ph{width:38px;height:38px;border-radius:50%;object-fit:cover;background:var(--card2);border:1px solid var(--line);display:grid;place-items:center;font:700 12px "Barlow",sans-serif;color:var(--muted)}
+.av .bd{position:absolute;right:-3px;bottom:-3px;width:15px;height:15px;border-radius:4px;display:grid;place-items:center;font:700 9px "Barlow",sans-serif;color:#0b0b12;border:2px solid var(--card)}
+.more{display:block;width:100%;background:var(--card2);border:0;border-top:1px solid var(--line);color:var(--ink);font:13px "Barlow",sans-serif;padding:11px;cursor:pointer;margin-top:auto}.more:hover{color:var(--lime)}
+.seg{display:inline-flex;border:1px solid var(--line)}.seg button{background:none;border:0;color:var(--muted);font:11px "Barlow Condensed",sans-serif;padding:5px 8px;cursor:pointer}.seg button.on{background:var(--lime);color:#0b0b12}
 .tools{display:flex;gap:8px;flex-wrap:wrap;padding:0 14px 10px}
-input{background:var(--card2);border:1px solid var(--line);color:var(--ink);font:13px "Share Tech Mono",monospace;padding:6px 9px;min-width:0;flex:1}
+input{background:var(--card2);border:1px solid var(--line);color:var(--ink);font:13px "Barlow Condensed",sans-serif;padding:6px 9px;min-width:0;flex:1}
 .tours{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;margin-top:12px}
 .tc{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:12px;align-items:center;background:var(--card2);border:1px solid var(--line);padding:12px}
 .tc .ta{width:48px;height:64px;object-fit:cover;border-radius:4px;background:var(--card);display:grid;place-items:center;font-weight:700;color:#0b0b12}
-.tc .tn{font-weight:700;font-size:16px}.tc .tg{font-size:12px;color:var(--muted);text-decoration:none}.tc .tv{font:20px "Share Tech Mono",monospace;text-align:right}.tc .tv small{display:block;font-size:11px;color:var(--muted)}
+.tc .tn{font-weight:700;font-size:16px}.tc .tg{font-size:12px;color:var(--muted);text-decoration:none}.tc .tv{font:20px "Barlow Condensed",sans-serif;text-align:right}.tc .tv small{display:block;font-size:11px;color:var(--muted)}
 .tc .ts{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}.tc .ts a{display:flex;align-items:center;gap:5px;font-size:12px;text-decoration:none;background:var(--card);border:1px solid var(--line);padding:2px 7px 2px 2px;border-radius:99px}
 .tc .ts img,.tc .ts .ph{width:18px;height:18px;border-radius:50%;object-fit:cover;background:var(--line)}
 .evs{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
 .ev{flex:1;min-width:240px;display:flex;justify-content:space-between;align-items:center;gap:10px;text-decoration:none;background:var(--card);border:1px solid var(--line);padding:12px 14px}
-.ev.live{border-color:var(--red)}.ev .st{font:11px "Share Tech Mono",monospace;color:var(--lime)}.ev.live .st{color:var(--red)}.ev.ended .st{color:var(--muted)}
-.ev .n{font-weight:700;font-size:16px}.ev .v{font:18px "Share Tech Mono",monospace;text-align:right}
+.ev.live{border-color:var(--red)}.ev .st{font:11px "Barlow Condensed",sans-serif;color:var(--lime)}.ev.live .st{color:var(--red)}.ev.ended .st{color:var(--muted)}
+.ev .n{font-weight:700;font-size:16px}.ev .v{font:18px "Barlow Condensed",sans-serif;text-align:right}
 #cv{width:100%;height:240px;display:block;margin-top:10px}
+.sbtn{background:none;border:1px solid var(--line);color:var(--ink);width:32px;height:28px;display:grid;place-items:center;cursor:pointer;flex:none;padding:0}
+.sbtn:hover,.sbtn.on{border-color:var(--lime);color:var(--lime)}
+.sbox{display:none;max-width:1200px;margin:0 auto;padding:0 16px 10px;position:relative}.sbox.on{display:block}
+.sbox input{width:100%;font:16px "Barlow",sans-serif;padding:10px 12px;border-color:#3a2f6b}
+.sres{position:absolute;z-index:40;left:16px;right:16px;top:100%;margin-top:-6px;background:var(--bg2);border:1px solid var(--line);max-height:70vh;overflow:auto;box-shadow:0 20px 40px rgba(0,0,0,.5)}
+.sres:empty{display:none}.sres .h{padding:8px 14px 4px;font:12px "Barlow Condensed",sans-serif;color:var(--muted);letter-spacing:.06em}
+.sres .gc{margin:4px 14px;background:var(--card)}
+.secnav a.mapl{color:var(--lime)}
+.hist{margin-top:12px;display:grid;gap:5px}
+.hr{display:grid;grid-template-columns:150px minmax(0,1fr) 64px;gap:10px;align-items:center;font-size:13px}
+.hr .hb{height:16px;background:var(--line);position:relative}.hr .hb div{height:100%;background:linear-gradient(90deg,#5b47c8,var(--purple))}
+.hr.rec .hb div{background:linear-gradient(90deg,#7fb21f,var(--lime))}.hr.cur .hb div{background:linear-gradient(90deg,#b8323f,var(--red))}
+.hr .hv{text-align:right;font:600 15px "Barlow Condensed",sans-serif}.hr .hn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hr.rec .hn,.hr.rec .hv{color:var(--lime)}
+#k3p{color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#k3p a{text-decoration:none}#k3p a:hover{color:var(--lime)}
 details.how{margin-top:14px;color:var(--muted);font-size:13px;line-height:1.6}details.how summary{cursor:pointer;color:var(--ink)}details.how b{color:var(--ink);font-weight:500}
 .foot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
 .empty{padding:14px;color:var(--muted);font-size:14px}
@@ -123,10 +138,13 @@ body{font-size:14px}.wrap{padding:0 12px 20px}
 .tours{display:flex;overflow-x:auto;gap:8px;scroll-snap-type:x mandatory;margin-right:-12px;scrollbar-width:none}.tours::-webkit-scrollbar{display:none}
 .tc{flex:0 0 86%;scroll-snap-align:start}
 .evs{gap:8px}.ev{min-width:0;flex:1 1 100%;padding:10px 12px}
-#cv{height:190px}details.how{font-size:12px}.foot{font-size:11px}
+#cv{height:190px}details.how{font-size:12px}
+.kpi #k3p{display:block;font-size:10.5px;margin-top:3px}.sbox{padding:0 12px 10px}.sres{left:12px;right:12px}
+.hr{grid-template-columns:96px minmax(0,1fr) 52px;gap:8px;font-size:12px}.hr .hb{height:13px}.foot{font-size:11px}
 }
 </style></head><body>
-<div class="top"><div class="in"><a class="brand" href="__HOME__">__BRAND__</a><span class="beta" title="Under testing: numbers may be incomplete or change">BETA</span><span class="rg" id="rg"></span><span class="upd"><span class="dot"></span><span>UPDATED </span><b id="upd">-</b></span></div>
+<div class="top"><div class="in"><a class="brand" href="__HOME__">__BRAND__</a><span class="beta" title="Under testing: numbers may be incomplete or change">BETA</span><span class="rg" id="rg"></span><span class="upd"><span class="dot"></span><span>UPDATED </span><b id="upd">-</b></span><button class="sbtn" id="sbtn" aria-label="Search streamers"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></button></div>
+<div class="sbox" id="sbox"><input id="gs" type="search" placeholder="Search any streamer or game" autocomplete="off"><div class="sres" id="sres"></div></div>
 <nav class="secnav" id="secnav"></nav></div>
 <div class="wrap">
 <div class="crumb" id="crumb"></div>
@@ -134,11 +152,12 @@ body{font-size:14px}.wrap{padding:0 12px 20px}
 <div class="kpis">
  <div class="kpi main"><div class="k" id="k1l">Watching now</div><div class="v mono" id="k1">-</div><div class="bar" id="pbar"></div><div class="leg" id="pleg"></div><button class="btn shr" data-share="now">SHARE</button></div>
  <div class="kpi"><div class="k">Live channels</div><div class="v mono" id="k2">-</div><div class="s" id="k2s">streaming right now</div></div>
- <div class="kpi"><div class="k">Peak today</div><div class="v mono" id="k3">-</div><div class="s" id="k3s"></div></div>
+ <div class="kpi"><div class="k">Peak today</div><div class="v mono" id="k3">-</div><div class="s" id="k3s"></div><div class="s" id="k3p"></div></div>
  <div class="kpi hwk"><div class="k">Hours watched today</div><div class="v mono" id="k4">-</div><div class="s" id="k4s"></div></div>
  <div class="kpi topk"><div class="k">Biggest stream now</div><div id="k5" style="margin-top:6px"></div></div>
 </div>
 <div id="evwrap"></div>
+<div class="card" id="histcard" style="display:none"><div class="head"><div><div class="lbl" id="hl">// Past events</div><h2 id="hh">Peak viewers of past tournaments</h2><div class="sub">Highest number watching at once, official broadcast plus co-streams. Record in green.</div></div><button class="btn" data-share="hist">SHARE</button></div><div class="hist" id="hist"></div></div>
 <div class="card" id="secard"><div class="head"><div><div class="lbl">// Sections</div><h2>What people are watching</h2><div class="sub">Viewers right now in each section. Tap one to open it.</div></div><button class="btn" data-share="sections">SHARE</button></div><div class="secs" id="secs"></div></div>
 <div class="card" id="gcard"><div class="head"><div><div class="lbl" id="gl">// Games</div><h2 id="gh">Games live now</h2><div class="sub">Tap one for its streams and top streamers.</div></div><button class="btn" data-share="cats">SHARE</button></div><div class="grid" id="grid"></div><button class="more gmore" id="gmore"></button></div>
 <div class="two">
@@ -179,7 +198,7 @@ const ICON={overview:'<path d="M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H
  esports:'<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/>',irl:'<path d="M12 21s-6-5.3-6-11a6 6 0 0 1 12 0c0 5.7-6 11-6 11z"/><circle cx="12" cy="10" r="2"/>',
  'just-chatting':'<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',news:'<path d="M4 5h13v14H6a2 2 0 0 1-2-2zM17 9h3v8a2 2 0 0 1-2 2M7 8h7M7 11h7M7 14h4"/>',
  music:'<path d="M9 18V6l11-2v12M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM20 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/>',sports:'<circle cx="12" cy="12" r="9"/><path d="M12 3a15 15 0 0 1 0 18M3 12h18"/>',
- devotional:'<path d="M12 3c1.5 2.5 3 4 3 6a3 3 0 0 1-6 0c0-2 1.5-3.5 3-6zM4 15h16l-2 5H6z"/>',podcasts:'<path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/>',other:'<path d="M4 6h16v10H4zM9 20h6M12 16v4"/>'};
+ devotional:'<path d="M12 3c1.5 2.5 3 4 3 6a3 3 0 0 1-6 0c0-2 1.5-3.5 3-6zM4 15h16l-2 5H6z"/>',podcasts:'<path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/>',other:'<path d="M4 6h16v10H4zM9 20h6M12 16v4"/>',globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>'};
 const svg=(k,s)=>`<svg viewBox="0 0 24 24" width="${s||18}" height="${s||18}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[k]||ICON.other}</svg>`;
 const av=x=>`<span class="av">${x.logo?`<img src="${esc(x.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=ph>${ini(x.name)}</span>'">`:`<span class="ph">${ini(x.name)}</span>`}<span class="bd" style="background:${COL[x.platform]||'#888'}">${(x.platform||'?')[0].toUpperCase()}</span></span>`;
 const art=(g,a,cls)=>a?`<img class="${cls||''}" src="${esc(a)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:`<span class="${cls||''} ph" style="background:${HUE(g)}">${ini(g)}</span>`;
@@ -191,6 +210,15 @@ setT('intro',CAT?`Everyone streaming ${CATNAME} ${WHERE} on YouTube, Kick and Tw
  SEC?`Every ${SECNAME[SEC]} stream ${WHERE} on YouTube, Kick and Twitch, by ${SEC==='esports'?'tournament':'game and category'}. Updated every 2 seconds.`:
  `How many people are watching live streams ${WHERE} on YouTube, Kick and Twitch, what they watch and who leads. Updated every 2 seconds.`);
 if(CAT||SEC)document.getElementById('secard').style.display='none';
+{const sb=document.getElementById('sbox'),gs=document.getElementById('gs'),sr=document.getElementById('sres');let st=null,sq='';
+ document.getElementById('sbtn').onclick=()=>{const on=sb.classList.toggle('on');document.getElementById('sbtn').classList.toggle('on',on);if(on)gs.focus()};
+ document.addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement.tagName!=='INPUT'){e.preventDefault();sb.classList.add('on');gs.focus()}if(e.key==='Escape'){sb.classList.remove('on');sr.innerHTML=''}});
+ gs.oninput=()=>{clearTimeout(st);st=setTimeout(async()=>{const v=gs.value.trim();sq=v;if(v.length<2){sr.innerHTML='';return}
+  try{const j=await (await fetch('/api/search?region='+REGION+'&q='+encodeURIComponent(v))).json();if(sq!==v)return;
+   const C=j.channels||[],G=j.categories||[];
+   sr.innerHTML=(G.length?`<div class="h">GAMES & CATEGORIES</div>`+G.map(g=>`<a class="gc" href="${CU(esc(g.slug))}">${art(g.game,g.art)}<span class="n">${esc(g.game)}</span></a>`).join(''):'')+
+    (C.length?`<div class="h">STREAMERS</div>`+C.map(x=>`<a class="row" href="${esc(x.url)}" target="_blank" rel="noopener"><span></span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">${x.now?`<span class="lv">LIVE</span>${full(x.now)} watching`:x.last_live?'Last live '+ago(x.last_live):''}${x.game?' // '+esc(x.game):''}</div></span><span class="vv">${fmt(Math.max(x.peak,x.now))}<small>best peak</small></span></a>`).join(''):'')||
+    `<div class="empty">No streamer named "${esc(v)}" has been seen live ${WHERE} yet.</div>`}catch(e){}},250)}}
 if(CAT)document.getElementById('gcard').style.display='none';
 const liveMap=()=>{const m={};(D.live||[]).forEach(x=>m[x.sid]=x.viewers);return m};
 const liveList=()=>(D.live||[]).filter(x=>(plat==='all'||x.platform===plat)&&(!q||(x.name+' '+x.title+' '+x.game).toLowerCase().includes(q)));
@@ -198,16 +226,17 @@ const boardList=()=>{const lm=liveMap();return (D.board||[]).filter(x=>bplat==='
 function render(){if(!D)return;const K=D.kpis||{};
  updLabel();
  const S=D.sections||[];
- setH('secnav',`<a href="${HOME}" class="${!SEC&&!CAT?'on':''}"><i>${svg('overview',14)}</i>Overview<b>${D.fresh?fmt(D.india_total):''}</b></a>`+S.slice().sort((a,b)=>b.viewers-a.viewers).map(s=>`<a href="${SU(s.key)}" class="${SEC===s.key?'on':''}${s.viewers?'':' z'}"><i>${svg(s.key,14)}</i>${esc(s.name)}<b>${s.viewers?fmt(s.viewers):''}</b></a>`).join(''));
+ setH('secnav',`<a href="${HOME}" class="${!SEC&&!CAT?'on':''}"><i>${svg('overview',14)}</i>Overview<b>${D.fresh?fmt(D.india_total):''}</b></a><a href="/map" class="mapl"><i>${svg('globe',14)}</i>World map</a>`+S.slice().sort((a,b)=>b.viewers-a.viewers).map(s=>`<a href="${SU(s.key)}" class="${SEC===s.key?'on':''}${s.viewers?'':' z'}"><i>${svg(s.key,14)}</i>${esc(s.name)}<b>${s.viewers?fmt(s.viewers):''}</b></a>`).join(''));
  if(!window._navScrolled){const on=document.querySelector('.secnav a.on');if(on&&on.scrollIntoView){on.scrollIntoView({inline:'center',block:'nearest'});window._navScrolled=1}}
  setT('k1l','Watching now'+(CAT||SEC?' // '+(CAT?CATNAME:SECNAME[SEC]):''));setT('k1',D.fresh?full(K.watching):'-');
  const tot=K.watching||1;setH('pbar',(D.platforms||[]).map(p=>`<div style="width:${100*p.viewers/tot}%;background:${COL[p.platform]}"></div>`).join(''));
  setH('pleg',(D.platforms||[]).map(p=>`<span><span class="sw" style="background:${COL[p.platform]}"></span>${p.name.toUpperCase()} <b>${fmt(p.viewers)}</b></span>`).join(''));
  setT('k2',D.fresh?full(K.live_channels):'-');setT('k2s',CAT||SEC?`${D.india_total?(100*K.watching/D.india_total).toFixed(1):0}% of everyone watching ${WHERE}`:'streaming right now');
  setT('k3',fmt(K.peak_today));setT('k3s',K.peak_today_at?'at '+ist(K.peak_today_at,{hour:'numeric',minute:'2-digit'})+' IST':'since midnight IST');
+ {const p=K.peak_lead;setH('k3p',p?`led by <a href="${esc(p.url)}" target="_blank" rel="noopener"><b style="color:${COL[p.platform]||'inherit'}">${esc(p.name)}</b></a> ${fmt(p.viewers)}`:'')}
  setT('k4',fmt(K.hw_today)+'h');setT('k4s',SEC==='esports'?`${full(K.channels_today||0)} tournaments today`:`${full(K.channels_today||0)} channels streamed today`);
  const t=K.top;setH('k5',t?`<a class="row" style="padding:0;border:0;grid-template-columns:38px minmax(0,1fr) auto" href="${esc(t.url)}" target="_blank" rel="noopener">${av(t)}<span style="min-width:0"><div class="nm">${esc(t.name)}</div><div class="ds">${esc(t.game)}</div></span><span class="vv">${full(t.viewers)}<small>watching</small></span></a>`:'<span class="muted">Nothing live in the last scan</span>');
- renderEvents();
+ renderEvents();renderHist();
  setH('secs',S.slice().sort((a,b)=>b.viewers-a.viewers).map(s=>`<a class="sc${s.viewers?'':' zero'}" href="${SU(s.key)}"><div class="n">${svg(s.key)}${esc(s.name)}</div><div class="v">${fmt(s.viewers)}</div><div class="s">${s.channels} live${s.items&&s.items.length?' // '+s.items.map(i=>esc(i.name)).join(', '):''}</div></a>`).join(''));
  const C=(D.categories||[]);
  setT('gl',SEC?'// '+SECNAME[SEC]:'// Games & categories');setT('gh',SEC?`${SECNAME[SEC]} live now, by ${SEC==='gaming'||SEC==='esports'?'game':'category'}`:'Games & categories live now');
@@ -243,10 +272,14 @@ function render(){if(!D)return;const K=D.kpis||{};
 function cdTxt(ns){const l=ns-Date.now()/1000;if(l<=0)return 'STARTING SOON';const d=Math.floor(l/86400),h=Math.floor(l%86400/3600),m=Math.floor(l%3600/60),s=Math.floor(l%60),p=n=>String(n).padStart(2,'0');return (d?d+'D ':'')+`${p(h)}:${p(m)}:${p(s)}`}
 function renderEvents(){const E=(D.events||[]).filter(e=>e.state!=='off');
  setH('evwrap',E.length?`<div class="evs">${E.map(e=>`<a class="ev ${e.state}" href="${esc(e.url)}"><span><div class="st">${e.state==='live'?'● LIVE NOW // OUR TRACKER':e.state==='upcoming'?'STARTS IN':'FINISHED'}</div><div class="n">${esc(e.name)}</div></span><span class="v" data-ns="${e.state==='upcoming'?e.next_start:''}">${e.state==='live'?full(e.now):e.state==='upcoming'?cdTxt(e.next_start):'Peak '+fmt(e.peak)}</span></a>`).join('')}</div>`:'')}
+function renderHist(){const H=D.history||[];document.getElementById('histcard').style.display=H.length?'':'none';if(!H.length)return;
+ const mx=Math.max(...H.map(h=>h.peak)),live=(D.events||[]).find(e=>e.state==='live');
+ setT('hl','// '+CATNAME+' tournaments');setT('hh',`${CATNAME} tournament peaks, all time`);
+ setH('hist',H.slice().reverse().map(h=>`<div class="hr${h.peak===mx?' rec':''}${live&&h.name===live.name?' cur':''}"><span class="hn">${esc(h.name)}</span><span class="hb"><div style="width:${(100*h.peak/mx).toFixed(1)}%"></div></span><span class="hv">${fmt(h.peak)}</span></div>`).join(''))}
 function drawChart(){const cv=document.getElementById('cv'),dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;if(!W)return;
  cv.width=W*dpr;cv.height=H*dpr;const x=cv.getContext('2d');x.scale(dpr,dpr);x.clearRect(0,0,W,H);plot(x,W,H,D.series||[],1)}
 function plot(x,W,H,S,fs){const pl=8*fs,pr=58*fs,pt=14*fs,pb=24*fs;
- x.font=`${11*fs}px "Share Tech Mono",monospace`;x.fillStyle='#8d8ca3';x.textAlign='left';
+ x.font=`${11*fs}px "Barlow Condensed",sans-serif`;x.fillStyle='#8d8ca3';x.textAlign='left';
  if(S.length<2){x.fillText('The chart fills in as readings come in (one every 2 minutes).',pl,H/2);return}
  const t0=S[0][0],t1=S[S.length-1][0],mx=Math.max(...S.map(p=>p[1]))*1.12||1,X=t=>pl+(W-pl-pr)*(t-t0)/((t1-t0)||1),Y=v=>pt+(H-pt-pb)*(1-v/mx);
  x.strokeStyle='#262636';x.lineWidth=1;for(let i=0;i<=4;i++){const y=pt+(H-pt-pb)*i/4;x.beginPath();x.moveTo(pl,y);x.lineTo(W-pr,y);x.stroke();x.fillText(fmt(mx*(1-i/4)),W-pr+6*fs,y+4*fs)}
@@ -255,31 +288,31 @@ function plot(x,W,H,S,fs){const pl=8*fs,pr=58*fs,pt=14*fs,pb=24*fs;
  x.beginPath();S.forEach((p,i)=>i?x.lineTo(X(p[0]),Y(p[1])):x.moveTo(X(p[0]),Y(p[1])));x.lineTo(X(t1),H-pb);x.lineTo(X(t0),H-pb);x.closePath();x.fillStyle=g;x.fill();
  x.beginPath();S.forEach((p,i)=>i?x.lineTo(X(p[0]),Y(p[1])):x.moveTo(X(p[0]),Y(p[1])));x.strokeStyle='#b6f23a';x.lineWidth=2.2*fs;x.shadowColor='rgba(182,242,58,.6)';x.shadowBlur=10*fs;x.stroke();x.shadowBlur=0;
  const pk=S.reduce((a,p)=>p[1]>a[1]?p:a,S[0]);x.fillStyle='#b6f23a';x.beginPath();x.arc(X(pk[0]),Y(pk[1]),4*fs,0,7);x.fill();
- x.font=`700 ${12*fs}px "Chakra Petch",sans-serif`;const right=X(pk[0])>W-pr-90*fs;x.textAlign=right?'right':'left';x.fillText('PEAK '+fmt(pk[1]),X(pk[0])+(right?-8:8)*fs,Y(pk[1])-6*fs);x.textAlign='left'}
+ x.font=`700 ${12*fs}px "Barlow",sans-serif`;const right=X(pk[0])>W-pr-90*fs;x.textAlign=right?'right':'left';x.fillText('PEAK '+fmt(pk[1]),X(pk[0])+(right?-8:8)*fs,Y(pk[1])-6*fs);x.textAlign='left'}
 window.addEventListener('resize',()=>D&&drawChart());
 let cur=null;
 function loadImg(u){return new Promise(r=>{if(!u||!LOGOS)return r(null);const i=new Image();i.crossOrigin='anonymous';i.onload=()=>r(i);i.onerror=()=>r(null);i.src=u})}
 function base(title,sub){const c=document.createElement('canvas');c.width=2160;c.height=2700;const x=c.getContext('2d');x.scale(2,2);
  x.fillStyle='#0b0b12';x.fillRect(0,0,1080,1350);const g=x.createRadialGradient(860,-60,10,860,-60,700);g.addColorStop(0,'rgba(124,92,255,.22)');g.addColorStop(1,'rgba(124,92,255,0)');x.fillStyle=g;x.fillRect(0,0,1080,1350);
- x.fillStyle='#b6f23a';x.font='30px "Share Tech Mono",monospace';x.fillText('letsgrowesports',72,96);
- x.fillStyle='#ffffff';x.font='700 58px "Chakra Petch",sans-serif';x.fillText(title.slice(0,28),72,170);x.fillStyle='#8d8ca3';x.font='28px "Share Tech Mono",monospace';x.fillText(sub.slice(0,60),72,218);
- x.fillStyle='#262636';x.fillRect(72,250,936,2);x.fillStyle='#8d8ca3';x.font='26px "Share Tech Mono",monospace';x.fillText(PAGEURL.replace('https://',''),72,1290);
+ x.fillStyle='#b6f23a';x.font='30px "Barlow Condensed",sans-serif';x.fillText('letsgrowesports',72,96);
+ x.fillStyle='#ffffff';x.font='700 64px "Barlow Condensed",sans-serif';x.fillText(title.slice(0,28),72,170);x.fillStyle='#8d8ca3';x.font='28px "Barlow Condensed",sans-serif';x.fillText(sub.slice(0,60),72,218);
+ x.fillStyle='#262636';x.fillRect(72,250,936,2);x.fillStyle='#8d8ca3';x.font='26px "Barlow Condensed",sans-serif';x.fillText(PAGEURL.replace('https://',''),72,1290);
  x.textAlign='right';x.fillText(ist(Date.now()/1000,{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})+' IST',1008,1290);x.textAlign='left';return [c,x]}
-function listRows(x,R,avs){R.slice(0,10).forEach((r,i)=>{const y=290+i*96;x.fillStyle=i<3?'#b6f23a':'#8d8ca3';x.font='700 34px "Share Tech Mono",monospace';x.fillText(String(i+1).padStart(2,'0'),72,y+46);
+function listRows(x,R,avs){R.slice(0,10).forEach((r,i)=>{const y=290+i*96;x.fillStyle=i<3?'#b6f23a':'#8d8ca3';x.font='700 34px "Barlow Condensed",sans-serif';x.fillText(String(i+1).padStart(2,'0'),72,y+46);
   const im=avs&&avs[i];let tx=150;if(im){x.save();x.beginPath();x.arc(178,y+34,28,0,7);x.clip();x.drawImage(im,150,y+6,56,56);x.restore();tx=226}
-  x.fillStyle='#ffffff';x.font='700 34px "Chakra Petch",sans-serif';let n=r.name;while(x.measureText(n).width>560-(tx-150)&&n.length>3)n=n.slice(0,-2);if(n!==r.name)n+='…';x.fillText(n,tx,y+32);
-  x.font='22px "Share Tech Mono",monospace';x.fillStyle=r.color||'#8d8ca3';x.fillText((r.tag||'').slice(0,46),tx,y+64);
-  x.textAlign='right';x.fillStyle='#ffffff';x.font='700 40px "Share Tech Mono",monospace';x.fillText(r.value,1008,y+46);x.textAlign='left';x.fillStyle='#1d1d2b';x.fillRect(72,y+84,936,1)})}
+  x.fillStyle='#ffffff';x.font='700 34px "Barlow",sans-serif';let n=r.name;while(x.measureText(n).width>560-(tx-150)&&n.length>3)n=n.slice(0,-2);if(n!==r.name)n+='…';x.fillText(n,tx,y+32);
+  x.font='22px "Barlow Condensed",sans-serif';x.fillStyle=r.color||'#8d8ca3';x.fillText((r.tag||'').slice(0,46),tx,y+64);
+  x.textAlign='right';x.fillStyle='#ffffff';x.font='700 40px "Barlow Condensed",sans-serif';x.fillText(r.value,1008,y+46);x.textAlign='left';x.fillStyle='#1d1d2b';x.fillRect(72,y+84,936,1)})}
 async function card(type){let c,x,text;const sc=SCOPE(),K=D.kpis||{};
  if(type==='now'){[c,x]=base((CAT||SEC?(CAT?CATNAME:SECNAME[SEC]):'LIVE STREAMING').toUpperCase(),`${GL?'Worldwide':'India'} // YouTube + Kick + Twitch // right now`);
   const tiles=[['WATCHING NOW',full(K.watching)],['LIVE CHANNELS',full(K.live_channels)],['PEAK TODAY',fmt(K.peak_today)],['HOURS WATCHED TODAY',fmt(K.hw_today)+'h']];
-  tiles.forEach(([l,v],i)=>{const X=72+(i%2)*474,Y=300+Math.floor(i/2)*210;x.fillStyle='#13131c';x.fillRect(X,Y,462,190);x.fillStyle='#ff4d5e';x.font='24px "Share Tech Mono",monospace';x.fillText('// '+l,X+24,Y+44);x.fillStyle='#ffffff';x.font=`700 ${i?64:72}px "Chakra Petch",sans-serif`;x.fillText(v,X+24,Y+140)});
+  tiles.forEach(([l,v],i)=>{const X=72+(i%2)*474,Y=300+Math.floor(i/2)*210;x.fillStyle='#13131c';x.fillRect(X,Y,462,190);x.fillStyle='#ff4d5e';x.font='24px "Barlow Condensed",sans-serif';x.fillText('// '+l,X+24,Y+44);x.fillStyle='#ffffff';x.font=`700 ${i?72:80}px "Barlow Condensed",sans-serif`;x.fillText(v,X+24,Y+140)});
   const T=(CAT?D.live.map(s=>[s.name,s.viewers]):SEC?(D.categories||[]).map(g=>[g.game,g.viewers]):(D.sections||[]).filter(s=>s.viewers).map(s=>[s.name,s.viewers])).slice(0,5);
-  x.fillStyle='#ff4d5e';x.font='28px "Share Tech Mono",monospace';x.fillText(CAT?'// TOP STREAMS':SEC?'// TOP GAMES':'// BY SECTION',72,770);
-  T.forEach((r,i)=>{const y=840+i*80;x.fillStyle=i===0?'#b6f23a':'#ffffff';x.font='700 40px "Chakra Petch",sans-serif';x.fillText(`${i+1}. ${r[0]}`.slice(0,30),72,y);x.textAlign='right';x.font='700 40px "Share Tech Mono",monospace';x.fillText(fmt(r[1]),1008,y);x.textAlign='left'});
+  x.fillStyle='#ff4d5e';x.font='28px "Barlow Condensed",sans-serif';x.fillText(CAT?'// TOP STREAMS':SEC?'// TOP GAMES':'// BY SECTION',72,770);
+  T.forEach((r,i)=>{const y=840+i*80;x.fillStyle=i===0?'#b6f23a':'#ffffff';x.font='700 40px "Barlow",sans-serif';x.fillText(`${i+1}. ${r[0]}`.slice(0,30),72,y);x.textAlign='right';x.font='700 40px "Barlow Condensed",sans-serif';x.fillText(fmt(r[1]),1008,y);x.textAlign='left'});
   text=`${sc}: ${full(K.watching)} watching right now across ${full(K.live_channels)} live channels on YouTube, Kick and Twitch. Peak today ${fmt(K.peak_today)}.`}
- else if(type==='chart'){[c,x]=base(sc.toUpperCase(),`Viewers over time, ${PER[per]}`);x.fillStyle='#ff4d5e';x.font='30px "Share Tech Mono",monospace';x.fillText('// PEAK, '+PER[per].toUpperCase(),72,320);
-  x.fillStyle='#ffffff';x.font='700 130px "Chakra Petch",sans-serif';x.fillText(D.peak?fmt(D.peak.viewers):'-',64,450);x.fillStyle='#8d8ca3';x.font='28px "Share Tech Mono",monospace';x.fillText(D.peak?when(D.peak.ts):'',72,500);
+ else if(type==='chart'){[c,x]=base(sc.toUpperCase(),`Viewers over time, ${PER[per]}`);x.fillStyle='#ff4d5e';x.font='30px "Barlow Condensed",sans-serif';x.fillText('// PEAK, '+PER[per].toUpperCase(),72,320);
+  x.fillStyle='#ffffff';x.font='700 150px "Barlow Condensed",sans-serif';x.fillText(D.peak?fmt(D.peak.viewers):'-',64,450);x.fillStyle='#8d8ca3';x.font='28px "Barlow Condensed",sans-serif';x.fillText(D.peak?when(D.peak.ts):'',72,500);
   x.save();x.translate(40,560);plot(x,1000,640,D.series||[],1.7);x.restore();text=`${sc}: peak ${D.peak?full(D.peak.viewers):'-'} watching at once in the ${PER[per]}.`}
  else if(type==='sections'){[c,x]=base('WHAT PEOPLE ARE WATCHING',`${GL?'Worldwide':'India'} // by section, live now`);const R=(D.sections||[]).filter(s=>s.viewers).slice(0,10);
   listRows(x,R.map(s=>({name:s.name,tag:`${s.channels} live // ${(s.items||[]).map(i=>i.name).join(', ')}`,value:fmt(s.viewers)})));text=`What ${GL?'the world':'India'} is watching live right now: ${R.slice(0,3).map((s,i)=>`${i+1}. ${s.name} ${fmt(s.viewers)}`).join(' | ')}.`}
@@ -289,10 +322,12 @@ async function card(type){let c,x,text;const sc=SCOPE(),K=D.kpis||{};
   text=`Esports live now ${WHERE}: ${T.slice(0,3).map((t,i)=>`${i+1}. ${t.name} ${fmt(t.viewers)}`).join(' | ')}.`}
  else if(type==='live'){const L=liveList().slice(0,10);[c,x]=base('TOP LIVE STREAMS',sc);const avs=await Promise.all(L.map(s=>loadImg(s.logo)));
   listRows(x,L.map(s=>({name:s.name,tag:`${(NAMES[s.platform]||'').toUpperCase()} // ${s.game}`,color:COL[s.platform],value:fmt(s.viewers)})),avs);text=`Top live streams ${WHERE} right now: ${L.slice(0,3).map((s,i)=>`${i+1}. ${s.name} ${fmt(s.viewers)}`).join(' | ')}.`}
+ else if(type==='hist'){const H=(D.history||[]).slice().reverse().slice(0,10),mx=Math.max(...(D.history||[]).map(h=>h.peak));[c,x]=base(CATNAME.toUpperCase()+' TOURNAMENT PEAKS','Peak viewers, official + co-streams');
+  listRows(x,H.map(h=>({name:h.name,tag:h.peak===mx?'ALL-TIME RECORD':'',color:'#b6f23a',value:fmt(h.peak)})));const r=(D.history||[]).find(h=>h.peak===mx);text=`${CATNAME} tournament peaks: record ${r?r.name+' '+fmt(r.peak):''}.`}
  else{const B=boardList().slice(0,10),lab={hw:'hours watched',peak:'peak viewers',avg:'average viewers'}[sort],val=s=>sort==='hw'?fmt(s.hw)+'h':fmt(s[sort]);[c,x]=base('TOP STREAMERS',`${sc} // ${PERB[per]} // ${lab}`);const avs=await Promise.all(B.map(s=>loadImg(s.logo)));
   listRows(x,B.map(s=>({name:s.name,tag:`${(NAMES[s.platform]||'').toUpperCase()} // ${s.game}`,color:COL[s.platform],value:val(s)})),avs);text=`Top streamers ${WHERE}, ${PERB[per]} by ${lab}: ${B.slice(0,3).map((s,i)=>`${i+1}. ${s.name} ${val(s)}`).join(' | ')}.`}
  return [c,text]}
-async function openShare(type){if(!D)return;const mi=document.getElementById('mimg');mi.removeAttribute('src');mi.alt='Making the image...';cur=null;setT('mhint','');document.getElementById('modal').classList.add('on');
+async function openShare(type){if(!D)return;try{await document.fonts.ready}catch(e){}const mi=document.getElementById('mimg');mi.removeAttribute('src');mi.alt='Making the image...';cur=null;setT('mhint','');document.getElementById('modal').classList.add('on');
  const name=`${CAT||SEC||(GL?'global':'india')}-${type}.png`,done=(b,text)=>{cur={blob:b,name,text};mi.src=URL.createObjectURL(b)};
  let [c,text]=await card(type);try{c.toBlob(b=>done(b,text),'image/png')}catch(e){LOGOS=false;[c,text]=await card(type);LOGOS=true;c.toBlob(b=>done(b,text),'image/png')}}
 document.querySelectorAll('[data-share]').forEach(b=>b.onclick=()=>openShare(b.dataset.share));

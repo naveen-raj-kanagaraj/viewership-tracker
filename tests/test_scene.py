@@ -207,3 +207,21 @@ n = sc.yt_fast_once(); lv = {x["sid"]: x["viewers"] for x in sc.live_data(region
 print("yt fast:", n, lv.get("yt:UCvct"), lv.get("yt:UCtg"))
 assert lv["yt:UCvct"] == 260000 and lv["yt:UCtg"] == 125000
 print("YT FAST OK")
+# search any channel ever seen, the globe, peak leader, game history, CEGC
+assert "cegc" in sc.seeds()["kick"] and "skyesports" in sc.seeds()["kick"]
+assert sc.tournament("CEGC 2026 day 3 | BGMI", "BGMI") == "CEGC"
+j = c.get("/api/search?q=soul&region=global").get_json()
+assert any(x["name"] == "Soul Aman" for x in j["channels"]), j
+assert c.get("/api/search?q=bgm&region=in").get_json()["categories"][0]["game"] == "BGMI"
+assert c.get("/api/search?q=a").get_json() == {"channels": [], "categories": []}
+g = c.get("/api/geo").get_json()
+assert any(z["country"] == "IN" and z["num"] == 356 and z["top"] for z in g["countries"]), g
+assert sc.country_of("United States") == ("US", 840, "United States") and sc.country_of("-") is None
+k = sc.data("today", region="global")["kpis"]
+assert k["peak_lead"] and k["peak_lead"]["name"], k
+b = sc.data("today", "bgmi", "in")
+assert b["history"] and b["history"][-1]["name"].startswith("BMSD") and all(e["game"] == "BGMI" for e in b["events"])
+assert all(e["state"] in ("live", "upcoming") for e in sc.data("today", region="in")["events"])
+for u in ("/map", "/india/c/bgmi"):
+    assert c.get(u).status_code == 200, u
+print("SEARCH/GEO/HISTORY OK")

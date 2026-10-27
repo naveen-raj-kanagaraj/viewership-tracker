@@ -284,7 +284,7 @@ TOURNAMENTS = [
     (r"\bmpl\b", "MPL", None), (r"\bmsc\b", "MSC", None), (r"\bm[5-9] world championship", "MLBB M-Series", None),
     (r"\brlcs\b", "RLCS", None), (r"\bcdl\b|call of duty league", "CDL", None), (r"\bowcs\b", "OWCS", None),
     (r"\balgs\b", "ALGS", None), (r"\bfncs\b", "FNCS", None), (r"\bdreamhack\b", "DreamHack", None),
-    (r"sky ?esports", "Sky Esports", None), (r"upthrust", "Upthrust Esports", None)]
+    (r"\bcegc\b", "CEGC", None), (r"sky ?esports", "Sky Esports", None), (r"upthrust", "Upthrust Esports", None)]
 _T_RX = [(re.compile(p, re.I), n, g) for p, n, g in TOURNAMENTS]
 _T_GENERIC = re.compile(r"\b(championship|grand finals?|finals|playoffs|qualifiers?|tournament|invitational|world cup|"
                         r"league|major|showdown)\b", re.I)
@@ -315,7 +315,7 @@ def tournament(title: str, game: str = ""):
     if _T_GENERIC.search(t) and _T_MATCH.search(t):
         return f"{game} tournaments" if game and game != "Other" else "Other tournaments"
     return None
-SEEDS = {"kick": ["skyesports"], "twitch": [],
+SEEDS = {"kick": ["skyesports", "cegc"], "twitch": [],
          "youtube": ["@SoulAman", "@DynamoGaming", "@TheBixiOP", "@ZGODGAMING", "@NEYOOGAMINGYT", "@MizoPlays",
                      "@MrSpike", "@LoLzZzGaming", "@SHARKSHE", "@MafiaNinja", "@ImRuthlessceopubg", "@RakaZoneGaming",
                      "@AnshYT", "@Casetoolive", "@sheekgaming", "@IPREEET.69", "@shreemanlegendliveofficial",
@@ -492,11 +492,17 @@ def classify(category: str, title: str) -> str:
     return "Other"
 
 
+ALWAYS = {"kick": ["skyesports", "cegc"]}      # Sky Esports' Kick channels: tracked even if the seed list was edited
+
+
 def seeds() -> dict:
     s = store.kv_get("scene_seeds")
     if s is None:
         s = {k: list(v) for k, v in SEEDS.items()}
-    return {k: list(s.get(k, [])) for k in ("youtube", "kick", "twitch")}
+    out = {k: list(s.get(k, [])) for k in ("youtube", "kick", "twitch")}
+    for k, v in ALWAYS.items():
+        out[k] += [x for x in v if x.lower() not in [y.lower() for y in out[k]]]
+    return out
 
 
 def blocked() -> set:
@@ -893,6 +899,36 @@ SERIES_SEC = {"today": 86400, "7d": 7 * 86400, "30d": 30 * 86400}
 
 
 REGIONS = ("in", "global")
+# Peak concurrent viewers of past tournaments (thousands), per game: [series, 2-digit year, peak K]. Shown on that
+# game's page. Tournaments tracked here add their own peak automatically (see game_history()).
+GAME_HISTORY = {"BGMI": [["LAUNCH", "21", 540], ["BGIS", "21", 460], ["BMPS", "22", 305], ["BMSD", "22", 315],
+                         ["BGIS", "23", 235], ["BMPS", "23", 201], ["INKR", "23", 178], ["BGIS", "24", 275],
+                         ["BMPS", "24", 495], ["BGIS", "25", 485], ["BMPS", "25", 320], ["BMSD", "25", 380],
+                         ["BMIC", "25", 372], ["BGIS", "26", 578], ["BMPS", "26", 730], ["BMSD", "26", 653]]}
+SERIES_NAMES = {"LAUNCH": "BGMI Launch Party", "INKR": "INKR Invitational"}
+
+
+def game_history(game: str) -> list:
+    """[{name, peak}] oldest first, with tracked tournaments' recorded peaks added or updated."""
+    hist = [list(x) for x in GAME_HISTORY.get(game, [])]
+    if not hist:
+        return []
+    with store._lock:
+        c = events._db()
+        for ev in events.events().values():
+            pr = events.preset(ev["key"])
+            h = pr.get("hist")
+            if events.opt(ev, "game", "") != game or not h:
+                continue
+            pk = c.execute("SELECT MAX(total) FROM ev_ticks WHERE event=?", (ev["key"],)).fetchone()[0] or 0
+            if not pk:
+                continue
+            row = next((x for x in hist if x[0] == h[0] and x[1] == h[1]), None)
+            if row:
+                row[2] = max(row[2], round(pk / 1000))
+            else:
+                hist.append([h[0], h[1], round(pk / 1000)])
+    return [{"name": f"{SERIES_NAMES.get(a, a)} 20{b}", "short": f"{a} '{b}", "peak": k * 1000} for a, b, k in hist]
 
 
 def _totals_sql(region: str):
@@ -971,7 +1007,7 @@ def _live_part(game=None, region: str = "in", sec: str = "") -> dict:
         last = (c.execute("SELECT MAX(ts) FROM sc_samples").fetchone()[0] or 0)
         if _SCAN["ts"] != last:
             _SCAN["rows"] = [dict(r) for r in c.execute(
-                """SELECT s.sid, s.viewers, s.game, c.platform, c.name, c.url, c.logo, c.title,
+                """SELECT s.sid, s.viewers, s.game, c.platform, c.name, c.url, c.logo, c.title, c.country, c.language,
                    COALESCE(c.india, 1) AS india FROM sc_samples s LEFT JOIN sc_channels c ON c.sid=s.sid
                    WHERE s.ts=? ORDER BY s.viewers DESC""", (last,))]
             for r in _SCAN["rows"]:
@@ -1094,7 +1130,23 @@ def _kpis(c, region: str, sec: str, game, lv: dict) -> dict:
             args += games
         chans = c.execute(q, args).fetchone()[0]
     top = lv["_live"][0] if lv["_live"] else None
-    return {"watching": lv["live_total"], "live_channels": len(lv["_live"]),
+    lead = None
+    if pk:                                    # which channel was biggest at the moment of today's peak
+        for r in c.execute("""SELECT s.sid, s.viewers, s.game, c.name, c.platform, c.url, c.logo, c.title,
+                              COALESCE(c.india,1) AS india FROM sc_samples s LEFT JOIN sc_channels c ON c.sid=s.sid
+                              WHERE s.ts=? ORDER BY s.viewers DESC""", (pk[0],)):
+            if region == "in" and not r["india"]:
+                continue
+            if game and r["game"] != game:
+                continue
+            if sec and section_of(r["game"], tournament(r["title"] or "", r["game"])) != sec:
+                continue
+            lead = {"name": r["name"], "viewers": r["viewers"], "platform": r["platform"], "url": r["url"],
+                    "logo": _logo({"sid": r["sid"], "logo": r["logo"]})}
+            break
+    if top and (not pk or lv["live_total"] >= pk[1]):     # the peak is right now
+        lead = {k: top.get(k) for k in ("name", "viewers", "platform", "url", "logo")}
+    return {"watching": lv["live_total"], "live_channels": len(lv["_live"]), "peak_lead": lead,
             "peak_today": max(pk[1] if pk else 0, lv["live_total"]), "peak_today_at": pk[0] if pk else None,
             "hw_today": round(hw), "channels_today": chans,
             "top": {k: top.get(k) for k in ("name", "viewers", "platform", "url", "logo", "game", "title")} if top else None}
@@ -1196,7 +1248,9 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
             "peak_all": {"viewers": pk_all[1], "ts": pk_all[0]} if pk_all else None,
             "series": series, "board": board[:300], "tour_day": tour_day,
             "games": [{**g, "hw": round(g["hw"])} for g in sorted(games.values(), key=lambda g: -g["hw"])][:60],
-            "events": [] if (game or sec) else _events(),
+            "events": ([e for e in _events() if e["state"] in ("live", "upcoming")] if not (game or sec)
+                       else [e for e in _events() if game and e["game"] == game]),
+            "history": game_history(game) if game else [],
             "cat_period": sorted(cat_period, key=lambda x: -x["avg"]), "tracked": tracked,
             "langs": LANGS, "min": MIN_VIEWERS if region == "in" else GLOBAL_MIN,
             "keys": {p: bool(platforms._keys(p)) for p in ("kick", "twitch")}}
@@ -1214,6 +1268,79 @@ def _series_any(c, tbl, w, a, key, period) -> list:
         if k not in b or v > b[k][1]:
             b[k] = [ts, v]
     return [b[k] for k in sorted(b)]
+
+
+def search(q: str, region: str = "in", limit: int = 20) -> dict:
+    """Any channel ever seen live (name contains q), plus matching games/categories."""
+    q = (q or "").strip().lower()[:60]
+    if len(q) < 2:
+        return {"channels": [], "categories": []}
+    region = _region(region)
+    now = _live_part(None, region)["_now"]
+    with store._lock:
+        c = _db()
+        rows = c.execute("""SELECT c.sid, c.name, c.platform, c.url, c.logo, c.last_live, c.game, COALESCE(c.india,1) india,
+                            (SELECT MAX(peak) FROM sc_daily d WHERE d.sid=c.sid) peak FROM sc_channels c
+                            WHERE LOWER(c.name) LIKE ? """ + ("AND COALESCE(c.india,1)=1 " if region == "in" else "") +
+                         "ORDER BY peak DESC NULLS LAST LIMIT ?", (f"%{q}%", limit)).fetchall()
+        games = [g for (g,) in c.execute("SELECT DISTINCT game FROM sc_cat WHERE LOWER(game) LIKE ? AND game != ? "
+                                         "UNION SELECT DISTINCT game FROM sc_reg WHERE region='global' AND LOWER(game) LIKE ? "
+                                         "AND game != ? LIMIT 8", (f"%{q}%", ALL, f"%{q}%", ALL))]
+    return {"channels": [{"name": r["name"], "platform": r["platform"], "url": r["url"],
+                          "logo": _logo({"sid": r["sid"], "logo": r["logo"]}), "last_live": r["last_live"],
+                          "game": r["game"], "peak": r["peak"] or 0, "now": now.get(r["sid"], 0)} for r in rows if r["name"]],
+            "categories": [{"game": g, "slug": slug(g), "art": cat_art(g)} for g in games]}
+
+
+_COUNTRIES = None
+# Kick/Twitch give no country, only the stream language. These languages are spoken mainly in one country, so a
+# stream in them is placed there (shown on the map as estimated). English, Spanish, Portuguese, Arabic ... stay unknown.
+LANG_COUNTRY = {"ko": "KR", "ja": "JP", "th": "TH", "vi": "VN", "tr": "TR", "pl": "PL", "uk": "UA", "it": "IT",
+                "cs": "CZ", "hu": "HU", "id": "ID", "el": "GR", "fi": "FI", "sv": "SE", "da": "DK", "no": "NO",
+                "ro": "RO", "bg": "BG", "he": "IL", "hi": "IN", "ta": "IN", "te": "IN", "bn": "IN"}
+
+
+def country_of(v: str):
+    """('IN', 356, 'India') for a YouTube country code or name, or None."""
+    global _COUNTRIES
+    if _COUNTRIES is None:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "countries.json"), encoding="utf-8") as f:
+            raw = json.load(f)
+        _COUNTRIES = {}
+        for code, (num, *names) in raw.items():
+            _COUNTRIES[code.lower()] = (code, num, names[0])
+            for n in names:
+                _COUNTRIES.setdefault(n.lower(), (code, num, names[0]))
+    v = (v or "").strip().lower()
+    return _COUNTRIES.get(v) if v and v != "-" else None
+
+
+def geo(region: str = "global") -> dict:
+    """Live viewers by the streamer's country, for the globe. Country = the YouTube channel's own setting, or India
+    for channels judged Indian. Kick/Twitch expose no country, so their non-Indian streams are 'unknown'."""
+    region = _region(region)
+    lv = _live_part(None, region)
+    out, unknown, known, est = {}, 0, 0, 0
+    for x in lv["_live"]:
+        ct = country_of(x.get("country")) or (country_of("IN") if x.get("india") else None)
+        if not ct and LANG_COUNTRY.get((x.get("language") or "").lower()[:2]):
+            ct = country_of(LANG_COUNTRY[(x.get("language") or "").lower()[:2]])
+            est += x["viewers"]
+        if not ct:
+            unknown += x["viewers"]
+            continue
+        known += x["viewers"]
+        z = out.setdefault(ct[0], {"country": ct[0], "num": ct[1], "name": ct[2], "viewers": 0, "channels": 0,
+                                   "games": {}, "top": []})
+        z["viewers"] += x["viewers"]
+        z["channels"] += 1
+        z["games"][x["game"]] = z["games"].get(x["game"], 0) + x["viewers"]
+        if len(z["top"]) < 6:
+            z["top"].append({k: x.get(k) for k in ("name", "platform", "url", "logo", "game", "viewers")})
+    for z in out.values():
+        z["games"] = [{"game": g, "slug": slug(g), "viewers": v} for g, v in sorted(z["games"].items(), key=lambda kv: -kv[1])[:5]]
+    return {"updated": lv["updated"], "countries": sorted(out.values(), key=lambda z: -z["viewers"]),
+            "known": known, "unknown": unknown, "estimated": est}
 
 
 def clean() -> dict:
