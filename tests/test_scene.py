@@ -269,3 +269,24 @@ assert sc.channel("yt:UCtg")["stats"]["views"] == 2600
 r1 = c.get("/api/rank?region=global&metric=sc").get_json(); assert r1["rows"][0]["sid"] == "yt:UCaman" and r1["rows"][0]["sc"] > 0, r1["rows"][:2]
 r2 = c.get("/api/rank?region=global&metric=vg").get_json(); assert r2["rows"][0]["sid"] == "yt:UCtg" and r2["rows"][0]["vg"] == 1100, r2["rows"][:2]
 print("SUPERCHAT/STATS OK")
+# search by stream title opens the channel page; past streams from the platform
+j = c.get("/api/search?q=scrims&region=global").get_json()
+assert any(x["sid"] == "yt:UCaman" and x["by"] == "title" for x in j["channels"]), j
+assert c.get("/ch/yt:UCaman").status_code == 200 and c.get("/india/ch/yt:UCaman").status_code == 200
+assert c.get("/ch/yt:nobody").status_code == 404 and c.get("/ch/bad").status_code == 404
+yt_html = 'var ytInitialData = ' + json.dumps({"contents": {"x": [
+    {"videoRenderer": {"videoId": "old1", "title": {"runs": [{"text": "BGMI scrims finals"}]}, "publishedTimeText": {"simpleText": "Streamed 2 days ago"},
+                       "viewCountText": {"simpleText": "123,456 views"}, "lengthText": {"simpleText": "3:05:10"}}},
+    {"videoRenderer": {"videoId": "now1", "title": {"runs": [{"text": "live now"}]}, "viewCountText": {"runs": [{"text": "5,000"}, {"text": " watching"}]}}},
+    {"videoRenderer": {"videoId": "old2", "title": {"runs": [{"text": "ancient"}]}, "publishedTimeText": {"simpleText": "Streamed 2 months ago"},
+                       "viewCountText": {"simpleText": "9 views"}, "lengthText": {"simpleText": "10:00"}}}]}}) + ';</script>'
+class H:
+    status_code = 200; text = yt_html
+    def raise_for_status(s): pass
+_old_get = events._http.get
+events._http.get = lambda url, **k: H() if url.endswith("/streams") else _old_get(url, **k)
+ps = yx.past_streams("yt:UCaman")
+events._http.get = _old_get
+assert [x["id"] for x in ps["streams"]] == ["old1"] and ps["streams"][0]["views"] == 123456 and ps["streams"][0]["secs"] == 11110, ps
+assert yx._dur("3h2m1s") == 10921 and c.get("/api/past?sid=kick:skyesports").get_json()["note"]
+print("CHANNEL PAGE OK")

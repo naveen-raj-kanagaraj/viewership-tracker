@@ -1431,25 +1431,42 @@ def _series_any(c, tbl, w, a, key, period) -> list:
 
 
 def search(q: str, region: str = "in", limit: int = 20) -> dict:
-    """Any channel ever seen live (name contains q), plus matching games/categories."""
+    """Any channel ever seen live whose name or stream title contains q (live titles included), plus matching
+    games/categories. Channels whose name matches come first."""
     q = (q or "").strip().lower()[:60]
     if len(q) < 2:
         return {"channels": [], "categories": []}
     region = _region(region)
-    now = _live_part(None, region)["_now"]
+    lv = _live_part(None, region)
+    now = lv["_now"]
+    live_title = {x["sid"]: x.get("title") or "" for x in lv["_live"]}
+    hits_live = [sid for sid, t in live_title.items() if q in t.lower()]
     with store._lock:
         c = _db()
-        rows = c.execute("""SELECT c.sid, c.name, c.platform, c.url, c.logo, c.last_live, c.game, COALESCE(c.india,1) india,
-                            (SELECT MAX(peak) FROM sc_daily d WHERE d.sid=c.sid) peak FROM sc_channels c
-                            WHERE LOWER(c.name) LIKE ? """ + ("AND COALESCE(c.india,1)=1 " if region == "in" else "") +
-                         "ORDER BY peak DESC NULLS LAST LIMIT ?", (f"%{q}%", limit)).fetchall()
+        reg = "AND COALESCE(c.india,1)=1 " if region == "in" else ""
+        sel = """SELECT c.sid, c.name, c.platform, c.url, c.logo, c.last_live, c.game, c.title,
+                 (SELECT MAX(peak) FROM sc_daily d WHERE d.sid=c.sid) peak FROM sc_channels c """
+        rows = c.execute(sel + "WHERE LOWER(c.name) LIKE ? " + reg + "ORDER BY peak DESC NULLS LAST LIMIT ?",
+                         (f"%{q}%", limit)).fetchall()
+        seen = {r["sid"] for r in rows}
+        more = c.execute(sel + "WHERE LOWER(c.title) LIKE ? " + reg + "ORDER BY peak DESC NULLS LAST LIMIT ?",
+                         (f"%{q}%", limit)).fetchall()
+        extra = [x for x in hits_live if x not in seen and x not in {r["sid"] for r in more}][:limit]
+        if extra:
+            more += c.execute(sel + f"WHERE c.sid IN ({','.join('?' * len(extra))})", extra).fetchall()
         games = [g for (g,) in c.execute("SELECT DISTINCT game FROM sc_cat WHERE LOWER(game) LIKE ? AND game != ? "
                                          "UNION SELECT DISTINCT game FROM sc_reg WHERE region='global' AND LOWER(game) LIKE ? "
                                          "AND game != ? LIMIT 8", (f"%{q}%", ALL, f"%{q}%", ALL))]
-    return {"channels": [{"name": r["name"], "platform": r["platform"], "url": r["url"],
-                          "logo": _logo({"sid": r["sid"], "logo": r["logo"]}), "last_live": r["last_live"],
-                          "game": r["game"], "peak": r["peak"] or 0, "now": now.get(r["sid"], 0)} for r in rows if r["name"]],
-            "categories": [{"game": g, "slug": slug(g), "art": cat_art(g)} for g in games]}
+    out = []
+    for r in list(rows) + [r for r in more if r["sid"] not in seen]:
+        if not r["name"] or any(o["sid"] == r["sid"] for o in out):
+            continue
+        title = live_title.get(r["sid"]) or r["title"] or ""
+        out.append({"sid": r["sid"], "name": r["name"], "platform": r["platform"], "url": r["url"],
+                    "logo": _logo({"sid": r["sid"], "logo": r["logo"]}), "last_live": r["last_live"], "game": r["game"],
+                    "title": title, "by": "name" if q in r["name"].lower() else "title",
+                    "peak": r["peak"] or 0, "now": now.get(r["sid"], 0)})
+    return {"channels": out[:limit * 2], "categories": [{"game": g, "slug": slug(g), "art": cat_art(g)} for g in games]}
 
 
 def channel(sid: str) -> dict:

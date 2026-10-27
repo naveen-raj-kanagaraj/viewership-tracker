@@ -238,6 +238,10 @@ As of 26 Oct 2026:
   first, up to `CHANNEL_STATS_MAX`=3000/day; YouTube Data API if YOUTUBE_API_KEY, else About pages (~120 every
   15 min). "Views gained" ranking + panel. Check: `track.py scene stats @handle`. Only channels that have gone live
   are covered; channels that never stream are not discovered.
+- Channel pages `/ch/<sid>` (`/india/ch/<sid>`, chpage.py): header + Watch button, the full analytics panel, and
+  "Streams, last 30 days" from the platform (`/api/past`, `ytextra.past_streams`: YouTube channel Live tab HTML,
+  Twitch helix/videos archives; Kick has no public list). Search matches channel names and stream titles and opens
+  these pages. Third-party trackers (Playboard, Streams Charts) are not scraped: their terms forbid it.
 - Kick seeds always include `skyesports` and `cegc` (`scene.ALWAYS`); "CEGC" is also a tournament name.
 
 ## Ideas not built yet
