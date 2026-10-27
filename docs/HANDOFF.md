@@ -195,13 +195,19 @@ As of 26 Oct 2026:
 - BMIC 2026: preset ready, countdown to 30 Oct 2026 13:00 IST, official KRAFTON INDIA ESPORTS channel only.
   Its watch-party list is empty (`allowed: []`, `official_only: True`, `ROSTERS["bmic"] = []`) until the owner
   sends it; when it arrives fill `allowed`, `always_check`, `ROSTERS["bmic"]` and remove `official_only`.
-- Front page layout (Streams Charts style, owner asked for it): headline + search + watching now + platform tiles,
-  then three columns (most watched streamers, top categories, top games; avg viewers per category over the period),
-  then tournaments, peaks, chart, live table, leaderboard. Category pages swap columns 2-3 for live now and highest peaks.
-- India hub and category pages: built and tested against mocked YouTube/Kick/Twitch responses. Not yet verified
-  against the real platforms (the build environment could not reach them): run `track.py scene probe` on the Mac.
-- Kick/Twitch keys: in the Mac's `.env` (26 Oct). Kick API answered; Twitch India discovery not yet confirmed by `scene probe`.
-- Owner wants to move hosting from the Mac to Oracle Cloud (Always Free A1.Flex Ubuntu); not done yet.
+- Hosting: Oracle Cloud (us-chicago-1, A1.Flex, Ubuntu 24.04), systemd service `tracker`; the Mac copy stays
+  stopped. Code reaches the server by itself: tracker/autoupdate.py pulls merged commits every 10 min.
+- Site: worldwide dashboard at `/`, India at `/india`, sections `/s/<sec>`, games `/c/<slug>` (India: `/india/...`).
+  Fonts: Barlow + Barlow Condensed (replaced Chakra Petch / Share Tech Mono on 26 Oct, owner wanted a less generic look).
+- Overview event cards show only live/upcoming tournaments (BMSD 2026 finished, so it moved off the front page).
+  Game pages list that game's tournaments (BGMI: BMIC countdown, BMSD finished) and the all-time peaks chart from
+  `scene.GAME_HISTORY` (moved from the event page; tracked events add their recorded peak by their `hist` key).
+- Peak today shows the channel that led at that moment (`peak_lead` in `scene._kpis`).
+- Search (top-bar magnifier, or `/` key): `/api/search?q=&region=` over every channel ever seen live (sc_channels).
+- `/map`: 3D globe (d3 orthographic on canvas, d3/topojson/world-atlas from jsdelivr), data `/api/geo`
+  (`scene.geo`). Country = YouTube channel country, India-detected streams = India, Kick/Twitch by single-country
+  language (`scene.LANG_COUNTRY`, marked estimated); the rest is counted as unknown and disclosed on the page.
+- Kick seeds always include `skyesports` and `cegc` (`scene.ALWAYS`); "CEGC" is also a tournament name.
 
 ## Ideas not built yet
 
