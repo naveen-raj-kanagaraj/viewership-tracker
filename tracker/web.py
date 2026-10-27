@@ -23,7 +23,7 @@ PORT = int(os.getenv("EVENT_WEB_PORT", "8092"))
 app = Flask(__name__)
 
 
-CACHE = {"/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
+CACHE = {"/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
 
 
 
@@ -52,6 +52,8 @@ def _headers(resp):
     if path.startswith("/e/"):                       # /e/<key>/data caches like /data
         parts = path.split("/", 3)                   # ['', 'e', key, rest]
         path = "/" + (parts[3] if len(parts) > 3 else "")
+    elif path.startswith(("/ch/", "/india/ch/")):
+        path = "/map"
     elif path.startswith(("/c/", "/s/", "/india/c/", "/india/s/")):
         path = "/india"
     secs = CACHE.get(path)
@@ -345,6 +347,37 @@ def rankings_page():
 @app.route("/india/rankings")
 def rankings_page_india():
     return _rank_page("in")
+
+
+@app.route("/api/past")
+def scene_past():
+    """A channel's streams in the last 30 days from the platform itself: /api/past?sid=yt:UC..."""
+    from tracker import ytextra
+    sid = (request.args.get("sid") or "")[:120]
+    if not __import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid):
+        return Response("{}", status=404, mimetype="application/json")
+    return _memo(f"/api/past:{sid}", 600, _jdump(lambda: ytextra.past_streams(sid)), "application/json")
+
+
+def _ch_page(sid, region):
+    from tracker import chpage, scene
+    if not __import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid or ""):
+        return Response("Not found", status=404, mimetype="text/plain")
+    with __import__("tracker").store._lock:
+        row = scene._db().execute("SELECT name FROM sc_channels WHERE sid=?", (sid,)).fetchone()
+    if not row:
+        return Response("Not found", status=404, mimetype="text/plain")
+    return _memo(f"/ch/{region}/{sid}", 120, lambda: chpage.build_html(sid, row[0] or sid, region), "text/html")
+
+
+@app.route("/ch/<path:sid>")
+def channel_page(sid):
+    return _ch_page(sid, "global")
+
+
+@app.route("/india/ch/<path:sid>")
+def channel_page_india(sid):
+    return _ch_page(sid, "in")
 
 
 @app.route("/api/geo")

@@ -388,7 +388,9 @@ def channel_extra(sid: str) -> dict:
                  "gain_1d": gain(1), "gain_7d": gain(7), "gain_30d": gain(30),
                  "days": [{"day": x["day"], "views": x["views"], "subs": x["subs"]} for x in reversed(st)]}
     has_sc = any(v["count"] or v["members"] for v in sc.values())
-    return {"superchats": sc if has_sc else None, "top_superchats": top, "stats": stats}
+    reading = any(st.get("sid") == sid and st.get("cont") for st in list(_CHAT.values()))
+    return {"superchats": sc if has_sc else None, "top_superchats": top, "stats": stats,
+            "sc_status": "reading" if reading else ("recorded" if has_sc else ("off" if not SUPERCHAT_ON else "not_top"))}
 
 
 def window_superchats(d0: str, d1: str) -> dict:
@@ -465,3 +467,110 @@ def probe_stats(chan: str) -> str:
         return f"No stats read for {cid} ({'YouTube Data API' if os.getenv('YOUTUBE_API_KEY') else 'About page'})."
     s, v, n = got
     return f"{cid}: subscribers {s if s is not None else 'hidden'}, total views {v:,}, videos {n}  (via {'YouTube Data API' if os.getenv('YOUTUBE_API_KEY') else 'About page'})"
+
+
+# ---------- past streams (last 30 days), from the platforms themselves ----------
+
+_PAST = {}            # sid -> (time fetched, result)
+
+
+def _ago_to_ts(txt: str):
+    """'Streamed 2 days ago' / '3 weeks ago' -> approximate unix time."""
+    m = re.search(r"(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago", (txt or "").lower())
+    if not m:
+        return None
+    sec = {"second": 1, "minute": 60, "hour": 3600, "day": 86400, "week": 604800, "month": 2592000, "year": 31536000}
+    return int(time.time() - int(m.group(1)) * sec[m.group(2)])
+
+
+def _dur(txt: str) -> int:
+    """'3:45:12' -> seconds; Twitch '3h2m1s' -> seconds."""
+    if not txt:
+        return 0
+    if ":" in txt:
+        n = 0
+        for p in txt.split(":"):
+            n = n * 60 + int(p or 0)
+        return n
+    return sum(int(v) * {"h": 3600, "m": 60, "s": 1}[u] for v, u in re.findall(r"(\d+)([hms])", txt))
+
+
+def _walk(o, key, out):
+    if isinstance(o, dict):
+        if key in o:
+            out.append(o[key])
+        for v in o.values():
+            _walk(v, key, out)
+    elif isinstance(o, list):
+        for v in o:
+            _walk(v, key, out)
+    return out
+
+
+def _yt_past(cid: str) -> list:
+    r = events._http.get(f"https://www.youtube.com/channel/{cid}/streams", timeout=15,
+                         headers={"User-Agent": events._UA, "Accept-Language": "en-US,en;q=0.9"},
+                         cookies={"CONSENT": "YES+", "SOCS": "CAI"})
+    r.raise_for_status()
+    m = re.search(r'var ytInitialData\s*=\s*(\{.+?\})\s*;\s*</script>', r.text, re.S)
+    if not m:
+        return []
+    out = []
+    for v in _walk(json.loads(m.group(1)), "videoRenderer", []):
+        when = (v.get("publishedTimeText") or {}).get("simpleText") or ""
+        views = (v.get("viewCountText") or {}).get("simpleText") or _text(v.get("viewCountText"))
+        if "watching" in (views or "").lower():
+            continue                              # live right now: that's on the live part of the page
+        ts = _ago_to_ts(when)
+        out.append({"id": v.get("videoId"), "title": _text(v.get("title")), "ts": ts, "when": when,
+                    "views": platforms.parse_count(views), "secs": _dur((v.get("lengthText") or {}).get("simpleText")),
+                    "url": f"https://www.youtube.com/watch?v={v.get('videoId')}"})
+    return out
+
+
+def _tw_past(login: str) -> list:
+    u = platforms._get("twitch", "https://api.twitch.tv/helix/users", {"login": login}).get("data") or []
+    if not u:
+        return []
+    j = platforms._get("twitch", "https://api.twitch.tv/helix/videos", {"user_id": u[0]["id"], "type": "archive", "first": 50})
+    out = []
+    for v in j.get("data") or []:
+        try:
+            ts = int(datetime.fromisoformat(v["created_at"].replace("Z", "+00:00")).timestamp())
+        except Exception:
+            ts = None
+        out.append({"id": v.get("id"), "title": v.get("title") or "", "ts": ts, "when": "", "views": v.get("view_count"),
+                    "secs": _dur(v.get("duration")), "url": v.get("url") or ""})
+    return out
+
+
+def past_streams(sid: str) -> dict:
+    """The channel's streams in the last 30 days as the platform lists them (title, date, length, total views), joined
+    with the peak we recorded that day. YouTube: the channel's Live tab; Twitch: its past broadcasts; Kick: not
+    available. Cached for an hour."""
+    hit = _PAST.get(sid)
+    if hit and time.time() - hit[0] < 3600:
+        return hit[1]
+    plat, _, ident = sid.partition(":")
+    res = {"source": "", "streams": [], "note": ""}
+    try:
+        if plat == "yt":
+            res.update(source="YouTube channel, Live tab", streams=_yt_past(ident))
+        elif plat == "twitch":
+            res.update(source="Twitch past broadcasts", streams=_tw_past(ident))
+        else:
+            res["note"] = "Kick doesn't list past streams publicly; only what this site recorded is shown."
+    except Exception as e:
+        res["note"] = f"Couldn't read past streams right now ({str(e)[:80]})."
+    cut = time.time() - 30 * 86400
+    res["streams"] = [x for x in res["streams"] if not x["ts"] or x["ts"] >= cut][:40]
+    with store._lock:
+        peaks = dict(_db().execute("SELECT day, MAX(peak) FROM sc_daily WHERE sid=? GROUP BY day", (sid,)).fetchall())
+    for x in res["streams"]:
+        x["day"] = _day(x["ts"]) if x["ts"] else ""
+        x["peak_day"] = peaks.get(x["day"]) if x["day"] else None
+    _PAST[sid] = (time.time(), res)
+    if len(_PAST) > 2000:
+        for k in sorted(_PAST, key=lambda k: _PAST[k][0])[:500]:
+            _PAST.pop(k, None)
+    return res

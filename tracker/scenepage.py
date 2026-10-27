@@ -45,10 +45,12 @@ function panel(sid){const c=CH[sid];if(!c)return '<div class="cx"><span class="m
  if(c.superchats){cols.forEach(k=>{P[k[0]].sc=c.superchats[k[0]][MONEY];P[k[0]].scn=c.superchats[k[0]].count;P[k[0]].mem=c.superchats[k[0]].members});
   R.push(['Super Chats','sc',money],['Paid messages','scn',v=>full(v)],['Memberships','mem',v=>full(v)])}
  const S=c.stats,g=(o,k)=>o&&o[k]!=null?(o[k]>=0?'+':'')+fmt(o[k]):'-';
- return `<div class="cx"><div class="cxh"><div style="min-width:0"><div class="ds">${now?`<span class="lv">LIVE</span>${full(now)} watching now`:c.last_live?'Last live '+ago(c.last_live):''}${c.country?' · '+esc(c.country):''}${c.first_seen?' · tracked since '+ist(c.first_seen,{day:'numeric',month:'short'}):''}</div></div><span style="display:flex;gap:6px"><button class="btn" data-ch="${esc(sid)}">SHARE</button><a class="btn" style="text-decoration:none;text-align:center" href="${esc(c.url)}" target="_blank" rel="noopener">${now?'WATCH':'OPEN'} ON ${(NAMES[c.platform]||'').toUpperCase()}</a></span></div>
+ return `<div class="cx"><div class="cxh"><div style="min-width:0"><div class="ds">${now?`<span class="lv">LIVE</span>${full(now)} watching now`:c.last_live?'Last live '+ago(c.last_live):''}${c.country?' · '+esc(c.country):''}${c.first_seen?' · tracked since '+ist(c.first_seen,{day:'numeric',month:'short'}):''}</div></div><span style="display:flex;gap:6px"><a class="btn" style="text-decoration:none" href="${RP}/ch/${encodeURIComponent(sid)}">FULL STATS</a><button class="btn" data-ch="${esc(sid)}">SHARE</button><a class="btn" style="text-decoration:none;text-align:center" href="${esc(c.url)}" target="_blank" rel="noopener">${now?'WATCH':'OPEN'} ON ${(NAMES[c.platform]||'').toUpperCase()}</a></span></div>
  ${now&&c.title?`<div class="cxtt">${esc(c.title)}</div>`:''}
  <table class="cxt"><thead><tr><th></th>${cols.map(k=>`<th>${k[1]}</th>`).join('')}</tr></thead><tbody>${R.map(r=>`<tr><td>${r[0]}</td>${cols.map(k=>`<td>${r[2](P[k[0]][r[1]])}</td>`).join('')}</tr>`).join('')}</tbody></table>
  ${P['30d'].games.length?`<div class="cxg">Streams: <b>${P['30d'].games.map(esc).join(', ')}</b> (last 30 days)</div>`:''}
+ ${c.platform==='youtube'&&!c.superchats?`<div class="cxg">Super Chats: ${c.sc_status==='reading'?'reading this stream\'s chat now; none paid yet.':'none recorded. Chat is read while a stream is among the 50 biggest YouTube streams live.'}</div>`:''}
+ ${c.superchats&&c.sc_status==='reading'?'<div class="cxg"><span class="lv">LIVE</span>Reading this stream\'s Super Chats now.</div>':''}
  ${S?`<div class="cxs"><div><b>${S.subs!=null?fmt(S.subs):'hidden'}</b>subscribers</div><div><b>${fmt(S.views)}</b>total views</div><div><b>${full(S.videos||0)}</b>videos</div><div><b>${g(S.gain_1d,'views')}</b>views, last day</div><div><b>${g(S.gain_7d,'views')}</b>views, 7 days</div><div><b>${g(S.gain_7d,'subs')}</b>subs, 7 days</div></div>`:''}
  ${(c.top_superchats||[]).length?`<div class="lbl" style="margin-top:12px">Biggest Super Chats, 30 days</div><div class="cxd">${c.top_superchats.map(t=>`<div><span>${ist(t.ts,{day:'numeric',month:'short'})}</span><span>${esc(t.author)}${t.text?' · '+esc(t.text):''}</span><span><b>${esc(t.currency)} ${full(t.amount)}</b></span><span>${money(t[MONEY])}</span></div>`).join('')}</div>`:''}
  <div class="cxc"><div><div class="lbl">Peak viewers per day, 30 days</div>${barsSVG(c.days||[])}<div class="cap">${best?`Best day ${dshort(best.day)}: ${full(best.peak)} at once`:'No days recorded yet'}</div></div>
@@ -202,7 +204,7 @@ body{font-size:14px}.wrap{padding:0 12px 20px}
 }
 </style></head><body>
 <div class="top"><div class="in"><a class="brand" href="__HOME__">__BRAND__</a><span class="beta" title="Under testing: numbers may be incomplete or change">BETA</span><span class="rg" id="rg"></span><span class="upd"><span class="dot"></span><span>UPDATED </span><b id="upd">-</b></span><button class="sbtn" id="sbtn" aria-label="Search streamers"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></button></div>
-<div class="sbox" id="sbox"><input id="gs" type="search" placeholder="Search any streamer or game" autocomplete="off"><div class="sres" id="sres"></div></div>
+<div class="sbox" id="sbox"><input id="gs" type="search" placeholder="Search a streamer, stream title or game" autocomplete="off"><div class="sres" id="sres"></div></div>
 <nav class="secnav" id="secnav"></nav></div>
 <div class="wrap">
 <div class="crumb" id="crumb"></div>
@@ -289,8 +291,8 @@ if(GL&&!CAT&&!SEC){document.getElementById('gframe').src='/map?embed=1'}else{doc
   try{const j=await (await fetch('/api/search?region='+REGION+'&q='+encodeURIComponent(v))).json();if(sq!==v)return;
    const C=j.channels||[],G=j.categories||[];
    sr.innerHTML=(G.length?`<div class="h">GAMES & CATEGORIES</div>`+G.map(g=>`<a class="gc" href="${CU(esc(g.slug))}">${art(g.game,g.art)}<span class="n">${esc(g.game)}</span></a>`).join(''):'')+
-    (C.length?`<div class="h">STREAMERS</div>`+C.map(x=>`<a class="row" href="${esc(x.url)}" target="_blank" rel="noopener"><span></span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">${x.now?`<span class="lv">LIVE</span>${full(x.now)} watching`:x.last_live?'Last live '+ago(x.last_live):''}${x.game?' · '+esc(x.game):''}</div></span><span class="vv">${fmt(Math.max(x.peak,x.now))}<small>best peak</small></span></a>`).join(''):'')||
-    `<div class="empty">No streamer named "${esc(v)}" has been seen live ${WHERE} yet.</div>`}catch(e){}},250)}}
+    (C.length?`<div class="h">STREAMERS & STREAMS</div>`+C.map(x=>`<a class="row" href="${RP}/ch/${encodeURIComponent(x.sid)}"><span></span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">${x.now?`<span class="lv">LIVE</span>${full(x.now)} watching`:x.last_live?'Last live '+ago(x.last_live):''}${x.game?' · '+esc(x.game):''}</div>${x.title?`<div class="ds" style="color:${x.by==='title'?'var(--ink)':''}">${esc(x.title)}</div>`:''}</span><span class="vv">${fmt(Math.max(x.peak,x.now))}<small>best peak</small></span></a>`).join(''):'')||
+    `<div class="empty">No streamer or stream title matching "${esc(v)}" has been seen live ${WHERE} yet.</div>`}catch(e){}},250)}}
 if(CAT)document.getElementById('gcard').style.display='none';
 const liveMap=()=>{const m={};(D.live||[]).forEach(x=>m[x.sid]=x.viewers);return m};
 const liveList=()=>(D.live||[]).filter(x=>(plat==='all'||x.platform===plat)&&(!q||(x.name+' '+x.title+' '+x.game).toLowerCase().includes(q)));
