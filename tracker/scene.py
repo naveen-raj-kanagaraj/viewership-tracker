@@ -1122,11 +1122,12 @@ def _kpis(c, region: str, sec: str, game, lv: dict) -> dict:
     # hours watched today: every scan's total x the time between scans (works the same for sections and tournaments)
     rows = c.execute(f"SELECT ts, viewers FROM {tbl} WHERE game=? AND ts>=?{w} ORDER BY ts", (key, d0.timestamp(), *a)).fetchall()
     hw = sum(v * min(rows[i + 1][0] - ts if i + 1 < len(rows) else SCENE_SEC, SCENE_SEC * 2) for i, (ts, v) in enumerate(rows)) / 3600
+    air = None
     if sec == "esports":
         chans = c.execute("SELECT COUNT(DISTINCT game) FROM sc_reg WHERE region=? AND ts>=?", (f"tour:{region}", d0.timestamp())
                           ).fetchone()[0]
     else:
-        q = """SELECT COUNT(DISTINCT d.sid) FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid
+        q = """SELECT COUNT(DISTINCT d.sid), SUM(d.mins) FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid
                WHERE d.day=?""" + (" AND COALESCE(c.india,1)=1" if region == "in" else "")
         args = [d0.strftime("%Y-%m-%d")]
         if game:
@@ -1136,7 +1137,8 @@ def _kpis(c, region: str, sec: str, game, lv: dict) -> dict:
             games = [g for (g,) in c.execute("SELECT DISTINCT game FROM sc_daily WHERE day=?", (args[0],)) if section_of(g) == sec]
             q += f" AND d.game IN ({','.join('?' * len(games)) or 'NULL'})"
             args += games
-        chans = c.execute(q, args).fetchone()[0]
+        chans, air = c.execute(q, args).fetchone()
+        air = round((air or 0) / 60, 1)          # total hours live, every channel added up
     top = lv["_live"][0] if lv["_live"] else None
     lead = None
     if pk:                                    # which channel was biggest at the moment of today's peak
@@ -1156,7 +1158,8 @@ def _kpis(c, region: str, sec: str, game, lv: dict) -> dict:
         lead = {k: top.get(k) for k in ("name", "viewers", "platform", "url", "logo")}
     return {"watching": lv["live_total"], "live_channels": len(lv["_live"]), "peak_lead": lead,
             "peak_today": max(pk[1] if pk else 0, lv["live_total"]), "peak_today_at": pk[0] if pk else None,
-            "hw_today": round(hw), "channels_today": chans,
+            "hw_today": round(hw), "channels_today": chans, "air_today": air,
+            "avg_today": round(hw / ((rows[-1][0] - rows[0][0] + SCENE_SEC) / 3600)) if rows else 0,
             "top": {k: top.get(k) for k in ("name", "viewers", "platform", "url", "logo", "game", "title")} if top else None}
 
 
