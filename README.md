@@ -17,9 +17,17 @@ Built because published viewership arrives days late and often counts the offici
 
 YouTube works with no keys: it's read from public pages. Kick and Twitch use their official APIs with free developer keys (Kick also works without, with less coverage). A free YouTube Data API key makes channel countries and channel stats exact.
 
-![The public dashboard](docs/dashboard.png)
+![The live dashboard, worldwide](docs/site-overview.jpg)
 
-<p align="center"><img src="docs/demo.gif" width="300" alt="Live dashboard on mobile"></p>
+<p align="center"><img src="docs/demo.gif" width="300" alt="The live dashboard on a phone"></p>
+
+| Rankings | World map |
+|---|---|
+| ![Rankings: top streamers of the day with rank moves](docs/site-rankings.jpg) | ![The 3D globe: where the streamers are from](docs/site-map.jpg) |
+| **Channel page** | **Game page (BGMI)** |
+| ![A channel's live stats, Super Chats, subscribers and views](docs/site-channel.jpg) | ![BGMI live in India with the viewership history of every KRAFTON India event](docs/site-bgmi.jpg) |
+
+Screenshots from the live site, 28 October 2026 (IST).
 
 ---
 

@@ -357,7 +357,8 @@ def forget(vid: str):
         _known.get(platform_of(vid), set()).discard(vid)
 
 
-_MULT = {"k": 1e3, "m": 1e6, "b": 1e9, "lakh": 1e5, "lakhs": 1e5, "lac": 1e5, "l": 1e5, "crore": 1e7, "cr": 1e7}
+_MULT = {"k": 1e3, "m": 1e6, "b": 1e9, "lakh": 1e5, "lakhs": 1e5, "lac": 1e5, "l": 1e5, "crore": 1e7, "cr": 1e7,
+         "thousand": 1e3, "million": 1e6, "billion": 1e9}
 
 
 def parse_count(txt: str):
@@ -365,7 +366,7 @@ def parse_count(txt: str):
     None if there is no number. (Stripping non-digits turned '10.56K' into 1056: never do that.)"""
     import re as _re
     t = (txt or "").lower().replace("\u00a0", " ").replace("\u202f", " ")
-    m = _re.search(r"(\d[\d,]*(?:\.\d+)?)\s*(k|m|b|lakhs?|lac|l|crore|cr)?\b", t)
+    m = _re.search(r"(\d[\d,]*(?:\.\d+)?)\s*(thousand|million|billion|k|m|b|lakhs?|lac|l|crore|cr)?\b", t)
     if not m:
         return None
     n = float(m.group(1).replace(",", ""))

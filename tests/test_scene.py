@@ -290,3 +290,17 @@ events._http.get = _old_get
 assert [x["id"] for x in ps["streams"]] == ["old1"] and ps["streams"][0]["views"] == 123456 and ps["streams"][0]["secs"] == 11110, ps
 assert yx._dur("3h2m1s") == 10921 and c.get("/api/past?sid=kick:skyesports").get_json()["note"]
 print("CHANNEL PAGE OK")
+# YouTube's newer Live tab layout (lockupViewModel), as served in Oct 2026
+lock = {"lockupViewModel": {"contentId": "dpkwMjudZME", "contentType": "LOCKUP_CONTENT_TYPE_VIDEO",
+    "contentImage": {"thumbnailViewModel": {"overlays": [{"thumbnailBottomOverlayViewModel": {"badges": [{"thumbnailBadgeViewModel": {"text": "11:21:47"}}]}}]}},
+    "metadata": {"lockupMetadataViewModel": {"title": {"content": "JOGO COMPLETO: FURIA FC X DESIMPAIN"},
+        "metadata": {"contentMetadataViewModel": {"metadataRows": [{"metadataParts": [
+            {"text": {"content": "2M"}, "accessibilityLabel": "2 million views"},
+            {"text": {"content": "Streamed 16h ago"}, "accessibilityLabel": "Streamed 16 hours ago"}]}]}}}}}}
+H.text = 'var ytInitialData = ' + json.dumps({"contents": {"richGridRenderer": {"contents": [{"richItemRenderer": {"content": lock}}]}}}) + ';</script>'
+events._http.get = lambda url, **k: H() if url.endswith("/streams") else _old_get(url, **k)
+yx._PAST.clear(); ps = yx.past_streams("yt:UCtg")
+events._http.get = _old_get
+s0 = ps["streams"][0]
+assert s0["id"] == "dpkwMjudZME" and s0["views"] == 2000000 and s0["secs"] == 40907 and abs(time.time() - s0["ts"] - 16 * 3600) < 120, s0
+print("LOCKUP OK")

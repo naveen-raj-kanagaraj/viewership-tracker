@@ -476,11 +476,13 @@ _PAST = {}            # sid -> (time fetched, result)
 
 def _ago_to_ts(txt: str):
     """'Streamed 2 days ago' / '3 weeks ago' -> approximate unix time."""
-    m = re.search(r"(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago", (txt or "").lower())
+    m = re.search(r"(\d+)\s*(seconds?|minutes?|hours?|days?|weeks?|months?|years?|mo|s|m|h|d|w|y)\s+ago", (txt or "").lower())
     if not m:
         return None
-    sec = {"second": 1, "minute": 60, "hour": 3600, "day": 86400, "week": 604800, "month": 2592000, "year": 31536000}
-    return int(time.time() - int(m.group(1)) * sec[m.group(2)])
+    sec = {"second": 1, "minute": 60, "hour": 3600, "day": 86400, "week": 604800, "month": 2592000, "year": 31536000,
+           "s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800, "mo": 2592000, "y": 31536000}
+    u = m.group(2)
+    return int(time.time() - int(m.group(1)) * sec[u if u in sec else u.rstrip("s")])
 
 
 def _dur(txt: str) -> int:
@@ -515,8 +517,27 @@ def _yt_past(cid: str) -> list:
     m = re.search(r'var ytInitialData\s*=\s*(\{.+?\})\s*;\s*</script>', r.text, re.S)
     if not m:
         return []
+    data = json.loads(m.group(1))
     out = []
-    for v in _walk(json.loads(m.group(1)), "videoRenderer", []):
+    # newer layout: lockupViewModel (title, "2M" views with "2 million views" label, "Streamed 16h ago", duration badge)
+    for v in _walk(data, "lockupViewModel", []):
+        if v.get("contentType") not in (None, "LOCKUP_CONTENT_TYPE_VIDEO") or not v.get("contentId"):
+            continue
+        md = ((v.get("metadata") or {}).get("lockupMetadataViewModel") or {})
+        parts = [p for row in (((md.get("metadata") or {}).get("contentMetadataViewModel") or {}).get("metadataRows") or [])
+                 for p in (row.get("metadataParts") or [])]
+        labels = [(p.get("accessibilityLabel") or ((p.get("text") or {}).get("content") or "")) for p in parts]
+        views = next((x for x in labels if "view" in x.lower()), "")
+        when = next((x for x in labels if "ago" in x.lower()), "")
+        if any("watching" in x.lower() for x in labels):
+            continue
+        badge = next((b.get("thumbnailBadgeViewModel", {}).get("text") for o in _walk(v.get("contentImage") or {}, "badges", [])
+                      for b in o if b.get("thumbnailBadgeViewModel")), "")
+        out.append({"id": v["contentId"], "title": (md.get("title") or {}).get("content") or "", "ts": _ago_to_ts(when),
+                    "when": when, "views": platforms.parse_count(views),
+                    "secs": _dur(badge) if badge and re.fullmatch(r"[\d:]+", badge) else 0,
+                    "url": f"https://www.youtube.com/watch?v={v['contentId']}"})
+    for v in _walk(data, "videoRenderer", []):
         when = (v.get("publishedTimeText") or {}).get("simpleText") or ""
         views = (v.get("viewCountText") or {}).get("simpleText") or _text(v.get("viewCountText"))
         if "watching" in (views or "").lower():
