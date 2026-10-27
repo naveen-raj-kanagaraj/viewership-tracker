@@ -12,6 +12,41 @@ import json
 
 from tracker import eventpage, scene
 
+PANEL_CSS = r""".row.x{cursor:pointer}.row.x.open{background:#171722;border-bottom-color:transparent}.row .car{color:var(--muted);font-size:10px;margin-left:6px;display:inline-block;transition:transform .15s}.row.open .car{transform:rotate(90deg);color:var(--lime)}
+.cx{background:#0f0f17;border-bottom:1px solid var(--line);border-left:2px solid var(--lime);padding:12px 14px 14px;font-size:13px}
+.cxh{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center}.cxh .nm{font-weight:700;font-size:16px}.cxh .ds{font-size:12px;color:var(--muted)}
+.cxtt{color:#c9c8d8;font-size:12px;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cxt{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}.cxt th{font:500 11px "Barlow Condensed",sans-serif;color:var(--muted);letter-spacing:.05em;text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)}
+.cxt th:first-child,.cxt td:first-child{text-align:left;padding-left:0;color:var(--muted)}.cxt td{text-align:right;padding:5px 6px;font:600 15px "Barlow Condensed",sans-serif;border-bottom:1px solid #1c1c29}
+.cxt td:first-child{font:400 13px "Barlow",sans-serif}.cxt tr td:nth-child(2){color:var(--lime)}
+.cxg{margin-top:8px;color:var(--muted);font-size:12px}.cxg b{color:var(--ink);font-weight:500}
+.cxc{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}.cxc svg{width:100%;height:80px;display:block;margin-top:6px;background:var(--card)}.cxc .cap{font-size:11px;color:var(--muted);margin-top:4px}
+.cxd{display:grid;gap:2px;margin-top:6px}.cxd div{display:grid;grid-template-columns:70px minmax(0,1fr) 80px 70px 60px;gap:8px;font-size:12px;padding:4px 0;border-bottom:1px solid #1c1c29;color:var(--muted)}
+.cxd div span:nth-child(2){color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cxd b{color:var(--ink);font-weight:600}"""
+
+PANEL_JS = r"""// ---------- one channel's analytics, opened under its row ----------
+const CH={},CHT={};
+function rowX(list,x,inner){const k=list+':'+x.sid,o=OPEN===k;return `<div class="row x${o?' open':''}" data-k="${esc(k)}">${inner}</div>${o?panel(x.sid):''}`}
+function toggleRow(k){OPEN=OPEN===k?null:k;render();if(!OPEN)return;const sid=k.slice(2);if(CH[sid]&&Date.now()-CHT[sid]<30000)return;
+ fetch('/api/channel?sid='+encodeURIComponent(sid)).then(r=>r.json()).then(j=>{CH[sid]=j;CHT[sid]=Date.now();render()}).catch(()=>{})}
+const dshort=d=>new Date(d+'T12:00:00+05:30').toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+function barsSVG(days){const t=new Date(),M={};days.forEach(d=>M[d.day]=d);const L=[];for(let i=29;i>=0;i--){const d=new Date(t.getTime()-i*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'});L.push(M[d]||{day:d,peak:0})}
+ const mx=Math.max(1,...L.map(d=>d.peak));return `<svg viewBox="0 0 300 80" preserveAspectRatio="none">${L.map((d,i)=>`<rect x="${i*10+1}" y="${80-76*d.peak/mx}" width="8" height="${76*d.peak/mx}" fill="${d.peak===mx?'#b6f23a':'#7a5cff'}"><title>${dshort(d.day)}: peak ${full(d.peak)}</title></rect>`).join('')}</svg>`}
+function lineSVG(S){if(!S||S.length<2)return '<svg viewBox="0 0 300 80"></svg>';const t0=S[0][0],t1=S[S.length-1][0],mx=Math.max(1,...S.map(p=>p[1]));
+ const pts=S.map(p=>`${(300*(p[0]-t0)/((t1-t0)||1)).toFixed(1)},${(78-74*p[1]/mx).toFixed(1)}`).join(' ');
+ return `<svg viewBox="0 0 300 80" preserveAspectRatio="none"><polygon points="0,80 ${pts} 300,80" fill="rgba(182,242,58,.15)"/><polyline points="${pts}" fill="none" stroke="#b6f23a" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`}
+function panel(sid){const c=CH[sid];if(!c)return '<div class="cx"><span class="muted">Loading channel analytics...</span></div>';if(!c.sid)return '<div class="cx"><span class="muted">No history for this channel yet.</span></div>';
+ const P=c.periods,cols=[['today','TODAY'],['7d','7 DAYS'],['30d','30 DAYS'],['all','ALL TIME']],now=liveMap()[sid]||c.now,best=(c.days||[]).reduce((a,d)=>d.peak>(a?a.peak:0)?d:a,null);
+ const R=[['Peak viewers','peak',fmt],['Average viewers','avg',fmt],['Hours watched','hw',v=>fmt(v)+'h'],['Hours streamed','hours',v=>v+'h'],['Days live','days',v=>v]];
+ return `<div class="cx"><div class="cxh"><div style="min-width:0"><div class="ds">${now?`<span class="lv">LIVE</span>${full(now)} watching now`:c.last_live?'Last live '+ago(c.last_live):''}${c.country?' · '+esc(c.country):''}${c.first_seen?' · tracked since '+ist(c.first_seen,{day:'numeric',month:'short'}):''}</div></div><span style="display:flex;gap:6px"><button class="btn" data-ch="${esc(sid)}">SHARE</button><a class="btn" style="text-decoration:none;text-align:center" href="${esc(c.url)}" target="_blank" rel="noopener">${now?'WATCH':'OPEN'} ON ${(NAMES[c.platform]||'').toUpperCase()}</a></span></div>
+ ${now&&c.title?`<div class="cxtt">${esc(c.title)}</div>`:''}
+ <table class="cxt"><thead><tr><th></th>${cols.map(k=>`<th>${k[1]}</th>`).join('')}</tr></thead><tbody>${R.map(r=>`<tr><td>${r[0]}</td>${cols.map(k=>`<td>${r[2](P[k[0]][r[1]])}</td>`).join('')}</tr>`).join('')}</tbody></table>
+ ${P['30d'].games.length?`<div class="cxg">Streams: <b>${P['30d'].games.map(esc).join(', ')}</b> (last 30 days)</div>`:''}
+ <div class="cxc"><div><div class="lbl">Peak viewers per day, 30 days</div>${barsSVG(c.days||[])}<div class="cap">${best?`Best day ${dshort(best.day)}: ${full(best.peak)} at once`:'No days recorded yet'}</div></div>
+  <div><div class="lbl">Viewers, last 3 days</div>${lineSVG(c.recent)}<div class="cap">${(c.recent||[]).length>1?ist(c.recent[0][0],{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})+' to now':'Not enough readings yet'}</div></div></div>
+ <div class="lbl" style="margin-top:12px">Recent days live</div><div class="cxd">${(c.days||[]).slice(-7).reverse().map(d=>`<div><span>${dshort(d.day)}</span><span>${esc(d.game)}</span><span>peak <b>${fmt(d.peak)}</b></span><span>avg ${fmt(d.avg)}</span><span>${d.hours}h live</span></div>`).join('')||'<span class="muted">Nothing recorded yet.</span>'}</div></div>`}
+"""
+
 PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>__TITLE__ | __BRAND__ (beta)</title>
 <meta name="description" content="__DESC__">
@@ -45,28 +80,24 @@ a{color:inherit}.wrap{max-width:1200px;margin:0 auto;padding:0 16px 24px}
 .crumb{font:12px "Barlow Condensed",sans-serif;color:var(--muted);margin-top:18px}.crumb a{text-decoration:none}.crumb a:hover{color:var(--lime)}
 h1{font:700 38px/1.05 "Barlow Condensed",sans-serif;margin:6px 0 4px;text-transform:uppercase;letter-spacing:.01em}h1 em{font-style:normal;color:var(--purple)}
 .intro{color:#c9c8d8;margin:0;font-size:15px;max-width:780px}
+.head .lbl,.head .sub:not(#chs){display:none}.head h2{font-size:20px}
+.ic{background:linear-gradient(145deg,var(--c1),var(--c2))!important;color:#0b0b12}.ic svg{width:58%;height:58%}
+.dl{font:600 11px "Barlow Condensed",sans-serif;margin-left:6px;letter-spacing:.02em}.dl.up{color:#3ddc84}.dl.dn{color:var(--red)}.dl.nw{color:var(--purple)}
+.row .rk.r1{color:#ffd23f}.row .rk.r2{color:#d9dde8}.row .rk.r3{color:#ff9f5a}.row .rk.r1,.row .rk.r2,.row .rk.r3{font-weight:700;font-size:14px}
+a.more{text-align:center;text-decoration:none;color:var(--lime)}
+.row,.ev,.sc,.gc,.tc{transition:background .2s,border-color .2s}
 .hero{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:10px;margin-top:16px}.hero.noglobe{grid-template-columns:1fr}
 .kpis{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:10px}.hero:not(.noglobe) .kpis{grid-template-columns:repeat(3,1fr)}.hero:not(.noglobe) .kpi.main{grid-column:1/-1}
 .gcard{background:radial-gradient(circle at 50% 58%,#18113d,var(--card) 70%);border:1px solid #3a2f6b;display:flex;flex-direction:column;min-width:0;position:relative}
-.gcard .gh{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:12px 14px 0}.gcard h2{font-size:17px}
+.gsub{font-size:12px;color:var(--muted);margin-top:2px}.gcard .gh{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:12px 14px 0}.gcard h2{font-size:17px}
 .gcard iframe{border:0;width:100%;flex:1;min-height:250px;display:block;background:transparent}
 .hchart{height:320px;margin-top:10px}#hc{width:100%;height:100%;display:block}
-.row.x{cursor:pointer}.row.x.open{background:#171722;border-bottom-color:transparent}.row .car{color:var(--muted);font-size:10px;margin-left:6px;display:inline-block;transition:transform .15s}.row.open .car{transform:rotate(90deg);color:var(--lime)}
-.cx{background:#0f0f17;border-bottom:1px solid var(--line);border-left:2px solid var(--lime);padding:12px 14px 14px;font-size:13px}
-.cxh{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center}.cxh .nm{font-weight:700;font-size:16px}.cxh .ds{font-size:12px;color:var(--muted)}
-.cxtt{color:#c9c8d8;font-size:12px;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cxt{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}.cxt th{font:500 11px "Barlow Condensed",sans-serif;color:var(--muted);letter-spacing:.05em;text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)}
-.cxt th:first-child,.cxt td:first-child{text-align:left;padding-left:0;color:var(--muted)}.cxt td{text-align:right;padding:5px 6px;font:600 15px "Barlow Condensed",sans-serif;border-bottom:1px solid #1c1c29}
-.cxt td:first-child{font:400 13px "Barlow",sans-serif}.cxt tr td:nth-child(2){color:var(--lime)}
-.cxg{margin-top:8px;color:var(--muted);font-size:12px}.cxg b{color:var(--ink);font-weight:500}
-.cxc{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}.cxc svg{width:100%;height:80px;display:block;margin-top:6px;background:var(--card)}.cxc .cap{font-size:11px;color:var(--muted);margin-top:4px}
-.cxd{display:grid;gap:2px;margin-top:6px}.cxd div{display:grid;grid-template-columns:70px minmax(0,1fr) 80px 70px 60px;gap:8px;font-size:12px;padding:4px 0;border-bottom:1px solid #1c1c29;color:var(--muted)}
-.cxd div span:nth-child(2){color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cxd b{color:var(--ink);font-weight:600}
+__PANEL_CSS__
 .kpi{background:var(--card);border:1px solid var(--line);padding:14px;min-width:0;position:relative}
 .kpi .k{font:11px "Barlow Condensed",sans-serif;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
 .kpi .v{font:700 34px "Barlow Condensed",sans-serif;margin-top:4px;line-height:1.1;white-space:nowrap}.kpi .s{font-size:12px;color:var(--muted);margin-top:4px}
 .kpi.main{border-color:#3a2f6b;background:linear-gradient(160deg,rgba(124,92,255,.18),var(--card) 60%)}.kpi.main .v{font-size:50px}
-.bar{display:flex;height:6px;margin-top:10px;background:var(--line);overflow:hidden}.bar div{height:100%;transition:width .6s}
+.bar{display:flex;height:6px;margin-top:10px;background:var(--line);overflow:hidden}.bar div{height:100%;transition:width .8s cubic-bezier(.2,.8,.2,1)}
 .leg{display:flex;flex-wrap:wrap;gap:4px 12px;font:11px "Barlow Condensed",sans-serif;color:var(--muted);margin-top:6px}.leg b{color:var(--ink);font-weight:400}
 .sw{display:inline-block;width:8px;height:8px;margin-right:5px}
 .kpi .shr{position:absolute;right:10px;top:10px}
@@ -173,21 +204,20 @@ body{font-size:14px}.wrap{padding:0 12px 20px}
  <div class="kpi"><div class="k">Peak today</div><div class="v mono" id="k3">-</div><div class="s" id="k3s"></div><div class="s" id="k3p"></div></div>
  <div class="kpi hwk"><div class="k">Hours watched today</div><div class="v mono" id="k4">-</div><div class="s" id="k4s"></div></div>
  </div>
- <div class="gcard" id="gcardw"><div class="gh"><div><div class="lbl">// Around the world</div><h2>Where people are watching</h2></div><a class="btn" href="/map" style="text-decoration:none">OPEN MAP</a></div><iframe id="gframe" title="World map of live viewers" loading="lazy"></iframe></div>
+ <div class="gcard" id="gcardw"><div class="gh"><div><h2>Where the streamers are from</h2><div class="gsub">Viewers by the streamer's country. Grey: no located streamer live.</div></div><a class="btn" href="/map" style="text-decoration:none">OPEN MAP</a></div><iframe id="gframe" title="World map of live viewers" loading="lazy"></iframe></div>
 </div>
 <div id="evwrap"></div>
-<div class="card" id="histcard" style="display:none"><div class="head"><div><div class="lbl" id="hl">// Past events</div><h2 id="hh">Peak viewers of past tournaments</h2><div class="sub">Highest number watching at once, official broadcast plus co-streams.</div></div><button class="btn" data-share="hist">SHARE</button></div><div class="hchart"><canvas id="hc"></canvas></div></div>
-<div class="card" id="secard"><div class="head"><div><div class="lbl">// Sections</div><h2>What people are watching</h2><div class="sub">Viewers right now in each section. Tap one to open it.</div></div><button class="btn" data-share="sections">SHARE</button></div><div class="secs" id="secs"></div></div>
-<div class="card" id="gcard"><div class="head"><div><div class="lbl" id="gl">// Games</div><h2 id="gh">Games live now</h2><div class="sub">Tap one for its streams and top streamers.</div></div><button class="btn" data-share="cats">SHARE</button></div><div class="grid" id="grid"></div><button class="more gmore" id="gmore"></button></div>
+<div class="card" id="histcard" style="display:none"><div class="head"><div><div class="lbl" id="hl">Past events</div><h2 id="hh">Peak viewers of past tournaments</h2><div class="sub">Highest number watching at once, official broadcast plus co-streams.</div></div><button class="btn" data-share="hist">SHARE</button></div><div class="hchart"><canvas id="hc"></canvas></div></div>
+<div class="card" id="secard"><div class="head"><div><div class="lbl">Sections</div><h2>What people are watching</h2><div class="sub">Viewers right now in each section. Tap one to open it.</div></div><button class="btn" data-share="sections">SHARE</button></div><div class="secs" id="secs"></div></div>
+<div class="card" id="gcard"><div class="head"><div><div class="lbl" id="gl">Games</div><h2 id="gh">Games live now</h2><div class="sub">Tap one for its streams and top streamers.</div></div><button class="btn" data-share="cats">SHARE</button></div><div class="grid" id="grid"></div><button class="more gmore" id="gmore"></button></div>
 <div class="two">
  <div class="list"><div class="lh"><span class="dot"></span><h2>Top live streams</h2><div class="r"><div class="seg" id="plat"></div><button class="btn" data-share="live">SHARE</button></div></div>
   <div class="lth"><span>STREAM</span><span>WATCHING NOW</span></div><div id="live"></div><button class="more" id="lmore"></button></div>
  <div class="list"><div class="lh"><h2 id="bh">Top streamers today</h2><div class="r"><div class="seg" id="per"></div><button class="btn" data-share="board">SHARE</button></div></div>
-  <div class="tools" id="btools"><div class="seg" id="sort"></div><div class="seg" id="bplat"></div></div>
-  <div class="lth"><span>STREAMER</span><span id="bm">HOURS WATCHED</span></div><div id="board"></div><button class="more" id="bmore"></button></div>
+  <div class="lth"><span>STREAMER</span><span id="bm">HOURS WATCHED</span></div><div id="board"></div><button class="more" id="bmore"></button><a class="more" id="rlink"></a></div>
 </div>
-<div class="card" id="tourcard"><div class="head"><div><div class="lbl">// Esports</div><h2 id="th">Tournaments live now</h2><div class="sub">Official broadcasts and co-streams added together per tournament.</div></div><button class="btn" data-share="tours">SHARE</button></div><div class="tours" id="tours"></div></div>
-<div class="card"><div class="head"><div><div class="lbl">// Over time</div><h2 id="ch">Day by day</h2><div class="sub" id="chs"></div></div><div style="display:flex;gap:6px"><div class="seg" id="cmode"></div><button class="btn" data-share="chart">SHARE</button></div></div><canvas id="cv"></canvas></div>
+<div class="card" id="tourcard"><div class="head"><div><div class="lbl">Esports</div><h2 id="th">Tournaments live now</h2><div class="sub">Official broadcasts and co-streams added together per tournament.</div></div><button class="btn" data-share="tours">SHARE</button></div><div class="tours" id="tours"></div></div>
+<div class="card"><div class="head"><div><div class="lbl">Over time</div><h2 id="ch">Day by day</h2><div class="sub" id="chs"></div></div><div style="display:flex;gap:6px"><div class="seg" id="cmode"></div><button class="btn" data-share="chart">SHARE</button></div></div><canvas id="cv"></canvas></div>
 <details class="how"><summary>How these numbers are counted</summary><div id="note"></div></details>
 <div class="foot"><span>Unofficial live streaming rankings by __BRAND__. Not affiliated with YouTube, Kick, Twitch or any publisher.</span><span>__SOCIAL__</span></div>
 </div>
@@ -200,6 +230,14 @@ const NAMES={youtube:'YouTube',kick:'Kick',twitch:'Twitch'},COL={youtube:'#ff4d5
 const SECNAME=Object.fromEntries(SECTIONS),WHERE=GL?'worldwide':'in India';
 let D=null,cmode='days',OPEN=null,per='today',sort='hw',plat='all',bplat='all',q='',lAll=false,bAll=false,LOGOS=true;
 const _H={};function setH(id,h){const e=document.getElementById(id);if(e&&_H[id]!==h){_H[id]=h;e.innerHTML=h}}
+const RM=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// numbers count to their new value instead of jumping
+const TW={};function tw(id,v,f){const e=document.getElementById(id);if(!e)return;v=+v||0;const o=TW[id];TW[id]=v;if(o===undefined||RM||o===v){e.textContent=f(v);return}
+ const t0=performance.now(),st=t=>{if(TW[id]!==v)return;const k=Math.min(1,(t-t0)/700),q=1-Math.pow(1-k,3);e.textContent=f(o+(v-o)*q);if(k<1)requestAnimationFrame(st)};requestAnimationFrame(st)}
+// list rows glide to their new rank instead of jumping (FLIP)
+function flipH(id,h){const e=document.getElementById(id);if(!e||_H[id]===h)return;const pos={};e.querySelectorAll('[data-k]').forEach(r=>pos[r.dataset.k]=r.getBoundingClientRect().top);setH(id,h);if(RM)return;
+ e.querySelectorAll('[data-k]').forEach(r=>{const p=pos[r.dataset.k];if(p===undefined){if(Object.keys(pos).length)r.animate([{opacity:0},{opacity:1}],{duration:450});return}
+  const d=p-r.getBoundingClientRect().top;if(Math.abs(d)>1)r.animate([{transform:`translateY(${d}px)`},{transform:'none'}],{duration:550,easing:'cubic-bezier(.2,.8,.2,1)'})})}
 function setT(id,t){const e=document.getElementById(id);if(e&&e.textContent!==t)e.textContent=t}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>{n=+n||0;return n>=1e7?(n/1e6).toFixed(1)+'M':n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e4?(n/1e3).toFixed(1)+'K':Math.round(n).toLocaleString('en-IN')};
@@ -216,18 +254,24 @@ const ICON={overview:'<path d="M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H
  esports:'<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/>',irl:'<path d="M12 21s-6-5.3-6-11a6 6 0 0 1 12 0c0 5.7-6 11-6 11z"/><circle cx="12" cy="10" r="2"/>',
  'just-chatting':'<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',news:'<path d="M4 5h13v14H6a2 2 0 0 1-2-2zM17 9h3v8a2 2 0 0 1-2 2M7 8h7M7 11h7M7 14h4"/>',
  music:'<path d="M9 18V6l11-2v12M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM20 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/>',sports:'<circle cx="12" cy="12" r="9"/><path d="M12 3a15 15 0 0 1 0 18M3 12h18"/>',
- devotional:'<path d="M12 3c1.5 2.5 3 4 3 6a3 3 0 0 1-6 0c0-2 1.5-3.5 3-6zM4 15h16l-2 5H6z"/>',podcasts:'<path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/>',other:'<path d="M4 6h16v10H4zM9 20h6M12 16v4"/>',globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>'};
+ devotional:'<path d="M12 3c1.5 2.5 3 4 3 6a3 3 0 0 1-6 0c0-2 1.5-3.5 3-6zM4 15h16l-2 5H6z"/>',podcasts:'<path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/>',other:'<path d="M4 6h16v10H4zM9 20h6M12 16v4"/>',cricket:'<path d="M14.5 3.5l6 6-9.5 9.5-3-3zM8 16l-4.5 4.5M5 13l3 3"/><circle cx="17.5" cy="17.5" r="2.5"/>',
+ football:'<circle cx="12" cy="12" r="9"/><path d="M12 7l4 3-1.5 4.5h-5L8 10zM12 7V3M16 10l4-1M14.5 14.5l2.5 3.5M9.5 14.5L7 18M8 10L4 9"/>',
+ target:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
+ broadcast:'<circle cx="12" cy="12" r="2"/><path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8"/>',
+ rank:'<path d="M5 21V10h4v11M10 21V4h4v17M15 21v-7h4v7"/>',globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>'};
 const svg=(k,s)=>`<svg viewBox="0 0 24 24" width="${s||18}" height="${s||18}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[k]||ICON.other}</svg>`;
 const av=x=>`<span class="av">${x.logo?`<img src="${esc(x.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=ph>${ini(x.name)}</span>'">`:`<span class="ph">${ini(x.name)}</span>`}<span class="bd" style="background:${COL[x.platform]||'#888'}">${(x.platform||'?')[0].toUpperCase()}</span></span>`;
-const art=(g,a,cls)=>a?`<img class="${cls||''}" src="${esc(a)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:`<span class="${cls||''} ph" style="background:${HUE(g)}">${ini(g)}</span>`;
+const CICON=g=>{const l=String(g).toLowerCase();return /cricket/.test(l)?'cricket':/football|fifa|fc\b|soccer/.test(l)?'football':/call of duty|cod|warzone|shoot|battle/.test(l)?'target':
+ l==='news'?'news':l==='music'?'music':l==='devotional'?'devotional':/podcast/.test(l)?'podcasts':l==='irl'?'irl':/chatting/.test(l)?'just-chatting':/sport|kabaddi|tennis|basketball/.test(l)?'sports':l==='other'?'broadcast':/tournament/.test(l)?'esports':'gaming'};
+const PAL2=[['#b6f23a','#5fb31f'],['#a58bff','#6b4fe0'],['#4cc9f0','#2a7fd4'],['#ffd23f','#f08c00'],['#ff8a9a','#e0405a'],['#53fc18','#1fae5b'],['#ff9f5a','#e0602a']];
+const art=(g,a,cls)=>{if(a)return `<img class="${cls||''}" src="${esc(a)}" alt="" loading="lazy" referrerpolicy="no-referrer">`;let h=0;for(const ch of String(g))h=(h*31+ch.charCodeAt(0))%PAL2.length;
+ return `<span class="${cls||''} ph ic" style="--c1:${PAL2[h][0]};--c2:${PAL2[h][1]}" title="${esc(g)}">${svg(CICON(g),24)}</span>`};
 function seg(id,opts,cur,on){const e=document.getElementById(id);setH(id,opts.map(([v,l])=>`<button data-v="${v}" class="${v===cur?'on':''}">${l}</button>`).join(''));e.onclick=ev=>{const b=ev.target.closest('button');if(b)on(b.dataset.v)}}
 {const tail=CAT?'/c/'+CAT:SEC?'/s/'+SEC:'';setH('rg',`<a href="${tail||'/'}" class="${GL?'on':''}">GLOBAL</a><a href="/india${tail}" class="${GL?'':'on'}">INDIA</a>`)}
 setH('crumb',`<a href="${HOME}">${GL?'WORLDWIDE':'INDIA'}</a>`+(SEC||CAT?` / ${SEC?esc(SECNAME[SEC].toUpperCase()):''}${CAT?esc(CATNAME.toUpperCase()):''}`:' / OVERVIEW'));
 setH('h1',CAT?`<em>${esc(CATNAME)}</em> live ${WHERE}`:SEC?`<em>${esc(SECNAME[SEC])}</em> live ${WHERE}`:GL?`Live streaming <em>worldwide</em>, right now`:`Live streaming <em>in India</em>, right now`);
-setT('intro',CAT?`Everyone streaming ${CATNAME} ${WHERE} on YouTube, Kick and Twitch: who is live, how many are watching, and who leads today.`:
- SEC?`Every ${SECNAME[SEC]} stream ${WHERE} on YouTube, Kick and Twitch, by ${SEC==='esports'?'tournament':'game and category'}. Updated every 2 seconds.`:
- `How many people are watching live streams ${WHERE} on YouTube, Kick and Twitch, what they watch and who leads. Updated every 2 seconds.`);
-if(CAT||SEC)document.getElementById('secard').style.display='none';
+setT('intro','YouTube, Kick and Twitch, updated every 2 seconds.');
+document.getElementById('secard').style.display='none';
 if(GL&&!CAT&&!SEC){document.getElementById('gframe').src='/map?embed=1'}else{document.getElementById('gcardw').remove();document.getElementById('hero').classList.add('noglobe')}
 {const sb=document.getElementById('sbox'),gs=document.getElementById('gs'),sr=document.getElementById('sres');let st=null,sq='';
  document.getElementById('sbtn').onclick=()=>{const on=sb.classList.toggle('on');document.getElementById('sbtn').classList.toggle('on',on);if(on)gs.focus()};
@@ -236,50 +280,49 @@ if(GL&&!CAT&&!SEC){document.getElementById('gframe').src='/map?embed=1'}else{doc
   try{const j=await (await fetch('/api/search?region='+REGION+'&q='+encodeURIComponent(v))).json();if(sq!==v)return;
    const C=j.channels||[],G=j.categories||[];
    sr.innerHTML=(G.length?`<div class="h">GAMES & CATEGORIES</div>`+G.map(g=>`<a class="gc" href="${CU(esc(g.slug))}">${art(g.game,g.art)}<span class="n">${esc(g.game)}</span></a>`).join(''):'')+
-    (C.length?`<div class="h">STREAMERS</div>`+C.map(x=>`<a class="row" href="${esc(x.url)}" target="_blank" rel="noopener"><span></span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">${x.now?`<span class="lv">LIVE</span>${full(x.now)} watching`:x.last_live?'Last live '+ago(x.last_live):''}${x.game?' // '+esc(x.game):''}</div></span><span class="vv">${fmt(Math.max(x.peak,x.now))}<small>best peak</small></span></a>`).join(''):'')||
+    (C.length?`<div class="h">STREAMERS</div>`+C.map(x=>`<a class="row" href="${esc(x.url)}" target="_blank" rel="noopener"><span></span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">${x.now?`<span class="lv">LIVE</span>${full(x.now)} watching`:x.last_live?'Last live '+ago(x.last_live):''}${x.game?' · '+esc(x.game):''}</div></span><span class="vv">${fmt(Math.max(x.peak,x.now))}<small>best peak</small></span></a>`).join(''):'')||
     `<div class="empty">No streamer named "${esc(v)}" has been seen live ${WHERE} yet.</div>`}catch(e){}},250)}}
 if(CAT)document.getElementById('gcard').style.display='none';
 const liveMap=()=>{const m={};(D.live||[]).forEach(x=>m[x.sid]=x.viewers);return m};
 const liveList=()=>(D.live||[]).filter(x=>(plat==='all'||x.platform===plat)&&(!q||(x.name+' '+x.title+' '+x.game).toLowerCase().includes(q)));
+const dl=d=>d===undefined?'':d===null?'<span class="dl nw">NEW</span>':d>0?`<span class="dl up">&#9650;${d}</span>`:d<0?`<span class="dl dn">&#9660;${-d}</span>`:'';
 const boardList=()=>{const lm=liveMap();return (D.board||[]).filter(x=>bplat==='all'||x.platform===bplat).map(x=>({...x,now:lm[x.sid]||x.now||0})).sort((a,b)=>b[sort]-a[sort])};
 function render(){if(!D)return;const K=D.kpis||{};
  updLabel();
  const S=D.sections||[];
- setH('secnav',`<a href="${HOME}" class="${!SEC&&!CAT?'on':''}"><i>${svg('overview',14)}</i>Overview<b>${D.fresh?fmt(D.india_total):''}</b></a><a href="/map" class="mapl"><i>${svg('globe',14)}</i>World map</a>`+S.slice().sort((a,b)=>b.viewers-a.viewers).map(s=>`<a href="${SU(s.key)}" class="${SEC===s.key?'on':''}${s.viewers?'':' z'}"><i>${svg(s.key,14)}</i>${esc(s.name)}<b>${s.viewers?fmt(s.viewers):''}</b></a>`).join(''));
+ setH('secnav',`<a href="${HOME}" class="${!SEC&&!CAT?'on':''}"><i>${svg('overview',14)}</i>Overview<b>${D.fresh?fmt(D.india_total):''}</b></a><a href="/map" class="mapl"><i>${svg('globe',14)}</i>World map</a><a href="${RP}/rankings" class="mapl"><i>${svg('rank',14)}</i>Rankings</a>`+S.slice().sort((a,b)=>b.viewers-a.viewers).map(s=>`<a href="${SU(s.key)}" class="${SEC===s.key?'on':''}${s.viewers?'':' z'}"><i>${svg(s.key,14)}</i>${esc(s.name)}<b>${s.viewers?fmt(s.viewers):''}</b></a>`).join(''));
  if(!window._navScrolled){const on=document.querySelector('.secnav a.on');if(on&&on.scrollIntoView){on.scrollIntoView({inline:'center',block:'nearest'});window._navScrolled=1}}
- setT('k1l','Watching now'+(CAT||SEC?' // '+(CAT?CATNAME:SECNAME[SEC]):''));setT('k1',D.fresh?full(K.watching):'-');
+ setT('k1l','Watching now'+(CAT||SEC?' · '+(CAT?CATNAME:SECNAME[SEC]):''));if(D.fresh)tw('k1',K.watching,full);else setT('k1','-');
  const tot=K.watching||1;setH('pbar',(D.platforms||[]).map(p=>`<div style="width:${100*p.viewers/tot}%;background:${COL[p.platform]}"></div>`).join(''));
  setH('pleg',(D.platforms||[]).map(p=>`<span><span class="sw" style="background:${COL[p.platform]}"></span>${p.name.toUpperCase()} <b>${fmt(p.viewers)}</b></span>`).join(''));
- setT('k2',D.fresh?full(K.live_channels):'-');setT('k2s',CAT||SEC?`${D.india_total?(100*K.watching/D.india_total).toFixed(1):0}% of everyone watching ${WHERE}`:'streaming right now');
- setT('k3',fmt(K.peak_today));setT('k3s',K.peak_today_at?'at '+ist(K.peak_today_at,{hour:'numeric',minute:'2-digit'})+' IST':'since midnight IST');
+ if(D.fresh)tw('k2',K.live_channels,full);else setT('k2','-');setT('k2s',CAT||SEC?`${D.india_total?(100*K.watching/D.india_total).toFixed(1):0}% of everyone watching ${WHERE}`:'streaming right now');
+ tw('k3',K.peak_today,fmt);setT('k3s',K.peak_today_at?'at '+ist(K.peak_today_at,{hour:'numeric',minute:'2-digit'})+' IST':'since midnight IST');
  {const p=K.peak_lead;setH('k3p',p?`led by <a href="${esc(p.url)}" target="_blank" rel="noopener"><b style="color:${COL[p.platform]||'inherit'}">${esc(p.name)}</b></a> ${fmt(p.viewers)}`:'')}
- setT('k4',fmt(K.hw_today)+'h');setT('k4s',SEC==='esports'?`${full(K.channels_today||0)} tournaments today`:`${full(K.channels_today||0)} channels streamed today`);
+ tw('k4',K.hw_today,v=>fmt(v)+'h');setT('k4s',SEC==='esports'?`${full(K.channels_today||0)} tournaments today`:`${full(K.channels_today||0)} channels streamed today`);
  renderEvents();renderHist();
- setH('secs',S.slice().sort((a,b)=>b.viewers-a.viewers).map(s=>`<a class="sc${s.viewers?'':' zero'}" href="${SU(s.key)}"><div class="n">${svg(s.key)}${esc(s.name)}</div><div class="v">${fmt(s.viewers)}</div><div class="s">${s.channels} live${s.items&&s.items.length?' // '+s.items.map(i=>esc(i.name)).join(', '):''}</div></a>`).join(''));
+ setH('secs',S.slice().sort((a,b)=>b.viewers-a.viewers).map(s=>`<a class="sc${s.viewers?'':' zero'}" href="${SU(s.key)}"><div class="n">${svg(s.key)}${esc(s.name)}</div><div class="v">${fmt(s.viewers)}</div><div class="s">${s.channels} live${s.items&&s.items.length?' · '+s.items.map(i=>esc(i.name)).join(', '):''}</div></a>`).join(''));
  const C=(D.categories||[]);
- setT('gl',SEC?'// '+SECNAME[SEC]:'// Games & categories');setT('gh',SEC?`${SECNAME[SEC]} live now, by ${SEC==='gaming'||SEC==='esports'?'game':'category'}`:'Games & categories live now');
+ setT('gl',SEC?''+SECNAME[SEC]:'Games & categories');setT('gh',SEC?`${SECNAME[SEC]} live now, by ${SEC==='gaming'||SEC==='esports'?'game':'category'}`:'Games & categories live now');
  const gAll=window._gAll,gN=window.innerWidth<600?C.length:(gAll?C.length:18);
- setH('grid',C.slice(0,gN).map(g=>`<a class="gc" href="${CU(esc(g.slug))}">${art(g.game,g.art)}<span style="min-width:0"><div class="n">${esc(g.game)}</div><div class="v">${fmt(g.viewers)}</div><div class="s">${g.streams} live // ${esc(g.top)}</div></span></a>`).join('')||'<div class="empty">Nothing live here right now.</div>');
+ setH('grid',C.slice(0,gN).map(g=>`<a class="gc" href="${CU(esc(g.slug))}">${art(g.game,g.art)}<span style="min-width:0"><div class="n">${esc(g.game)}</div><div class="v">${fmt(g.viewers)}</div><div class="s">${g.streams} live · ${esc(g.top)}</div></span></a>`).join('')||'<div class="empty">Nothing live here right now.</div>');
  {const gm=document.getElementById('gmore');gm.style.display=window.innerWidth>=600&&C.length>18?'block':'none';gm.textContent=gAll?'Show top 18':`Show all ${C.length} games & categories`;gm.onclick=()=>{window._gAll=!gAll;render()}}
  seg('plat',[['all','ALL'],['youtube','YT'],['kick','KICK'],['twitch','TWITCH']],plat,v=>{plat=v;lAll=false;render()});
  const L=liveList(),ll=lAll||q?L.slice(0,300):L.slice(0,10);
- setH('live',ll.map((x,i)=>rowX('l',x,`<span class="rk${i<3?' t':''}">${i+1}</span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}<span class="car">&#9654;</span></div><div class="ds">${CAT?'':esc(x.game)+' // '}${esc(x.title)}</div></span><span class="vv">${full(x.viewers)}</span>`)).join('')||'<div class="empty">Nothing live right now.</div>');
+ flipH('live',ll.map((x,i)=>rowX('l',x,`<span class="rk${i<3?' r'+(i+1):''}">${i+1}</span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}<span class="car">&#9654;</span></div><div class="ds">${CAT?'':esc(x.game)+' · '}${esc(x.title)}</div></span><span class="vv">${full(x.viewers)}</span>`)).join('')||'<div class="empty">Nothing live right now.</div>');
  const lm=document.getElementById('lmore');lm.style.display=L.length>10&&!q?'block':'none';lm.textContent=lAll?'Show top 10':`Show all ${L.length} live streams`;lm.onclick=()=>{lAll=!lAll;render()};
  seg('per',[['today','TODAY'],['7d','7D'],['30d','30D']],per,v=>{per=v;bAll=false;load()});
  const PH=window.innerWidth<600;
- seg('sort',[['hw',PH?'HOURS':'HOURS WATCHED'],['peak','PEAK'],['avg',PH?'AVG':'AVERAGE']],sort,v=>{sort=v;render()});
- seg('bplat',[['all','ALL'],['youtube','YT'],['kick','KICK'],['twitch','TWITCH']],bplat,v=>{bplat=v;bAll=false;render()});
  setT('bh',(SEC==='esports'?'Biggest tournaments ':'Top streamers ')+PERB[per]);setT('bm',SEC==='esports'?'PEAK VIEWERS':{hw:'HOURS WATCHED',peak:'PEAK VIEWERS',avg:'AVERAGE VIEWERS'}[sort]);
- document.getElementById('btools').style.display=SEC==='esports'?'none':'';
+ {const rl=document.getElementById('rlink');rl.style.display=SEC==='esports'?'none':'block';rl.href=RP+'/rankings?period='+({today:'day','7d':'week','30d':'month'}[per])+(CAT?'&cat='+CAT:'')+(SEC?'&sec='+SEC:'');rl.textContent='Full rankings: any day, week or month, by category and country'}
  if(SEC==='esports'){const TD=D.tour_day||[];
   setH('board',TD.slice(0,bAll?50:10).map((x,i)=>`<div class="row"><span class="rk${i<3?' t':''}">${i+1}</span><span class="av"><span class="ph">${svg('esports',16)}</span></span><span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">peak at ${when(x.at)}</div></span><span class="vv">${fmt(x.peak)}</span></div>`).join('')||'<div class="empty">No tournaments seen yet in this period.</div>');
   const bm=document.getElementById('bmore');bm.style.display=TD.length>10?'block':'none';bm.textContent=bAll?'Show top 10':`Show all ${TD.length}`;bm.onclick=()=>{bAll=!bAll;render()}}
  else{const B=boardList(),bb=bAll?B.slice(0,300):B.slice(0,10);
-  setH('board',bb.map((x,i)=>rowX('b',x,`<span class="rk${i<3?' t':''}">${i+1}</span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}<span class="car">&#9654;</span></div><div class="ds">${x.now?`<span class="lv">LIVE</span>${full(x.now)} watching`:x.last_live?'Last live '+ago(x.last_live):''}${CAT?'':' // '+esc(x.game)} // peak ${fmt(x.peak)}</div></span><span class="vv">${sort==='hw'?fmt(x.hw)+'h':fmt(x[sort])}<small>${sort==='hw'?'avg '+fmt(x.avg):fmt(x.hw)+'h watched'}</small></span>`)).join('')||'<div class="empty">No streamers recorded in this period yet.</div>');
-  const bm=document.getElementById('bmore');bm.style.display=B.length>10?'block':'none';bm.textContent=bAll?'Show top 10':`Show all ${B.length} streamers`;bm.onclick=()=>{bAll=!bAll;render()}}
+  flipH('board',bb.map((x,i)=>rowX('b',x,`<span class="rk${i<3?' r'+(i+1):''}">${i+1}</span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}${dl(x.delta)}<span class="car">&#9654;</span></div><div class="ds">${x.now?`<span class="lv">LIVE</span>${full(x.now)} watching`:x.last_live?'Last live '+ago(x.last_live):''}${CAT?'':' · '+esc(x.game)} · peak ${fmt(x.peak)}</div></span><span class="vv">${sort==='hw'?fmt(x.hw)+'h':fmt(x[sort])}<small>${sort==='hw'?'avg '+fmt(x.avg):fmt(x.hw)+'h watched'}</small></span>`)).join('')||'<div class="empty">No streamers recorded in this period yet.</div>');
+  document.getElementById('bmore').style.display='none'}
  const T=D.tournaments||[];document.getElementById('tourcard').style.display=(T.length||SEC==='esports')?'':'none';
  setT('th',`Tournaments live now ${WHERE}`);
- setH('tours',T.map(t=>`<div class="tc">${art(t.game,t.art,'ta')}<span style="min-width:0"><div class="tn">${esc(t.name)}</div><a class="tg" href="${CU(esc(t.slug))}">${esc(t.game)}</a></span><span class="tv">${fmt(t.viewers)}<small>${t.streams} stream${t.streams>1?'s':''} // peak ${fmt(t.peak)}</small></span>
+ setH('tours',T.map(t=>`<div class="tc">${art(t.game,t.art,'ta')}<span style="min-width:0"><div class="tn">${esc(t.name)}</div><a class="tg" href="${CU(esc(t.slug))}">${esc(t.game)}</a></span><span class="tv">${fmt(t.viewers)}<small>${t.streams} stream${t.streams>1?'s':''} · peak ${fmt(t.peak)}</small></span>
   <div class="ts">${t.top.slice(0,5).map(x=>`<a href="${esc(x.url)}" target="_blank" rel="noopener">${x.logo?`<img src="${esc(x.logo)}" alt="" referrerpolicy="no-referrer">`:'<span class="ph"></span>'}${esc(x.name)} <b class="mono" style="font-weight:400">${fmt(x.viewers)}</b></a>`).join('')}</div></div>`).join('')||'<div class="empty">No esports tournament is live right now. They show up here the moment one goes live.</div>');
  setT('ch',cmode==='days'?'Day by day':`Viewers over time, ${PER[per]}`);setT('chs',cmode==='days'?'Most watching at once each day (IST). Hours watched under each bar.':'Everyone watching at once, every scan.');
  seg('cmode',[['days','BY DAY'],['line',{today:'24H','7d':'7D','30d':'30D'}[per]+' LINE']],cmode,v=>{cmode=v;render()});drawChart();
@@ -290,9 +333,9 @@ function render(){if(!D)return;const K=D.kpis||{};
 }
 function cdTxt(ns){const l=ns-Date.now()/1000;if(l<=0)return 'STARTING SOON';const d=Math.floor(l/86400),h=Math.floor(l%86400/3600),m=Math.floor(l%3600/60),s=Math.floor(l%60),p=n=>String(n).padStart(2,'0');return (d?d+'D ':'')+`${p(h)}:${p(m)}:${p(s)}`}
 function renderEvents(){const E=(D.events||[]).filter(e=>e.state!=='off');
- setH('evwrap',E.length?`<div class="evs">${E.map(e=>`<a class="ev ${e.state}" href="${esc(e.url)}"><span><div class="st">${e.state==='live'?'● LIVE NOW // OUR TRACKER':e.state==='upcoming'?'STARTS IN':'FINISHED'}</div><div class="n">${esc(e.name)}</div></span><span class="v" data-ns="${e.state==='upcoming'?e.next_start:''}">${e.state==='live'?full(e.now):e.state==='upcoming'?cdTxt(e.next_start):'Peak '+fmt(e.peak)}</span></a>`).join('')}</div>`:'')}
+ setH('evwrap',E.length?`<div class="evs">${E.map(e=>`<a class="ev ${e.state}" href="${esc(e.url)}"><span><div class="st">${e.state==='live'?'● LIVE NOW · OUR TRACKER':e.state==='upcoming'?'STARTS IN':'FINISHED'}</div><div class="n">${esc(e.name)}</div></span><span class="v" data-ns="${e.state==='upcoming'?e.next_start:''}">${e.state==='live'?full(e.now):e.state==='upcoming'?cdTxt(e.next_start):'Peak '+fmt(e.peak)}</span></a>`).join('')}</div>`:'')}
 function renderHist(){const H=D.history||[];document.getElementById('histcard').style.display=H.length?'':'none';if(!H.length)return;
- setT('hl','// '+CATNAME+' viewership till date');setT('hh',`Peak viewers, every ${CATNAME} event`);drawHistCanvas()}
+ setT('hl',''+CATNAME+' viewership till date');setT('hh',`Peak viewers, every ${CATNAME} event`);drawHistCanvas()}
 const EIMG={};function elogo(u){if(!u)return null;let im=EIMG[u];if(!im){im=EIMG[u]=new Image();im.onload=()=>drawHistCanvas();im.src=u}return im.complete&&im.naturalWidth?im:null}
 function drawHistCanvas(){const cv=document.getElementById('hc');if(!cv||!D||!(D.history||[]).length)return;const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;if(!W)return;
  cv.width=W*dpr;cv.height=H*dpr;const x=cv.getContext('2d');x.scale(dpr,dpr);drawHist(x,W,H,1)}
@@ -310,29 +353,9 @@ function drawHist(ctx,W,H,fs){const h=D.history,n=h.length,live=(D.events||[]).f
   if(im){const r=Math.min(LS/im.naturalWidth,LS/im.naturalHeight),w=im.naturalWidth*r,hh=im.naturalHeight*r;ctx.drawImage(im,X(i)-w/2,ly+(LS-hh)/2,w,hh)}
   else{ctx.fillStyle='#8d8ca3';ctx.font=`700 ${(small?8:11)*fs}px "Barlow Condensed",sans-serif`;ctx.textBaseline='middle';ctx.fillText(e.series==='LAUNCH'?(small?'LP':'LAUNCH'):e.series,X(i),ly+LS/2)}
   ctx.textBaseline='top';ctx.fillStyle=lv?'#ff4d5e':hi?'#b6f23a':'#8d8ca3';ctx.font=`${(small?10:12)*fs}px "Barlow Condensed",sans-serif`;ctx.fillText((small?'':e.series==='LAUNCH'?'LAUNCH ':e.series+' ')+`'${e.year}`,X(i),ly+LS+4*fs)});
- ctx.textAlign='left';ctx.textBaseline='top';ctx.fillStyle='#b6f23a';ctx.font=`700 ${14*fs}px "Barlow Condensed",sans-serif`;ctx.fillText(`ALL-TIME HIGH ${fmt(h[top].peak)} // ${h[top].name.toUpperCase()}`,pl,6*fs)}
-// ---------- one channel's analytics, opened under its row ----------
-const CH={},CHT={};
-function rowX(list,x,inner){const k=list+':'+x.sid,o=OPEN===k;return `<div class="row x${o?' open':''}" data-k="${esc(k)}">${inner}</div>${o?panel(x.sid):''}`}
-function toggleRow(k){OPEN=OPEN===k?null:k;render();if(!OPEN)return;const sid=k.slice(2);if(CH[sid]&&Date.now()-CHT[sid]<30000)return;
- fetch('/api/channel?sid='+encodeURIComponent(sid)).then(r=>r.json()).then(j=>{CH[sid]=j;CHT[sid]=Date.now();render()}).catch(()=>{})}
-['live','board'].forEach(id=>document.getElementById(id).addEventListener('click',e=>{if(e.target.closest('.cx'))return;const r=e.target.closest('.row.x');if(r)toggleRow(r.dataset.k)}));
-const dshort=d=>new Date(d+'T12:00:00+05:30').toLocaleDateString('en-IN',{day:'numeric',month:'short'});
-function barsSVG(days){const t=new Date(),M={};days.forEach(d=>M[d.day]=d);const L=[];for(let i=29;i>=0;i--){const d=new Date(t.getTime()-i*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'});L.push(M[d]||{day:d,peak:0})}
- const mx=Math.max(1,...L.map(d=>d.peak));return `<svg viewBox="0 0 300 80" preserveAspectRatio="none">${L.map((d,i)=>`<rect x="${i*10+1}" y="${80-76*d.peak/mx}" width="8" height="${76*d.peak/mx}" fill="${d.peak===mx?'#b6f23a':'#7a5cff'}"><title>${dshort(d.day)}: peak ${full(d.peak)}</title></rect>`).join('')}</svg>`}
-function lineSVG(S){if(!S||S.length<2)return '<svg viewBox="0 0 300 80"></svg>';const t0=S[0][0],t1=S[S.length-1][0],mx=Math.max(1,...S.map(p=>p[1]));
- const pts=S.map(p=>`${(300*(p[0]-t0)/((t1-t0)||1)).toFixed(1)},${(78-74*p[1]/mx).toFixed(1)}`).join(' ');
- return `<svg viewBox="0 0 300 80" preserveAspectRatio="none"><polygon points="0,80 ${pts} 300,80" fill="rgba(182,242,58,.15)"/><polyline points="${pts}" fill="none" stroke="#b6f23a" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`}
-function panel(sid){const c=CH[sid];if(!c)return '<div class="cx"><span class="muted">Loading channel analytics...</span></div>';if(!c.sid)return '<div class="cx"><span class="muted">No history for this channel yet.</span></div>';
- const P=c.periods,cols=[['today','TODAY'],['7d','7 DAYS'],['30d','30 DAYS'],['all','ALL TIME']],now=liveMap()[sid]||c.now,best=(c.days||[]).reduce((a,d)=>d.peak>(a?a.peak:0)?d:a,null);
- const R=[['Peak viewers','peak',fmt],['Average viewers','avg',fmt],['Hours watched','hw',v=>fmt(v)+'h'],['Hours streamed','hours',v=>v+'h'],['Days live','days',v=>v]];
- return `<div class="cx"><div class="cxh"><div style="min-width:0"><div class="ds">${now?`<span class="lv">LIVE</span>${full(now)} watching now`:c.last_live?'Last live '+ago(c.last_live):''}${c.country?' // '+esc(c.country):''}${c.first_seen?' // tracked since '+ist(c.first_seen,{day:'numeric',month:'short'}):''}</div></div><a class="btn" style="text-decoration:none;text-align:center" href="${esc(c.url)}" target="_blank" rel="noopener">${now?'WATCH':'OPEN'} ON ${(NAMES[c.platform]||'').toUpperCase()}</a></div>
- ${now&&c.title?`<div class="cxtt">${esc(c.title)}</div>`:''}
- <table class="cxt"><thead><tr><th></th>${cols.map(k=>`<th>${k[1]}</th>`).join('')}</tr></thead><tbody>${R.map(r=>`<tr><td>${r[0]}</td>${cols.map(k=>`<td>${r[2](P[k[0]][r[1]])}</td>`).join('')}</tr>`).join('')}</tbody></table>
- ${P['30d'].games.length?`<div class="cxg">Streams: <b>${P['30d'].games.map(esc).join(', ')}</b> (last 30 days)</div>`:''}
- <div class="cxc"><div><div class="lbl">// Peak viewers per day, 30 days</div>${barsSVG(c.days||[])}<div class="cap">${best?`Best day ${dshort(best.day)}: ${full(best.peak)} at once`:'No days recorded yet'}</div></div>
-  <div><div class="lbl">// Viewers, last 3 days</div>${lineSVG(c.recent)}<div class="cap">${(c.recent||[]).length>1?ist(c.recent[0][0],{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})+' to now':'Not enough readings yet'}</div></div></div>
- <div class="lbl" style="margin-top:12px">// Recent days live</div><div class="cxd">${(c.days||[]).slice(-7).reverse().map(d=>`<div><span>${dshort(d.day)}</span><span>${esc(d.game)}</span><span>peak <b>${fmt(d.peak)}</b></span><span>avg ${fmt(d.avg)}</span><span>${d.hours}h live</span></div>`).join('')||'<span class="muted">Nothing recorded yet.</span>'}</div></div>`}
+ ctx.textAlign='left';ctx.textBaseline='top';ctx.fillStyle='#b6f23a';ctx.font=`700 ${14*fs}px "Barlow Condensed",sans-serif`;ctx.fillText(`ALL-TIME HIGH ${fmt(h[top].peak)} · ${h[top].name.toUpperCase()}`,pl,6*fs)}
+__PANEL_JS__
+['live','board'].forEach(id=>document.getElementById(id).addEventListener('click',e=>{const sh=e.target.closest('[data-ch]');if(sh){SHARESID=sh.dataset.ch;openShare('chan');return}if(e.target.closest('.cx'))return;const r=e.target.closest('.row.x');if(r)toggleRow(r.dataset.k)}));
 function drawChart(){const cv=document.getElementById('cv'),dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;if(!W)return;
  cv.width=W*dpr;cv.height=H*dpr;const x=cv.getContext('2d');x.scale(dpr,dpr);x.clearRect(0,0,W,H);if(cmode==='days')plotDays(x,W,H,D.daily||[],1);else plot(x,W,H,D.series||[],1)}
 function plotDays(x,W,H,S,fs){const pl=8*fs,pr=58*fs,pt=22*fs,pb=40*fs;x.font=`${11*fs}px "Barlow Condensed",sans-serif`;x.fillStyle='#8d8ca3';x.textAlign='left';
@@ -369,32 +392,45 @@ function listRows(x,R,avs){R.slice(0,10).forEach((r,i)=>{const y=290+i*96;x.fill
   x.fillStyle='#ffffff';x.font='700 34px "Barlow",sans-serif';let n=r.name;while(x.measureText(n).width>560-(tx-150)&&n.length>3)n=n.slice(0,-2);if(n!==r.name)n+='…';x.fillText(n,tx,y+32);
   x.font='22px "Barlow Condensed",sans-serif';x.fillStyle=r.color||'#8d8ca3';x.fillText((r.tag||'').slice(0,46),tx,y+64);
   x.textAlign='right';x.fillStyle='#ffffff';x.font='700 40px "Barlow Condensed",sans-serif';x.fillText(r.value,1008,y+46);x.textAlign='left';x.fillStyle='#1d1d2b';x.fillRect(72,y+84,936,1)})}
+let SHARESID=null;
 async function card(type){let c,x,text;const sc=SCOPE(),K=D.kpis||{};
- if(type==='now'){[c,x]=base((CAT||SEC?(CAT?CATNAME:SECNAME[SEC]):'LIVE STREAMING').toUpperCase(),`${GL?'Worldwide':'India'} // YouTube + Kick + Twitch // right now`);
+ if(type==='chan'){const ch=CH[SHARESID];if(!ch)return card('board');const P=ch.periods,bi=(D.board||[]).findIndex(b=>b.sid===SHARESID),rk=bi>=0?bi+1:null,now=liveMap()[SHARESID]||ch.now;
+  [c,x]=base(ch.name.toUpperCase().slice(0,26),`${(NAMES[ch.platform]||'').toUpperCase()}${ch.country?' · '+ch.country.toUpperCase():''} · ${GL?'WORLDWIDE':'INDIA'}`);
+  const im=await loadImg(ch.logo);if(im){x.save();x.beginPath();x.arc(944,150,64,0,7);x.clip();x.drawImage(im,880,86,128,128);x.restore()}
+  x.fillStyle='#13131c';x.fillRect(72,290,936,200);x.fillStyle=rk&&rk<=3?['#ffd23f','#d9dde8','#ff9f5a'][rk-1]:'#b6f23a';x.font='700 150px "Barlow Condensed",sans-serif';x.fillText(rk?'#'+rk:'-',100,445);
+  x.fillStyle='#8d8ca3';x.font='28px "Barlow Condensed",sans-serif';x.fillText(rk?`RANK ${PERB[per].toUpperCase()} · ${sc.toUpperCase()}`.slice(0,44):'NOT RANKED IN THIS VIEW',340,350);
+  x.fillStyle='#ffffff';x.font='700 46px "Barlow Condensed",sans-serif';x.fillText(now?`LIVE · ${full(now)} WATCHING`:`PEAK TODAY ${fmt(P.today.peak)}`,340,410);
+  const t=[['PEAK TODAY',fmt(P.today.peak)],['AVG VIEWERS 7D',fmt(P['7d'].avg)],['HOURS WATCHED 30D',fmt(P['30d'].hw)+'h'],['ALL-TIME PEAK',fmt(P.all.peak)],['HOURS STREAMED 30D',P['30d'].hours+'h'],['DAYS LIVE 30D',String(P['30d'].days)]];
+  t.forEach(([l,v],i)=>{const X=72+(i%3)*316,Y=520+Math.floor(i/3)*190;x.fillStyle='#13131c';x.fillRect(X,Y,300,170);x.fillStyle='#ff4d5e';x.font='22px "Barlow Condensed",sans-serif';x.fillText(l,X+22,Y+40);x.fillStyle='#ffffff';x.font='700 72px "Barlow Condensed",sans-serif';x.fillText(v,X+22,Y+125)});
+  x.fillStyle='#ff4d5e';x.font='24px "Barlow Condensed",sans-serif';x.fillText('PEAK VIEWERS PER DAY · LAST 30 DAYS',72,935);
+  const M={};(ch.days||[]).forEach(d=>M[d.day]=d.peak);const L=[];for(let i=29;i>=0;i--)L.push(M[new Date(Date.now()-i*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})]||0);const mx=Math.max(1,...L);
+  L.forEach((v,i)=>{const h=260*v/mx;x.fillStyle=v===mx?'#b6f23a':'#7a5cff';x.fillRect(72+i*31.2,1230-h,24,h)});
+  text=`${ch.name}${rk?` is #${rk} ${WHERE} ${PERB[per]}`:''}: peak ${fmt(P.today.peak)} today, all-time peak ${fmt(P.all.peak)}, ${fmt(P['30d'].hw)} hours watched in 30 days.`;return [c,text]}
+ if(type==='now'){[c,x]=base((CAT||SEC?(CAT?CATNAME:SECNAME[SEC]):'LIVE STREAMING').toUpperCase(),`${GL?'Worldwide':'India'} · YouTube + Kick + Twitch · right now`);
   const tiles=[['WATCHING NOW',full(K.watching)],['LIVE CHANNELS',full(K.live_channels)],['PEAK TODAY',fmt(K.peak_today)],['HOURS WATCHED TODAY',fmt(K.hw_today)+'h']];
-  tiles.forEach(([l,v],i)=>{const X=72+(i%2)*474,Y=300+Math.floor(i/2)*210;x.fillStyle='#13131c';x.fillRect(X,Y,462,190);x.fillStyle='#ff4d5e';x.font='24px "Barlow Condensed",sans-serif';x.fillText('// '+l,X+24,Y+44);x.fillStyle='#ffffff';x.font=`700 ${i?72:80}px "Barlow Condensed",sans-serif`;x.fillText(v,X+24,Y+140)});
+  tiles.forEach(([l,v],i)=>{const X=72+(i%2)*474,Y=300+Math.floor(i/2)*210;x.fillStyle='#13131c';x.fillRect(X,Y,462,190);x.fillStyle='#ff4d5e';x.font='24px "Barlow Condensed",sans-serif';x.fillText(''+l,X+24,Y+44);x.fillStyle='#ffffff';x.font=`700 ${i?72:80}px "Barlow Condensed",sans-serif`;x.fillText(v,X+24,Y+140)});
   const T=(CAT?D.live.map(s=>[s.name,s.viewers]):SEC?(D.categories||[]).map(g=>[g.game,g.viewers]):(D.sections||[]).filter(s=>s.viewers).map(s=>[s.name,s.viewers])).slice(0,5);
-  x.fillStyle='#ff4d5e';x.font='28px "Barlow Condensed",sans-serif';x.fillText(CAT?'// TOP STREAMS':SEC?'// TOP GAMES':'// BY SECTION',72,770);
+  x.fillStyle='#ff4d5e';x.font='28px "Barlow Condensed",sans-serif';x.fillText(CAT?'TOP STREAMS':SEC?'TOP GAMES':'BY SECTION',72,770);
   T.forEach((r,i)=>{const y=840+i*80;x.fillStyle=i===0?'#b6f23a':'#ffffff';x.font='700 40px "Barlow",sans-serif';x.fillText(`${i+1}. ${r[0]}`.slice(0,30),72,y);x.textAlign='right';x.font='700 40px "Barlow Condensed",sans-serif';x.fillText(fmt(r[1]),1008,y);x.textAlign='left'});
   text=`${sc}: ${full(K.watching)} watching right now across ${full(K.live_channels)} live channels on YouTube, Kick and Twitch. Peak today ${fmt(K.peak_today)}.`}
- else if(type==='chart'&&cmode==='days'){const S=D.daily||[],b=S.reduce((a,d)=>d.peak>(a?a.peak:0)?d:a,null);[c,x]=base(sc.toUpperCase(),'Day by day, peak watching at once');x.fillStyle='#ff4d5e';x.font='30px "Barlow Condensed",sans-serif';x.fillText('// BEST DAY',72,320);
+ else if(type==='chart'&&cmode==='days'){const S=D.daily||[],b=S.reduce((a,d)=>d.peak>(a?a.peak:0)?d:a,null);[c,x]=base(sc.toUpperCase(),'Day by day, peak watching at once');x.fillStyle='#ff4d5e';x.font='30px "Barlow Condensed",sans-serif';x.fillText('BEST DAY',72,320);
   x.fillStyle='#ffffff';x.font='700 150px "Barlow Condensed",sans-serif';x.fillText(b?fmt(b.peak):'-',64,460);x.fillStyle='#8d8ca3';x.font='28px "Barlow Condensed",sans-serif';x.fillText(b?dshort(b.day):'',72,505);
   x.save();x.translate(40,560);plotDays(x,1000,640,S,1.7);x.restore();text=`${sc}: best day ${b?fmt(b.peak)+' watching at once on '+dshort(b.day):'-'}.`}
- else if(type==='chart'){[c,x]=base(sc.toUpperCase(),`Viewers over time, ${PER[per]}`);x.fillStyle='#ff4d5e';x.font='30px "Barlow Condensed",sans-serif';x.fillText('// PEAK, '+PER[per].toUpperCase(),72,320);
+ else if(type==='chart'){[c,x]=base(sc.toUpperCase(),`Viewers over time, ${PER[per]}`);x.fillStyle='#ff4d5e';x.font='30px "Barlow Condensed",sans-serif';x.fillText('PEAK, '+PER[per].toUpperCase(),72,320);
   x.fillStyle='#ffffff';x.font='700 150px "Barlow Condensed",sans-serif';x.fillText(D.peak?fmt(D.peak.viewers):'-',64,450);x.fillStyle='#8d8ca3';x.font='28px "Barlow Condensed",sans-serif';x.fillText(D.peak?when(D.peak.ts):'',72,500);
   x.save();x.translate(40,560);plot(x,1000,640,D.series||[],1.7);x.restore();text=`${sc}: peak ${D.peak?full(D.peak.viewers):'-'} watching at once in the ${PER[per]}.`}
- else if(type==='sections'){[c,x]=base('WHAT PEOPLE ARE WATCHING',`${GL?'Worldwide':'India'} // by section, live now`);const R=(D.sections||[]).filter(s=>s.viewers).slice(0,10);
-  listRows(x,R.map(s=>({name:s.name,tag:`${s.channels} live // ${(s.items||[]).map(i=>i.name).join(', ')}`,value:fmt(s.viewers)})));text=`What ${GL?'the world':'India'} is watching live right now: ${R.slice(0,3).map((s,i)=>`${i+1}. ${s.name} ${fmt(s.viewers)}`).join(' | ')}.`}
- else if(type==='cats'){const R=(D.categories||[]).slice(0,10);[c,x]=base((SEC?SECNAME[SEC]:'GAMES').toUpperCase()+' LIVE NOW',GL?'Worldwide':'India');listRows(x,R.map(g=>({name:g.game,tag:`${g.streams} live // top: ${g.top}`,value:fmt(g.viewers)})));
+ else if(type==='sections'){[c,x]=base('WHAT PEOPLE ARE WATCHING',`${GL?'Worldwide':'India'} · by section, live now`);const R=(D.sections||[]).filter(s=>s.viewers).slice(0,10);
+  listRows(x,R.map(s=>({name:s.name,tag:`${s.channels} live · ${(s.items||[]).map(i=>i.name).join(', ')}`,value:fmt(s.viewers)})));text=`What ${GL?'the world':'India'} is watching live right now: ${R.slice(0,3).map((s,i)=>`${i+1}. ${s.name} ${fmt(s.viewers)}`).join(' | ')}.`}
+ else if(type==='cats'){const R=(D.categories||[]).slice(0,10);[c,x]=base((SEC?SECNAME[SEC]:'GAMES').toUpperCase()+' LIVE NOW',GL?'Worldwide':'India');listRows(x,R.map(g=>({name:g.game,tag:`${g.streams} live · top: ${g.top}`,value:fmt(g.viewers)})));
   text=`${SEC?SECNAME[SEC]:'Games'} live now ${WHERE}: ${R.slice(0,3).map((g,i)=>`${i+1}. ${g.game} ${fmt(g.viewers)}`).join(' | ')}.`}
- else if(type==='tours'){const T=(D.tournaments||[]).slice(0,10);[c,x]=base('ESPORTS LIVE NOW',`Tournaments ${WHERE} // official + co-streams`);listRows(x,T.map(t=>({name:t.name,tag:`${t.game} // ${t.streams} streams`,value:fmt(t.viewers)})));
+ else if(type==='tours'){const T=(D.tournaments||[]).slice(0,10);[c,x]=base('ESPORTS LIVE NOW',`Tournaments ${WHERE} · official + co-streams`);listRows(x,T.map(t=>({name:t.name,tag:`${t.game} · ${t.streams} streams`,value:fmt(t.viewers)})));
   text=`Esports live now ${WHERE}: ${T.slice(0,3).map((t,i)=>`${i+1}. ${t.name} ${fmt(t.viewers)}`).join(' | ')}.`}
  else if(type==='live'){const L=liveList().slice(0,10);[c,x]=base('TOP LIVE STREAMS',sc);const avs=await Promise.all(L.map(s=>loadImg(s.logo)));
-  listRows(x,L.map(s=>({name:s.name,tag:`${(NAMES[s.platform]||'').toUpperCase()} // ${s.game}`,color:COL[s.platform],value:fmt(s.viewers)})),avs);text=`Top live streams ${WHERE} right now: ${L.slice(0,3).map((s,i)=>`${i+1}. ${s.name} ${fmt(s.viewers)}`).join(' | ')}.`}
+  listRows(x,L.map(s=>({name:s.name,tag:`${(NAMES[s.platform]||'').toUpperCase()} · ${s.game} · PEAK TODAY ${fmt(s.peak||s.viewers)}`,color:COL[s.platform],value:fmt(s.viewers)})),avs);text=`Top live streams ${WHERE} right now: ${L.slice(0,3).map((s,i)=>`${i+1}. ${s.name} ${fmt(s.viewers)}`).join(' | ')}.`}
  else if(type==='hist'){const mx=Math.max(...(D.history||[]).map(h=>h.peak)),r=(D.history||[]).find(h=>h.peak===mx);[c,x]=base(CATNAME.toUpperCase()+' VIEWERSHIP TILL DATE','Peak viewers, every event, official + co-streams');
   x.save();x.translate(40,330);drawHist(x,1000,820,1.7);x.restore();text=`${CATNAME} viewership till date: all-time high ${r?fmt(r.peak)+' ('+r.name+')':''}.`}
- else{const B=boardList().slice(0,10),lab={hw:'hours watched',peak:'peak viewers',avg:'average viewers'}[sort],val=s=>sort==='hw'?fmt(s.hw)+'h':fmt(s[sort]);[c,x]=base('TOP STREAMERS',`${sc} // ${PERB[per]} // ${lab}`);const avs=await Promise.all(B.map(s=>loadImg(s.logo)));
-  listRows(x,B.map(s=>({name:s.name,tag:`${(NAMES[s.platform]||'').toUpperCase()} // ${s.game}`,color:COL[s.platform],value:val(s)})),avs);text=`Top streamers ${WHERE}, ${PERB[per]} by ${lab}: ${B.slice(0,3).map((s,i)=>`${i+1}. ${s.name} ${val(s)}`).join(' | ')}.`}
+ else{const B=boardList().slice(0,10),lab={hw:'hours watched',peak:'peak viewers',avg:'average viewers'}[sort],val=s=>sort==='hw'?fmt(s.hw)+'h':fmt(s[sort]);[c,x]=base('TOP STREAMERS',`${sc} · ${PERB[per]} · ${lab}`);const avs=await Promise.all(B.map(s=>loadImg(s.logo)));
+  listRows(x,B.map(s=>({name:s.name,tag:`${s.delta===null?'NEW · ':s.delta>0?'▲'+s.delta+' · ':s.delta<0?'▼'+(-s.delta)+' · ':''}${(NAMES[s.platform]||'').toUpperCase()} · PEAK ${fmt(s.peak)} · AVG ${fmt(s.avg)}`,color:s.delta>0?'#3ddc84':s.delta<0?'#ff4d5e':COL[s.platform],value:val(s)})),avs);text=`Top streamers ${WHERE}, ${PERB[per]} by ${lab}: ${B.slice(0,3).map((s,i)=>`${i+1}. ${s.name} ${val(s)}`).join(' | ')}.`}
  return [c,text]}
 async function openShare(type){if(!D)return;try{await document.fonts.ready}catch(e){}const mi=document.getElementById('mimg');mi.removeAttribute('src');mi.alt='Making the image...';cur=null;setT('mhint','');document.getElementById('modal').classList.add('on');
  const name=`${CAT||SEC||(GL?'global':'india')}-${type}.png`,done=(b,text)=>{cur={blob:b,name,text};mi.src=URL.createObjectURL(b)};
@@ -437,10 +473,10 @@ def build_html(cat: str = "", cat_name: str = "", region: str = "in", sec: str =
         desc = (f"How many people are watching live streams {where} on YouTube, Kick and Twitch right now: top streams, "
                 "top streamers, gaming, esports tournaments, IRL, news and more, updated every 2 seconds.")
     home = "/" if region == "global" else "/india"
-    return (PAGE.replace("__TITLE__", html.escape(title)).replace("__DESC__", html.escape(desc))
+    return (PAGE.replace("__PANEL_JS__", PANEL_JS).replace("__PANEL_CSS__", PANEL_CSS).replace("__TITLE__", html.escape(title)).replace("__DESC__", html.escape(desc))
                 .replace("__CATNAME__", json.dumps(cat_name)).replace("__CAT__", json.dumps(cat))
                 .replace("__SEC__", json.dumps(sec)).replace("__REGION__", json.dumps(region))
                 .replace("__SECTIONS__", json.dumps(scene.SECTIONS)).replace("__HOME__", home)
                 .replace("__BRAND__", html.escape(eventpage.BRAND)).replace("__SITEURL__", json.dumps(eventpage.SITE_URL))
-                .replace("__SOCIAL__", " // ".join(f'<a href="{html.escape(u, quote=True)}" target="_blank" rel="noopener">{html.escape(h)}</a>'
+                .replace("__SOCIAL__", " · ".join(f'<a href="{html.escape(u, quote=True)}" target="_blank" rel="noopener">{html.escape(h)}</a>'
                                                      for _, u, h in eventpage.SOCIAL)))

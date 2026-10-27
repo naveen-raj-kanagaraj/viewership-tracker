@@ -256,6 +256,7 @@ QUERIES = ["BGMI live", "BGMI live tamil", "BGMI live telugu", "Free Fire live",
 LIVE_PAGE = "UC4R8DWoMoI7CAwX8_LjQHig"   # YouTube's own "Live" page, India edition: what's trending live now
 # Global YouTube searches (run from the US edition of YouTube): every big game, esports, and the main non-gaming
 # categories. Each finds up to ~20 live streams.
+YT_GL = [g.strip().upper() for g in os.getenv("SCENE_YT_COUNTRIES", "BR,MX,AR,ES,GB,DE,FR,TR,RU,ID,PH,VN,TH,JP,KR,PK,BD,SA,EG,NG").split(",") if g.strip()]
 GLOBAL_QUERIES = ["live gaming", "esports live", "tournament live", "grand finals live", "valorant live", "vct live",
                   "league of legends live", "lck live", "counter strike live", "cs2 major", "dota 2 live",
                   "fortnite live", "minecraft live", "gta rp live", "call of duty live", "apex legends live",
@@ -516,8 +517,7 @@ _ITV_IN = {"clientName": "WEB", "clientVersion": "2.20251001.00.00", "hl": "en",
 
 
 def _num(txt: str):
-    d = re.sub(r"[^\d]", "", txt or "")
-    return int(d) if d else None
+    return platforms.parse_count(txt)
 
 
 def _text(o) -> str:
@@ -657,8 +657,10 @@ def cycle(now: float = None) -> dict:
         if res_live == "err":
             errors["youtube live page"] = "failed"
         res_glob = _try(yt_live_page, "US")
+        # YouTube's Live page in more countries' editions: finds the big local streams there (Brazil, Indonesia ...)
+        pages = list(zip([f"live page {g}" for g in YT_GL], _pool.map(lambda g: _try(yt_live_page, g), YT_GL)))
         jobs_ = [(q, "IN") for q in QUERIES] + [(q, "US") for q in GLOBAL_QUERIES]
-        for q, res in [("live page", res_live), ("live page US", res_glob)] + \
+        for q, res in [("live page", res_live), ("live page US", res_glob)] + pages + \
                 list(zip([q for q, _ in jobs_], _pool.map(lambda a: _try(yt_search, *a), jobs_))):
             if res == "err":
                 errors[f"youtube '{q}'"] = "search failed"
@@ -1013,6 +1015,8 @@ def _live_part(game=None, region: str = "in", sec: str = "") -> dict:
                 """SELECT s.sid, s.viewers, s.game, c.platform, c.name, c.url, c.logo, c.title, c.country, c.language,
                    COALESCE(c.india, 1) AS india FROM sc_samples s LEFT JOIN sc_channels c ON c.sid=s.sid
                    WHERE s.ts=? ORDER BY s.viewers DESC""", (last,))]
+            day = datetime.now(events.REPORT_TZ).strftime("%Y-%m-%d")
+            _SCAN["peak"] = dict(c.execute("SELECT sid, MAX(peak) FROM sc_daily WHERE day=? GROUP BY sid", (day,)).fetchall())
             for r in _SCAN["rows"]:
                 r["tour"] = tournament(r.get("title") or "", r["game"])
                 r["section"] = section_of(r["game"], r["tour"])
@@ -1030,6 +1034,7 @@ def _live_part(game=None, region: str = "in", sec: str = "") -> dict:
         if x["viewers"] <= 0:
             continue                          # ended since the scan
         x["logo"] = _logo(x)
+        x["peak"] = max(_SCAN.get("peak", {}).get(x["sid"]) or 0, x["viewers"])
         live.append(x)
     live.sort(key=lambda x: -x["viewers"])
     region_total = sum(x["viewers"] for x in live)
@@ -1162,7 +1167,7 @@ def _common(lv: dict, region: str) -> dict:
                           for k, v in sorted(lv["_by_plat"].items(), key=lambda kv: -kv[1])],
             "categories": sorted(lv["_by_game"].values(), key=lambda g: -g["viewers"])[:200],
             "tournaments": _tour_list(lv["_tours"], region),
-            "live": [{k: x.get(k) for k in ("sid", "platform", "name", "url", "logo", "game", "title", "viewers", "section")}
+            "live": [{k: x.get(k) for k in ("sid", "platform", "name", "url", "logo", "game", "title", "viewers", "section", "peak")}
                      for x in lv["_live"][:300]]}
 
 
@@ -1237,6 +1242,11 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
         del x["games"], x["mins"]
         board.append(x)
     board.sort(key=lambda x: -x["hw"])
+    with store._lock:
+        prev = _prev_ranks(_db(), region, game, sec, period)
+    for i, x in enumerate(board):
+        x["rank"] = i + 1
+        x["delta"] = (prev[x["sid"]] - x["rank"]) if x["sid"] in prev else None   # None = new in the ranking
     for x in board:
         x["now"] = lv["_now"].get(x["sid"], 0)   # live right now (in any section), else last_live says when
     if sec == "esports":
@@ -1258,6 +1268,103 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
             "cat_period": sorted(cat_period, key=lambda x: -x["avg"]), "tracked": tracked,
             "langs": LANGS, "min": MIN_VIEWERS if region == "in" else GLOBAL_MIN,
             "keys": {p: bool(platforms._keys(p)) for p in ("kick", "twitch")}}
+
+
+def _prev_ranks(c, region, game, sec, period) -> dict:
+    """{sid: rank by hours watched} for the period just before this one (yesterday for today), for rank arrows."""
+    n = PERIODS[period] + 1                   # days in the period (today = 1)
+    today = datetime.now(events.REPORT_TZ).date()
+    p1 = today - timedelta(days=n)
+    p0 = p1 - timedelta(days=n - 1)
+    q = """SELECT d.sid, d.game, SUM(d.hw) hw FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid
+           WHERE d.day BETWEEN ? AND ?""" + (" AND COALESCE(c.india,1)=1" if region == "in" else "")
+    args = [p0.strftime("%Y-%m-%d"), p1.strftime("%Y-%m-%d")]
+    if game:
+        q += " AND d.game=?"
+        args.append(game)
+    tot = {}
+    for r in c.execute(q + " GROUP BY d.sid, d.game", args):
+        if sec and sec != "esports" and section_of(r["game"]) != sec:
+            continue
+        tot[r["sid"]] = tot.get(r["sid"], 0) + (r["hw"] or 0)
+    return {sid: i + 1 for i, (sid, _) in enumerate(sorted(tot.items(), key=lambda kv: -kv[1]))}
+
+
+RANK_PERIODS = {"day": 1, "week": 7, "month": 30}
+
+
+def rankings(region="global", metric="hw", period="day", date="", cat="", country="", platform="", sec="", limit=100):
+    """Leaderboard of channels for one day / the 7 or 30 days ending on `date` (IST), by hours watched, peak or
+    average viewers, filtered by game, section, streamer country and platform, with each channel's move against the
+    period before."""
+    region = _region(region)
+    metric = metric if metric in ("hw", "peak", "avg", "hours") else "hw"
+    n = RANK_PERIODS.get(period, 1)
+    today = datetime.now(events.REPORT_TZ).date()
+    try:
+        end = min(datetime.strptime(date, "%Y-%m-%d").date(), today) if date else today
+    except ValueError:
+        end = today
+    game = category_name(cat) if cat else None
+    sec = _sec(sec)
+    ctry = country_of(country) if country else None
+
+    def window(e):
+        s_ = e - timedelta(days=n - 1)
+        q = """SELECT d.sid, d.game, MAX(d.peak) peak, SUM(d.mins) mins, SUM(d.hw) hw, c.name, c.platform, c.url, c.logo,
+               c.country, COALESCE(c.india,1) india, c.last_live FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid
+               WHERE d.day BETWEEN ? AND ?""" + (" AND COALESCE(c.india,1)=1" if region == "in" else "")
+        args = [s_.strftime("%Y-%m-%d"), e.strftime("%Y-%m-%d")]
+        if game:
+            q += " AND d.game=?"
+            args.append(game)
+        if platform in platforms.NAMES:
+            q += " AND c.platform=?"
+            args.append(platform)
+        with store._lock:
+            rows = _db().execute(q + " GROUP BY d.sid, d.game", args).fetchall()
+        out, games, ctrs = {}, {}, {}
+        blk = blocked()
+        for r in rows:
+            if r["sid"] in blk or (sec and section_of(r["game"]) != sec):
+                continue
+            ct = country_of(r["country"]) or (country_of("IN") if r["india"] else None)
+            if ct:
+                ctrs[ct[0]] = ct[2]
+            if ctry and (not ct or ct[0] != ctry[0]):
+                continue
+            x = out.setdefault(r["sid"], {"sid": r["sid"], "name": r["name"] or r["sid"], "platform": r["platform"] or "",
+                                          "url": r["url"] or "", "logo": _logo({"sid": r["sid"], "logo": r["logo"]}),
+                                          "country": ct[0] if ct else "", "country_name": ct[2] if ct else "",
+                                          "last_live": r["last_live"], "peak": 0, "mins": 0.0, "hw": 0.0, "g": {}})
+            x["peak"] = max(x["peak"], r["peak"] or 0)
+            x["mins"] += r["mins"] or 0
+            x["hw"] += r["hw"] or 0
+            x["g"][r["game"]] = x["g"].get(r["game"], 0) + (r["hw"] or 0)
+            games[r["game"]] = games.get(r["game"], 0) + (r["hw"] or 0)
+        for x in out.values():
+            x["avg"] = round(x["hw"] * 60 / x["mins"]) if x["mins"] else 0
+            x["hours"] = round(x["mins"] / 60, 1)
+            x["hw"] = round(x["hw"])
+            x["game"] = max(x["g"], key=x["g"].get) if x["g"] else ""
+            del x["g"], x["mins"]
+        ranked = sorted(out.values(), key=lambda x: -x[metric])
+        return ranked, games, ctrs
+    cur, games, ctrs = window(end)
+    prev = {x["sid"]: i + 1 for i, x in enumerate(window(end - timedelta(days=n))[0])}
+    now = _live_part(None, "global")["_now"]
+    for i, x in enumerate(cur):
+        x["rank"] = i + 1
+        x["delta"] = prev[x["sid"]] - x["rank"] if x["sid"] in prev else None
+        x["now"] = now.get(x["sid"], 0)
+    with store._lock:
+        first = _db().execute("SELECT MIN(day) FROM sc_daily").fetchone()[0]
+    return {"region": region, "metric": metric, "period": period, "date": end.strftime("%Y-%m-%d"),
+            "start": (end - timedelta(days=n - 1)).strftime("%Y-%m-%d"), "first_day": first, "today": today.strftime("%Y-%m-%d"),
+            "total": len(cur), "rows": cur[:limit],
+            "categories": [{"game": g, "slug": slug(g), "hw": round(v)} for g, v in sorted(games.items(), key=lambda kv: -kv[1])[:80]],
+            "countries": [{"code": k, "name": v} for k, v in sorted(ctrs.items(), key=lambda kv: kv[1])],
+            "totals": {"hw": sum(x["hw"] for x in cur), "channels": len(cur)}}
 
 
 def _daily(c, tbl, w, a, key, days: int = 30) -> list:

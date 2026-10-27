@@ -230,3 +230,13 @@ assert ca["name"] == "Soul Aman" and ca["periods"]["today"]["peak"] > 0 and ca["
 assert c.get("/api/channel?sid=bad").status_code == 404
 assert "daily" in sc.data("today", region="global") and c.get("/map?embed=1").status_code == 200
 print("CHANNEL OK")
+# rounded YouTube counts: '10.56K watching' is 10,560, never 1,056
+assert sc._num("10.56K watching") == 10560 and sc._num("10,560 watching") == 10560 and sc._num("1.2M watching") == 1200000
+rk = c.get("/api/rank?region=global&period=day&metric=hw").get_json()
+assert rk["rows"] and rk["rows"][0]["rank"] == 1 and "delta" in rk["rows"][0] and rk["countries"], rk
+assert c.get("/api/rank?region=in&period=week&metric=peak&cat=bgmi").get_json()["rows"][0]["game"] == "BGMI"
+assert c.get("/api/rank?country=IN&region=global").get_json()["rows"]
+for u in ("/rankings", "/india/rankings"):
+    assert c.get(u).status_code == 200, u
+assert all("delta" in b for b in sc.data("today", region="global")["board"])
+print("RANK OK")

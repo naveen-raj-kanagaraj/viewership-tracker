@@ -355,3 +355,24 @@ def count(vid: str):
 def forget(vid: str):
     with _lock:
         _known.get(platform_of(vid), set()).discard(vid)
+
+
+_MULT = {"k": 1e3, "m": 1e6, "b": 1e9, "lakh": 1e5, "lakhs": 1e5, "lac": 1e5, "l": 1e5, "crore": 1e7, "cr": 1e7}
+
+
+def parse_count(txt: str):
+    """'10,560 watching' -> 10560, '10.5K watching' -> 10500, '1.2M' -> 1200000, '1.5 lakh' -> 150000.
+    None if there is no number. (Stripping non-digits turned '10.56K' into 1056: never do that.)"""
+    import re as _re
+    t = (txt or "").lower().replace("\u00a0", " ").replace("\u202f", " ")
+    m = _re.search(r"(\d[\d,]*(?:\.\d+)?)\s*(k|m|b|lakhs?|lac|l|crore|cr)?\b", t)
+    if not m:
+        return None
+    n = float(m.group(1).replace(",", ""))
+    return int(round(n * _MULT.get(m.group(2) or "", 1)))
+
+
+def is_abbrev(txt: str) -> bool:
+    """True when the count is rounded ('10.5K', '1.2M', '1 lakh'), i.e. not the exact number."""
+    import re as _re
+    return bool(_re.search(r"\d\s*(k|m|b|lakhs?|lac|l|crore|cr)\b", (txt or "").lower()))

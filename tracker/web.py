@@ -23,7 +23,7 @@ PORT = int(os.getenv("EVENT_WEB_PORT", "8092"))
 app = Flask(__name__)
 
 
-CACHE = {"/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
+CACHE = {"/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
 
 
 
@@ -314,6 +314,37 @@ def scene_channel():
     if not __import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid):
         return Response("{}", status=404, mimetype="application/json")
     return _memo(f"/api/channel:{sid}", 15, _jdump(lambda: scene.channel(sid)), "application/json")
+
+
+@app.route("/api/rank")
+def scene_rank():
+    """Leaderboards: /api/rank?region=global&metric=hw|peak|avg|hours&period=day|week|month&date=&cat=&country=&platform=&sec="""
+    from tracker import scene
+    g = request.args.get
+    re_ = __import__("re")
+    args = dict(region=g("region", "global"), metric=g("metric", "hw"), period=g("period", "day"),
+                date=g("date", "") if re_.fullmatch(r"\d{4}-\d{2}-\d{2}", g("date", "")) else "",
+                cat=g("cat", "") if re_.fullmatch(r"[a-z0-9-]{0,40}", g("cat", "")) else "",
+                country=(g("country", "") or "")[:2].upper() if re_.fullmatch(r"[A-Za-z]{0,2}", g("country", "")) else "",
+                platform=g("platform", "") if g("platform", "") in ("youtube", "kick", "twitch") else "",
+                sec=g("sec", "") if g("sec", "") in scene.SECTION_NAMES else "")
+    key = "/api/rank:" + ":".join(f"{k}={v}" for k, v in sorted(args.items()))
+    return _memo(key, 25, _jdump(lambda: scene.rankings(**args)), "application/json")
+
+
+def _rank_page(region):
+    from tracker import rankpage
+    return _memo(f"/rankings:{region}", 300, lambda: rankpage.build_html(region), "text/html")
+
+
+@app.route("/rankings")
+def rankings_page():
+    return _rank_page("global")
+
+
+@app.route("/india/rankings")
+def rankings_page_india():
+    return _rank_page("in")
 
 
 @app.route("/api/geo")

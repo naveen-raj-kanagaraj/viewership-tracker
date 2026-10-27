@@ -218,6 +218,16 @@ As of 26 Oct 2026:
   per-country categories filter that country's stream list (India links to `/india/c/<slug>`).
   `LANG_COUNTRY` also places pt->BR, de->DE, fr->FR, ru->RU, nl->NL (estimated).
 - All pages (event, predict, crowd too) use Barlow / Barlow Condensed.
+- 27 Oct fix: YouTube counts shown rounded ("10.56K watching") were read by stripping non-digits (= 1,056). Now
+  `platforms.parse_count` handles K/M/lakh/crore, and the live counter prefers YouTube's exact originalViewCount.
+  Peaks recorded before this fix can be 10x too low for YouTube channels in the 1K-100K range.
+- Rankings: `/rankings`, `/india/rankings` (rankpage.py, `/api/rank`, `scene.rankings`): day / week / month to any
+  date, by hours watched / peak / average / hours live, filtered by category, streamer country, platform; podium, rank
+  arrows vs the previous period, share-top-10 image. The dashboard's board shows the top 10 with arrows and links here.
+- Streamer panel has SHARE: a 1080x1350 card with rank, peak, 7d average, 30d hours, all-time peak, 30-day bars.
+- Worldwide scan also reads YouTube's Live page for 20 countries (`SCENE_YT_COUNTRIES`), so the globe fills in.
+- Categories without cover art get an icon tile (cricket, football, news ...), never letters.
+- Numbers count up and list rows glide to new ranks (FLIP); off with prefers-reduced-motion.
 - Kick seeds always include `skyesports` and `cegc` (`scene.ALWAYS`); "CEGC" is also a tournament name.
 
 ## Ideas not built yet
