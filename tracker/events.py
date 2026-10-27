@@ -398,11 +398,13 @@ def count_live(vid: str):
         # originalViewCount becomes TOTAL views (that's how 2.3M got in), so anything else = not live.
         if vc.get("isLive") is False or "watching" not in txt.lower():
             return None
-        digits = re.sub(r"[^\d]", "", txt)
+        shown = platforms.parse_count(txt) or 0
         raw = vc.get("originalViewCount")
-        if raw is not None and str(raw).isdigit() and digits and abs(int(raw) - int(digits)) <= max(1000, int(digits) * .1):
+        # originalViewCount is the exact live count; trust it when it agrees with the text (which may be rounded:
+        # "10.5K watching"). Agreement guards against it being total views after the stream ended.
+        if raw is not None and str(raw).isdigit() and abs(int(raw) - shown) <= max(1000, shown * .1):
             return int(raw)
-        return int(digits) if digits else 0
+        return shown
     raise ValueError("no live counter in response")
 
 

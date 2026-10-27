@@ -73,18 +73,18 @@ body.emb .mini div{display:flex;gap:6px;white-space:nowrap}body.emb .mini span{c
 @media(max-width:600px){.wrap{padding:0 12px 20px}.top .in{padding:9px 12px;gap:10px}.brand{font-size:15px}.upd span{display:none}h1{font-size:26px}.intro{font-size:13px;color:var(--muted)}
 .crumb{margin-top:12px;font-size:11px}#gl{height:380px}.big{font-size:36px}.legend .bar{width:100px}}
 </style></head><body>
-<div class="top"><div class="in"><a class="brand" href="/">__BRAND__</a><span class="beta">BETA</span><span class="rg"><a href="/">GLOBAL</a><a href="/india">INDIA</a><a href="/map" class="on">MAP</a></span><span class="upd"><span class="dot"></span><span>LIVE </span><b id="upd">-</b></span></div></div>
+<div class="top"><div class="in"><a class="brand" href="/">__BRAND__</a><span class="beta">BETA</span><span class="rg"><a href="/">GLOBAL</a><a href="/india">INDIA</a><a href="/map" class="on">MAP</a><a href="/rankings">RANKS</a></span><span class="upd"><span class="dot"></span><span>LIVE </span><b id="upd">-</b></span></div></div>
 <div class="wrap">
 <div class="crumb"><a href="/">WORLDWIDE</a> / WORLD MAP</div>
-<h1>Who the world is <em>watching</em>, right now</h1>
-<p class="intro">Live viewers on YouTube, Kick and Twitch by the streamer's country. Drag to spin, pinch to zoom, tap a country to see its top games and streamers.</p>
+<h1>Where the <em>streamers</em> are from</h1>
+<p class="intro">Everyone watching live on YouTube, Kick and Twitch right now, placed on the streamer's home country (not the viewer's). Grey countries have no located streamer live at the moment. Drag to spin, tap a country for its categories and streamers.</p>
 <div class="stage">
  <div class="globe" id="gwrap"><canvas id="gl"></canvas><div class="tip" id="tip"></div><div class="mini" id="mini"></div>
-  <div class="legend"><div>VIEWERS WATCHING</div><div class="bar"></div><div class="ends"><span>fewer</span><span>most</span></div></div>
+  <div class="legend"><div>VIEWERS WATCHING ITS STREAMERS</div><div class="bar"></div><div class="ends"><span>fewer</span><span>most</span></div><div style="margin-top:6px;display:flex;align-items:center;gap:6px"><span style="width:12px;height:8px;background:#211f35;border:1px solid #3a3850;display:inline-block"></span>no located streamer live</div></div>
   <div class="gtools"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">&minus;</button><button id="spin" aria-label="Spin" title="Spin">&#8635;</button></div></div>
  <div class="side">
   <div class="card" id="sel"></div>
-  <div class="card"><div class="lbl">// Countries</div><h2>Most watched now</h2><div class="rank" id="rank"></div></div>
+  <div class="card"><div class="lbl">Countries</div><h2>Most watched now</h2><div class="rank" id="rank"></div></div>
  </div>
 </div>
 <div class="note" id="note"></div>
@@ -161,7 +161,7 @@ if(!EMBED)cv.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.8,Ma
 if(!EMBED){document.getElementById('zin').onclick=()=>{zoom=Math.min(6,zoom*1.4)};document.getElementById('zout').onclick=()=>{zoom=Math.max(.8,zoom/1.4)};
  document.getElementById('spin').onclick=()=>{spin=!spin;idleT=0}}
 function showTip(f,p){if(!f){tip.style.display='none';return}const d=BY[f.id];
- tip.innerHTML=`${esc(f.properties.name)}<br><b>${d?full(d.viewers):'0'}</b> <span style="color:#8d8ca3">${d?'watching // '+d.channels+' live // '+esc(d.label):'nothing live tracked'}</span>`;tip.style.display='block';
+ tip.innerHTML=`${esc(f.properties.name)}<br><b>${d?full(d.viewers):'0'}</b> <span style="color:#8d8ca3">${d?'watching · '+d.channels+' live · '+esc(d.label):'nothing live tracked'}</span>`;tip.style.display='block';
  const x=Math.min(p[0]+14,W-tip.offsetWidth-6);tip.style.left=x+'px';tip.style.top=(p[1]+14)+'px'}
 function flyTo(id){const f=FEATS.find(f=>f.id===id);if(!f)return;const to=[-f.c[0],Math.max(-60,Math.min(60,-f.c[1])),0];
  const from=rot.slice();if(to[0]-from[0]>180)to[0]-=360;if(from[0]-to[0]>180)to[0]+=360;anim={t0:performance.now(),i:d3.interpolate(from,to)};idleT=performance.now()+15000}
@@ -169,14 +169,14 @@ function select(id){sel=id;selCat='';flyTo(id);renderSide();renderRank();if(wind
 const catLink=(d,g)=>d.country==='IN'?'/india/c/'+g.slug:'/c/'+g.slug;
 function renderSide(){const box=document.getElementById('sel');if(!box)return;if(!G){box.innerHTML='<div class="empty">Loading...</div>';return}
  const d=sel&&BY[sel],f=sel&&FEATS.find(f=>f.id===sel),tot=G.known+G.unknown;
- if(!d){box.innerHTML=`<div class="lbl">// Worldwide</div><h2>${f?esc(f.properties.name)+': nothing live tracked':'Everyone we track'}</h2>
+ if(!d){box.innerHTML=`<div class="lbl">Worldwide</div><h2>${f?esc(f.properties.name)+': nothing live tracked':'Everyone we track'}</h2>
   <div class="big">${full(tot)}</div><div class="sub">watching live right now</div>
   <div class="kv"><div>${G.countries.length}<small>COUNTRIES</small></div><div>${tot?Math.round(100*G.known/tot):0}%<small>ON THE MAP</small></div><div>${fmt(G.unknown)}<small>LOCATION UNKNOWN</small></div></div>
-  <div class="podium">${G.countries.slice(0,3).map((c,i)=>`<button data-id="${c.id}" style="border-color:${RANKC[i]}"><b style="color:${RANKC[i]}">#${i+1}</b> ${esc(c.name)}<span>${fmt(c.viewers)} // ${esc(c.label)}</span></button>`).join('')}</div>
+  <div class="podium">${G.countries.slice(0,3).map((c,i)=>`<button data-id="${c.id}" style="border-color:${RANKC[i]}"><b style="color:${RANKC[i]}">#${i+1}</b> ${esc(c.name)}<span>${fmt(c.viewers)} · ${esc(c.label)}</span></button>`).join('')}</div>
   <div class="sub" style="margin-top:10px">Tap a country on the globe or in the list for its categories and streamers.</div>`;
   box.querySelectorAll('.podium button').forEach(b=>b.onclick=()=>select(b.dataset.id));return}
  const S=d.top.filter(x=>!selCat||x.game===selCat),cg=d.games.find(g=>g.game===selCat);
- box.innerHTML=`<div class="lbl">// ${RANK[d.id]<3?`<span style="color:${RANKC[RANK[d.id]]}">#${RANK[d.id]+1} COUNTRY</span>`:'#'+(RANK[d.id]+1)}</div><h2>${esc(d.name)}</h2><div class="big">${full(selCat&&cg?cg.viewers:d.viewers)}</div><div class="sub">watching ${selCat?esc(selCat)+' streams':'streamers'} from ${esc(d.name)} right now</div>
+ box.innerHTML=`<div class="lbl">${RANK[d.id]<3?`<span style="color:${RANKC[RANK[d.id]]}">#${RANK[d.id]+1} COUNTRY</span>`:'#'+(RANK[d.id]+1)}</div><h2>${esc(d.name)}</h2><div class="big">${full(selCat&&cg?cg.viewers:d.viewers)}</div><div class="sub">watching ${selCat?esc(selCat)+' streams':'streamers'} from ${esc(d.name)} right now</div>
   <div class="kv"><div>${selCat?S.length:d.channels}<small>LIVE CHANNELS</small></div><div>${tot?(100*(selCat&&cg?cg.viewers:d.viewers)/tot).toFixed(1):0}%<small>OF EVERYONE TRACKED</small></div></div>
   <div class="gm"><a href="#" data-g="" class="${selCat?'':'on'}">All</a>${d.games.map(g=>`<a href="#" data-g="${esc(g.game)}" class="${selCat===g.game?'on':''}">${esc(g.game)}<b>${fmt(g.viewers)}</b></a>`).join('')}</div>
   ${selCat&&cg?`<a class="go" href="${catLink(d,cg)}">${d.country==='IN'?'Open '+esc(selCat)+' in India':'Open '+esc(selCat)+' worldwide'} &rarr;</a>`:''}
