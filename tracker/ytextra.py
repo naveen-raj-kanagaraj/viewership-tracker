@@ -1,0 +1,467 @@
+"""YouTube extras: Super Chats on the biggest live streams, and daily channel stats (subscribers, total views,
+videos) for every YouTube channel the site has seen live.
+
+Super Chats
+  The live chat of the top SUPERCHAT_TOP YouTube streams (by viewers, any country) is read the way the YouTube
+  player reads it: the chat popout page gives the first continuation, then youtubei/v1/live_chat/get_live_chat
+  returns new chat actions and the next continuation every few seconds. Paid items are stored once each (by their
+  chat id) in sc_superchat:
+    superchat  liveChatPaidMessageRenderer       amount shown on the message ("₹500.00", "$5.00", "CA$10.00")
+    sticker    liveChatPaidStickerRenderer       amount shown on the sticker
+    member     liveChatMembershipItemRenderer     a new or renewing member (YouTube shows no amount)
+    gift       ...GiftPurchaseAnnouncementRenderer  memberships gifted (count, no amount)
+  Amounts are converted to USD and INR with that day's exchange rates (open.er-api.com, else a built-in table).
+  They are what viewers paid, before YouTube's cut.
+
+Channel stats
+  Once a day (IST) per channel: YouTube Data API channels.list (statistics) when YOUTUBE_API_KEY is set, else the
+  channel's About page. Stored in sc_chstats (day, sid, subs, views, videos); views gained = difference between days.
+"""
+import json
+import os
+import re
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta
+
+from tracker import events, platforms, store
+
+SUPERCHAT_TOP = int(os.getenv("SUPERCHAT_TOP", "50"))       # how many of the biggest YouTube streams to read chat for
+SUPERCHAT_ON = os.getenv("SUPERCHAT", "true").lower() == "true"
+STATS_ON = os.getenv("CHANNEL_STATS", "true").lower() == "true"
+STATS_MAX = int(os.getenv("CHANNEL_STATS_MAX", "3000"))     # channels snapshotted per day, most watched first
+_pool = ThreadPoolExecutor(6)
+
+# ---------- storage ----------
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS sc_superchat (id TEXT PRIMARY KEY, sid TEXT, vid TEXT, ts INTEGER, day TEXT, kind TEXT,
+    author TEXT, amount REAL, currency TEXT, usd REAL, inr REAL, n INTEGER, text TEXT);
+CREATE INDEX IF NOT EXISTS sc_superchat_ix ON sc_superchat(sid, day);
+CREATE INDEX IF NOT EXISTS sc_superchat_day ON sc_superchat(day);
+CREATE TABLE IF NOT EXISTS sc_chstats (day TEXT, sid TEXT, subs INTEGER, views INTEGER, videos INTEGER, ts INTEGER,
+    PRIMARY KEY (day, sid));
+CREATE INDEX IF NOT EXISTS sc_chstats_sid ON sc_chstats(sid, day);
+"""
+_ready = False
+
+
+def _db():
+    global _ready
+    from tracker import scene
+    c = scene._db()
+    if not _ready:
+        c.executescript(_SCHEMA)
+        _ready = True
+    return c
+
+
+def _day(ts=None) -> str:
+    return datetime.fromtimestamp(ts or time.time(), events.REPORT_TZ).strftime("%Y-%m-%d")
+
+
+# ---------- money ----------
+
+_SYM = {"₹": "INR", "$": "USD", "US$": "USD", "CA$": "CAD", "A$": "AUD", "AU$": "AUD", "NZ$": "NZD", "HK$": "HKD",
+        "NT$": "TWD", "MX$": "MXN", "R$": "BRL", "€": "EUR", "£": "GBP", "¥": "JPY", "JP¥": "JPY", "CN¥": "CNY",
+        "₩": "KRW", "₱": "PHP", "₫": "VND", "฿": "THB", "₽": "RUB", "₺": "TRY", "₪": "ILS", "zł": "PLN", "Rp": "IDR",
+        "RM": "MYR", "S$": "SGD", "SGD": "SGD", "kr": "SEK", "CHF": "CHF", "R": "ZAR", "E£": "EGP", "₦": "NGN",
+        "Rs": "PKR", "৳": "BDT", "₴": "UAH", "₸": "KZT"}
+# units per 1 USD, used when the live rates can't be fetched (approximate, 2026)
+_FX_FALLBACK = {"USD": 1, "INR": 88, "EUR": .92, "GBP": .78, "JPY": 150, "CAD": 1.37, "AUD": 1.52, "NZD": 1.67,
+                "HKD": 7.8, "TWD": 32, "MXN": 18.5, "BRL": 5.4, "KRW": 1380, "PHP": 57, "VND": 25500, "THB": 35,
+                "RUB": 90, "TRY": 41, "ILS": 3.7, "PLN": 3.9, "IDR": 16300, "MYR": 4.4, "SGD": 1.32, "SEK": 10.5,
+                "NOK": 10.7, "DKK": 6.9, "CHF": .86, "ZAR": 18, "EGP": 48, "NGN": 1500, "PKR": 281, "BDT": 120,
+                "UAH": 41, "KZT": 500, "CNY": 7.2, "AED": 3.67, "SAR": 3.75, "ARS": 1000, "CLP": 950, "COP": 4000,
+                "PEN": 3.7, "CZK": 23, "HUF": 360, "RON": 4.6, "LKR": 300, "NPR": 140, "QAR": 3.64, "KWD": .31}
+_FX = {"day": "", "rates": dict(_FX_FALLBACK)}
+
+
+def _rates() -> dict:
+    d = _day()
+    if _FX["day"] != d:
+        _FX["day"] = d
+        try:
+            r = events._http.get("https://open.er-api.com/v6/latest/USD", timeout=10)
+            got = r.json().get("rates") or {}
+            if got.get("INR"):
+                _FX["rates"] = {**_FX_FALLBACK, **{k: float(v) for k, v in got.items()}}
+        except Exception as e:
+            print(f"Exchange rates: using the built-in table ({str(e)[:80]})")
+    return _FX["rates"]
+
+
+def parse_money(txt: str):
+    """'₹1,000.00' -> (1000.0, 'INR'); 'CA$5.00' -> (5.0, 'CAD'); 'PHP 100.00' -> (100.0, 'PHP'). None if unreadable."""
+    t = (txt or "").replace(" ", " ").replace(" ", " ").strip()
+    m = re.match(r"^\s*([^\d\s.,]*)\s*([\d.,]+)\s*([^\d\s.,]*)\s*$", t)
+    if not m:
+        return None
+    pre, num, post = m.group(1), m.group(2), m.group(3)
+    cur_s = pre or post
+    cur = _SYM.get(cur_s) or (cur_s.upper() if re.fullmatch(r"[A-Za-z]{3}", cur_s or "") else None)
+    if not cur:
+        return None
+    if re.search(r",\d{2}$", num) and "." not in num:          # 5,00 (decimal comma)
+        num = num.replace(".", "").replace(",", ".")
+    else:
+        num = num.replace(",", "")
+    try:
+        return float(num), cur
+    except ValueError:
+        return None
+
+
+def to_usd(amount: float, cur: str) -> float:
+    r = _rates().get(cur)
+    return amount / r if r else 0.0
+
+
+# ---------- live chat ----------
+
+_CHAT = {}            # vid -> {sid, cont, key, ver, next, fails, seen}
+_SC_STATE = {"running": False}
+
+
+def _text(o) -> str:
+    if not o:
+        return ""
+    return o.get("simpleText") or "".join(r.get("text") or (r.get("emoji") or {}).get("shortcuts", [""])[0] for r in o.get("runs", []))
+
+
+def _cont_of(conts) -> tuple:
+    for c in conts or []:
+        for k in ("invalidationContinuationData", "timedContinuationData", "reloadContinuationData"):
+            if k in c:
+                return c[k].get("continuation"), int(c[k].get("timeoutMs") or 8000)
+    return None, 8000
+
+
+def _chat_start(vid: str) -> dict:
+    """The chat popout page: first continuation, API key and client version, plus the chat already on screen."""
+    r = events._http.get("https://www.youtube.com/live_chat", params={"is_popout": "1", "v": vid}, timeout=15,
+                         headers={"User-Agent": events._UA, "Accept-Language": "en-US,en;q=0.9"},
+                         cookies={"CONSENT": "YES+", "SOCS": "CAI"})
+    r.raise_for_status()
+    h = r.text
+    m = re.search(r'(?:window\["ytInitialData"\]|var ytInitialData)\s*=\s*(\{.+?\})\s*;\s*</script>', h, re.S)
+    if not m:
+        raise ValueError("no chat data (chat off or stream not live)")
+    data = json.loads(m.group(1))
+    key = (re.search(r'"INNERTUBE_API_KEY"\s*:\s*"([^"]+)"', h) or [None, ""])[1]
+    ver = (re.search(r'"INNERTUBE_CONTEXT_CLIENT_VERSION"\s*:\s*"([^"]+)"', h) or
+           re.search(r'"clientVersion"\s*:\s*"([^"]+)"', h) or [None, "2.20251001.00.00"])[1]
+    lcr = ((data.get("contents") or {}).get("liveChatRenderer") or {})
+    cont, wait = _cont_of(lcr.get("continuations"))
+    if not cont:
+        raise ValueError("chat has no continuation")
+    return {"cont": cont, "key": key, "ver": ver, "wait": wait, "actions": lcr.get("actions") or []}
+
+
+def _chat_next(st: dict) -> dict:
+    r = events._http.post("https://www.youtube.com/youtubei/v1/live_chat/get_live_chat",
+                          params={"prettyPrint": "false", **({"key": st["key"]} if st.get("key") else {})},
+                          json={"context": {"client": {"clientName": "WEB", "clientVersion": st["ver"], "hl": "en", "gl": "US"}},
+                                "continuation": st["cont"]},
+                          headers={"User-Agent": events._UA, "Content-Type": "application/json",
+                                   "Origin": "https://www.youtube.com"}, timeout=15)
+    r.raise_for_status()
+    lcc = ((r.json().get("continuationContents") or {}).get("liveChatContinuation") or {})
+    cont, wait = _cont_of(lcc.get("continuations"))
+    return {"cont": cont, "wait": wait, "actions": lcc.get("actions") or []}
+
+
+def paid_items(actions: list) -> list:
+    """Paid things in a batch of chat actions: [{id, ts, kind, author, amount, currency, n, text}]."""
+    out = []
+    for a in actions or []:
+        it = (a.get("addChatItemAction") or {}).get("item") or {}
+        for kind, key in (("superchat", "liveChatPaidMessageRenderer"), ("sticker", "liveChatPaidStickerRenderer"),
+                          ("member", "liveChatMembershipItemRenderer"),
+                          ("gift", "liveChatSponsorshipsGiftPurchaseAnnouncementRenderer")):
+            r = it.get(key)
+            if not r:
+                continue
+            x = {"id": r.get("id") or "", "ts": int(r.get("timestampUsec") or time.time() * 1e6) // 1_000_000,
+                 "kind": kind, "author": _text(r.get("authorName")), "amount": 0.0, "currency": "", "n": 1,
+                 "text": _text(r.get("message"))[:200]}
+            if kind in ("superchat", "sticker"):
+                pm = parse_money(_text(r.get("purchaseAmountText")))
+                if not pm:
+                    continue
+                x["amount"], x["currency"] = pm
+            elif kind == "gift":
+                hdr = ((r.get("header") or {}).get("liveChatSponsorshipsHeaderRenderer") or {})
+                x["author"] = x["author"] or _text(hdr.get("authorName"))
+                n = re.search(r"(\d+)", _text(hdr.get("primaryText")))
+                x["n"] = int(n.group(1)) if n else 1
+            if x["id"]:
+                out.append(x)
+    return out
+
+
+def _store(vid: str, sid: str, items: list):
+    if not items:
+        return
+    rows = []
+    for x in items:
+        usd = to_usd(x["amount"], x["currency"]) if x["amount"] else 0.0
+        rows.append((x["id"], sid, vid, x["ts"], _day(x["ts"]), x["kind"], x["author"], x["amount"], x["currency"],
+                     round(usd, 4), round(usd * _rates()["INR"], 2), x["n"], x["text"]))
+    with store._lock:
+        c = _db()
+        c.executemany("INSERT OR IGNORE INTO sc_superchat VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
+        c.commit()
+
+
+def _targets() -> dict:
+    """{video id: channel sid} for the biggest YouTube streams in the latest scan."""
+    from tracker import scene
+    rows = [r for r in scene._SCAN.get("rows") or [] if r.get("platform") == "youtube" and (r.get("url") or "").startswith("https://youtu.be/")]
+    rows.sort(key=lambda r: -(r.get("viewers") or 0))
+    return {r["url"].rsplit("/", 1)[-1]: r["sid"] for r in rows[:SUPERCHAT_TOP]}
+
+
+def _poll(vid: str):
+    st = _CHAT[vid]
+    try:
+        if not st.get("cont"):
+            got = _chat_start(vid)
+            st.update(cont=got["cont"], key=got["key"], ver=got["ver"])
+        else:
+            got = _chat_next(st)
+            st["cont"] = got["cont"]
+        _store(vid, st["sid"], paid_items(got["actions"]))
+        st["fails"] = 0
+        st["next"] = time.time() + min(15, max(5, got["wait"] / 1000))
+        if not st["cont"]:                    # chat ended or turned off: start over later
+            st["next"] = time.time() + 300
+    except Exception as e:
+        st["fails"] = st.get("fails", 0) + 1
+        st["cont"] = None
+        st["next"] = time.time() + min(900, 30 * 2 ** min(st["fails"], 5))
+        st["err"] = str(e)[:120]
+    finally:
+        st["busy"] = False
+
+
+def run_superchats():
+    if _SC_STATE["running"] or not SUPERCHAT_ON:
+        return
+    _SC_STATE["running"] = True
+    time.sleep(60)                            # after the first scan
+    while True:
+        try:
+            want = _targets()
+            now = time.time()
+            for vid, sid in want.items():
+                _CHAT.setdefault(vid, {"sid": sid, "cont": None, "next": 0, "fails": 0, "busy": False})["seen"] = now
+            for vid in [v for v, s in _CHAT.items() if now - s.get("seen", 0) > 300 and not s.get("busy")]:
+                del _CHAT[vid]
+            for vid, st in list(_CHAT.items()):
+                if not st["busy"] and st["next"] <= now:
+                    st["busy"] = True
+                    _pool.submit(_poll, vid)
+        except Exception as e:
+            print(f"Super Chat loop: {str(e)[:150]}")
+        time.sleep(1)
+
+
+# ---------- channel stats ----------
+
+def _about_stats(cid: str):
+    """(subs, views, videos) from the channel's About page, or None."""
+    r = events._http.get(f"https://www.youtube.com/channel/{cid}/about", timeout=12,
+                         headers={"User-Agent": events._UA, "Accept-Language": "en-US,en;q=0.9"},
+                         cookies={"CONSENT": "YES+", "SOCS": "CAI"})
+    if r.status_code != 200:
+        return None
+    h = r.text
+
+    def grab(name):
+        m = re.search(r'"%s"\s*:\s*(?:"([^"]+)"|\{"simpleText"\s*:\s*"([^"]+)")' % name, h)
+        return platforms.parse_count((m.group(1) or m.group(2)) if m else "")
+    views = grab("viewCountText")
+    if views is None:
+        return None
+    return grab("subscriberCountText"), views, grab("videoCountText")
+
+
+def channel_stats(cids: list) -> dict:
+    """{channel id: (subs, views, videos)}. YouTube Data API (exact views; 1 quota unit per 50) when
+    YOUTUBE_API_KEY is set, else About pages."""
+    key, out = os.getenv("YOUTUBE_API_KEY"), {}
+    if key:
+        for i in range(0, len(cids), 50):
+            r = events._http.get("https://www.googleapis.com/youtube/v3/channels",
+                                 params={"part": "statistics", "id": ",".join(cids[i:i + 50]), "key": key}, timeout=15)
+            r.raise_for_status()
+            for it in r.json().get("items", []):
+                s = it.get("statistics") or {}
+                out[it["id"]] = (None if s.get("hiddenSubscriberCount") else int(s.get("subscriberCount") or 0),
+                                 int(s.get("viewCount") or 0), int(s.get("videoCount") or 0))
+        return out
+
+    def one(cid):
+        try:
+            return cid, _about_stats(cid)
+        except Exception:
+            return cid, None
+    for cid, v in _pool.map(one, cids):
+        if v:
+            out[cid] = v
+    return out
+
+
+def stats_once(limit: int = 300) -> int:
+    """Snapshot up to `limit` YouTube channels that have none for today yet, most watched first."""
+    d = _day()
+    since = (datetime.now(events.REPORT_TZ).date() - timedelta(days=30)).strftime("%Y-%m-%d")
+    with store._lock:
+        c = _db()
+        todo = [r[0] for r in c.execute(
+            """SELECT c.sid FROM sc_channels c LEFT JOIN (SELECT sid, SUM(hw) hw FROM sc_daily WHERE day>=? GROUP BY sid) d
+               ON d.sid=c.sid WHERE c.platform='youtube' AND c.sid NOT IN (SELECT sid FROM sc_chstats WHERE day=?)
+               ORDER BY COALESCE(d.hw,0) DESC LIMIT ?""", (since, d, STATS_MAX)).fetchall()]
+        done_today = c.execute("SELECT COUNT(*) FROM sc_chstats WHERE day=?", (d,)).fetchone()[0]
+    todo = todo[:max(0, min(limit, STATS_MAX - done_today))]
+    if not todo:
+        return 0
+    got = channel_stats([s[3:] for s in todo])
+    now = int(time.time())
+    with store._lock:
+        c = _db()
+        c.executemany("INSERT OR REPLACE INTO sc_chstats VALUES (?,?,?,?,?,?)",
+                      [(d, "yt:" + cid, s, v, n, now) for cid, (s, v, n) in got.items()])
+        c.commit()
+    return len(got)
+
+
+def run_stats():
+    if not STATS_ON:
+        return
+    time.sleep(120)
+    while True:
+        try:
+            stats_once(300 if os.getenv("YOUTUBE_API_KEY") else 120)
+        except Exception as e:
+            print(f"Channel stats: {str(e)[:150]}")
+        time.sleep(900)                       # every 15 min, until every channel has today's numbers
+
+
+def start():
+    threading.Thread(target=run_superchats, daemon=True).start()
+    threading.Thread(target=run_stats, daemon=True).start()
+
+
+# ---------- numbers for the pages ----------
+
+def _since(n: int) -> str:
+    return (datetime.now(events.REPORT_TZ).date() - timedelta(days=n - 1)).strftime("%Y-%m-%d") if n else ""
+
+
+def channel_extra(sid: str) -> dict:
+    """Super Chats (today / 7 / 30 days / all time, biggest ones) and channel stats (latest, gains) for one channel."""
+    with store._lock:
+        c = _db()
+        sc = {}
+        for k, n in (("today", 1), ("7d", 7), ("30d", 30), ("all", 0)):
+            r = c.execute("""SELECT SUM(usd), SUM(inr), SUM(CASE WHEN kind IN ('superchat','sticker') THEN 1 ELSE 0 END),
+                             SUM(CASE WHEN kind IN ('member','gift') THEN n ELSE 0 END) FROM sc_superchat WHERE sid=? AND day>=?""",
+                          (sid, _since(n))).fetchone()
+            sc[k] = {"usd": round(r[0] or 0, 2), "inr": round(r[1] or 0), "count": r[2] or 0, "members": r[3] or 0}
+        top = [dict(r) for r in c.execute("""SELECT author, amount, currency, usd, inr, ts, text FROM sc_superchat
+                                             WHERE sid=? AND day>=? AND kind IN ('superchat','sticker') ORDER BY usd DESC LIMIT 5""",
+                                          (sid, _since(30)))]
+        st = [dict(r) for r in c.execute("SELECT day, subs, views, videos FROM sc_chstats WHERE sid=? ORDER BY day DESC LIMIT 31", (sid,))]
+    stats = None
+    if st:
+        last = st[0]
+
+        def gain(n):
+            old = next((x for x in st if x["day"] <= (datetime.strptime(last["day"], "%Y-%m-%d").date()
+                                                     - timedelta(days=n)).strftime("%Y-%m-%d")), None)
+            return None if not old else {"views": (last["views"] or 0) - (old["views"] or 0),
+                                         "subs": (last["subs"] or 0) - (old["subs"] or 0) if last["subs"] is not None and old["subs"] is not None else None}
+        stats = {"day": last["day"], "subs": last["subs"], "views": last["views"], "videos": last["videos"],
+                 "gain_1d": gain(1), "gain_7d": gain(7), "gain_30d": gain(30),
+                 "days": [{"day": x["day"], "views": x["views"], "subs": x["subs"]} for x in reversed(st)]}
+    has_sc = any(v["count"] or v["members"] for v in sc.values())
+    return {"superchats": sc if has_sc else None, "top_superchats": top, "stats": stats}
+
+
+def window_superchats(d0: str, d1: str) -> dict:
+    """{sid: {usd, inr, count}} for days d0..d1."""
+    with store._lock:
+        rows = _db().execute("""SELECT sid, SUM(usd), SUM(inr), SUM(CASE WHEN kind IN ('superchat','sticker') THEN 1 ELSE 0 END)
+                                FROM sc_superchat WHERE day BETWEEN ? AND ? GROUP BY sid""", (d0, d1)).fetchall()
+    return {r[0]: {"usd": round(r[1] or 0, 2), "inr": round(r[2] or 0), "count": r[3] or 0} for r in rows}
+
+
+def window_views(d0: str, d1: str) -> dict:
+    """{sid: {views gained, subs gained, subs, views}} between the last snapshot before d0 (or on it) and the last on
+    or before d1. Channels with a single snapshot in reach have no gain yet."""
+    prev = (datetime.strptime(d0, "%Y-%m-%d").date() - timedelta(days=1)).strftime("%Y-%m-%d")
+    with store._lock:
+        rows = _db().execute("""SELECT sid, day, subs, views FROM sc_chstats WHERE day BETWEEN ? AND ? ORDER BY sid, day""",
+                             ((datetime.strptime(prev, "%Y-%m-%d").date() - timedelta(days=3)).strftime("%Y-%m-%d"), d1)).fetchall()
+    by = {}
+    for r in rows:
+        by.setdefault(r[0], []).append(r)
+    out = {}
+    for sid, L in by.items():
+        start = [x for x in L if x[1] <= prev] or [x for x in L if x[1] <= d0]
+        if not start:
+            continue
+        a, b = start[-1], L[-1]
+        if a[1] == b[1]:
+            continue
+        out[sid] = {"vg": max(0, (b[3] or 0) - (a[3] or 0)), "sg": (b[2] - a[2]) if a[2] is not None and b[2] is not None else None,
+                    "subs": b[2], "views": b[3]}
+    return out
+
+
+def probe_chat(vid: str, seconds: int = 60) -> str:
+    """Read one stream's chat for a while and list what was found (for checking from the command line)."""
+    vid = vid.strip().rstrip("/").rsplit("/", 1)[-1].split("v=")[-1].split("&")[0]
+    try:
+        st = _chat_start(vid)
+    except Exception as e:
+        return f"Could not open the chat of {vid}: {e}"
+    lines = [f"Chat opened for {vid} (client {st['ver']}, key {'yes' if st['key'] else 'no'}). On screen now: {len(st['actions'])} items."]
+    found = paid_items(st["actions"])
+    t_end, polls = time.time() + seconds, 0
+    while time.time() < t_end and st.get("cont"):
+        time.sleep(min(10, max(4, st["wait"] / 1000)))
+        try:
+            nx = _chat_next(st)
+        except Exception as e:
+            lines.append(f"Poll failed: {e}")
+            break
+        polls += 1
+        st.update(cont=nx["cont"], wait=nx["wait"])
+        found += paid_items(nx["actions"])
+        lines.append(f"poll {polls}: {len(nx['actions'])} chat actions")
+    for x in found:
+        usd = to_usd(x["amount"], x["currency"]) if x["amount"] else 0
+        lines.append(f"  {x['kind']:9} {x['author'][:24]:24} {x['amount']:>10.2f} {x['currency']:3}  = ${usd:,.2f}  x{x['n']}")
+    lines.append(f"{len(found)} paid items found in {seconds}s." + ("" if found else " (None is normal if nobody paid in that time.)"))
+    return "\n".join(lines)
+
+
+def probe_stats(chan: str) -> str:
+    cid = chan.strip().rstrip("/").rsplit("/", 1)[-1]
+    if not cid.startswith("UC"):
+        try:
+            r = events._http.get(f"https://www.youtube.com/@{cid.lstrip('@')}", timeout=12,
+                                 headers={"User-Agent": events._UA}, cookies={"CONSENT": "YES+", "SOCS": "CAI"})
+            m = re.search(r'"(?:channelId|externalId)"\s*:\s*"(UC[\w-]{22})"', r.text)
+            cid = m.group(1) if m else cid
+        except Exception as e:
+            return f"Could not find {chan}: {e}"
+    got = channel_stats([cid]).get(cid)
+    if not got:
+        return f"No stats read for {cid} ({'YouTube Data API' if os.getenv('YOUTUBE_API_KEY') else 'About page'})."
+    s, v, n = got
+    return f"{cid}: subscribers {s if s is not None else 'hidden'}, total views {v:,}, videos {n}  (via {'YouTube Data API' if os.getenv('YOUTUBE_API_KEY') else 'About page'})"

@@ -27,7 +27,7 @@ body{background:radial-gradient(900px 420px at 85% -15%,rgba(124,92,255,.13),tra
 h1{font:700 38px/1.05 "Barlow Condensed",sans-serif;margin:6px 0 4px;text-transform:uppercase}h1 em{font-style:normal;color:var(--purple)}
 .intro{color:var(--muted);margin:0}
 .filters{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;align-items:center}
-.seg{display:inline-flex;border:1px solid var(--line);background:var(--card)}.seg button{background:none;border:0;color:var(--muted);font:600 13px "Barlow Condensed",sans-serif;letter-spacing:.04em;padding:7px 11px;cursor:pointer}.seg button.on{background:var(--lime);color:#0b0b12}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);background:var(--card)}.seg button{background:none;border:0;color:var(--muted);font:600 13px "Barlow Condensed",sans-serif;letter-spacing:.04em;padding:7px 11px;cursor:pointer}.seg button.on{background:var(--lime);color:#0b0b12}
 select,.dt input{background:var(--card);border:1px solid var(--line);color:var(--ink);font:500 14px "Barlow",sans-serif;padding:6px 9px;max-width:220px}
 .dt{display:inline-flex;align-items:center;border:1px solid var(--line);background:var(--card)}.dt input{border:0;color-scheme:dark}.dt button{background:none;border:0;color:var(--ink);font-size:16px;padding:4px 10px;cursor:pointer}.dt button:disabled{opacity:.3;cursor:default}
 .span{color:var(--muted);font-size:13px;margin-top:10px}
@@ -79,14 +79,15 @@ __PANEL_CSS__
 <div class="span" id="span"></div>
 <div class="podium" id="podium"></div>
 <div class="list"><div class="lth"><span>#</span><span class="lc">STREAMER</span><span id="h1c">HOURS WATCHED</span><span id="h2c">PEAK</span><span id="h3c">AVG</span></div><div id="rows"></div><button class="more" id="more"></button></div>
-<div class="note">Hours watched = viewers x time live. Peak = most people watching at once. Average = hours watched / hours live. Days run midnight to midnight IST. Rank arrows compare with the period before (yesterday, last week, last month). Total views aren't published by Kick and Twitch for live streams, so they're not ranked here.</div>
+<div class="note"><b>Super Chats</b>: what viewers paid in Super Chats and Super Stickers on the biggest YouTube live streams (the top 50 by viewers at any moment), converted at the day's exchange rate, before YouTube's cut. Smaller streams' Super Chats aren't read. <b>Views gained</b>: growth of a YouTube channel's total views (all its videos, not only live) between daily snapshots; it starts counting the day after a channel is first snapshotted. Hours watched = viewers x time live. Peak = most people watching at once. Average = hours watched / hours live. Days run midnight to midnight IST. Rank arrows compare with the period before (yesterday, last week, last month). Total views aren't published by Kick and Twitch for live streams, so they're not ranked here.</div>
 </div>
 <div class="modal" id="modal" style="position:fixed;inset:0;z-index:60;background:rgba(3,2,12,.82);display:none;align-items:center;justify-content:center;padding:16px"><div style="background:var(--bg2);border:1px solid var(--line);padding:14px;max-width:440px;width:100%;max-height:94vh;overflow:auto">
  <img id="mimg" alt="Share card" style="width:100%;display:block;border:1px solid var(--line);margin-bottom:10px"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="mshare">SHARE</button><button class="btn" id="mdl">DOWNLOAD</button><button class="btn" id="mclose" style="background:none;color:var(--muted);border:1px solid var(--line)">CLOSE</button></div></div></div>
 <script>
 const REGION=__REGION__,GL=REGION==='global',RP=GL?'':'/india',SITE=__SITEURL__,WHERE=GL?'worldwide':'in India';
 const NAMES={youtube:'YouTube',kick:'Kick',twitch:'Twitch'},COL={youtube:'#ff4d5e',kick:'#53fc18',twitch:'#a970ff'},MEDAL=['#ffd23f','#d9dde8','#ff9f5a'];
-const MET={hw:['HOURS WATCHED',v=>fmt(v)+'h'],peak:['PEAK VIEWERS',v=>fmt(v)],avg:['AVG VIEWERS',v=>fmt(v)],hours:['HOURS LIVE',v=>v+'h']};
+const MET={hw:['HOURS WATCHED',v=>fmt(v)+'h'],peak:['PEAK VIEWERS',v=>fmt(v)],avg:['AVG VIEWERS',v=>fmt(v)],hours:['HOURS LIVE',v=>v+'h'],
+ sc:['SUPER CHATS',v=>money(v)],vg:['VIEWS GAINED',v=>'+'+fmt(v)]};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>{n=+n||0;return n>=1e7?(n/1e6).toFixed(1)+'M':n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e4?(n/1e3).toFixed(1)+'K':Math.round(n).toLocaleString('en-IN')};
 const full=n=>Math.round(+n||0).toLocaleString('en-IN');
@@ -119,7 +120,7 @@ function render(){if(!R)return;const order=[S.metric,...['hw','peak','avg','hour
  document.getElementById('rows').innerHTML=(top3+rowsHTML())||(R.rows.length>3?'':`<div class="empty">${R.rows.length?'':'Nobody recorded for this '+(S.period==='day'?'day':'period')+' with these filters.'}</div>`);
  const m=document.getElementById('more');m.style.display=(R.rows||[]).length>25?'block':'none';m.textContent=ALL?'Show top 25':`Show top ${Math.min(100,R.rows.length)}`;m.onclick=()=>{ALL=!ALL;render()}}
 function controls(){seg('period',[['day','DAY'],['week','WEEK'],['month','MONTH']],S.period,v=>{S.period=v;go()});
- seg('metric',[['hw','HOURS WATCHED'],['peak','PEAK'],['avg','AVERAGE'],['hours','HOURS LIVE']],S.metric,v=>{S.metric=v;go()});
+ seg('metric',[['hw','HOURS WATCHED'],['peak','PEAK'],['avg','AVERAGE'],['hours','HOURS LIVE'],['sc','SUPER CHATS'],['vg','VIEWS GAINED']],S.metric,v=>{S.metric=v;go()});
  seg('plat',[['','ALL'],['youtube','YT'],['kick','KICK'],['twitch','TWITCH']],S.platform,v=>{S.platform=v;go()});
  const di=document.getElementById('date');if(R){di.max=R.today;di.min=R.first_day||'';di.value=R.date;
   document.getElementById('prev').disabled=!!R.first_day&&R.start<=R.first_day;document.getElementById('next').disabled=R.date>=R.today}
