@@ -404,26 +404,81 @@ function listRows(x,R,avs){R.slice(0,10).forEach((r,i)=>{const y=290+i*96;x.fill
   x.font='22px "Barlow Condensed",sans-serif';x.fillStyle=r.color||'#8d8ca3';x.fillText((r.tag||'').slice(0,46),tx,y+64);
   x.textAlign='right';x.fillStyle='#ffffff';x.font='700 40px "Barlow Condensed",sans-serif';x.fillText(r.value,1008,y+46);x.textAlign='left';x.fillStyle='#1d1d2b';x.fillRect(72,y+84,936,1)})}
 let SHARESID=null;
+const hmTxt=h=>{h=+h||0;if(h>=1000)return fmt(h)+'h';const H=Math.floor(h),M=Math.round((h-H)*60);return H?`${H}h ${M}m`:`${M}m`};
+function rr(x,X,Y,W,H,r,fill,stroke){x.beginPath();x.moveTo(X+r,Y);x.arcTo(X+W,Y,X+W,Y+H,r);x.arcTo(X+W,Y+H,X,Y+H,r);x.arcTo(X,Y+H,X,Y,r);x.arcTo(X,Y,X+W,Y,r);x.closePath();if(fill){x.fillStyle=fill;x.fill()}if(stroke){x.strokeStyle=stroke;x.lineWidth=2;x.stroke()}}
+function icon(x,k,cx,cy,s){x.save();x.strokeStyle='#8d8ca3';x.fillStyle='#8d8ca3';x.lineWidth=2.4;x.lineCap='round';x.beginPath();
+ if(k==='peak'){x.moveTo(cx-s,cy+s*.6);x.lineTo(cx-s*.3,cy-s*.1);x.lineTo(cx+s*.2,cy+s*.3);x.lineTo(cx+s,cy-s*.7);x.stroke();x.strokeRect(cx-s,cy-s,s*2,s*2)}
+ else if(k==='avg'){[-.6,0,.6].forEach((o,i)=>{x.moveTo(cx+o*s,cy+s);x.lineTo(cx+o*s,cy+s-(i+1)*s*.6)});x.stroke()}
+ else if(k==='hw'){x.arc(cx,cy,s,0,7);x.moveTo(cx,cy);x.lineTo(cx,cy-s*.6);x.moveTo(cx,cy);x.lineTo(cx+s*.45,cy+s*.2);x.stroke()}
+ else{x.arc(cx,cy,s*.25,0,7);x.fill();x.beginPath();[.6,1].forEach(r=>{x.moveTo(cx-r*s*.7,cy-r*s*.7);x.arc(cx,cy,r*s,Math.PI*1.25,Math.PI*.75,true);x.moveTo(cx+r*s*.7,cy-r*s*.7);x.arc(cx,cy,r*s,-Math.PI*.25,Math.PI*.25)});x.stroke()}
+ x.restore()}
+function avatar(x,im,name,cx,cy,r,platform){x.save();x.beginPath();x.arc(cx,cy,r,0,7);x.closePath();if(im){x.clip();x.drawImage(im,cx-r,cy-r,r*2,r*2)}else{x.fillStyle='#262636';x.fill();x.fillStyle='#8d8ca3';x.font=`700 ${r*.8}px "Barlow",sans-serif`;x.textAlign='center';x.textBaseline='middle';x.fillText(String(name||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase()||'?',cx,cy+2)}x.restore();
+ x.beginPath();x.arc(cx,cy,r,0,7);x.strokeStyle='#262636';x.lineWidth=3;x.stroke();
+ if(platform){const bx=cx+r*.62,by=cy+r*.62;rr(x,bx-13,by-13,26,26,6,COL[platform]||'#888','#0b0b12');x.fillStyle='#0b0b12';x.font='700 15px "Barlow",sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(platform[0].toUpperCase(),bx,by+1)}
+ x.textAlign='left';x.textBaseline='alphabetic'}
+function fitText(x,t,w){t=String(t||'');if(x.measureText(t).width<=w)return t;while(t.length>2&&x.measureText(t+'…').width>w)t=t.slice(0,-1);return t+'…'}
+// portrait (1080x1350) stats card: title, pill, overall statistics, top channels by peak, top channels by hours watched
+async function statCard(o){const c=document.createElement('canvas');c.width=2160;c.height=2700;const x=c.getContext('2d');x.scale(2,2);
+ x.fillStyle='#0b0b12';x.fillRect(0,0,1080,1350);let g=x.createRadialGradient(980,-80,20,980,-80,820);g.addColorStop(0,'rgba(124,92,255,.32)');g.addColorStop(1,'rgba(124,92,255,0)');x.fillStyle=g;x.fillRect(0,0,1080,1350);
+ g=x.createRadialGradient(80,1400,20,80,1400,700);g.addColorStop(0,'rgba(182,242,58,.10)');g.addColorStop(1,'rgba(182,242,58,0)');x.fillStyle=g;x.fillRect(0,0,1080,1350);
+ const L=56,R=1024,W=R-L;
+ // title
+ let tx=L;if(o.logo){const im=await loadImg(o.logo);avatar(x,im,o.title,L+48,100,48);tx=L+120}
+ x.fillStyle='#ffffff';x.font='700 66px "Barlow Condensed",sans-serif';x.fillText(fitText(x,o.title.toUpperCase(),R-tx),tx,110);
+ x.fillStyle='#8d8ca3';x.font='26px "Barlow",sans-serif';x.fillText(fitText(x,o.sub||'',R-tx),tx,146);
+ // pill
+ x.font='700 26px "Barlow Condensed",sans-serif';const p1=x.measureText(o.pill[0]).width+44,p2=x.measureText(o.pill[1]).width+44;
+ rr(x,L,172,p1+p2,48,24,null,'#b6f23a');rr(x,L,172,p1,48,24,'#b6f23a');x.fillStyle='#0b0b12';x.fillText(o.pill[0],L+22,205);x.fillStyle='#ffffff';x.fillText(o.pill[1],L+p1+22,205);
+ const head=(t,y)=>{rr(x,L,y,W,46,10,'rgba(255,255,255,.05)');x.fillStyle='#8d8ca3';x.font='600 22px "Barlow Condensed",sans-serif';x.fillText(t,L+22,y+31)};
+ // overall statistics
+ head('OVERALL STATISTICS',246);
+ rr(x,L,302,W,174,14,'#13131c');icon(x,'peak',L+40,346,12);x.fillStyle='#b9b8cc';x.font='600 26px "Barlow Condensed",sans-serif';x.fillText('PEAK VIEWERS',L+68,356);
+ x.fillStyle='#ffffff';x.font='700 100px "Barlow Condensed",sans-serif';x.fillText(full(o.peak),L+28,452);
+ if(o.peakSub){x.fillStyle='#b6f23a';x.font='600 22px "Barlow Condensed",sans-serif';x.textAlign='right';x.fillText(fitText(x,o.peakSub,520),R-26,356);x.textAlign='left'}
+ if(o.now!=null){x.textAlign='right';x.fillStyle='#8d8ca3';x.font='600 22px "Barlow Condensed",sans-serif';x.fillText('WATCHING NOW',R-26,412);x.fillStyle='#ff4d5e';x.font='700 40px "Barlow Condensed",sans-serif';x.fillText(full(o.now),R-26,452);x.textAlign='left'}
+ o.rows.forEach(([k,l,v],i)=>{const y=488+i*66;rr(x,L,y,W,56,12,'#13131c');icon(x,k,L+36,y+28,11);x.fillStyle='#b9b8cc';x.font='600 24px "Barlow Condensed",sans-serif';x.fillText(l,L+64,y+37);
+  x.textAlign='right';x.fillStyle='#ffffff';x.font='700 40px "Barlow Condensed",sans-serif';x.fillText(v,R-26,y+42);x.textAlign='left'});
+ // top channels by peak
+ let y=700;head(o.a.label,y);y+=56;const ims=await Promise.all(o.a.rows.map(r=>r.logo?loadImg(r.logo):null));
+ o.a.rows.forEach((r,i)=>{rr(x,L,y,W,88,14,'#13131c');
+  if(r.badge){rr(x,L+20,y+14,60,60,30,'#262636');x.fillStyle=i===0?'#b6f23a':'#eeeef5';x.font='700 26px "Barlow Condensed",sans-serif';x.textAlign='center';x.fillText('#'+(i+1),L+50,y+53);x.textAlign='left'}
+  else avatar(x,ims[i],r.name,L+50,y+44,31,r.platform);
+  x.fillStyle='#ffffff';x.font='700 32px "Barlow",sans-serif';x.fillText(fitText(x,r.name,520),L+100,y+42);x.fillStyle='#8d8ca3';x.font='22px "Barlow",sans-serif';x.fillText(fitText(x,r.sub||'',520),L+100,y+70);
+  x.textAlign='right';x.fillStyle='#ffffff';x.font='700 44px "Barlow Condensed",sans-serif';x.fillText(r.value,R-26,y+46);x.textAlign='left';
+  rr(x,R-246,y+62,220,8,4,'#262636');if(r.frac>0)rr(x,R-26-220*Math.min(1,r.frac),y+62,220*Math.min(1,r.frac),8,4,'#b6f23a');y+=98});
+ // top channels by hours watched: three small cards
+ if(o.b){y+=-4;head(o.b.label,y);y+=56;const bi=await Promise.all(o.b.rows.map(r=>r.logo?loadImg(r.logo):null)),cw=(W-24)/3;
+  o.b.rows.forEach((r,i)=>{const X=L+i*(cw+12);rr(x,X,y,cw,92,14,'#13131c');
+   if(r.big!=null){x.fillStyle='#ffffff';x.font='700 44px "Barlow Condensed",sans-serif';x.fillText(r.big,X+20,y+48);x.fillStyle='#8d8ca3';x.font='600 19px "Barlow Condensed",sans-serif';x.fillText(r.sub,X+20,y+76)}
+   else{avatar(x,bi[i],r.name,X+44,y+46,27,r.platform);x.fillStyle='#ffffff';x.font='700 25px "Barlow",sans-serif';x.fillText(fitText(x,r.name,cw-96),X+84,y+42);x.fillStyle='#8d8ca3';x.font='20px "Barlow",sans-serif';x.fillText(fitText(x,r.sub||'',cw-96),X+84,y+70)}});y+=92}
+ // footer
+ x.fillStyle='#262636';x.fillRect(L,1236,W,2);x.fillStyle='#b6f23a';x.font='700 30px "Barlow Condensed",sans-serif';x.fillText('LETSGROWESPORTS',L,1292);
+ const bw=x.measureText('LETSGROWESPORTS').width;x.fillStyle='#262636';x.fillRect(L+bw+20,1266,2,34);x.fillStyle='#8d8ca3';x.font='22px "Barlow",sans-serif';x.fillText('More live stats on',L+bw+40,1291);
+ const mw=x.measureText('More live stats on ').width;x.fillStyle='#ffffff';x.font='700 22px "Barlow",sans-serif';x.fillText(SITE.replace(/^https?:\/\//,'').toUpperCase(),L+bw+40+mw,1291);
+ x.textAlign='right';x.fillStyle='#8d8ca3';x.font='22px "Barlow",sans-serif';x.fillText('@letsgrowesports',R,1291);x.textAlign='left';
+ return [c,x]}
 async function card(type){let c,x,text;const sc=SCOPE(),K=D.kpis||{};
- if(type==='chan'){const ch=CH[SHARESID];if(!ch)return card('board');const P=ch.periods,bi=(D.board||[]).findIndex(b=>b.sid===SHARESID),rk=bi>=0?bi+1:null,now=liveMap()[SHARESID]||ch.now;
-  [c,x]=base(ch.name.toUpperCase().slice(0,26),`${(NAMES[ch.platform]||'').toUpperCase()}${ch.country?' · '+ch.country.toUpperCase():''} · ${GL?'WORLDWIDE':'INDIA'}`);
-  const im=await loadImg(ch.logo);if(im){x.save();x.beginPath();x.arc(944,150,64,0,7);x.clip();x.drawImage(im,880,86,128,128);x.restore()}
-  x.fillStyle='#13131c';x.fillRect(72,290,936,200);x.fillStyle=rk&&rk<=3?['#ffd23f','#d9dde8','#ff9f5a'][rk-1]:'#b6f23a';x.font='700 150px "Barlow Condensed",sans-serif';x.fillText(rk?'#'+rk:'-',100,445);
-  x.fillStyle='#8d8ca3';x.font='28px "Barlow Condensed",sans-serif';x.fillText(rk?`RANK ${PERB[per].toUpperCase()} · ${sc.toUpperCase()}`.slice(0,44):'NOT RANKED IN THIS VIEW',340,350);
-  x.fillStyle='#ffffff';x.font='700 46px "Barlow Condensed",sans-serif';x.fillText(now?`LIVE · ${full(now)} WATCHING`:`PEAK TODAY ${fmt(P.today.peak)}`,340,410);
-  const t=[['PEAK TODAY',fmt(P.today.peak)],['AVG VIEWERS 7D',fmt(P['7d'].avg)],['HOURS WATCHED 30D',fmt(P['30d'].hw)+'h'],['ALL-TIME PEAK',fmt(P.all.peak)],['HOURS STREAMED 30D',P['30d'].hours+'h'],['DAYS LIVE 30D',String(P['30d'].days)]];
-  t.forEach(([l,v],i)=>{const X=72+(i%3)*316,Y=520+Math.floor(i/3)*190;x.fillStyle='#13131c';x.fillRect(X,Y,300,170);x.fillStyle='#ff4d5e';x.font='22px "Barlow Condensed",sans-serif';x.fillText(l,X+22,Y+40);x.fillStyle='#ffffff';x.font='700 72px "Barlow Condensed",sans-serif';x.fillText(v,X+22,Y+125)});
-  x.fillStyle='#ff4d5e';x.font='24px "Barlow Condensed",sans-serif';x.fillText('PEAK VIEWERS PER DAY · LAST 30 DAYS',72,935);
-  const M={};(ch.days||[]).forEach(d=>M[d.day]=d.peak);const L=[];for(let i=29;i>=0;i--)L.push(M[new Date(Date.now()-i*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})]||0);const mx=Math.max(1,...L);
-  L.forEach((v,i)=>{const h=260*v/mx;x.fillStyle=v===mx?'#b6f23a':'#7a5cff';x.fillRect(72+i*31.2,1230-h,24,h)});
-  text=`${ch.name}${rk?` is #${rk} ${WHERE} ${PERB[per]}`:''}: peak ${fmt(P.today.peak)} today, all-time peak ${fmt(P.all.peak)}, ${fmt(P['30d'].hw)} hours watched in 30 days.`;return [c,text]}
- if(type==='now'){[c,x]=base((CAT||SEC?(CAT?CATNAME:SECNAME[SEC]):'LIVE STREAMING').toUpperCase(),`${GL?'Worldwide':'India'} · YouTube + Kick + Twitch · right now`);
-  const tiles=[['WATCHING NOW',full(K.watching)],['LIVE CHANNELS',full(K.live_channels)],['PEAK TODAY',fmt(K.peak_today)],['HOURS WATCHED TODAY',fmt(K.hw_today)+'h']];
-  tiles.forEach(([l,v],i)=>{const X=72+(i%2)*474,Y=300+Math.floor(i/2)*210;x.fillStyle='#13131c';x.fillRect(X,Y,462,190);x.fillStyle='#ff4d5e';x.font='24px "Barlow Condensed",sans-serif';x.fillText(''+l,X+24,Y+44);x.fillStyle='#ffffff';x.font=`700 ${i?72:80}px "Barlow Condensed",sans-serif`;x.fillText(v,X+24,Y+140)});
-  const T=(CAT?D.live.map(s=>[s.name,s.viewers]):SEC?(D.categories||[]).map(g=>[g.game,g.viewers]):(D.sections||[]).filter(s=>s.viewers).map(s=>[s.name,s.viewers])).slice(0,5);
-  x.fillStyle='#ff4d5e';x.font='28px "Barlow Condensed",sans-serif';x.fillText(CAT?'TOP STREAMS':SEC?'TOP GAMES':'BY SECTION',72,770);
-  T.forEach((r,i)=>{const y=840+i*80;x.fillStyle=i===0?'#b6f23a':'#ffffff';x.font='700 40px "Barlow",sans-serif';x.fillText(`${i+1}. ${r[0]}`.slice(0,30),72,y);x.textAlign='right';x.font='700 40px "Barlow Condensed",sans-serif';x.fillText(fmt(r[1]),1008,y);x.textAlign='left'});
-  text=`${sc}: ${full(K.watching)} watching right now across ${full(K.live_channels)} live channels on YouTube, Kick and Twitch. Peak today ${fmt(K.peak_today)}.`}
+ if(type==='chan'){const ch=CH[SHARESID];if(!ch)return card('board');const P=ch.periods,bi=(D.board||[]).findIndex(b=>b.sid===SHARESID),rk=bi>=0?bi+1:null,now=liveMap()[SHARESID]||ch.now,S=ch.stats;
+  const best=(ch.days||[]).slice().sort((a,b)=>b.peak-a.peak).slice(0,3),bm=Math.max(1,...best.map(d=>d.peak));
+  [c,x]=await statCard({title:ch.name,logo:ch.logo,sub:[(NAMES[ch.platform]||''),ch.country,S&&S.subs!=null?fmt(S.subs)+' subscribers':''].filter(Boolean).join(' · '),
+   pill:['CHANNEL STATS','LAST 30 DAYS'],peak:P['30d'].peak,peakSub:now?`LIVE NOW · ${full(now)} WATCHING`:rk?`#${rk} ${PERB[per].toUpperCase()} ${WHERE.toUpperCase()}`:'',
+   rows:[['avg','AVERAGE VIEWERS',full(P['30d'].avg)],['hw','HOURS WATCHED',full(P['30d'].hw)],['air','AIR TIME',hmTxt(P['30d'].hours)]],
+   a:{label:'BEST DAYS BY PEAK VIEWERS',rows:best.map(d=>({name:dshort(d.day),sub:d.game+(d.hours?' · '+hmTxt(d.hours)+' live':''),value:full(d.peak),frac:d.peak/bm,badge:'DAY'}))},
+   b:{label:'AT A GLANCE',rows:[{big:fmt(P.today.peak),sub:'PEAK TODAY'},{big:fmt(P['7d'].avg),sub:'AVG VIEWERS, 7 DAYS'},{big:fmt(P.all.peak),sub:'ALL-TIME PEAK'}]}});
+  text=`${ch.name}${rk?` is #${rk} ${WHERE} ${PERB[per]}`:''}: peak ${fmt(P['30d'].peak)} in the last 30 days, ${fmt(P['30d'].hw)} hours watched, ${hmTxt(P['30d'].hours)} live.`;return [c,text]}
+ if(type==='now'){const B=(D.board||[]).slice(),esp=SEC==='esports'||!B.length;
+  const A=esp?(D.tournaments||[]).slice(0,3).map(t=>({name:t.name,sub:t.game+' · '+t.streams+' streams',value:full(t.viewers),logo:t.art,frac:0})):B.sort((a,b)=>b.peak-a.peak).slice(0,3).map(b=>({name:b.name,sub:b.game+' · '+(NAMES[b.platform]||''),value:full(b.peak),logo:b.logo,platform:b.platform}));
+  const am=Math.max(1,...A.map(r=>+String(r.value).replace(/\D/g,'')));A.forEach(r=>r.frac=+String(r.value).replace(/\D/g,'')/am);
+  const Bh=(D.board||[]).slice().sort((a,b)=>b.hw-a.hw).slice(0,3).map(b=>({name:b.name,sub:fmt(b.hw)+'h · '+(NAMES[b.platform]||''),logo:b.logo,platform:b.platform}));
+  const lead=K.peak_lead;
+  [c,x]=await statCard({title:CAT?CATNAME:SEC?SECNAME[SEC]:'Live streaming',sub:(GL?'Worldwide':'India')+' · YouTube, Kick and Twitch',
+   pill:['LIVE VIEWERSHIP',ist(Date.now()/1000,{day:'numeric',month:'short',year:'numeric'}).toUpperCase()],
+   peak:K.peak_today,peakSub:(K.peak_today_at?'TODAY AT '+ist(K.peak_today_at,{hour:'numeric',minute:'2-digit'}).toUpperCase()+' IST':'TODAY')+(lead?' · LED BY '+lead.name.toUpperCase():''),
+   now:K.watching,
+   rows:[['avg','AVERAGE VIEWERS',full(K.avg_today!=null?K.avg_today:K.hw_today/Math.max(1,(Date.now()/1000-((D.daily||[]).length?new Date(D.daily[D.daily.length-1].day+'T00:00:00+05:30').getTime()/1000:Date.now()/1000-3600))/3600))],['hw','HOURS WATCHED',full(K.hw_today)],['air','AIR TIME',hmTxt(K.air_today!=null?K.air_today:per==='today'?(D.board||[]).reduce((a,b)=>a+(b.airtime_h||0),0):0)]],
+   a:{label:esp?'TOURNAMENTS LIVE NOW':'TOP CHANNELS BY PEAK VIEWERS',rows:A},
+   b:Bh.length?{label:'TOP CHANNELS BY HOURS WATCHED',rows:Bh}:null});
+  text=`${sc}: peak ${full(K.peak_today)} watching at once today, ${full(K.hw_today)} hours watched, ${full(K.watching)} watching right now on YouTube, Kick and Twitch.`}
  else if(type==='chart'&&cmode==='days'){const S=D.daily||[],b=S.reduce((a,d)=>d.peak>(a?a.peak:0)?d:a,null);[c,x]=base(sc.toUpperCase(),'Day by day, peak watching at once');x.fillStyle='#ff4d5e';x.font='30px "Barlow Condensed",sans-serif';x.fillText('BEST DAY',72,320);
   x.fillStyle='#ffffff';x.font='700 150px "Barlow Condensed",sans-serif';x.fillText(b?fmt(b.peak):'-',64,460);x.fillStyle='#8d8ca3';x.font='28px "Barlow Condensed",sans-serif';x.fillText(b?dshort(b.day):'',72,505);
   x.save();x.translate(40,560);plotDays(x,1000,640,S,1.7);x.restore();text=`${sc}: best day ${b?fmt(b.peak)+' watching at once on '+dshort(b.day):'-'}.`}
