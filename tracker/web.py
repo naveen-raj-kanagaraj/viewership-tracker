@@ -23,7 +23,7 @@ PORT = int(os.getenv("EVENT_WEB_PORT", "8092"))
 app = Flask(__name__)
 
 
-CACHE = {"/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
+CACHE = {"/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
 
 
 
@@ -306,6 +306,16 @@ def scene_search():
     return _memo(f"/api/search:{region}:{q}", 20, _jdump(lambda: scene.search(q, region)), "application/json")
 
 
+@app.route("/api/channel")
+def scene_channel():
+    """One channel's analytics: /api/channel?sid=yt:UC..."""
+    from tracker import scene
+    sid = (request.args.get("sid") or "")[:120]
+    if not __import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid):
+        return Response("{}", status=404, mimetype="application/json")
+    return _memo(f"/api/channel:{sid}", 15, _jdump(lambda: scene.channel(sid)), "application/json")
+
+
 @app.route("/api/geo")
 def scene_geo():
     """Live viewers by streamer country, for the globe."""
@@ -316,7 +326,8 @@ def scene_geo():
 @app.route("/map")
 def world_map():
     from tracker import mappage
-    return _memo("/map", 300, mappage.build_html, "text/html")
+    embed = request.args.get("embed") == "1"
+    return _memo(f"/map:{embed}", 300, lambda: mappage.build_html(embed), "text/html")
 
 
 @app.route("/india/map")

@@ -41,100 +41,100 @@ CSS = r"""
 :root{color-scheme:dark;--bg:#0b0b12;--bg2:#121219;--card:#13131c;--card2:#1a1a26;--ink:#eeeef5;--muted:#8d8ca3;--line:#262636;
 --lime:#b6f23a;--purple:#7c5cff;--cyan:#4cc9f0;--orange:#ff8a3d;--red:#ff4d5e;--gold:#f5c451}
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Chakra Petch",system-ui,sans-serif;overflow-x:hidden}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Barlow",system-ui,sans-serif;overflow-x:hidden}
 body{background:radial-gradient(800px 380px at 80% -15%,rgba(124,92,255,.14),transparent 60%),var(--bg);min-height:100vh}
 a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
-.mono{font-family:"Share Tech Mono",ui-monospace,monospace}.muted{color:var(--muted)}
+.mono{font-family:"Barlow Condensed",sans-serif,monospace}.muted{color:var(--muted)}
 .wrap{max-width:980px;margin:0 auto;padding:0 16px 96px}
 .bar{position:sticky;top:0;z-index:20;background:rgba(11,11,18,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 .bar .in{max-width:980px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:10px}
 .title{margin-right:auto;line-height:1.1;min-width:0}
-.brand{display:block;font:12px "Share Tech Mono",monospace;color:var(--lime);letter-spacing:.04em}
+.brand{display:block;font:12px "Barlow Condensed",sans-serif;color:var(--lime);letter-spacing:.04em}
 .title h1{margin:2px 0 0;font-size:19px;font-weight:700;text-transform:uppercase;letter-spacing:.02em;white-space:nowrap}
 .title h1 span{color:var(--muted);font-weight:600;font-size:13px}
 .card{position:relative;background:var(--card);border:1px solid var(--line);padding:16px;min-width:0;margin-top:12px}
 .card:before,.card:after{content:"";position:absolute;width:12px;height:12px;border:2px solid var(--lime);pointer-events:none}
 .card:before{top:-1px;left:-1px;border-right:0;border-bottom:0}.card:after{bottom:-1px;right:-1px;border-left:0;border-top:0}
-.lbl{font:12px "Share Tech Mono",monospace;color:var(--red);letter-spacing:.08em;text-transform:uppercase}
-h2{font:700 15px "Chakra Petch",sans-serif;text-transform:uppercase;letter-spacing:.04em;margin:0}
+.lbl{font:12px "Barlow Condensed",sans-serif;color:var(--red);letter-spacing:.08em;text-transform:uppercase}
+h2{font:700 15px "Barlow",sans-serif;text-transform:uppercase;letter-spacing:.04em;margin:0}
 .head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}.head>div:first-child{margin-right:auto;min-width:0}
-.btn{all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;font:700 13px "Chakra Petch",sans-serif;text-transform:uppercase;letter-spacing:.04em;background:var(--lime);color:#0a0a14;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);box-sizing:border-box}
+.btn{all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;font:700 13px "Barlow",sans-serif;text-transform:uppercase;letter-spacing:.04em;background:var(--lime);color:#0a0a14;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);box-sizing:border-box}
 .btn:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);clip-path:none}.btn.sm{padding:5px 10px;font-size:11px}
 .btn[disabled]{opacity:.5;cursor:default}
 .hero h2{font-size:30px;line-height:1.05;margin:8px 0 6px}.hero h2 b{color:var(--lime)}
 .hero p{margin:0;color:var(--muted);max-width:620px}
 .prize{display:flex;align-items:center;gap:12px;margin-top:14px;padding:12px 14px;border:1px solid rgba(245,196,81,.45);background:linear-gradient(90deg,rgba(245,196,81,.14),rgba(245,196,81,.02))}
-.prize{flex-direction:column;align-items:flex-start;gap:2px}.prize .ic{flex:none;width:38px;height:38px;display:grid;place-items:center;background:var(--gold);color:#0a0a14;font:700 18px "Chakra Petch";clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
+.prize{flex-direction:column;align-items:flex-start;gap:2px}.prize .ic{flex:none;width:38px;height:38px;display:grid;place-items:center;background:var(--gold);color:#0a0a14;font:700 18px "Barlow";clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
 .prize b{color:var(--gold);display:block;font-size:15px;text-transform:uppercase}.prize span{font-size:13px;color:var(--muted)}
 .stats{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--line);background:var(--card2);font:12px "Share Tech Mono",monospace;white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--line);background:var(--card2);font:12px "Barlow Condensed",sans-serif;white-space:nowrap}
 .pill b{color:var(--lime);font-weight:400}.pill.red b{color:var(--red)}
-.field{display:block;margin:10px 0 0}.field span{display:block;font:12px "Share Tech Mono",monospace;color:var(--muted);margin-bottom:4px}
-.inp{width:100%;background:var(--bg2);border:1px solid var(--line);color:var(--ink);padding:10px 12px;font:16px "Chakra Petch",sans-serif;outline:none;border-radius:0}
+.field{display:block;margin:10px 0 0}.field span{display:block;font:12px "Barlow Condensed",sans-serif;color:var(--muted);margin-bottom:4px}
+.inp{width:100%;background:var(--bg2);border:1px solid var(--line);color:var(--ink);padding:10px 12px;font:16px "Barlow",sans-serif;outline:none;border-radius:0}
 .inp:focus{border-color:var(--lime)}.at{display:flex;align-items:stretch}.at i{font-style:normal;display:grid;place-items:center;padding:0 10px;border:1px solid var(--line);border-right:0;background:var(--card2);color:var(--muted)}
 .chk{display:flex;gap:8px;align-items:flex-start;margin:12px 0;font-size:13px;color:var(--muted)}.chk input{margin-top:3px;accent-color:#b6f23a;width:16px;height:16px;flex:none}
 .err{color:var(--red);font-size:13px;margin-top:8px;min-height:1em}
 .me{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.me .who{margin-right:auto}.me .who b{font-size:18px;display:block}
-.av{width:42px;height:42px;flex:none;display:grid;place-items:center;background:var(--purple);font:700 16px "Chakra Petch";clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
+.av{width:42px;height:42px;flex:none;display:grid;place-items:center;background:var(--purple);font:700 16px "Barlow";clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
 .tabs{display:flex;margin:0 0 12px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
-.tabs button{all:unset;cursor:pointer;padding:9px 13px;font:700 13px "Chakra Petch",sans-serif;text-transform:uppercase;color:var(--muted);border-bottom:3px solid transparent;white-space:nowrap}
+.tabs button{all:unset;cursor:pointer;padding:9px 13px;font:700 13px "Barlow",sans-serif;text-transform:uppercase;color:var(--muted);border-bottom:3px solid transparent;white-space:nowrap}
 .tabs button.on{color:var(--ink);border-color:var(--lime);background:linear-gradient(0deg,rgba(182,242,58,.10),transparent)}
-.tabs button small{font:11px "Share Tech Mono",monospace;color:var(--muted);margin-left:5px}
+.tabs button small{font:11px "Barlow Condensed",sans-serif;color:var(--muted);margin-left:5px}
 .qs{display:grid;grid-template-columns:1fr;gap:12px}
 .q{background:var(--card2);border:1px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
 .q.res{border-color:rgba(182,242,58,.35)}.q.void{opacity:.55}
-.qt{display:flex;justify-content:space-between;gap:8px;font:11px "Share Tech Mono",monospace;color:var(--muted);text-transform:uppercase}
+.qt{display:flex;justify-content:space-between;gap:8px;font:11px "Barlow Condensed",sans-serif;color:var(--muted);text-transform:uppercase}
 .qt .tag{color:var(--purple)}.qt .cl.open{color:var(--lime)}.qt .cl.shut{color:var(--red)}
-.q h3{margin:0;font:700 17px/1.2 "Chakra Petch",sans-serif}
+.q h3{margin:0;font:700 17px/1.2 "Barlow",sans-serif}
 .opts{display:grid;grid-template-columns:1fr 1fr;gap:8px}.opts.one{grid-template-columns:1fr}
-.opt{all:unset;cursor:pointer;position:relative;overflow:hidden;padding:11px 12px;border:1px solid var(--line);background:var(--bg2);font:700 14px "Chakra Petch";display:flex;justify-content:space-between;gap:8px;min-height:20px}
+.opt{all:unset;cursor:pointer;position:relative;overflow:hidden;padding:11px 12px;border:1px solid var(--line);background:var(--bg2);font:700 14px "Barlow";display:flex;justify-content:space-between;gap:8px;min-height:20px}
 .opt .fill{position:absolute;inset:0 auto 0 0;background:rgba(124,92,255,.22);z-index:0;transition:width .4s}.opt>span{position:relative;z-index:1}
-.opt .pc{font:12px "Share Tech Mono",monospace;color:var(--muted)}
+.opt .pc{font:12px "Barlow Condensed",sans-serif;color:var(--muted)}
 .opt.mine{border-color:var(--lime);box-shadow:inset 0 0 0 1px var(--lime)}.opt.mine .fill{background:rgba(182,242,58,.22)}
 .opt.ok{border-color:var(--lime)}.opt.ok:after{content:"\2713";position:relative;z-index:1;color:var(--lime)}
 .opt[disabled]{cursor:default}
-.cb{position:relative}.cbb{all:unset;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid var(--line);background:var(--bg2);font:700 15px "Chakra Petch"}
+.cb{position:relative}.cbb{all:unset;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid var(--line);background:var(--bg2);font:700 15px "Barlow"}
 .cbb.mine{border-color:var(--lime)}.cbb .ph{color:var(--muted);font-weight:500}.cbb:after{content:"\25BE";color:var(--muted)}
 .cbp{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:30;background:var(--bg2);border:1px solid var(--lime);box-shadow:0 12px 30px rgba(0,0,0,.6)}
 .cbp .inp{border:0;border-bottom:1px solid var(--line)}
-.cbl{max-height:260px;overflow:auto}.cbl button{all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;padding:11px 12px;font:600 15px "Chakra Petch";border-bottom:1px solid var(--line)}
+.cbl{max-height:260px;overflow:auto}.cbl button{all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;padding:11px 12px;font:600 15px "Barlow";border-bottom:1px solid var(--line)}
 .cbl button:hover,.cbl button:focus{background:rgba(182,242,58,.1)}.cbl button.sel{color:var(--lime)}
 .crowd{display:flex;flex-direction:column;gap:5px}.cr{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;font-size:13px;position:relative;padding:5px 8px;background:var(--bg2);overflow:hidden}
-.cr .fill{position:absolute;inset:0 auto 0 0;background:rgba(124,92,255,.25)}.cr>span{position:relative}.cr .pc{font:12px "Share Tech Mono",monospace;color:var(--muted)}
+.cr .fill{position:absolute;inset:0 auto 0 0;background:rgba(124,92,255,.25)}.cr>span{position:relative}.cr .pc{font:12px "Barlow Condensed",sans-serif;color:var(--muted)}
 .cr.mine .fill{background:rgba(182,242,58,.25)}.cr.ok{outline:1px solid var(--lime)}.cr.ok>span:first-child:after{content:" \2713";color:var(--lime)}
-.qf{display:flex;justify-content:space-between;gap:8px;font:12px "Share Tech Mono",monospace;color:var(--muted);flex-wrap:wrap}
+.qf{display:flex;justify-content:space-between;gap:8px;font:12px "Barlow Condensed",sans-serif;color:var(--muted);flex-wrap:wrap}
 .qf .good{color:var(--lime)}.qf .bad{color:var(--red)}.qf .saved{color:var(--lime)}
-table{width:100%;border-collapse:collapse}th{font:11px "Share Tech Mono",monospace;color:#0a0a14;background:var(--lime);text-align:left;padding:6px 8px;text-transform:uppercase}
+table{width:100%;border-collapse:collapse}th{font:11px "Barlow Condensed",sans-serif;color:#0a0a14;background:var(--lime);text-align:left;padding:6px 8px;text-transform:uppercase}
 td{padding:9px 8px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:middle}td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
-td.rk{width:40px;font:700 16px "Chakra Petch";text-align:center}tr.r1 td.rk{color:var(--gold)}tr.r2 td.rk,tr.r3 td.rk{color:var(--lime)}
+td.rk{width:40px;font:700 16px "Barlow";text-align:center}tr.r1 td.rk{color:var(--gold)}tr.r2 td.rk,tr.r3 td.rk{color:var(--lime)}
 tr.top5 td.rk{box-shadow:inset 3px 0 0 var(--gold)}
 .nm{all:unset;cursor:pointer;font-weight:700;display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nm:hover{color:var(--lime)}
-.hd{font:12px "Share Tech Mono",monospace}
+.hd{font:12px "Barlow Condensed",sans-serif}
 tr.you td{background:rgba(182,242,58,.08)}tr.pin td{border-top:2px dashed var(--line)}
 .rules{font-size:13px;color:var(--muted)}.rules b{color:var(--ink)}.rules p{margin:6px 0}
 .modal{position:fixed;inset:0;z-index:60;background:rgba(3,2,12,.85);display:none;align-items:center;justify-content:center;padding:16px}
 .modal.on{display:flex}.mbox{background:var(--bg2);border:1px solid var(--line);padding:14px;max-width:460px;width:100%;max-height:92vh;overflow:auto}
 .mbox img{width:100%;display:block;border:1px solid var(--line);margin:10px 0;min-height:120px;background:var(--card)}
 .mrow{display:grid;grid-template-columns:1fr 1fr;gap:8px}.mrow .btn{width:100%}
-.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--lime);color:#0a0a14;padding:8px 14px;font:700 13px "Chakra Petch";z-index:80;display:none}
-.demo{position:fixed;right:10px;top:64px;z-index:70;font:11px "Share Tech Mono",monospace;display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--lime);color:#0a0a14;padding:8px 14px;font:700 13px "Barlow";z-index:80;display:none}
+.demo{position:fixed;right:10px;top:64px;z-index:70;font:11px "Barlow Condensed",sans-serif;display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 .demo .dt{all:unset;cursor:pointer;background:var(--card2);color:var(--muted);border:1px solid var(--line);padding:5px 9px}
 .demo .dp{display:none;background:var(--bg2);border:1px solid var(--line);padding:8px;gap:6px;flex-wrap:wrap;max-width:300px}.demo.on .dp{display:flex}
-.demo select,.demo .dp button{font:11px "Share Tech Mono",monospace;background:var(--card2);color:var(--ink);border:1px solid var(--line);padding:4px 6px;max-width:100%}
+.demo select,.demo .dp button{font:11px "Barlow Condensed",sans-serif;background:var(--card2);color:var(--ink);border:1px solid var(--line);padding:4px 6px;max-width:100%}
 .btn.go{position:relative;overflow:hidden}.btn.go.run{background:#0a0a14;color:var(--lime);box-shadow:inset 0 0 0 2px var(--lime)}
 .btn.go.run:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(182,242,58,.35),transparent);animation:sweep .7s linear infinite}
 .btn.go .gt{position:relative;z-index:1;letter-spacing:.12em}.btn.go.tick .gt{animation:pop .38s ease-out}
 @keyframes sweep{from{transform:translateX(-100%)}to{transform:translateX(100%)}}@keyframes pop{0%{transform:scale(1.8);opacity:0}60%{transform:scale(.95);opacity:1}100%{transform:scale(1)}}
-.tp{font:11px "Share Tech Mono",monospace;color:var(--muted);font-style:normal}.mo.on .tp{color:var(--lime)}
+.tp{font:11px "Barlow Condensed",sans-serif;color:var(--muted);font-style:normal}.mo.on .tp{color:var(--lime)}
 .pk{display:flex;flex-direction:column;gap:6px}.pk .row{display:flex;justify-content:space-between;gap:8px;padding:8px;background:var(--card2);font-size:13px}
 .pk .row b{font-weight:700}.pk .ok{color:var(--lime)}.pk .no{color:var(--red)}
 .btn.wide{width:100%;padding:13px 16px;font-size:15px}
-.pn b{font-size:18px}.pn .hd{color:var(--muted);margin-left:4px}.rkbox{text-align:right}.hd2{font:700 15px "Chakra Petch";color:var(--ink)}
+.pn b{font-size:18px}.pn .hd{color:var(--muted);margin-left:4px}.rkbox{text-align:right}.hd2{font:700 15px "Barlow";color:var(--ink)}
 .pl{display:flex;align-items:baseline;gap:6px;min-width:0}.pl .nm{display:inline;flex:0 1 auto}.pl .hd{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
-.qsec{grid-column:1/-1;font:12px "Share Tech Mono",monospace;color:var(--red);letter-spacing:.08em;text-transform:uppercase;margin-top:4px}
+.qsec{grid-column:1/-1;font:12px "Barlow Condensed",sans-serif;color:var(--red);letter-spacing:.08em;text-transform:uppercase;margin-top:4px}
 .q.ev{border-color:rgba(124,92,255,.45)}
-.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.mo{all:unset;cursor:pointer;padding:10px 10px;border:1px solid var(--line);background:var(--bg2);font:700 13px "Chakra Petch";text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.mo{all:unset;cursor:pointer;padding:10px 10px;border:1px solid var(--line);background:var(--bg2);font:700 13px "Barlow";text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;-webkit-tap-highlight-color:transparent}
 .mo.on{border-color:var(--lime);background:rgba(182,242,58,.16);color:var(--lime)}
 .mbar{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
 .tlb{flex:none;width:44px;height:24px;display:inline-flex;align-items:center;justify-content:center;margin-right:10px}.tlb img{max-width:44px;max-height:24px;object-fit:contain;display:block}
@@ -143,12 +143,12 @@ tr.you td{background:rgba(182,242,58,.08)}tr.pin td{border-top:2px dashed var(--
 .nmx{display:flex;align-items:center;min-width:0}.nmx>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cbl button{display:flex;align-items:center}.how{font-size:13px;color:var(--muted);margin-top:-4px}.ch{font-size:12px;margin-bottom:2px}
 .rules ul{margin:8px 0 0;padding-left:18px}.rules li{margin:5px 0;font-size:14px;color:var(--ink)}
-.tx{display:flex;gap:8px}.cq{padding:12px 0;border-top:1px solid var(--line)}.cq:first-child{border-top:0;padding-top:0}.cqt{font:700 15px 'Chakra Petch',sans-serif;margin:4px 0 8px}.cr.mine{outline:1px solid var(--lime)}.qbadge{height:44px;display:block}
+.tx{display:flex;gap:8px}.cq{padding:12px 0;border-top:1px solid var(--line)}.cq:first-child{border-top:0;padding-top:0}.cqt{font:700 15px 'Barlow',sans-serif;margin:4px 0 8px}.cr.mine{outline:1px solid var(--lime)}.qbadge{height:44px;display:block}
 .sbar{position:fixed;left:50%;transform:translateX(-50%);width:min(948px,calc(100% - 20px));bottom:10px;z-index:65;display:none;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:rgba(18,18,25,.96);border:1px solid var(--lime);box-shadow:0 8px 30px rgba(0,0,0,.6)}
 .sbar .mono{font-size:13px;color:var(--muted)}@media(max-width:600px){.sbar{padding:8px 10px;bottom:8px}.sbar .btn{padding:10px 12px;font-size:12px}}.sbar .btn[disabled]{background:var(--card2);color:var(--muted);opacity:1}.tx .inp{flex:1;min-width:0}
 @view-transition{navigation:auto}
 .pwin{position:fixed;inset:0;z-index:999;pointer-events:none;background:#0b0b12;display:grid;place-items:center;animation:pwout .5s .35s cubic-bezier(.7,0,.3,1) forwards}
-.pwin b{font:700 22px "Chakra Petch",sans-serif;letter-spacing:.2em;color:#f5c451;animation:pwfade .25s .3s forwards}
+.pwin b{font:700 22px "Barlow",sans-serif;letter-spacing:.2em;color:#f5c451;animation:pwfade .25s .3s forwards}
 @keyframes pwout{to{clip-path:inset(0 0 100% 0)}}@keyframes pwfade{to{opacity:0;transform:translateY(-8px)}}
 .wrap>.card{animation:pwup .5s both}.wrap>.card:nth-child(2){animation-delay:.08s}.wrap>.card:nth-child(3){animation-delay:.16s}.wrap>.card:nth-child(n+4){animation-delay:.24s}
 @keyframes pwup{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
@@ -156,8 +156,8 @@ tr.you td{background:rgba(182,242,58,.08)}tr.pin td{border-top:2px dashed var(--
 @media(max-width:600px){.mgrid{grid-template-columns:repeat(4,1fr);gap:5px}.mo{font-size:11px;padding:8px 2px;min-height:60px;gap:5px}.mo .tlb{width:50px;height:26px}.mo .tlb img{max-width:50px;max-height:26px}.wrap{padding:0 10px 90px}.bar .in{padding:8px 10px}.title h1{font-size:16px}.hero h2{font-size:24px}
  .card{padding:12px}.qs{grid-template-columns:1fr}.tabs button{padding:8px 10px;font-size:12px}td{padding:8px 5px}.hide-m{display:none}
  .prize{padding:10px}.prize b{font-size:14px}}
-.mo{position:relative}.mo .rk{position:absolute;top:4px;left:5px;font:700 12px "Chakra Petch";color:#0a0a14;background:var(--lime);padding:0 5px;line-height:17px}
-.mo[disabled]{cursor:default}.mo.ok{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}.mo.ok:after{content:"\2713 RESULT";position:absolute;top:4px;right:5px;font:10px "Share Tech Mono";color:var(--gold)}
+.mo{position:relative}.mo .rk{position:absolute;top:4px;left:5px;font:700 12px "Barlow";color:#0a0a14;background:var(--lime);padding:0 5px;line-height:17px}
+.mo[disabled]{cursor:default}.mo.ok{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}.mo.ok:after{content:"\2713 RESULT";position:absolute;top:4px;right:5px;font:10px "Barlow Condensed";color:var(--gold)}
 """
 
 PAGE = r"""<!doctype html>
@@ -171,7 +171,7 @@ PAGE = r"""<!doctype html>
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:description" content="Pick the champion, top 3, BMIC qualifiers, MVPs, best IGL and the peak viewership for the BMSD 2026 Grand Finals. Free to play. Top 5 win a gift card."><meta name="twitter:title" content="BMSD 2026 · Predict & Win"><meta name="twitter:image" content="__PUBLIC__/predict/og.png?v=2">
 <meta name="theme-color" content="#0b0b12">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
 <style>__CSS__</style></head><body>
 <div class="pwin" id="pwin"><b>PREDICT &amp; WIN</b></div>
 <div class="bar"><div class="in">
@@ -363,7 +363,7 @@ function cardBase(){const W=1080,H=1350,c=document.createElement('canvas');c.wid
  x.fillStyle='rgba(255,255,255,.02)';for(let y=0;y<H;y+=4)x.fillRect(0,y,W,1);
  x.strokeStyle='#b6f23a';x.lineWidth=5;x.beginPath();x.moveTo(40,80);x.lineTo(40,40);x.lineTo(80,40);x.stroke();x.beginPath();x.moveTo(W-40,H-210);x.lineTo(W-40,H-170);x.lineTo(W-80,H-170);x.stroke();
  x.textBaseline='top';const T=(t,X,Y,f,col,al,mw)=>{x.font=f;if(mw){const w=x.measureText(t).width;if(w>mw){const m=f.match(/(\d+)px/);x.font=f.replace(/\d+px/,Math.max(10,Math.floor(+m[1]*mw/w))+'px')}}x.fillStyle=col;x.textAlign=al||'left';x.fillText(t,X,Y)};
- const M=s=>`${s}px "Share Tech Mono",monospace`,F=s=>`700 ${s}px "Chakra Petch",sans-serif`;
+ const M=s=>`${s}px "Barlow Condensed",sans-serif`,F=s=>`700 ${s}px "Barlow",sans-serif`;
  T('letsgrowesports',80,78,M(30),'#b6f23a');T('BMSD 2026 · PREDICT & WIN',80,118,F(54),'#eeeef5',null,W-160);
  x.fillStyle='#b6f23a';x.fillRect(0,H-130,W,130);T('LIVE.LETSGROWESPORTS.COM/PREDICT',80,H-108,F(44),'#0a0a14',null,W-160);T('Free to play · top 5 win a gift card · @letsgrowesports.igc',80,H-52,M(24),'#0a0a14',null,W-160);
  return{c,x,T,M,F,W,H}}
@@ -484,8 +484,8 @@ if(DEMO){const bar=document.createElement('div');bar.className='demo';
 ADMIN = r"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Predict & Win admin</title><style>__CSS__
 .wrap{max-width:1200px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
-textarea.inp{min-height:150px;font:13px "Share Tech Mono",monospace}select.inp{padding:8px}
-td{font-size:13px;vertical-align:top}.cnt{font:11px "Share Tech Mono",monospace;color:var(--muted);max-width:280px}
+textarea.inp{min-height:150px;font:13px "Barlow Condensed",sans-serif}select.inp{padding:8px}
+td{font-size:13px;vertical-align:top}.cnt{font:11px "Barlow Condensed",sans-serif;color:var(--muted);max-width:280px}
 .acts{display:flex;gap:4px;flex-wrap:wrap}.acts .btn{padding:4px 8px;font-size:11px}.ok{color:var(--lime)}.no{color:var(--red)}
 .row2{display:flex;gap:8px;flex-wrap:wrap;align-items:end}.row2>*{flex:1;min-width:120px}</style></head><body>
 <div class="bar"><div class="in"><div class="title"><span class="brand">owner only · localhost</span><h1>Predict & Win <span>// admin</span></h1></div>
