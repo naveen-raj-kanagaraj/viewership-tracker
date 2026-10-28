@@ -923,7 +923,40 @@ def run_fast():
             yt_fast_once()
         except Exception as e:
             print(f"YouTube fast count failed: {str(e)[:120]}")
+        try:
+            from tracker import moments
+            moments.observe()                 # sudden jumps in viewers -> Moments
+        except Exception as e:
+            print(f"Moments: {str(e)[:120]}")
         time.sleep(max(0.2, wait - (time.time() - t0)))
+
+
+COMPACT_AFTER = int(os.getenv("SCENE_COMPACT_DAYS", "35"))   # per-scan totals older than this: one per 10 minutes
+
+
+def compact(now: float = None, max_days: int = 3) -> int:
+    """Keep only the highest reading per 10 minutes in sc_cat / sc_reg for days older than COMPACT_AFTER (charts that
+    old don't need 2-minute detail; peaks are kept). A few days per call so the database is never locked for long."""
+    now = now or time.time()
+    done = store.kv_get("scene_compacted") or 0
+    stop = now - COMPACT_AFTER * 86400
+    n, t = 0, max(done, 0)
+    with store._lock:
+        c = _db()
+        if not t:
+            t = (c.execute("SELECT MIN(ts) FROM sc_cat").fetchone()[0] or stop)
+        for _ in range(max_days):
+            if t >= stop:
+                break
+            t1 = min(t + 86400, stop)
+            for tbl, key in (("sc_cat", "game"), ("sc_reg", "region, game")):
+                n += c.execute(f"""DELETE FROM {tbl} WHERE ts >= ? AND ts < ? AND rowid NOT IN
+                                   (SELECT rowid FROM (SELECT rowid, MAX(viewers) FROM {tbl} WHERE ts >= ? AND ts < ?
+                                    GROUP BY {key}, ts / 600))""", (t, t1, t, t1)).rowcount
+            t = t1
+        c.commit()
+    store.kv_set("scene_compacted", t)
+    return n
 
 
 def run_forever():
@@ -934,6 +967,11 @@ def run_forever():
     time.sleep(20)                           # let the event counter start first
     while True:
         t0 = time.time()
+        try:
+            if int(time.time()) % 3600 < SCENE_SEC:
+                compact()
+        except Exception as e:
+            print(f"Compaction: {str(e)[:120]}")
         try:
             r = cycle()
             if r["errors"]:                  # shown in the tracker window so a failing source is visible

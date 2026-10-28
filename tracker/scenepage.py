@@ -268,6 +268,7 @@ const ICON={overview:'<path d="M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H
  devotional:'<path d="M12 3c1.5 2.5 3 4 3 6a3 3 0 0 1-6 0c0-2 1.5-3.5 3-6zM4 15h16l-2 5H6z"/>',podcasts:'<path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/>',other:'<path d="M4 6h16v10H4zM9 20h6M12 16v4"/>',cricket:'<path d="M14.5 3.5l6 6-9.5 9.5-3-3zM8 16l-4.5 4.5M5 13l3 3"/><circle cx="17.5" cy="17.5" r="2.5"/>',
  football:'<circle cx="12" cy="12" r="9"/><path d="M12 7l4 3-1.5 4.5h-5L8 10zM12 7V3M16 10l4-1M14.5 14.5l2.5 3.5M9.5 14.5L7 18M8 10L4 9"/>',
  target:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
+ bolt:'<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
  dice:'<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.2"/><circle cx="16" cy="8" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="8" cy="16" r="1.2"/><circle cx="16" cy="16" r="1.2"/>',
  broadcast:'<circle cx="12" cy="12" r="2"/><path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8"/>',
  rank:'<path d="M5 21V10h4v11M10 21V4h4v17M15 21v-7h4v7"/>',globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>'};
@@ -312,7 +313,7 @@ const boardList=()=>{const lm=liveMap();return (D.board||[]).filter(x=>bplat==='
 function render(){if(!D)return;const K=D.kpis||{};
  updLabel();
  const S=D.sections||[];
- setH('secnav',`<a href="${HOME}" class="${!SEC&&!CAT?'on':''}"><i>${svg('overview',14)}</i>Overview<b>${D.fresh?fmt(D.india_total):''}</b></a><a href="/map" class="mapl"><i>${svg('globe',14)}</i>World map</a><a href="${RP}/rankings" class="mapl"><i>${svg('rank',14)}</i>Rankings</a>`+S.slice().sort((a,b)=>b.viewers-a.viewers).map(s=>`<a href="${SU(s.key)}" class="${SEC===s.key?'on':''}${s.viewers?'':' z'}"><i>${svg(s.key,14)}</i>${esc(s.name)}<b>${s.viewers?fmt(s.viewers):''}</b></a>`).join(''));
+ setH('secnav',`<a href="${HOME}" class="${!SEC&&!CAT?'on':''}"><i>${svg('overview',14)}</i>Overview<b>${D.fresh?fmt(D.india_total):''}</b></a><a href="/map" class="mapl"><i>${svg('globe',14)}</i>World map</a><a href="${RP}/rankings" class="mapl"><i>${svg('rank',14)}</i>Rankings</a><a href="${RP}/moments" class="mapl"><i>${svg('bolt',14)}</i>Moments</a>`+S.slice().sort((a,b)=>b.viewers-a.viewers).map(s=>`<a href="${SU(s.key)}" class="${SEC===s.key?'on':''}${s.viewers?'':' z'}"><i>${svg(s.key,14)}</i>${esc(s.name)}<b>${s.viewers?fmt(s.viewers):''}</b></a>`).join(''));
  if(!window._navScrolled){const on=document.querySelector('.secnav a.on');if(on&&on.scrollIntoView){on.scrollIntoView({inline:'center',block:'nearest'});window._navScrolled=1}}
  setT('k1l','Watching now'+(CAT||SEC?' · '+(CAT?CATNAME:SECNAME[SEC]):''));if(D.fresh)tw('k1',K.watching,full);else setT('k1','-');
  const tot=K.watching||1;setH('pbar',(D.platforms||[]).map(p=>`<div style="width:${100*p.viewers/tot}%;background:${COL[p.platform]}"></div>`).join(''));

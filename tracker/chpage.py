@@ -60,6 +60,7 @@ __PANEL_CSS__
 <div class="hd" id="hd"><span class="ph">..</span><div><h1>__NAME__</h1><div class="meta">Loading...</div></div></div>
 <div class="card" id="vcard" style="display:none"><h2>Channel views on YouTube</h2><div class="cap">The channel's public counters on YouTube (total views of all its videos, live and uploaded; subscribers), recorded once a day by this site. Views gained = how much the total grew between two days.</div><div id="views"></div></div>
 <div class="card" id="lcard"><h2>Live stats on this site</h2><div class="cap">Recorded by this site every 2 seconds while the channel is live.</div><div id="stats"></div></div>
+<div class="card" id="mcard" style="display:none"><h2>Moments</h2><div class="cap">Sudden jumps in viewers on this channel, newest first. Opens at the moment.</div><div class="ps" id="moms"></div></div>
 <div class="card"><h2>Streams, last 30 days</h2><div class="cap" id="pcap">From the platform's own list of past streams.</div><div id="past"><div class="empty">Loading...</div></div></div>
 </div>
 <script>
@@ -104,7 +105,11 @@ async function load(){try{const c=await (await fetch('/api/channel?sid='+encodeU
 async function past(){try{const j=await (await fetch('/api/past?sid='+encodeURIComponent(SID))).json();const L=j.streams||[];
  document.getElementById('pcap').textContent=(j.source?'From '+j.source+'. Views = total views of the stream, including replays. Peak = the most watching at once that day, recorded by this site.':'')+(j.note?' '+j.note:'');
  document.getElementById('past').innerHTML=L.length?`<div class="ps"><div class="hdr"><span>DATE</span><span>STREAM</span><span>LENGTH</span><span>VIEWS</span><span>PEAK THAT DAY</span></div>${L.map(x=>`<a href="${esc(x.url)}" target="_blank" rel="noopener"><span class="d">${x.ts?ist(x.ts,{day:'numeric',month:'short'}):esc(x.when)}${x.when&&/ago/.test(x.when)?'<br>'+esc(x.when.replace('Streamed ','')):''}</span><span class="t">${esc(x.title)}</span><span class="n">${x.secs?hm(x.secs):'-'}</span><span class="n">${x.views!=null?fmt(x.views):'-'}</span><span class="n">${x.peak_day?fmt(x.peak_day):'-'}</span></a>`).join('')}</div>`:`<div class="empty">${j.note||'No past streams listed in the last 30 days.'}</div>`}catch(e){document.getElementById('past').innerHTML='<div class="empty">Couldn\'t load past streams right now.</div>'}}
-load();past();setInterval(()=>{if(!document.hidden)load()},15000);
+async function moms(){try{const j=await (await fetch('/api/moments?sid='+encodeURIComponent(SID))).json();const L=j.moments||[];if(!L.length)return;
+ document.getElementById('mcard').style.display='';
+ document.getElementById('moms').innerHTML=L.slice(0,20).map(m=>`<a href="${esc(m.link||c_url)}" target="_blank" rel="noopener"><span class="d">${ist(m.ts,{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}</span><span class="t">${esc(m.title)}</span><span class="n" style="color:var(--lime)">+${fmt(m.peak-m.base)}</span><span class="n">${fmt(m.peak)}<small>peak</small></span><span class="n">${m.embed==='tw_clip'?'clip':m.embed?'replay':'channel'}</span></a>`).join('')}catch(e){}}
+let c_url='#';
+load();past();moms();setInterval(()=>{if(!document.hidden)load()},15000);
 </script></body></html>"""
 
 

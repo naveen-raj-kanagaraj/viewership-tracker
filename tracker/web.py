@@ -23,7 +23,7 @@ PORT = int(os.getenv("EVENT_WEB_PORT", "8092"))
 app = Flask(__name__)
 
 
-CACHE = {"/api/ytsearch": 600, "/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
+CACHE = {"/api/moments": 20, "/moments": 300, "/india/moments": 300, "/api/ytsearch": 600, "/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
 
 
 
@@ -367,6 +367,30 @@ def scene_ytsearch():
                 f"SELECT sid FROM sc_channels WHERE sid IN ({','.join('?' * len(res)) or 'NULL'})", [x["sid"] for x in res])}
         return {"channels": [{**x, "known": x["sid"] in known} for x in res]}
     return _memo(f"/api/ytsearch:{q.lower()}", 600, _jdump(build), "application/json")
+
+
+@app.route("/api/moments")
+def api_moments():
+    """Sudden viewer jumps: /api/moments?region=global|in&period=today|7d|30d&game=&sid="""
+    from tracker import moments, scene
+    g = request.args.get
+    region = g("region", "global") if g("region") in scene.REGIONS else "global"
+    period = g("period", "7d") if g("period") in ("today", "7d", "30d") else "7d"
+    game, sid = (g("game") or "")[:60], (g("sid") or "")[:120]
+    return _memo(f"/api/moments:{region}:{period}:{game}:{sid}", 10,
+                 _jdump(lambda: moments.recent(region, period, game, sid)), "application/json")
+
+
+@app.route("/moments")
+def moments_page():
+    from tracker import momentpage
+    return _memo("/moments:global", 300, lambda: momentpage.build_html("global"), "text/html")
+
+
+@app.route("/india/moments")
+def moments_page_india():
+    from tracker import momentpage
+    return _memo("/moments:in", 300, lambda: momentpage.build_html("in"), "text/html")
 
 
 @app.route("/api/past")

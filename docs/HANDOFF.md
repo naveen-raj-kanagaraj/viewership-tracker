@@ -251,6 +251,13 @@ As of 26 Oct 2026:
 - CEGC countdown: preset `cegc` (auto-created at startup), Kick `cegc` official, starts 2026-11-03 13:30 IST.
   Its game isn't set: add "game" to the preset when known.
 - India esports page shows the BGMI tournament history chart.
+- Moments (tracker/moments.py, momentpage.py, `/moments`, `/api/moments`): every 2s reading of the top Kick/Twitch
+  and YouTube streams is watched for jumps (>= 25% and >= 1,500 over ~1 min, base >= 1,000, stream live 5+ min, one
+  per channel per 15 min). YouTube links/embeds start 30s before (stream start from the watch page); Twitch gets a
+  real clip when an account is connected (`track.py twitch-login`, device code, tokens in kv twitch_user, max 20
+  clips/hour), else the replay at the time; Kick links the channel. `track.py moments` lists them.
+- Per-scan totals (sc_cat, sc_reg) older than 35 days are compacted to the highest reading per 10 minutes, hourly,
+  a few days at a time (kv scene_compacted).
 - Kick seeds always include `skyesports` and `cegc` (`scene.ALWAYS`); "CEGC" is also a tournament name.
 
 ## Ideas not built yet
