@@ -347,28 +347,42 @@ sc._LIVE["yt:UCmom"] = {"sid": "yt:UCmom", "platform": "youtube", "name": "Momen
                         "game": "BGMI", "title": "clutch time", "streams": {"vmom": 5000}}
 sc._LIVE["twitch:spiker"] = {"sid": "twitch:spiker", "platform": "twitch", "name": "Spiker", "url": "https://twitch.tv/spiker", "logo": "",
                              "game": "Valorant", "title": "ranked", "streams": {"twitch:spiker": 4000}}
-t0 = time.time() - 400
-for i in range(200):                                       # 400 s steady, then a jump
+from tracker import chat as ch
+now0 = time.time()
+t0 = now0 - 1300
+_start = now0 - 3600
+events._http.get = lambda url, **k: RJ(t=f'"startTimestamp":"{datetime.fromtimestamp(_start, timezone.utc).isoformat()}"') if "watch" in url else _og(url, **k)
+def _pg(p, url, params):
+    if url.endswith("/users"): return {"data": [{"id": "77"}]}
+    if url.endswith("/videos"): return {"data": [{"id": "v900", "created_at": datetime.fromtimestamp(_start, timezone.utc).isoformat().replace("+00:00", "Z"), "url": "https://www.twitch.tv/videos/v900", "thumbnail_url": ""}]}
+    raise AssertionError(url)
+platforms._get = _pg
+import random as _rnd
+_rnd.seed(1)
+sc._LIVE["kick:breaky"] = {"sid": "kick:breaky", "platform": "kick", "name": "Breaky", "url": "https://kick.com/breaky", "logo": "",
+                           "game": "GTA V", "title": "rp", "streams": {"kick:breaky": 6000}}
+for i in range(650):                                      # 1300 s of readings every 2 s
     t = t0 + i * 2
-    jump = i >= 196
-    sc._FASTV["yt:UCmom"] = [t, 9000 if jump else 5000, 0]
-    sc._FASTV["twitch:spiker"] = [t, 7000 if jump else 4000, 0]
-    _start = time.time() - 3600
-    events._http.get = lambda url, **k: RJ(t=f'"startTimestamp":"{datetime.fromtimestamp(_start, timezone.utc).isoformat()}"') if "watch" in url else _og(url, **k)
-    def _pg(p, url, params):
-        if url.endswith("/users"): return {"data": [{"id": "77"}]}
-        if url.endswith("/videos"): return {"data": [{"id": "v900", "created_at": datetime.fromtimestamp(_start, timezone.utc).isoformat().replace("+00:00", "Z"), "url": "https://www.twitch.tv/videos/v900", "thumbnail_url": ""}]}
-        raise AssertionError(url)
-    platforms._get = _pg
+    late = t > now0 - 20
+    # YouTube: viewers jump far beyond its usual swings (viewers-only moment)
+    sc._FASTV["yt:UCmom"] = [t, (9000 if late else 5000) + _rnd.randint(-40, 40), 0]
+    # Twitch: chat explodes, viewers flat (chat moment)
+    sc._FASTV["twitch:spiker"] = [t, 4000 + _rnd.randint(-40, 40), 0]
+    if i % 3 == 0:
+        ch.add("twitch:spiker", 60 if t > now0 - 16 else 2, t)
+    # Kick: back to where it was before a break (recovery), plus a raid-like jump: not a moment
+    sc._FASTV["kick:breaky"] = [t, 6000 if t < now0 - 900 else (3000 if not late else 6000), 0]
     mo.observe(now=t)
 events._http.get = _og
 mo.threading.Thread = _th_orig
 ms = {m["sid"]: m for m in mo.recent("global", "today")["moments"]}
-assert set(ms) == {"yt:UCmom", "twitch:spiker"}, ms.keys()
+assert set(ms) == {"yt:UCmom", "twitch:spiker"}, {k: (v["kind"], v["base"], v["peak"]) for k, v in ms.items()}
 y = ms["yt:UCmom"]
-assert y["base"] == 5000 and y["peak"] == 9000 and y["embed"] == "yt" and y["link"].startswith("https://youtu.be/vmom?t=") and 3200 < y["embed_t"] < 3600, y
+assert y["kind"] == "viewers" and 4900 < y["base"] < 5100 and y["peak"] > 8900 and y["embed"] == "yt" and y["link"].startswith("https://youtu.be/vmom?t="), y
+assert 3500 - 120 < y["embed_t"] < 3600 - 60, y["embed_t"]          # starts ~90 s before the visible rise
 tw = ms["twitch:spiker"]
-assert tw["embed"] == "tw_vod" and "?t=" in tw["link"], tw          # no Twitch account connected: replay at the time
+assert tw["kind"] == "chat" and tw["chat_peak"] > 5 * tw["chat_base"] and tw["embed"] == "tw_vod" and "?t=" in tw["link"], tw
+
 assert c.get("/api/moments?region=global&period=today").get_json()["moments"] and c.get("/moments").status_code == 200 and c.get("/india/moments").status_code == 200
 # compaction keeps the highest reading per 10 minutes for old days
 with store._lock:
@@ -394,3 +408,33 @@ platforms._http.post = lambda url, **k: PR() if "helix/clips" in url else _hp(ur
 assert mo._clip("77") == "BraveClip123"
 platforms._http.post = _hp
 print("CLIP OK")
+# Twitch / Kick lookup and followers
+def _pg2(p, url, params):
+    if url.endswith("/search/channels"): return {"data": [{"broadcaster_login": "NewGuy", "display_name": "NewGuy", "thumbnail_url": "https://t/n.png", "is_live": False, "game_name": "Valorant"}]}
+    if url.endswith("/public/v1/channels"): return {"data": [{"slug": "kickster", "stream": {"is_live": True}, "category": {"name": "Just Chatting"}}]}
+    if url.endswith("/helix/users"): return {"data": [{"login": "newguy", "id": "555", "display_name": "NewGuy", "profile_image_url": "https://t/n.png"}]}
+    raise AssertionError(url)
+platforms._get = _pg2
+_yxs = yx.yt_channel_search; yx.yt_channel_search = lambda q: []
+lk = c.get("/api/lookup?q=newguy").get_json()
+assert lk["twitch"][0]["sid"] == "twitch:newguy" and lk["kick"][0]["sid"] == "kick:newguy" or lk["kick"][0]["sid"] == "kick:kickster", lk
+class FG:
+    status_code = 200
+    def json(s): return {"total": 12345, "data": []}
+_hg = platforms._http.get
+platforms._http.get = lambda url, **k: FG() if "channels/followers" in url else _hg(url, **k)
+assert yx.ensure_any("twitch:newguy") and c.get("/ch/twitch:newguy").status_code == 200
+with store._lock:
+    assert sc._db().execute("SELECT subs FROM sc_chstats WHERE sid='twitch:newguy'").fetchone()[0] == 12345
+platforms._http.get = _hg; yx.yt_channel_search = _yxs
+# Kick chat websocket frames: text, ping -> pong
+from tracker import chat as ch2
+class FS:
+    def __init__(s): s.sent = []
+    def settimeout(s, t): pass
+    def sendall(s, b): s.sent.append(b)
+    def recv(s, n): raise ch2.socket.timeout()
+w = ch2._WS.__new__(ch2._WS); w.s = FS()
+w.buf = bytes([0x81, 5]) + b"hello" + bytes([0x89, 0])
+assert w.recv() == "hello" and w.recv() is None and w.s.sent and w.s.sent[0][0] == 0x8A
+print("LOOKUP / CHAT OK")

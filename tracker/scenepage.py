@@ -299,11 +299,12 @@ if(GL&&!CAT&&!SEC){document.getElementById('gframe').src='/map?embed=1'}else{doc
     `<div class="empty" id="snone">No streamer or stream title matching "${esc(v)}" has been seen live ${WHERE} yet.</div>`;
    const shown=new Set(C.map(x=>x.sid));
    // YouTube's own channel search: channels this site hasn't seen live (opening one starts tracking it daily)
-   if(v.length>=3){sr.insertAdjacentHTML('beforeend','<div class="h" id="ytw">SEARCHING YOUTUBE...</div>');
-    const y=await (await fetch('/api/ytsearch?q='+encodeURIComponent(v))).json();if(sq!==v)return;const w=document.getElementById('ytw');if(w)w.remove();
-    const Y=(y.channels||[]).filter(x=>!shown.has(x.sid));
-    if(Y.length){const n=document.getElementById('snone');if(n)n.remove();
-     sr.insertAdjacentHTML('beforeend',`<div class="h">YOUTUBE CHANNELS</div>`+Y.map(x=>`<a class="row" href="${RP}/ch/${encodeURIComponent(x.sid)}"><span></span>${av({...x,platform:'youtube'})}<span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">${esc([x.handle,x.subs_text].filter(Boolean).join(' · '))}</div><div class="ds">${x.known?'Tracked on this site':'Not tracked yet: open it to start daily stats'}</div></span><span class="vv"></span></a>`).join(''))}}
+   if(v.length>=3){sr.insertAdjacentHTML('beforeend','<div class="h" id="ytw">SEARCHING YOUTUBE, TWITCH AND KICK...</div>');
+    const y=await (await fetch('/api/lookup?q='+encodeURIComponent(v))).json();if(sq!==v)return;const w=document.getElementById('ytw');if(w)w.remove();
+    for(const [pl,lab] of [['youtube','YOUTUBE CHANNELS'],['twitch','TWITCH CHANNELS'],['kick','KICK CHANNELS']]){
+     const Y=(y[pl]||[]).filter(x=>!shown.has(x.sid));if(!Y.length)continue;Y.forEach(x=>shown.add(x.sid));
+     const n=document.getElementById('snone');if(n)n.remove();
+     sr.insertAdjacentHTML('beforeend',`<div class="h">${lab}</div>`+Y.map(x=>`<a class="row" href="${RP}/ch/${encodeURIComponent(x.sid)}"><span></span>${av({...x,platform:pl})}<span style="min-width:0"><div class="nm">${esc(x.name)}${x.live?' <span class="lv">LIVE</span>':''}</div><div class="ds">${esc([x.handle&&x.handle!==x.name?x.handle:'',x.subs_text].filter(Boolean).join(' · '))}</div><div class="ds">${x.known?'Tracked on this site':'Not tracked yet: open it to start daily stats'}</div></span><span class="vv"></span></a>`).join(''))}}
   }catch(e){}},250)}}
 if(CAT)document.getElementById('gcard').style.display='none';
 const liveMap=()=>{const m={};(D.live||[]).forEach(x=>m[x.sid]=x.viewers);return m};
