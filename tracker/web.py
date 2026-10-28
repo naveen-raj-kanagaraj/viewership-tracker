@@ -23,7 +23,7 @@ PORT = int(os.getenv("EVENT_WEB_PORT", "8092"))
 app = Flask(__name__)
 
 
-CACHE = {"/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
+CACHE = {"/api/ytsearch": 600, "/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
 
 
 
@@ -349,6 +349,26 @@ def rankings_page_india():
     return _rank_page("in")
 
 
+@app.route("/api/ytsearch")
+def scene_ytsearch():
+    """YouTube's channel search, for channels this site hasn't seen live: /api/ytsearch?q=garena free fire india"""
+    from tracker import scene, ytextra
+    q = (request.args.get("q") or "").strip()[:60]
+    if len(q) < 3:
+        return Response('{"channels":[]}', mimetype="application/json")
+
+    def build():
+        try:
+            res = ytextra.yt_channel_search(q)
+        except Exception as e:
+            return {"channels": [], "error": str(e)[:80]}
+        with __import__("tracker").store._lock:
+            known = {r[0] for r in scene._db().execute(
+                f"SELECT sid FROM sc_channels WHERE sid IN ({','.join('?' * len(res)) or 'NULL'})", [x["sid"] for x in res])}
+        return {"channels": [{**x, "known": x["sid"] in known} for x in res]}
+    return _memo(f"/api/ytsearch:{q.lower()}", 600, _jdump(build), "application/json")
+
+
 @app.route("/api/past")
 def scene_past():
     """A channel's streams in the last 30 days from the platform itself: /api/past?sid=yt:UC..."""
@@ -363,10 +383,16 @@ def _ch_page(sid, region):
     from tracker import chpage, scene
     if not __import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid or ""):
         return Response("Not found", status=404, mimetype="text/plain")
+    from tracker import ytextra
     with __import__("tracker").store._lock:
         row = scene._db().execute("SELECT name FROM sc_channels WHERE sid=?", (sid,)).fetchone()
+    if not row and sid.startswith("yt:UC") and ytextra.ensure_channel(sid):     # a channel found through YouTube search
+        with __import__("tracker").store._lock:
+            row = scene._db().execute("SELECT name FROM sc_channels WHERE sid=?", (sid,)).fetchone()
     if not row:
         return Response("Not found", status=404, mimetype="text/plain")
+    if sid.startswith("yt:UC"):
+        threading.Thread(target=ytextra.ensure_channel, args=(sid,), daemon=True).start()   # follow it daily from now on
     return _memo(f"/ch/{region}/{sid}", 120, lambda: chpage.build_html(sid, row[0] or sid, region), "text/html")
 
 

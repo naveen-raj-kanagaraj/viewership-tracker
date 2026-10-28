@@ -77,6 +77,9 @@ def _discovery_loop():
 
 
 def cmd_run(args) -> int:
+    for k, pr in events.PRESETS.items():       # presets marked auto exist without anyone running `track.py create`
+        if pr.get("auto") and k not in events.events():
+            events.create(k)
     active = [e for e in events.events().values() if e.get("active")]
     if not active:
         print("No active event. Create one first:  python track.py create bmsd")

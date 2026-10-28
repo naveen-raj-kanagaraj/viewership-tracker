@@ -242,6 +242,15 @@ As of 26 Oct 2026:
   "Streams, last 30 days" from the platform (`/api/past`, `ytextra.past_streams`: YouTube channel Live tab HTML,
   Twitch helix/videos archives; Kick has no public list). Search matches channel names and stream titles and opens
   these pages. Third-party trackers (Playboard, Streams Charts) are not scraped: their terms forbid it.
+- 28 Oct: search froze the site (per-row MAX(peak) over sc_daily with no sid index, under the DB lock). Indexes
+  sc_daily(sid, day) and sc_samples(sid, ts) added. Search also asks YouTube's channel search (`/api/ytsearch`);
+  opening any YouTube channel adds it (sc_channels.tracked=1) and snapshots its subscribers/total views daily, first.
+  Channel page "Channel views on YouTube": daily views gained chart, 7/30-day and monthly totals.
+- Coverage: Twitch top 2000 (SCENE_TWITCH_PAGES=20, stops under 100 viewers), Kick top 100 + top 100 in its 12
+  biggest categories, YouTube Live page + 4 "more" pages per country edition.
+- CEGC countdown: preset `cegc` (auto-created at startup), Kick `cegc` official, starts 2026-11-03 13:30 IST.
+  Its game isn't set: add "game" to the preset when known.
+- India esports page shows the BGMI tournament history chart.
 - Kick seeds always include `skyesports` and `cegc` (`scene.ALWAYS`); "CEGC" is also a tournament name.
 
 ## Ideas not built yet

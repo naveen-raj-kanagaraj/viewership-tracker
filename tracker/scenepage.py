@@ -251,7 +251,7 @@ function flipH(id,h){const e=document.getElementById(id);if(!e||_H[id]===h)retur
   const d=p-r.getBoundingClientRect().top;if(Math.abs(d)>1)r.animate([{transform:`translateY(${d}px)`},{transform:'none'}],{duration:550,easing:'cubic-bezier(.2,.8,.2,1)'})})}
 function setT(id,t){const e=document.getElementById(id);if(e&&e.textContent!==t)e.textContent=t}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmt=n=>{n=+n||0;return n>=1e7?(n/1e6).toFixed(1)+'M':n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e4?(n/1e3).toFixed(1)+'K':Math.round(n).toLocaleString('en-IN')};
+const fmt=n=>{n=+n||0;return n>=1e9?(n/1e9).toFixed(2)+'B':n>=1e7?(n/1e6).toFixed(1)+'M':n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e4?(n/1e3).toFixed(1)+'K':Math.round(n).toLocaleString('en-IN')};
 const full=n=>Math.round(+n||0).toLocaleString('en-IN');
 const ist=(ts,o)=>new Date(ts*1000).toLocaleString('en-IN',Object.assign({timeZone:'Asia/Kolkata'},o));
 const when=ts=>ts?ist(ts,{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})+' IST':'';
@@ -268,15 +268,18 @@ const ICON={overview:'<path d="M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H
  devotional:'<path d="M12 3c1.5 2.5 3 4 3 6a3 3 0 0 1-6 0c0-2 1.5-3.5 3-6zM4 15h16l-2 5H6z"/>',podcasts:'<path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/>',other:'<path d="M4 6h16v10H4zM9 20h6M12 16v4"/>',cricket:'<path d="M14.5 3.5l6 6-9.5 9.5-3-3zM8 16l-4.5 4.5M5 13l3 3"/><circle cx="17.5" cy="17.5" r="2.5"/>',
  football:'<circle cx="12" cy="12" r="9"/><path d="M12 7l4 3-1.5 4.5h-5L8 10zM12 7V3M16 10l4-1M14.5 14.5l2.5 3.5M9.5 14.5L7 18M8 10L4 9"/>',
  target:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
+ dice:'<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.2"/><circle cx="16" cy="8" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="8" cy="16" r="1.2"/><circle cx="16" cy="16" r="1.2"/>',
  broadcast:'<circle cx="12" cy="12" r="2"/><path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8"/>',
  rank:'<path d="M5 21V10h4v11M10 21V4h4v17M15 21v-7h4v7"/>',globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>'};
 const svg=(k,s)=>`<svg viewBox="0 0 24 24" width="${s||18}" height="${s||18}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[k]||ICON.other}</svg>`;
 const av=x=>`<span class="av">${x.logo?`<img src="${esc(x.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=ph>${ini(x.name)}</span>'">`:`<span class="ph">${ini(x.name)}</span>`}<span class="bd" style="background:${COL[x.platform]||'#888'}">${(x.platform||'?')[0].toUpperCase()}</span></span>`;
-const CICON=g=>{const l=String(g).toLowerCase();return /cricket/.test(l)?'cricket':/football|fifa|fc\b|soccer/.test(l)?'football':/call of duty|cod|warzone|shoot|battle/.test(l)?'target':
+const CICON=g=>{const l=String(g).toLowerCase();return /slot|casino|poker|roulette|gambl|blackjack/.test(l)&&!/chat/.test(l)?'dice':/chat/.test(l)?'just-chatting':/cricket/.test(l)?'cricket':/football|fifa|fc\b|soccer/.test(l)?'football':/call of duty|cod|warzone|shoot|battle/.test(l)?'target':
  l==='news'?'news':l==='music'?'music':l==='devotional'?'devotional':/podcast/.test(l)?'podcasts':l==='irl'?'irl':/chatting/.test(l)?'just-chatting':/sport|kabaddi|tennis|basketball/.test(l)?'sports':l==='other'?'broadcast':/tournament/.test(l)?'esports':'gaming'};
 const PAL2=[['#b6f23a','#5fb31f'],['#a58bff','#6b4fe0'],['#4cc9f0','#2a7fd4'],['#ffd23f','#f08c00'],['#ff8a9a','#e0405a'],['#53fc18','#1fae5b'],['#ff9f5a','#e0602a']];
-const art=(g,a,cls)=>{if(a)return `<img class="${cls||''}" src="${esc(a)}" alt="" loading="lazy" referrerpolicy="no-referrer">`;let h=0;for(const ch of String(g))h=(h*31+ch.charCodeAt(0))%PAL2.length;
- return `<span class="${cls||''} ph ic" style="--c1:${PAL2[h][0]};--c2:${PAL2[h][1]}" title="${esc(g)}">${svg(CICON(g),24)}</span>`};
+const art=(g,a,cls)=>{let h=0;for(const ch of String(g))h=(h*31+ch.charCodeAt(0))%PAL2.length;
+ const ic=`<span class="${cls||''} ph ic" style="--c1:${PAL2[h][0]};--c2:${PAL2[h][1]}${a?';display:none':''}" title="${esc(g)}">${svg(CICON(g),24)}</span>`;
+ // a cover that fails to load falls back to the icon tile instead of a broken image
+ return a?`<img class="${cls||''}" src="${esc(a)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">${ic}`:ic};
 function seg(id,opts,cur,on){const e=document.getElementById(id);setH(id,opts.map(([v,l])=>`<button data-v="${v}" class="${v===cur?'on':''}">${l}</button>`).join(''));e.onclick=ev=>{const b=ev.target.closest('button');if(b)on(b.dataset.v)}}
 {const tail=CAT?'/c/'+CAT:SEC?'/s/'+SEC:'';setH('rg',`<a href="${tail||'/'}" class="${GL?'on':''}">GLOBAL</a><a href="/india${tail}" class="${GL?'':'on'}">INDIA</a>`)}
 setH('crumb',`<a href="${HOME}">${GL?'WORLDWIDE':'INDIA'}</a>`+(SEC||CAT?` / ${SEC?esc(SECNAME[SEC].toUpperCase()):''}${CAT?esc(CATNAME.toUpperCase()):''}`:' / OVERVIEW'));
@@ -292,7 +295,15 @@ if(GL&&!CAT&&!SEC){document.getElementById('gframe').src='/map?embed=1'}else{doc
    const C=j.channels||[],G=j.categories||[];
    sr.innerHTML=(G.length?`<div class="h">GAMES & CATEGORIES</div>`+G.map(g=>`<a class="gc" href="${CU(esc(g.slug))}">${art(g.game,g.art)}<span class="n">${esc(g.game)}</span></a>`).join(''):'')+
     (C.length?`<div class="h">STREAMERS & STREAMS</div>`+C.map(x=>`<a class="row" href="${RP}/ch/${encodeURIComponent(x.sid)}"><span></span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">${x.now?`<span class="lv">LIVE</span>${full(x.now)} watching`:x.last_live?'Last live '+ago(x.last_live):''}${x.game?' · '+esc(x.game):''}</div>${x.title?`<div class="ds" style="color:${x.by==='title'?'var(--ink)':''}">${esc(x.title)}</div>`:''}</span><span class="vv">${fmt(Math.max(x.peak,x.now))}<small>best peak</small></span></a>`).join(''):'')||
-    `<div class="empty">No streamer or stream title matching "${esc(v)}" has been seen live ${WHERE} yet.</div>`}catch(e){}},250)}}
+    `<div class="empty" id="snone">No streamer or stream title matching "${esc(v)}" has been seen live ${WHERE} yet.</div>`;
+   const shown=new Set(C.map(x=>x.sid));
+   // YouTube's own channel search: channels this site hasn't seen live (opening one starts tracking it daily)
+   if(v.length>=3){sr.insertAdjacentHTML('beforeend','<div class="h" id="ytw">SEARCHING YOUTUBE...</div>');
+    const y=await (await fetch('/api/ytsearch?q='+encodeURIComponent(v))).json();if(sq!==v)return;const w=document.getElementById('ytw');if(w)w.remove();
+    const Y=(y.channels||[]).filter(x=>!shown.has(x.sid));
+    if(Y.length){const n=document.getElementById('snone');if(n)n.remove();
+     sr.insertAdjacentHTML('beforeend',`<div class="h">YOUTUBE CHANNELS</div>`+Y.map(x=>`<a class="row" href="${RP}/ch/${encodeURIComponent(x.sid)}"><span></span>${av({...x,platform:'youtube'})}<span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">${esc([x.handle,x.subs_text].filter(Boolean).join(' · '))}</div><div class="ds">${x.known?'Tracked on this site':'Not tracked yet: open it to start daily stats'}</div></span><span class="vv"></span></a>`).join(''))}}
+  }catch(e){}},250)}}
 if(CAT)document.getElementById('gcard').style.display='none';
 const liveMap=()=>{const m={};(D.live||[]).forEach(x=>m[x.sid]=x.viewers);return m};
 const liveList=()=>(D.live||[]).filter(x=>(plat==='all'||x.platform===plat)&&(!q||(x.name+' '+x.title+' '+x.game).toLowerCase().includes(q)));
@@ -314,9 +325,10 @@ function render(){if(!D)return;const K=D.kpis||{};
  setH('secs',S.slice().sort((a,b)=>b.viewers-a.viewers).map(s=>`<a class="sc${s.viewers?'':' zero'}" href="${SU(s.key)}"><div class="n">${svg(s.key)}${esc(s.name)}</div><div class="v">${fmt(s.viewers)}</div><div class="s">${s.channels} live${s.items&&s.items.length?' · '+s.items.map(i=>esc(i.name)).join(', '):''}</div></a>`).join(''));
  const C=(D.categories||[]);
  setT('gl',SEC?''+SECNAME[SEC]:'Games & categories');setT('gh',SEC?`${SECNAME[SEC]} live now, by ${SEC==='gaming'||SEC==='esports'?'game':'category'}`:'Games & categories live now');
- const gAll=window._gAll,gN=window.innerWidth<600?C.length:(gAll?C.length:18);
+ const gw=document.getElementById('grid').clientWidth||1100,gc=Math.max(1,Math.floor((gw+10)/180)),TOPN=gc*Math.ceil(18/gc);   // whole rows only
+ const gAll=window._gAll,gN=window.innerWidth<600?C.length:(gAll?C.length:TOPN);
  setH('grid',C.slice(0,gN).map(g=>`<a class="gc" href="${CU(esc(g.slug))}">${art(g.game,g.art)}<span style="min-width:0"><div class="n">${esc(g.game)}</div><div class="v">${fmt(g.viewers)}</div><div class="s">${g.streams} live · ${esc(g.top)}</div></span></a>`).join('')||'<div class="empty">Nothing live here right now.</div>');
- {const gm=document.getElementById('gmore');gm.style.display=window.innerWidth>=600&&C.length>18?'block':'none';gm.textContent=gAll?'Show top 18':`Show all ${C.length} games & categories`;gm.onclick=()=>{window._gAll=!gAll;render()}}
+ {const gm=document.getElementById('gmore');gm.style.display=window.innerWidth>=600&&C.length>TOPN?'block':'none';gm.textContent=gAll?'Show top '+TOPN:`Show all ${C.length} games & categories`;gm.onclick=()=>{window._gAll=!gAll;render()}}
  seg('plat',[['all','ALL'],['youtube','YT'],['kick','KICK'],['twitch','TWITCH']],plat,v=>{plat=v;lAll=false;render()});
  const L=liveList(),ll=lAll||q?L.slice(0,300):L.slice(0,10);
  flipH('live',ll.map((x,i)=>rowX('l',x,`<span class="rk${i<3?' r'+(i+1):''}">${i+1}</span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}<span class="car">&#9654;</span></div><div class="ds">${CAT?'':esc(x.game)+' · '}${esc(x.title)}</div></span><span class="vv">${full(x.viewers)}</span>`)).join('')||'<div class="empty">Nothing live right now.</div>');
@@ -346,7 +358,7 @@ function cdTxt(ns){const l=ns-Date.now()/1000;if(l<=0)return 'STARTING SOON';con
 function renderEvents(){const E=(D.events||[]).filter(e=>e.state!=='off');
  setH('evwrap',E.length?`<div class="evs">${E.map(e=>`<a class="ev ${e.state}" href="${esc(e.url)}"><span><div class="st">${e.state==='live'?'● LIVE NOW · OUR TRACKER':e.state==='upcoming'?'STARTS IN':'FINISHED'}</div><div class="n">${esc(e.name)}</div></span><span class="v" data-ns="${e.state==='upcoming'?e.next_start:''}">${e.state==='live'?full(e.now):e.state==='upcoming'?cdTxt(e.next_start):'Peak '+fmt(e.peak)}</span></a>`).join('')}</div>`:'')}
 function renderHist(){const H=D.history||[];document.getElementById('histcard').style.display=H.length?'':'none';if(!H.length)return;
- setT('hl',''+CATNAME+' viewership till date');setT('hh',`Peak viewers, every ${CATNAME} event`);drawHistCanvas()}
+ const G=D.history_game||CATNAME;setT('hl',G+' viewership till date');setT('hh',`${G} tournaments: peak viewers, every event`);drawHistCanvas()}
 const EIMG={};function elogo(u){if(!u)return null;let im=EIMG[u];if(!im){im=EIMG[u]=new Image();im.onload=()=>drawHistCanvas();im.src=u}return im.complete&&im.naturalWidth?im:null}
 function drawHistCanvas(){const cv=document.getElementById('hc');if(!cv||!D||!(D.history||[]).length)return;const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;if(!W)return;
  cv.width=W*dpr;cv.height=H*dpr;const x=cv.getContext('2d');x.scale(dpr,dpr);drawHist(x,W,H,1)}
@@ -493,8 +505,8 @@ async function card(type){let c,x,text;const sc=SCOPE(),K=D.kpis||{};
   text=`Esports live now ${WHERE}: ${T.slice(0,3).map((t,i)=>`${i+1}. ${t.name} ${fmt(t.viewers)}`).join(' | ')}.`}
  else if(type==='live'){const L=liveList().slice(0,10);[c,x]=base('TOP LIVE STREAMS',sc);const avs=await Promise.all(L.map(s=>loadImg(s.logo)));
   listRows(x,L.map(s=>({name:s.name,tag:`${(NAMES[s.platform]||'').toUpperCase()} · ${s.game} · PEAK TODAY ${fmt(s.peak||s.viewers)}`,color:COL[s.platform],value:fmt(s.viewers)})),avs);text=`Top live streams ${WHERE} right now: ${L.slice(0,3).map((s,i)=>`${i+1}. ${s.name} ${fmt(s.viewers)}`).join(' | ')}.`}
- else if(type==='hist'){const mx=Math.max(...(D.history||[]).map(h=>h.peak)),r=(D.history||[]).find(h=>h.peak===mx);[c,x]=base(CATNAME.toUpperCase()+' VIEWERSHIP TILL DATE','Peak viewers, every event, official + co-streams');
-  x.save();x.translate(40,330);drawHist(x,1000,820,1.7);x.restore();text=`${CATNAME} viewership till date: all-time high ${r?fmt(r.peak)+' ('+r.name+')':''}.`}
+ else if(type==='hist'){const mx=Math.max(...(D.history||[]).map(h=>h.peak)),r=(D.history||[]).find(h=>h.peak===mx);[c,x]=base((D.history_game||CATNAME).toUpperCase()+' VIEWERSHIP TILL DATE','Peak viewers, every event, official + co-streams');
+  x.save();x.translate(40,330);drawHist(x,1000,820,1.7);x.restore();text=`${(D.history_game||CATNAME)} viewership till date: all-time high ${r?fmt(r.peak)+' ('+r.name+')':''}.`}
  else{const B=boardList().slice(0,10),lab={hw:'hours watched',peak:'peak viewers',avg:'average viewers'}[sort],val=s=>sort==='hw'?fmt(s.hw)+'h':fmt(s[sort]);[c,x]=base('TOP STREAMERS',`${sc} · ${PERB[per]} · ${lab}`);const avs=await Promise.all(B.map(s=>loadImg(s.logo)));
   listRows(x,B.map(s=>({name:s.name,tag:`${s.delta===null?'NEW · ':s.delta>0?'▲'+s.delta+' · ':s.delta<0?'▼'+(-s.delta)+' · ':''}${(NAMES[s.platform]||'').toUpperCase()} · PEAK ${fmt(s.peak)} · AVG ${fmt(s.avg)}`,color:s.delta>0?'#3ddc84':s.delta<0?'#ff4d5e':COL[s.platform],value:val(s)})),avs);text=`Top streamers ${WHERE}, ${PERB[per]} by ${lab}: ${B.slice(0,3).map((s,i)=>`${i+1}. ${s.name} ${val(s)}`).join(' | ')}.`}
  return [c,text]}

@@ -93,6 +93,16 @@ PRESETS = {
                     "BMIC watch party"],
         "official": ["krafton india esports", "battlegrounds mobile india"],
     },
+    "cegc": {
+        "name": "CEGC",
+        "auto": True,                           # created on startup if missing (no command needed)
+        "kick": {"official": ["cegc"]},         # kick.com/cegc (Sky Esports) is the official broadcast
+        "ended": False,
+        "next_start": "2026-11-03 13:30",       # IST; countdown until the broadcast goes live
+        "match": ["cegc"],
+        "queries": ["CEGC", "CEGC live"],
+        "official": ["sky esports", "cegc"],
+    },
 }
 
 
