@@ -480,16 +480,33 @@ def probe_chat(vid: str, seconds: int = 60) -> str:
     return "\n".join(lines)
 
 
+def resolve_handle(chan: str):
+    """'@handle', a channel URL or a UC id -> the channel's UC id. YouTube Data API forHandle when a key is set
+    (exact), else the channel page's canonical link (not the first id on the page: pages list other channels too)."""
+    x = chan.strip().rstrip("/").rsplit("/", 1)[-1]
+    if re.fullmatch(r"UC[\w-]{22}", x):
+        return x
+    h = "@" + x.lstrip("@")
+    key = os.getenv("YOUTUBE_API_KEY")
+    try:
+        if key:
+            j = events._http.get("https://www.googleapis.com/youtube/v3/channels",
+                                 params={"part": "id", "forHandle": h, "key": key}, timeout=12).json()
+            if j.get("items"):
+                return j["items"][0]["id"]
+        r = events._http.get(f"https://www.youtube.com/{h}", timeout=12,
+                             headers={"User-Agent": events._UA}, cookies={"CONSENT": "YES+", "SOCS": "CAI"})
+        m = (re.search(r'<link rel="canonical" href="https://www\.youtube\.com/channel/(UC[\w-]{22})"', r.text)
+             or re.search(r'"externalId"\s*:\s*"(UC[\w-]{22})"', r.text))
+        return m.group(1) if m else None
+    except Exception:
+        return None
+
+
 def probe_stats(chan: str) -> str:
-    cid = chan.strip().rstrip("/").rsplit("/", 1)[-1]
-    if not cid.startswith("UC"):
-        try:
-            r = events._http.get(f"https://www.youtube.com/@{cid.lstrip('@')}", timeout=12,
-                                 headers={"User-Agent": events._UA}, cookies={"CONSENT": "YES+", "SOCS": "CAI"})
-            m = re.search(r'"(?:channelId|externalId)"\s*:\s*"(UC[\w-]{22})"', r.text)
-            cid = m.group(1) if m else cid
-        except Exception as e:
-            return f"Could not find {chan}: {e}"
+    cid = resolve_handle(chan)
+    if not cid:
+        return f"Could not find {chan}."
     got = channel_stats([cid]).get(cid)
     if not got:
         return f"No stats read for {cid} ({'YouTube Data API' if os.getenv('YOUTUBE_API_KEY') else 'About page'})."
