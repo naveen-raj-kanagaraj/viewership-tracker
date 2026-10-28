@@ -47,15 +47,24 @@ h1{font:700 40px/1.05 "Barlow Condensed",sans-serif;margin:0;text-transform:uppe
 .vseg{display:inline-flex;border:1px solid var(--line);margin:12px 16px 0}.vseg button{background:none;border:0;color:var(--muted);font:600 12px "Barlow Condensed",sans-serif;letter-spacing:.04em;padding:6px 10px;cursor:pointer}.vseg button.on{background:var(--lime);color:#0b0b12}
 #vchart{display:block;width:calc(100% - 32px);height:200px;margin:10px 16px 0}
 .vtools{display:flex;flex-wrap:wrap;gap:0 8px}.vtools .vseg{margin-right:0}
-#vidchart{display:block;width:calc(100% - 32px);height:220px;margin:12px 16px 0;cursor:crosshair}
+#vidchart{display:block;width:calc(100% - 32px);height:260px;margin:12px 16px 0;cursor:crosshair}
 .vtip{position:fixed;pointer-events:none;background:rgba(18,18,25,.96);border:1px solid var(--line);padding:6px 9px;font-size:12px;max-width:280px;display:none;z-index:50}
 .vtip b{font:700 15px "Barlow Condensed",sans-serif}
-.vl a{grid-template-columns:70px minmax(0,1fr) 70px 70px 70px 64px!important}.vl .hdr{grid-template-columns:70px minmax(0,1fr) 70px 70px 70px 64px!important}
+.vl a,.vl .hdr{grid-template-columns:70px minmax(0,1fr) 70px 64px 70px 60px 60px!important}
+.vhead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding-right:16px}.vhead .btn{margin-top:14px;flex:none}
+.vk.life div{background:linear-gradient(160deg,rgba(124,92,255,.16),var(--card2) 70%)}.vk.life b{font-size:28px}
+.ins{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:8px;padding:12px 16px 0}.ins>div{background:var(--card2);padding:10px 12px;font-size:12px;color:var(--muted)}
+.ins h4{margin:0 0 6px;font:600 12px "Barlow Condensed",sans-serif;letter-spacing:.05em;color:var(--red);text-transform:uppercase}
+.wk{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;align-items:end;height:64px}.wk span{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;font-size:10px}
+.wk i{display:block;width:100%;background:#4a3a9a;border-radius:2px 2px 0 0}.wk span.best i{background:var(--lime)}.wk span.best{color:var(--lime)}
+.fr{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #1c1c29}.fr b{color:var(--ink);font:600 14px "Barlow Condensed",sans-serif}
+.xm{color:var(--lime)}
 .lvtag{color:var(--red);font:600 10px "Barlow Condensed",sans-serif;margin-right:4px;letter-spacing:.04em}
 .vm{padding:8px 16px 16px;display:flex;flex-wrap:wrap;gap:6px}.vm span{background:var(--card2);padding:5px 9px;font-size:12px;color:var(--muted)}.vm b{color:var(--ink);font-weight:600}
 __PANEL_CSS__
-@media(max-width:640px){#vidchart{width:calc(100% - 24px);margin:10px 12px 0;height:180px}.vtools{padding:0}
-.vl a,.vl .hdr{grid-template-columns:58px minmax(0,1fr) 62px!important}.vl a>:nth-child(n+4),.vl .hdr>:nth-child(n+4){display:none}
+@media(max-width:640px){.ins{grid-template-columns:1fr;padding:10px 12px 0}.vhead{padding-right:12px}.vk.life b{font-size:22px}
+#vidchart{width:calc(100% - 24px);margin:10px 12px 0;height:180px}.vtools{padding:0}
+.vl a,.vl .hdr{grid-template-columns:52px minmax(0,1fr) 58px 44px!important}.vl a>:nth-child(n+4):not(:last-child),.vl .hdr>:nth-child(n+4):not(:last-child){display:none}
 .vk{grid-template-columns:repeat(2,1fr);padding:10px 12px 0}.vk div:last-child{grid-column:1/-1}#vchart{width:calc(100% - 24px);margin:10px 12px 0;height:170px}.vseg{margin:10px 12px 0}.vm{padding:8px 12px 12px}
 .wrap{padding:0 12px 20px}.top .in{padding:9px 12px}.brand{font-size:15px}.nav{gap:8px}
 .hd{grid-template-columns:60px minmax(0,1fr);gap:12px}.hd img,.hd .ph{width:60px;height:60px}h1{font-size:28px}.hd .act{grid-column:1/-1}.hd .act .btn{width:100%;text-align:center}
@@ -66,11 +75,15 @@ __PANEL_CSS__
 <div class="wrap">
 <div class="crumb"><a href="__HOME__">__WHERECAP__</a> / CHANNEL</div>
 <div class="hd" id="hd"><span class="ph">..</span><div><h1>__NAME__</h1><div class="meta">Loading...</div></div></div>
-<div class="card" id="vidcard" style="display:none"><h2>Videos and streams</h2><div class="cap" id="vidcap"></div>
- <div class="vtools"><div class="vseg" id="vrange"></div><div class="vseg" id="vkind"></div></div>
+<div class="card" id="vidcard" style="display:none"><div class="vhead"><div><h2>Channel performance</h2><div class="cap" id="vidcap"></div></div><button class="btn" id="vshare">SHARE</button></div>
+ <div class="vk life" id="lifek"></div>
+ <div class="vtools"><div class="vseg" id="vrange"></div><div class="vseg" id="vkind"></div><div class="vseg" id="vmetric"></div></div>
  <div class="vk" id="vidk"></div><canvas id="vidchart"></canvas><div class="vtip" id="vtip"></div>
+ <div class="ins" id="vins"></div>
  <div class="ps" id="vidlist"></div></div>
-<div class="card" id="vcard" style="display:none"><h2>Channel views on YouTube</h2><div class="cap">The channel's public counters on YouTube (total views of all its videos, live and uploaded; subscribers), recorded once a day by this site. Views gained = how much the total grew between two days.</div><div id="views"></div></div>
+<div id="smodal" style="position:fixed;inset:0;z-index:60;background:rgba(3,2,12,.85);display:none;align-items:center;justify-content:center;padding:16px"><div style="background:var(--bg2);border:1px solid var(--line);padding:14px;max-width:440px;width:100%;max-height:94vh;overflow:auto">
+ <img id="simg" alt="Share card" style="width:100%;display:block;border:1px solid var(--line);margin-bottom:10px"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="sgo">SHARE</button><button class="btn" id="sdl">DOWNLOAD</button><button class="btn" id="sx" style="background:none;color:var(--muted);border:1px solid var(--line)">CLOSE</button></div></div></div>
+<div class="card" id="vcard" style="display:none"><h2>Channel views per day</h2><div class="cap">The channel's public counters on YouTube (total views of all its videos, live and uploaded; subscribers), recorded once a day by this site. Views gained = how much the total grew between two days.</div><div id="views"></div></div>
 <div class="card" id="lcard"><h2>Live stats on this site</h2><div class="cap">Recorded by this site every 2 seconds while the channel is live.</div><div id="stats"></div></div>
 <div class="card" id="mcard" style="display:none"><h2>Moments</h2><div class="cap">Sudden jumps in viewers on this channel, newest first. Opens at the moment.</div><div class="ps" id="moms"></div></div>
 <div class="card"><h2>Streams, last 30 days</h2><div class="cap" id="pcap">From the platform's own list of past streams.</div><div id="past"><div class="empty">Loading...</div></div></div>
@@ -87,35 +100,96 @@ const ini=s=>esc(String(s||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCa
 const av=x=>x.logo?`<img src="${esc(x.logo)}" alt="" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=ph>${ini(x.name)}</span>'">`:`<span class="ph">${ini(x.name)}</span>`;
 const liveMap=()=>({});let OPEN=null;function render(){}
 __PANEL_JS__
-let VR=30,VRANGE='3m',VKIND='all',VID=null;
+let VR=30,VRANGE='3m',VKIND='all',VMET='views',VID=null,CDATA=null;
 const RANGES=[['1w','1W'],['1m','1M'],['3m','3M'],['6m','6M'],['ytd','YTD'],['1y','1Y']];
+const KINDC={uploads:'#a58bff',shorts:'#4cc9f0',live:'#ff4d5e'},kindOf=v=>v.live?'live':v.short?'shorts':'uploads',KINDN={uploads:'Videos',shorts:'Shorts',live:'Live'};
+const engOf=v=>v.likes!=null&&v.views?100*((v.likes||0)+(v.comments||0))/v.views:null;
+const MET={views:['Views',v=>v.views||0,fmt],likes:['Likes',v=>v.likes||0,fmt],comments:['Comments',v=>v.comments||0,fmt],eng:['Engagement',v=>engOf(v)||0,v=>v.toFixed(1)+'%']};
+const RNAME={'1w':'last week','1m':'last month','3m':'last 3 months','6m':'last 6 months','ytd':'this year','1y':'last 12 months'};
+function renderLife(){const c=CDATA,j=VID;if(!c||!j)return;const S=c.stats||{},V=c.views||{},G=V.gains||[],sum=n=>G.filter(g=>g.day>=new Date(Date.now()-n*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})).reduce((a,g)=>a+g.views,0);
+ document.getElementById('lifek').innerHTML=`<div><b>${S.views!=null?fmt(S.views):'-'}</b>lifetime views</div><div><b>${S.subs!=null?fmt(S.subs):'hidden'}</b>subscribers</div><div><b>${S.videos!=null?full(S.videos):'-'}</b>videos, lifetime</div><div><b class="up">${G.length?'+'+fmt(sum(30)):'-'}</b>channel views, 30 days</div><div><b class="up">${G.length?'+'+fmt(sum(1)):'-'}</b>channel views, last day</div>`}
 async function videos(){if(!SID.startsWith('yt:'))return;try{const j=await (await fetch(`/api/videos?sid=${encodeURIComponent(SID)}&range=${VRANGE}&kind=${VKIND}`)).json();VID=j;
- const box=document.getElementById('vidcard');if(!j.oldest){box.style.display='none';return}box.style.display='';
- document.getElementById('vidcap').textContent=`Every upload and past live stream on the channel, by the day it was posted. Views, likes and comments are their totals so far, from YouTube (refreshed every 6 hours).`+(j.exact?'':' Dates are approximate ("3 weeks ago") and likes and comments need a YouTube API key on the server.');
+ const box=document.getElementById('vidcard');if(!j.oldest){box.style.display='none';return}box.style.display='';renderLife();
+ document.getElementById('vidcap').textContent=`Lifetime numbers are the channel's own counters. Below: every video, Short and live stream posted in the range, with its totals so far (YouTube, refreshed every 6 hours). Premieres count as videos.`+(j.exact?'':' Dates are approximate ("3 weeks ago") and likes and comments need a YouTube API key on the server.');
  const sg=(id,opts,cur,on)=>{const e=document.getElementById(id);e.innerHTML=opts.map(([v,l])=>`<button data-v="${v}" class="${v===cur?'on':''}">${l}</button>`).join('');e.onclick=ev=>{const b=ev.target.closest('button');if(b)on(b.dataset.v)}};
- sg('vrange',RANGES,VRANGE,v=>{VRANGE=v;videos()});sg('vkind',[['all','ALL'],['uploads','UPLOADS'],['live','LIVE STREAMS']],VKIND,v=>{VKIND=v;videos()});
- document.getElementById('vidk').innerHTML=`<div><b>${full(j.count)}</b>videos${j.lives&&VKIND==='all'?` (${j.lives} live)`:''} · ${j.per_week}/week</div><div><b class="up">${fmt(j.views)}</b>views on them</div><div><b>${fmt(j.avg)}</b>average per video</div><div><b>${fmt(j.median)}</b>median per video</div><div><b>${j.engagement!=null?j.engagement+'%':'-'}</b>engagement${j.likes!=null?` · ${fmt(j.likes)} likes, ${fmt(j.comments)} comments`:''}</div>`;
- drawVids();
- const L=(j.videos||[]).slice().sort((a,b)=>(b.views||0)-(a.views||0)).slice(0,15);
+ sg('vrange',RANGES,VRANGE,v=>{VRANGE=v;videos()});sg('vkind',[['all','ALL'],['uploads','VIDEOS'],['shorts','SHORTS'],['live','LIVE']],VKIND,v=>{VKIND=v;videos()});
+ sg('vmetric',[['views','VIEWS'],['likes','LIKES'],['comments','COMMENTS'],['eng','ENGAGEMENT']],VMET,v=>{VMET=v;drawVids();topList()});
+ document.getElementById('vidk').innerHTML=`<div><b>${full(j.count)}</b>posted, ${RNAME[VRANGE]} · ${j.per_week}/week</div><div><b class="up">${fmt(j.views)}</b>views on them</div><div><b>${fmt(j.avg)}</b>average per post</div><div><b>${fmt(j.median)}</b>median per post</div><div><b>${j.engagement!=null?j.engagement+'%':'-'}</b>engagement${j.likes!=null?` · ${fmt(j.likes)} likes · ${fmt(j.comments)} comments`:''}</div>`;
+ drawVids();insights();topList()}catch(e){}}
+function topList(){const j=VID;if(!j)return;const m=MET[VMET],med=j.median||1;
+ const L=(j.videos||[]).slice().sort((a,b)=>m[1](b)-m[1](a)).slice(0,15);
  document.getElementById('vidlist').className='ps vl';
- document.getElementById('vidlist').innerHTML=L.length?`<div class="hdr"><span>POSTED</span><span>TOP VIDEOS IN THIS RANGE</span><span>VIEWS</span><span>LIKES</span><span>COMMENTS</span><span>ENGAGE</span></div>${L.map(v=>`<a href="https://www.youtube.com/watch?v=${esc(v.vid)}" target="_blank" rel="noopener"><span class="d">${v.ts?(v.approx?'~':'')+ist(v.ts,{day:'numeric',month:'short'}):''}</span><span class="t">${v.live?'<span class="lvtag">LIVE</span>':''}${esc(v.title)}</span><span class="n">${fmt(v.views)}</span><span class="n">${v.likes!=null?fmt(v.likes):'-'}</span><span class="n">${v.comments!=null?fmt(v.comments):'-'}</span><span class="n">${v.likes!=null&&v.views?(100*((v.likes||0)+(v.comments||0))/v.views).toFixed(1)+'%':'-'}</span></a>`).join('')}`:'<div class="empty">Nothing posted in this range.</div>'}catch(e){}}
+ document.getElementById('vidlist').innerHTML=L.length?`<div class="hdr"><span>POSTED</span><span>TOP BY ${m[0].toUpperCase()}</span><span>VIEWS</span><span>LIKES</span><span>COMMENTS</span><span>ENGAGE</span><span>VS MEDIAN</span></div>${L.map(v=>`<a href="https://www.youtube.com/watch?v=${esc(v.vid)}" target="_blank" rel="noopener"><span class="d">${v.ts?(v.approx?'~':'')+ist(v.ts,{day:'numeric',month:'short'}):''}</span><span class="t"><span class="lvtag" style="color:${KINDC[kindOf(v)]}">${KINDN[kindOf(v)].toUpperCase()}</span>${esc(v.title)}</span><span class="n">${fmt(v.views)}</span><span class="n">${v.likes!=null?fmt(v.likes):'-'}</span><span class="n">${v.comments!=null?fmt(v.comments):'-'}</span><span class="n">${engOf(v)!=null?engOf(v).toFixed(1)+'%':'-'}</span><span class="n ${(v.views||0)>=2*med?'xm':''}">${((v.views||0)/med).toFixed(1)}x</span></a>`).join('')}`:'<div class="empty">Nothing posted in this range.</div>'}
+function insights(){const j=VID,L=(j.videos||[]).filter(v=>v.ts&&!v.approx),el=document.getElementById('vins');
+ if(L.length<5){el.innerHTML='';return}
+ const avgBy=f=>{const m={};L.forEach(v=>{const k=f(v);(m[k]=m[k]||[]).push(v.views||0)});return Object.fromEntries(Object.entries(m).map(([k,a])=>[k,{avg:a.reduce((x,y)=>x+y,0)/a.length,n:a.length}]))};
+ const wd=avgBy(v=>new Date(v.ts*1000).toLocaleDateString('en-US',{timeZone:'Asia/Kolkata',weekday:'short'})),DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+ const mxw=Math.max(1,...DAYS.map(d=>(wd[d]||{}).avg||0)),bestD=DAYS.reduce((a,d)=>((wd[d]||{}).avg||0)>((wd[a]||{}).avg||0)?d:a,'Mon');
+ const hr=avgBy(v=>{const h=+new Date(v.ts*1000).toLocaleString('en-US',{timeZone:'Asia/Kolkata',hour:'numeric',hour12:false})%24;return h<6?'Late night (0-6)':h<12?'Morning (6-12)':h<17?'Afternoon (12-17)':h<21?'Evening (17-21)':'Night (21-24)'});
+ const hs=Object.entries(hr).sort((a,b)=>b[1].avg-a[1].avg);
+ const fm=avgBy(kindOf);
+ el.innerHTML=`<div><h4>Best day to post</h4><div class="wk">${DAYS.map(d=>`<span class="${d===bestD?'best':''}" title="${(wd[d]||{}).n||0} posts"><i style="height:${Math.max(3,58*(((wd[d]||{}).avg||0)/mxw))}px"></i>${d[0]}${d[1]}</span>`).join('')}</div><div style="margin-top:6px">${bestD}: <b style="color:var(--ink)">${fmt((wd[bestD]||{}).avg)}</b> average views (IST)</div></div>
+  <div><h4>Best time to post (IST)</h4>${hs.slice(0,4).map(([k,o],i)=>`<div class="fr"><span${i?'':' style="color:var(--lime)"'}>${k}</span><b>${fmt(o.avg)}</b></div>`).join('')}</div>
+  <div><h4>Average views by format</h4>${['uploads','shorts','live'].filter(k=>fm[k]).map(k=>`<div class="fr"><span style="color:${KINDC[k]}">${KINDN[k]} (${fm[k].n})</span><b>${fmt(fm[k].avg)}</b></div>`).join('')}</div>`}
 function drawVids(){const cv=document.getElementById('vidchart'),j=VID;if(!cv||!j)return;const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;const x=cv.getContext('2d');x.scale(dpr,dpr);
- const L=(j.videos||[]).filter(v=>v.ts),t0=j.since,t1=Date.now()/1000,pb=22,pr=50,mx=Math.max(1,...L.map(v=>v.views||0))*1.12,X=t=>(W-pr)*(t-t0)/(t1-t0),Y=v=>(H-pb)*(1-v/mx);
- x.font='11px "Barlow Condensed",sans-serif';x.strokeStyle='#262636';x.fillStyle='#8d8ca3';
- for(let i=0;i<=3;i++){const y=(H-pb)*i/3;x.beginPath();x.moveTo(0,y);x.lineTo(W-pr,y);x.stroke();x.fillText(fmt(mx*(1-i/3)),W-pr+4,y+10)}
+ const m=MET[VMET],L=(j.videos||[]).filter(v=>v.ts).slice().sort((a,b)=>a.ts-b.ts),t0=j.since,t1=Date.now()/1000,pt=12,pb=24,pr=54;
+ const vals=L.map(m[1]),mx=Math.max(1e-9,...vals)*1.15,X=t=>(W-pr)*(t-t0)/(t1-t0),Y=v=>pt+(H-pt-pb)*(1-v/mx);
+ x.font='11px "Barlow Condensed",sans-serif';x.strokeStyle='#262636';x.fillStyle='#8d8ca3';x.lineWidth=1;
+ for(let i=0;i<=4;i++){const y=pt+(H-pt-pb)*i/4;x.beginPath();x.moveTo(0,y);x.lineTo(W-pr,y);x.stroke();x.fillText(m[2](mx*(1-i/4)),W-pr+5,y+4)}
  const nt=W<500?3:6;for(let i=0;i<=nt;i++){const t=t0+(t1-t0)*i/nt;x.textAlign=i===0?'left':i===nt?'right':'center';x.fillText(new Date(t*1000).toLocaleDateString('en-IN',{day:'numeric',month:'short'}),X(t),H-6)}x.textAlign='left';
- const bw=Math.max(2,Math.min(14,(W-pr)/Math.max(L.length,1)*.7)),best=L.reduce((a,v)=>(v.views||0)>((a&&a.views)||0)?v:a,null);
- cv._pts=L.map(v=>{const px=X(v.ts),py=Y(v.views||0);x.fillStyle=v===best?'#b6f23a':v.live?'#ff4d5e':'#7a5cff';x.fillRect(px-bw/2,py,bw,H-pb-py);return [px,py,v]});
- const tip=document.getElementById('vtip');cv.onmousemove=e=>{const r=cv.getBoundingClientRect(),mxp=e.clientX-r.left;let b=null,d=1e9;for(const p of cv._pts){const dd=Math.abs(p[0]-mxp);if(dd<d){d=dd;b=p}}
-  if(!b||d>20){tip.style.display='none';return}const v=b[2];tip.innerHTML=`${v.live?'<span class="lvtag">LIVE</span>':''}${esc(v.title)}<br><b>${fmt(v.views)}</b> views${v.likes!=null?' · '+fmt(v.likes)+' likes':''} · ${v.approx?'~':''}${ist(v.ts,{day:'numeric',month:'short',year:'numeric'})}`;tip.style.display='block';tip.style.left=Math.min(e.clientX+12,innerWidth-290)+'px';tip.style.top=(e.clientY+12)+'px'};
- cv.onmouseleave=()=>{tip.style.display='none'};cv.onclick=e=>{const r=cv.getBoundingClientRect(),mxp=e.clientX-r.left;const b=cv._pts.reduce((a,p)=>!a||Math.abs(p[0]-mxp)<Math.abs(a[0]-mxp)?p:a,null);if(b&&Math.abs(b[0]-mxp)<20)window.open('https://www.youtube.com/watch?v='+b[2].vid,'_blank','noopener')}}
-window.addEventListener('resize',()=>{drawVids()});
+ if(!L.length){x.fillText('Nothing posted in this range.',10,H/2);cv._pts=[];return}
+ const P=L.map(v=>[X(v.ts),Y(m[1](v)),v]);
+ // smooth line through the posts, filled underneath
+ const path=()=>{x.beginPath();x.moveTo(P[0][0],P[0][1]);for(let i=1;i<P.length;i++){const a=P[i-1],b=P[i],cx=(a[0]+b[0])/2;x.bezierCurveTo(cx,a[1],cx,b[1],b[0],b[1])}};
+ const g=x.createLinearGradient(0,pt,0,H-pb);g.addColorStop(0,'rgba(182,242,58,.30)');g.addColorStop(1,'rgba(182,242,58,0)');
+ path();x.lineTo(P[P.length-1][0],H-pb);x.lineTo(P[0][0],H-pb);x.closePath();x.fillStyle=g;x.fill();
+ path();x.strokeStyle='#b6f23a';x.lineWidth=2.2;x.shadowColor='rgba(182,242,58,.55)';x.shadowBlur=8;x.stroke();x.shadowBlur=0;
+ // median line
+ const sv=vals.slice().sort((a,b)=>a-b),md=sv[Math.floor(sv.length/2)];x.setLineDash([4,4]);x.strokeStyle='rgba(165,139,255,.6)';x.lineWidth=1;x.beginPath();x.moveTo(0,Y(md));x.lineTo(W-pr,Y(md));x.stroke();x.setLineDash([]);
+ x.fillStyle='#a58bff';x.fillText('median '+m[2](md),4,Y(md)-4);
+ const bi=vals.indexOf(Math.max(...vals));
+ P.forEach((p,i)=>{x.beginPath();x.arc(p[0],p[1],i===bi?5:3,0,7);x.fillStyle=i===bi?'#b6f23a':KINDC[kindOf(p[2])];x.fill();x.strokeStyle='#0b0b12';x.lineWidth=1.5;x.stroke()});
+ const b=P[bi],right=b[0]>W-pr-120;x.font='700 12px "Barlow Condensed",sans-serif';x.fillStyle='#b6f23a';x.textAlign=right?'right':'left';x.fillText('BEST '+m[2](vals[bi]),b[0]+(right?-8:8),Math.max(12,b[1]-8));x.textAlign='left';
+ cv._pts=P;const tip=document.getElementById('vtip');
+ const near=e=>{const r=cv.getBoundingClientRect(),mx_=e.clientX-r.left,my=e.clientY-r.top;let best=null,d=1e9;for(const p of cv._pts){const dd=Math.hypot(p[0]-mx_,(p[1]-my)*.3);if(dd<d){d=dd;best=p}}return d<30?best:null};
+ cv.onmousemove=e=>{const p=near(e);if(!p){tip.style.display='none';return}const v=p[2];tip.innerHTML=`<span class="lvtag" style="color:${KINDC[kindOf(v)]}">${KINDN[kindOf(v)].toUpperCase()}</span>${esc(v.title)}<br><b>${fmt(v.views)}</b> views${v.likes!=null?' · '+fmt(v.likes)+' likes · '+fmt(v.comments)+' comments':''}${engOf(v)!=null?' · '+engOf(v).toFixed(1)+'%':''}<br>${v.approx?'~':''}${ist(v.ts,{day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'})} IST`;tip.style.display='block';tip.style.left=Math.min(e.clientX+12,innerWidth-290)+'px';tip.style.top=(e.clientY+12)+'px'};
+ cv.onmouseleave=()=>{tip.style.display='none'};cv.onclick=e=>{const p=near(e);if(p)window.open('https://www.youtube.com/watch?v='+p[2].vid,'_blank','noopener')}}
+window.addEventListener('resize',()=>{drawVids();if(CDATA)viewsCard(CDATA)});
+// ---- share card: the channel's performance as an image
+function loadImg(u){return new Promise(r=>{if(!u)return r(null);const i=new Image();i.crossOrigin='anonymous';i.onload=()=>r(i);i.onerror=()=>r(null);i.src=u})}
+async function shareCard(withLogo){const c=CDATA,j=VID,S=(c&&c.stats)||{};const cv=document.createElement('canvas');cv.width=2160;cv.height=2700;const x=cv.getContext('2d');x.scale(2,2);
+ x.fillStyle='#0b0b12';x.fillRect(0,0,1080,1350);const g=x.createRadialGradient(860,-60,10,860,-60,720);g.addColorStop(0,'rgba(124,92,255,.24)');g.addColorStop(1,'rgba(124,92,255,0)');x.fillStyle=g;x.fillRect(0,0,1080,1350);
+ x.fillStyle='#b6f23a';x.font='700 30px "Barlow Condensed",sans-serif';x.fillText('LETSGROWESPORTS',72,96);
+ const im=withLogo?await loadImg(c.logo):null;let tx=72;if(im){x.save();x.beginPath();x.arc(132,190,60,0,7);x.clip();x.drawImage(im,72,130,120,120);x.restore();tx=220}
+ x.fillStyle='#fff';x.font='700 64px "Barlow Condensed",sans-serif';let n=c.name.toUpperCase();while(x.measureText(n).width>1008-tx&&n.length>3)n=n.slice(0,-2);x.fillText(n,tx,195);
+ x.fillStyle='#8d8ca3';x.font='28px "Barlow Condensed",sans-serif';x.fillText(`YOUTUBE · ${RNAME[VRANGE].toUpperCase()}${VKIND!=='all'?' · '+KINDN[VKIND].toUpperCase():''}`,tx,240);
+ const T=[['LIFETIME VIEWS',S.views!=null?fmt(S.views):'-'],['SUBSCRIBERS',S.subs!=null?fmt(S.subs):'-'],['POSTED',full(j.count)],['VIEWS ON THEM',fmt(j.views)],['AVG PER POST',fmt(j.avg)],['ENGAGEMENT',j.engagement!=null?j.engagement+'%':'-']];
+ T.forEach(([l,v],i)=>{const X0=72+(i%3)*316,Y0=290+Math.floor(i/3)*170;x.fillStyle='#13131c';x.fillRect(X0,Y0,300,150);x.fillStyle='#ff4d5e';x.font='22px "Barlow Condensed",sans-serif';x.fillText(l,X0+22,Y0+38);x.fillStyle='#fff';x.font='700 64px "Barlow Condensed",sans-serif';x.fillText(v,X0+22,Y0+112)});
+ x.fillStyle='#ff4d5e';x.font='24px "Barlow Condensed",sans-serif';x.fillText(MET[VMET][0].toUpperCase()+' PER POST',72,670);
+ const L=(j.videos||[]).filter(v=>v.ts).slice().sort((a,b)=>a.ts-b.ts),m=MET[VMET],vals=L.map(m[1]),mx=Math.max(1e-9,...vals)*1.12,t0=j.since,t1=Date.now()/1000,CX=72,CY=690,CW=936,CH_=330;
+ const PX=t=>CX+CW*(t-t0)/(t1-t0),PY=v=>CY+CH_*(1-v/mx);
+ x.strokeStyle='#262636';x.lineWidth=1;for(let i=0;i<=3;i++){const y=CY+CH_*i/3;x.beginPath();x.moveTo(CX,y);x.lineTo(CX+CW,y);x.stroke()}
+ if(L.length){const P=L.map(v=>[PX(v.ts),PY(m[1](v))]);const path=()=>{x.beginPath();x.moveTo(P[0][0],P[0][1]);for(let i=1;i<P.length;i++){const a=P[i-1],b=P[i],cx=(a[0]+b[0])/2;x.bezierCurveTo(cx,a[1],cx,b[1],b[0],b[1])}};
+  const gg=x.createLinearGradient(0,CY,0,CY+CH_);gg.addColorStop(0,'rgba(182,242,58,.35)');gg.addColorStop(1,'rgba(182,242,58,0)');path();x.lineTo(P[P.length-1][0],CY+CH_);x.lineTo(P[0][0],CY+CH_);x.closePath();x.fillStyle=gg;x.fill();
+  path();x.strokeStyle='#b6f23a';x.lineWidth=4;x.stroke()}
+ const best=L.reduce((a,v)=>(v.views||0)>((a&&a.views)||0)?v:a,null);
+ if(best){x.fillStyle='#13131c';x.fillRect(72,1060,936,150);x.fillStyle='#ff4d5e';x.font='22px "Barlow Condensed",sans-serif';x.fillText('TOP POST',96,1098);
+  x.fillStyle='#fff';x.font='600 32px "Barlow",sans-serif';let t=best.title;while(x.measureText(t).width>660&&t.length>3)t=t.slice(0,-2);if(t!==best.title)t+='…';x.fillText(t,96,1145);
+  x.fillStyle='#b6f23a';x.font='700 56px "Barlow Condensed",sans-serif';x.textAlign='right';x.fillText(fmt(best.views),984,1160);x.font='22px "Barlow Condensed",sans-serif';x.fillStyle='#8d8ca3';x.fillText('VIEWS',984,1190);x.textAlign='left'}
+ x.fillStyle='#8d8ca3';x.font='26px "Barlow Condensed",sans-serif';x.fillText((location.host+location.pathname),72,1290);x.textAlign='right';x.fillText(new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}),1008,1290);x.textAlign='left';
+ return new Promise(r=>{try{cv.toBlob(r,'image/png')}catch(e){r(null)}})}
+let SBLOB=null;
+document.getElementById('vshare').onclick=async()=>{if(!VID||!CDATA)return;try{await document.fonts.ready}catch(e){}SBLOB=await shareCard(true)||await shareCard(false);if(!SBLOB)return;
+ document.getElementById('simg').src=URL.createObjectURL(SBLOB);document.getElementById('smodal').style.display='flex'};
+document.getElementById('sx').onclick=()=>document.getElementById('smodal').style.display='none';
+document.getElementById('sdl').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(SBLOB);a.download=(CDATA.name||'channel').replace(/\W+/g,'-')+'.png';a.click()};
+document.getElementById('sgo').onclick=async()=>{const f=new File([SBLOB],'channel.png',{type:'image/png'}),t=`${CDATA.name}: ${fmt(VID.views)} views on ${VID.count} posts, ${RNAME[VRANGE]}. ${location.href} @letsgrowesports`;
+ if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],text:t});return}catch(e){}}document.getElementById('sdl').click()};
 function viewsCard(c){const V=c.views,S=c.stats;const box=document.getElementById('vcard');if(!V||!(V.snapshots||[]).length){box.style.display='none';return}box.style.display='';
  if(c.platform!=='youtube')return followersCard(c);
  const G=V.gains||[],sum=n=>G.filter(g=>g.day>=new Date(Date.now()-n*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})).reduce((a,g)=>a+g.views,0),last=G[G.length-1];
  const sg=G.filter(g=>g.subs!=null).slice(-7).reduce((a,g)=>a+g.subs,0);
- document.getElementById('views').innerHTML=`<div class="vk"><div><b>${S&&S.views!=null?fmt(S.views):'-'}</b>total views</div><div><b>${S&&S.subs!=null?fmt(S.subs):'hidden'}</b>subscribers</div>
-  <div><b class="up">${last?'+'+fmt(last.views):'-'}</b>views, last day</div><div><b class="up">${G.length?'+'+fmt(sum(7)):'-'}</b>views, 7 days</div><div><b class="up">${G.length?'+'+fmt(sum(30)):'-'}</b>views, 30 days${G.length?'':''}</div></div>
+ document.getElementById('views').innerHTML=`<div class="vk"><div><b class="up">${last?'+'+fmt(last.views):'-'}</b>views, last day</div><div><b class="up">${G.length?'+'+fmt(sum(7)):'-'}</b>views, 7 days</div><div><b class="up">${G.length?'+'+fmt(sum(30)):'-'}</b>views, 30 days${G.length?'':''}</div></div>
   ${G.length?`<div class="vseg" id="vseg">${[[7,'1W'],[30,'1M'],[91,'3M'],[182,'6M'],[Math.ceil((Date.now()-new Date(new Date().getFullYear(),0,1))/864e5),'YTD'],[365,'1Y']].map(([v,l])=>`<button data-v="${v}" class="${v===VR?'on':''}">${l}</button>`).join('')}</div><canvas id="vchart"></canvas>
   <div class="vm">${(V.months||[]).slice(-6).map(m=>`<span>${new Date(m.month+'-15').toLocaleDateString('en-IN',{month:'short',year:'numeric'})} <b>+${fmt(m.views)}</b> views</span>`).join('')}${sg?`<span>Subscribers, 7 days <b>${sg>=0?'+':''}${fmt(sg)}</b></span>`:''}<span>Recorded since ${dshortD(V.first)}</span></div>`
   :`<div class="empty">First snapshot taken ${dshortD(V.first)}. Views gained per day start showing tomorrow, and weekly and monthly totals build up from there.</div>`}`;
@@ -130,19 +204,22 @@ function followersCard(c){const V=c.views,P=NAMES[c.platform]||'';
  const sg_=document.getElementById('vseg');if(sg_)sg_.onclick=e=>{const b=e.target.closest('button');if(b){VR=+b.dataset.v;followersCard(c)}};drawViews(G)}
 const dshortD=d=>d?new Date(d+'T12:00:00+05:30').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):'';
 function drawViews(G){const cv=document.getElementById('vchart');if(!cv)return;const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;const x=cv.getContext('2d');x.scale(dpr,dpr);
- const S=G.slice(-VR),mx=Math.max(1,...S.map(g=>g.views))*1.15,pb=22,pr=46,bw=(W-pr)/Math.max(S.length,7),best=S.reduce((a,g,i)=>g.views>S[a].views?i:a,0);
- x.font='11px "Barlow Condensed",sans-serif';x.fillStyle='#8d8ca3';x.strokeStyle='#262636';
- for(let i=0;i<=3;i++){const y=6+(H-pb-6)*i/3;x.beginPath();x.moveTo(0,y);x.lineTo(W-pr,y);x.stroke();x.fillText('+'+fmt(mx*(1-i/3)),W-pr+4,y+4)}
- S.forEach((g,i)=>{const h=(H-pb-6)*g.views/mx,bx=i*bw+bw*.15;x.fillStyle=i===best?'#b6f23a':'#7a5cff';x.fillRect(bx,H-pb-h,bw*.7,h);
-  if(i===best||i===S.length-1||S.length<=8){x.fillStyle=i===best?'#b6f23a':'#eeeef5';x.textAlign='center';x.fillText('+'+fmt(g.views),bx+bw*.35,H-pb-h-4)}
-  if(i%Math.ceil(S.length/7)===0||i===S.length-1){x.fillStyle='#8d8ca3';x.textAlign='center';x.fillText(new Date(g.day+'T12:00:00+05:30').toLocaleDateString('en-IN',{day:'numeric',month:'short'}),bx+bw*.35,H-6)}x.textAlign='left'})}
+ const S=G.slice(-VR),pt=10,pb=22,pr=50,mx=Math.max(1,...S.map(g=>g.views))*1.15,n=Math.max(S.length-1,1),X=i=>(W-pr)*i/n,Y=v=>pt+(H-pt-pb)*(1-v/mx);
+ x.font='11px "Barlow Condensed",sans-serif';x.fillStyle='#8d8ca3';x.strokeStyle='#262636';x.lineWidth=1;
+ for(let i=0;i<=3;i++){const y=pt+(H-pt-pb)*i/3;x.beginPath();x.moveTo(0,y);x.lineTo(W-pr,y);x.stroke();x.fillText('+'+fmt(mx*(1-i/3)),W-pr+4,y+4)}
+ if(!S.length)return;const P=S.map((g,i)=>[S.length===1?(W-pr)/2:X(i),Y(g.views)]),best=S.reduce((a,g,i)=>g.views>S[a].views?i:a,0);
+ const path=()=>{x.beginPath();x.moveTo(P[0][0],P[0][1]);for(let i=1;i<P.length;i++){const a=P[i-1],b=P[i],cx=(a[0]+b[0])/2;x.bezierCurveTo(cx,a[1],cx,b[1],b[0],b[1])}};
+ const g=x.createLinearGradient(0,pt,0,H-pb);g.addColorStop(0,'rgba(165,139,255,.35)');g.addColorStop(1,'rgba(165,139,255,0)');
+ path();x.lineTo(P[P.length-1][0],H-pb);x.lineTo(P[0][0],H-pb);x.closePath();x.fillStyle=g;x.fill();path();x.strokeStyle='#a58bff';x.lineWidth=2.2;x.stroke();
+ P.forEach((p,i)=>{if(i===best||i===P.length-1){x.beginPath();x.arc(p[0],p[1],4,0,7);x.fillStyle=i===best?'#b6f23a':'#eeeef5';x.fill();x.textAlign='center';x.fillText('+'+fmt(S[i].views),p[0],Math.max(10,p[1]-8));x.textAlign='left'}});
+ S.forEach((g,i)=>{if(i%Math.ceil(S.length/7)===0||i===S.length-1){x.fillStyle='#8d8ca3';x.textAlign=i===0?'left':i===S.length-1?'right':'center';x.fillText(new Date(g.day+'T12:00:00+05:30').toLocaleDateString('en-IN',{day:'numeric',month:'short'}),P[i][0],H-6)}});x.textAlign='left'}
 const hm=s=>{s=+s||0;const h=Math.floor(s/3600),m=Math.round(s%3600/60);return h?`${h}h ${m}m`:`${m}m`};
 async function load(){try{const c=await (await fetch('/api/channel?sid='+encodeURIComponent(SID)+'&t='+Math.floor(Date.now()/15000))).json();if(!c.sid)return;CH[SID]=c;
  const now=c.now,S=c.stats;
  document.getElementById('hd').className='hd'+(now?' live':'');
  document.getElementById('hd').innerHTML=`${av(c)}<div style="min-width:0"><h1>${esc(c.name)}</h1><div class="meta"><b style="color:${COL[c.platform]}">${NAMES[c.platform]||''}</b>${c.country?' · '+esc(c.country):''}${S&&S.subs!=null?' · <b>'+fmt(S.subs)+'</b> subscribers':''}${now||c.last_live?' · ':''}${now?`<span class="lv">LIVE</span><b>${full(now)}</b> watching${c.game?' · '+esc(c.game):''}`:c.last_live?'last live '+ago(c.last_live):''}</div>${now&&c.title?`<div class="meta" style="margin-top:6px">${esc(c.title)}</div>`:''}</div>
   <div class="act"><a class="btn${now?' red':''}" href="${esc(c.url)}" target="_blank" rel="noopener">${now?'WATCH LIVE':'OPEN'} ON ${(NAMES[c.platform]||'').toUpperCase()}</a></div>`;
- viewsCard(c);
+ CDATA=c;viewsCard(c);renderLife();
  const seen=c.periods&&c.periods.all&&c.periods.all.days;
  document.getElementById('stats').innerHTML=seen?panel(SID):`<div class="empty">This site hasn't seen ${esc(c.name)} live yet. Live numbers (watching now, peak, hours watched) start the first time they stream; their YouTube channel views above are recorded every day.</div>`}catch(e){}}
 async function past(){try{const j=await (await fetch('/api/past?sid='+encodeURIComponent(SID))).json();const L=j.streams||[];

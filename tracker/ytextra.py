@@ -56,6 +56,12 @@ def _db():
     c = scene._db()
     if not _ready:
         c.executescript(_SCHEMA)
+        if "short" not in {r[1] for r in c.execute("PRAGMA table_info(yt_videos)")}:
+            c.execute("ALTER TABLE yt_videos ADD COLUMN short INTEGER DEFAULT 0")
+        if not store.kv_get("ytv_fix_premieres"):
+            c.execute("UPDATE yt_videos SET updated=0")          # re-read: premieres were counted as live
+            c.commit()
+            store.kv_set("ytv_fix_premieres", True)
         if not store.kv_get("chstats_fix_about") and not os.getenv("YOUTUBE_API_KEY"):
             c.execute("DELETE FROM sc_chstats WHERE sid LIKE 'yt:%'")      # the old reader could store a video's views
             c.commit()
@@ -945,21 +951,14 @@ def _yt_tab_all(cid: str, tab: str, since: float, pages: int = 12) -> list:
     return out
 
 
-def _api_videos(cid: str, since: float, key: str) -> list:
-    """YouTube Data API: the uploads playlist (newest first) back to `since`, with exact dates, views, likes,
-    comments, length and whether it was a live stream. About 1 quota unit per 50 videos."""
-    j = events._http.get("https://www.googleapis.com/youtube/v3/channels",
-                         params={"part": "contentDetails", "id": cid, "key": key}, timeout=15).json()
-    up = (((j.get("items") or [{}])[0].get("contentDetails") or {}).get("relatedPlaylists") or {}).get("uploads")
-    if not up:
-        return []
+def _playlist_ids(pid: str, since: float, key: str, pages: int = 20) -> list:
+    """Video ids in a playlist (newest first) published since `since`. Missing playlists give []."""
     ids, tok = [], None
-    for _ in range(20):
-        p = {"part": "contentDetails", "playlistId": up, "maxResults": 50, "key": key, **({"pageToken": tok} if tok else {})}
+    for _ in range(pages):
+        p = {"part": "contentDetails", "playlistId": pid, "maxResults": 50, "key": key, **({"pageToken": tok} if tok else {})}
         j = events._http.get("https://www.googleapis.com/youtube/v3/playlistItems", params=p, timeout=15).json()
-        items = j.get("items") or []
         old = False
-        for it in items:
+        for it in j.get("items") or []:
             pub = (it.get("contentDetails") or {}).get("videoPublishedAt")
             ts = datetime.fromisoformat(pub.replace("Z", "+00:00")).timestamp() if pub else None
             if ts and ts < since:
@@ -969,6 +968,21 @@ def _api_videos(cid: str, since: float, key: str) -> list:
         tok = j.get("nextPageToken")
         if old or not tok:
             break
+    return ids
+
+
+def _api_videos(cid: str, since: float, key: str) -> list:
+    """YouTube Data API: the uploads playlist (newest first) back to `since`, with exact dates, views, likes,
+    comments and length. What kind each video is comes from YouTube's own per-channel playlists: UULV<id> holds the
+    channel's live streams and UUSH<id> its Shorts. A premiere is a normal video (it's in neither), even though the
+    API gives it live-stream details too. About 1 quota unit per 50 videos."""
+    j = events._http.get("https://www.googleapis.com/youtube/v3/channels",
+                         params={"part": "contentDetails", "id": cid, "key": key}, timeout=15).json()
+    up = (((j.get("items") or [{}])[0].get("contentDetails") or {}).get("relatedPlaylists") or {}).get("uploads")
+    if not up:
+        return []
+    ids = _playlist_ids(up, since, key)
+    lives, shorts = set(_playlist_ids("UULV" + cid[2:], since, key, 10)), set(_playlist_ids("UUSH" + cid[2:], since, key, 10))
     out = []
     for i in range(0, len(ids), 50):
         j = events._http.get("https://www.googleapis.com/youtube/v3/videos",
@@ -977,12 +991,12 @@ def _api_videos(cid: str, since: float, key: str) -> list:
         for v in j.get("items") or []:
             st, sn, ls = v.get("statistics") or {}, v.get("snippet") or {}, v.get("liveStreamingDetails") or {}
             pub = ls.get("actualStartTime") or sn.get("publishedAt")
-            out.append({"id": v["id"], "title": sn.get("title") or "",
+            out.append({"id": v["id"], "title": sn.get("title") or "", "short": 1 if v["id"] in shorts else 0,
                         "ts": int(datetime.fromisoformat(pub.replace("Z", "+00:00")).timestamp()) if pub else None,
                         "views": int(st["viewCount"]) if "viewCount" in st else None,
                         "likes": int(st["likeCount"]) if "likeCount" in st else None,
                         "comments": int(st["commentCount"]) if "commentCount" in st else None,
-                        "secs": _iso_dur((v.get("contentDetails") or {}).get("duration")), "live": 1 if ls else 0, "approx": 0})
+                        "secs": _iso_dur((v.get("contentDetails") or {}).get("duration")), "live": 1 if v["id"] in lives else 0, "approx": 0})
     return out
 
 
@@ -1004,16 +1018,18 @@ def channel_videos(sid: str, force: bool = False) -> list:
                 vids += [{**x, "live": 1, "approx": 1} for x in _yt_tab_all(cid, "streams", since, pages=6)]
             now = int(time.time())
             rows = [(v["id"], sid, v["ts"], v["title"], v.get("views"), v.get("likes"), v.get("comments"), v.get("secs") or 0,
-                     v.get("live", 0), v.get("approx", 1), now) for v in vids if v.get("id")]
+                     v.get("live", 0), v.get("approx", 1), now, v.get("short", 0)) for v in vids if v.get("id")]
             if rows:
                 with store._lock:
                     c = _db()
                     # without the API the date is only "3 days ago": keep the first (closer) estimate once we have one
-                    c.executemany("""INSERT INTO yt_videos VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(vid) DO UPDATE SET
+                    c.executemany("""INSERT INTO yt_videos (vid, sid, ts, title, views, likes, comments, secs, live, approx, updated, short)
+                                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(vid) DO UPDATE SET
                                      title=excluded.title, views=excluded.views,
                                      likes=COALESCE(excluded.likes, yt_videos.likes), comments=COALESCE(excluded.comments, yt_videos.comments),
                                      secs=CASE WHEN excluded.secs>0 THEN excluded.secs ELSE yt_videos.secs END,
-                                     live=MAX(excluded.live, yt_videos.live),
+                                     live=CASE WHEN excluded.approx=0 THEN excluded.live ELSE MAX(excluded.live, yt_videos.live) END,
+                                     short=CASE WHEN excluded.approx=0 THEN excluded.short ELSE yt_videos.short END,
                                      ts=CASE WHEN excluded.approx=0 OR yt_videos.ts IS NULL THEN excluded.ts ELSE yt_videos.ts END,
                                      approx=MIN(excluded.approx, yt_videos.approx), updated=excluded.updated""", rows)
                     c.commit()
@@ -1034,7 +1050,8 @@ def videos_summary(sid: str, rng: str = "3m", kind: str = "all") -> dict:
     now = datetime.now(events.REPORT_TZ)
     days = RANGES.get(rng, 91)
     t0 = datetime(now.year, 1, 1, tzinfo=events.REPORT_TZ).timestamp() if days is None else time.time() - days * 86400
-    L = [v for v in vids if (v["ts"] or 0) >= t0 and (kind == "all" or (kind == "live") == bool(v["live"]))]
+    kind_of = lambda v: "live" if v["live"] else "shorts" if v.get("short") else "uploads"
+    L = [v for v in vids if (v["ts"] or 0) >= t0 and (kind == "all" or kind_of(v) == kind)]
     views = [v["views"] or 0 for v in L]
     lk = [v for v in L if v["likes"] is not None]
     eng = (sum((v["likes"] or 0) + (v["comments"] or 0) for v in lk) / max(1, sum(v["views"] or 0 for v in lk))) if lk else None
@@ -1043,7 +1060,8 @@ def videos_summary(sid: str, rng: str = "3m", kind: str = "all") -> dict:
             "avg": round(sum(views) / len(L)) if L else 0, "median": srt[len(srt) // 2] if srt else 0,
             "likes": sum(v["likes"] or 0 for v in lk) if lk else None, "comments": sum(v["comments"] or 0 for v in lk) if lk else None,
             "engagement": round(100 * eng, 2) if eng is not None else None,
-            "uploads": sum(1 for v in L if not v["live"]), "lives": sum(1 for v in L if v["live"]),
+            "uploads": sum(1 for v in L if kind_of(v) == "uploads"), "lives": sum(1 for v in L if v["live"]),
+            "shorts": sum(1 for v in L if kind_of(v) == "shorts"),
             "per_week": round(len(L) / max(1, (time.time() - t0) / 604800), 1),
             "best": max(L, key=lambda v: v["views"] or 0) if L else None, "videos": L[:400],
             "exact": bool(os.getenv("YOUTUBE_API_KEY")), "oldest": min((v["ts"] for v in vids if v["ts"]), default=None)}

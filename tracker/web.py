@@ -417,7 +417,7 @@ def api_videos():
     from tracker import ytextra
     sid = (request.args.get("sid") or "")[:60]
     rng = request.args.get("range", "3m") if request.args.get("range") in ytextra.RANGES else "3m"
-    kind = request.args.get("kind", "all") if request.args.get("kind") in ("all", "uploads", "live") else "all"
+    kind = request.args.get("kind", "all") if request.args.get("kind") in ("all", "uploads", "shorts", "live") else "all"
     if not __import__("re").fullmatch(r"yt:UC[\w-]{22}", sid):
         return Response("{}", status=404, mimetype="application/json")
     return _memo(f"/api/videos:{sid}:{rng}:{kind}", 300, _jdump(lambda: ytextra.videos_summary(sid, rng, kind)), "application/json")
