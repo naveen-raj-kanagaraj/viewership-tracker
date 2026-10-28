@@ -280,6 +280,17 @@ As of 26 Oct 2026:
   added; all rows re-read once (kv ytv_fix_premieres). Channel page: lifetime row, range/kind/metric pickers, line
   chart per post with median, best day/time (IST) and format insights, "vs median", 1080x1350 share card.
   Engagement = (likes + comments) / views over the posts in range.
+- Speed (29 Oct): web._memo is stale-while-revalidate (expired copies served instantly, rebuilt in a background
+  thread); web._warm_forever keeps the busiest pages/APIs built every 10 s; pages get Chrome speculation-rules
+  prerender on hover and a prefetch-on-touch fallback (web.FASTNAV); the dashboard starts its data fetch in <head>.
+- Channel videos for YouTube, Twitch (helix/videos type=all) and Kick (kick.com/api/v2/channels/<slug>/videos);
+  first visit fetches the whole history (YouTube with key: up to 3,000), then served from the DB with background
+  refresh (last 60 days every 6 h, everything weekly; kv vids:<sid>). "ALL TIME" range.
+- Ranks (tracker/ranks.py): every 30 min, per platform: size (subs/followers), growth (YouTube views / followers
+  gained, 30 d), live (hours watched, 30 d), worldwide / country / category (YouTube topic tags via the API) / game,
+  among channels tracked. Channel page badges; Rankings page "Channels" mode (`/api/topch`).
+- Discovery: ytextra.discover_once adds channels from YouTube channel search (games/topics x countries), 2 searches
+  every 15 min; daily stats now up to 2,000 channels per run with the API key (CHANNEL_STATS_MAX 50,000/day).
 - Kick seeds always include `skyesports` and `cegc` (`scene.ALWAYS`); "CEGC" is also a tournament name.
 
 ## Ideas not built yet

@@ -23,7 +23,7 @@ PORT = int(os.getenv("EVENT_WEB_PORT", "8092"))
 app = Flask(__name__)
 
 
-CACHE = {"/api/videos": 300, "/api/lookup": 600, "/api/moments": 20, "/moments": 300, "/india/moments": 300, "/api/ytsearch": 600, "/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
+CACHE = {"/api/topch": 120, "/api/videos": 300, "/api/lookup": 600, "/api/moments": 20, "/moments": 300, "/india/moments": 300, "/api/ytsearch": 600, "/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
 
 
 
@@ -81,22 +81,62 @@ def _headers(resp):
 _MEMO, _MLOCK = {}, {}
 
 
+_STALE_MAX = 600      # an expired response is still served (and rebuilt in the background) for up to this long
+
+
+def _memo_build(key, build):
+    body = build()
+    if isinstance(body, str):
+        body = body.encode()
+    hit = (time.time(), body, gzip.compress(body, 5) if len(body) > 1024 else None)
+    if len(_MEMO) > 3000:                     # search keys are open-ended: drop stale entries
+        for k in [k for k, v in list(_MEMO.items()) if time.time() - v[0] > _STALE_MAX]:
+            _MEMO.pop(k, None)
+            _MLOCK.pop(k, None)
+    _MEMO[key] = hit
+    return hit
+
+
+# Instant page changes: Chrome/Edge prerender a link when you hover or press it (speculation rules); other browsers
+# (Safari) fetch the page early on touch/hover, so the click finds it ready.
+FASTNAV = """<script type="speculationrules">{"prerender":[{"where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":"/api/*"}},{"not":{"href_matches":"/e/*"}}]},"eagerness":"moderate"}]}</script>
+<script>(function(){var done={};function pf(e){var a=e.target.closest&&e.target.closest('a[href^="/"]');if(!a||a.target||done[a.href]||HTMLScriptElement.supports&&HTMLScriptElement.supports('speculationrules'))return;done[a.href]=1;var l=document.createElement('link');l.rel='prefetch';l.href=a.href;document.head.appendChild(l)}
+document.addEventListener('touchstart',pf,{passive:true});document.addEventListener('mouseover',pf,{passive:true})})()</script>"""
+
+
+def _html(build):
+    def b():
+        h = build()
+        if isinstance(h, bytes):
+            h = h.decode()
+        return h.replace("</body>", FASTNAV + "</body>", 1) if "</body>" in h else h
+    return b
+
+
 def _memo(key, ttl, build, mimetype):
+    """Stale-while-revalidate: a fresh copy is served as is; an expired one is served immediately while one
+    background thread rebuilds it, so nobody waits on a slow build except the very first visitor."""
+    if mimetype == "text/html":
+        build = _html(build)
     hit = _MEMO.get(key)
-    if not (hit and time.time() - hit[0] < ttl):
+    now = time.time()
+    if hit and now - hit[0] >= ttl and now - hit[0] < _STALE_MAX:
+        lock = _MLOCK.setdefault(key, threading.Lock())
+        if lock.acquire(blocking=False):
+            def bg():
+                try:
+                    _memo_build(key, build)
+                except Exception as e:
+                    print(f"Rebuild {key[:60]}: {str(e)[:120]}")
+                finally:
+                    lock.release()
+            threading.Thread(target=bg, daemon=True).start()
+    elif not hit or now - hit[0] >= ttl:
         lock = _MLOCK.setdefault(key, threading.Lock())
         with lock:
             hit = _MEMO.get(key)
             if not (hit and time.time() - hit[0] < ttl):
-                body = build()
-                if isinstance(body, str):
-                    body = body.encode()
-                hit = (time.time(), body, gzip.compress(body, 5) if len(body) > 1024 else None)
-                if len(_MEMO) > 3000:                 # search keys are open-ended: drop stale entries
-                    for k in [k for k, v in list(_MEMO.items()) if time.time() - v[0] > 120]:
-                        _MEMO.pop(k, None)
-                        _MLOCK.pop(k, None)
-                _MEMO[key] = hit
+                hit = _memo_build(key, build)
     _, body, gz = hit
     if gz is not None and "gzip" in request.headers.get("Accept-Encoding", ""):
         r = Response(gz, mimetype=mimetype)
@@ -418,9 +458,22 @@ def api_videos():
     sid = (request.args.get("sid") or "")[:60]
     rng = request.args.get("range", "3m") if request.args.get("range") in ytextra.RANGES else "3m"
     kind = request.args.get("kind", "all") if request.args.get("kind") in ("all", "uploads", "shorts", "live") else "all"
-    if not __import__("re").fullmatch(r"yt:UC[\w-]{22}", sid):
+    if not __import__("re").fullmatch(r"(yt:UC[\w-]{22}|(twitch|kick):[a-z0-9_-]{2,40})", sid):
         return Response("{}", status=404, mimetype="application/json")
-    return _memo(f"/api/videos:{sid}:{rng}:{kind}", 300, _jdump(lambda: ytextra.videos_summary(sid, rng, kind)), "application/json")
+    return _memo(f"/api/videos:{sid}:{rng}:{kind}", 120, _jdump(lambda: ytextra.videos_summary(sid, rng, kind)), "application/json")
+
+
+@app.route("/api/topch")
+def api_topch():
+    """Top channels by size / growth / live hours: /api/topch?platform=youtube|twitch|kick&metric=size|growth|live&country=IN&category=Gaming"""
+    from tracker import ranks
+    g = request.args.get
+    plat = g("platform", "youtube") if g("platform") in ("youtube", "twitch", "kick") else "youtube"
+    metric = g("metric", "size") if g("metric") in ranks.METRICS else "size"
+    country = (g("country") or "")[:2].upper()
+    category = (g("category") or "")[:40]
+    return _memo(f"/api/topch:{plat}:{metric}:{country}:{category}", 120,
+                 _jdump(lambda: ranks.top(plat, metric, country, category)), "application/json")
 
 
 @app.route("/api/past")
@@ -692,8 +745,27 @@ def robots():
     return Response("User-agent: *\nDisallow: /\n", mimetype="text/plain")
 
 
+WARM = ["/", "/india", "/api/scene?region=global&period=today", "/api/scene?region=in&period=today",
+        "/api/scene/live?region=global", "/api/scene/live?region=in", "/rankings", "/api/rank?region=global&period=day&metric=hw",
+        "/api/rank?region=in&period=day&metric=hw", "/map", "/api/geo", "/moments", "/api/moments?region=global&period=7d"]
+
+
+def _warm_forever():
+    """Keep the busiest pages built, so a visitor never waits for one to be computed."""
+    time.sleep(30)
+    c = app.test_client()
+    while True:
+        for u in WARM:
+            try:
+                c.get(u, headers={"Accept-Encoding": "gzip"})
+            except Exception:
+                pass
+        time.sleep(10)
+
+
 def run():
     print(f"Event dashboard: http://localhost:{PORT}")
+    threading.Thread(target=_warm_forever, daemon=True).start()
     try:
         from waitress import serve   # production server if installed (pip install waitress)
         serve(app, host="127.0.0.1", port=PORT, threads=48, connection_limit=2000, channel_timeout=30, _quiet=True)

@@ -371,7 +371,7 @@ def _db():
         store.kv_set("scene_mig_pubg", True)
     if not _COLS:
         have = {r[1] for r in c.execute("PRAGMA table_info(sc_channels)")}
-        for col, typ in (("country", "TEXT"), ("india", "INTEGER"), ("language", "TEXT"), ("tracked", "INTEGER")):
+        for col, typ in (("country", "TEXT"), ("india", "INTEGER"), ("language", "TEXT"), ("tracked", "INTEGER"), ("topic", "TEXT")):
             if col not in have:
                 c.execute(f"ALTER TABLE sc_channels ADD COLUMN {col} {typ}")
         c.commit()
@@ -1599,14 +1599,23 @@ def channel(sid: str) -> dict:
     return {"sid": sid, "name": ch["name"], "platform": ch["platform"], "url": ch["url"],
             "logo": _logo({"sid": sid, "logo": ch["logo"]}), "title": ch["title"], "game": ch["game"],
             "country": (country_of(ch["country"]) or ("", 0, ""))[2] or ("India" if ch["india"] else ""),
+            "country_code": (country_of(ch["country"]) or ("", 0, ""))[0] or ("IN" if ch["india"] else ""),
             "first_seen": ch["first_seen"], "last_live": ch["last_live"], "now": now,
             "periods": {"today": agg(1), "7d": agg(7), "30d": agg(30), "all": agg(0)},
             "days": [{"day": z["day"], "peak": z["peak"], "at": z["at"], "hours": round(z["mins"] / 60, 1),
                       "hw": round(z["hw"]), "avg": round(z["hw"] * 60 / z["mins"]) if z["mins"] else 0,
                       "game": max(z["games"], key=z["games"].get) if z["games"] else ""}
                      for d, z in sorted(by.items()) if d >= (today - timedelta(days=29)).strftime("%Y-%m-%d")],
-            "recent": [[r[0], r[1]] for r in samp[::step]],
+            "recent": [[r[0], r[1]] for r in samp[::step]], "ranks": _ranks_of(sid),
             **(_yt_extra(sid) if sid.startswith("yt:") else _other_extra(sid))}
+
+
+def _ranks_of(sid: str) -> list:
+    from tracker import ranks
+    try:
+        return ranks.for_channel(sid)
+    except Exception:
+        return []
 
 
 def _other_extra(sid: str) -> dict:

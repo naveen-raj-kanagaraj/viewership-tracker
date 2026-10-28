@@ -67,7 +67,10 @@ __PANEL_CSS__
 <div class="crumb"><a href="__HOME__">__WHERECAP__</a> / RANKINGS</div>
 <h1>Top streamers <em>__WHERE__</em></h1>
 <p class="intro" id="intro">Ranked by what people actually watched live. Tap a streamer for their full numbers.</p>
-<div class="filters">
+<div class="filters"><div class="seg" id="mode"></div></div>
+<div class="filters" id="cf" style="display:none"><div class="seg" id="cplat"></div><div class="seg" id="cmetric"></div>
+ <select id="ccat"><option value="">All categories</option></select><select id="cctry"><option value="">All countries</option></select></div>
+<div class="filters" id="lf">
  <div class="seg" id="period"></div>
  <div class="dt"><button id="prev" aria-label="Earlier">&#8249;</button><input type="date" id="date"><button id="next" aria-label="Later">&#8250;</button></div>
  <div class="seg" id="metric"></div>
@@ -100,6 +103,28 @@ const liveMap=()=>{const m={};(R?R.rows:[]).forEach(x=>{if(x.now)m[x.sid]=x.now}
 const Q=new URLSearchParams(location.search);
 let S={period:['day','week','month'].includes(Q.get('period'))?Q.get('period'):'day',metric:Q.get('metric')||'hw',date:Q.get('date')||'',cat:Q.get('cat')||'',country:Q.get('country')||'',platform:Q.get('platform')||'',sec:Q.get('sec')||''};
 let R=null,OPEN=null,ALL=false;
+let MODE=Q.get('mode')==='channels'?'channels':'live',C={platform:['youtube','twitch','kick'].includes(Q.get('platform'))?Q.get('platform'):'youtube',metric:['size','growth','live'].includes(Q.get('metric'))?Q.get('metric'):'size',country:Q.get('country')||'',category:Q.get('category')||''},CR=null;
+if(MODE==='channels')S.metric='hw';
+const CML=m=>({size:C.platform==='youtube'?'SUBSCRIBERS':'FOLLOWERS',growth:C.platform==='youtube'?'VIEWS GAINED, 30D':'FOLLOWERS GAINED, 30D',live:'LIVE HOURS, 30D'})[m];
+const CMV=(m,v)=>v==null?'-':m==='live'?fmt(v)+'h':m==='growth'?'+'+fmt(v):fmt(v);
+function setMode(m){MODE=m;document.querySelector('h1').innerHTML=(m==='live'?'Top streamers ':'Top channels ')+`<em>${WHERE}</em>`;document.getElementById('lf').style.display=m==='live'?'':'none';document.getElementById('cf').style.display=m==='channels'?'':'none';
+ seg('mode',[['live','LIVE STREAMERS'],['channels','CHANNELS']],MODE,v=>{setMode(v)});m==='live'?go():goCh()}
+async function goCh(){const p=new URLSearchParams({platform:C.platform,metric:C.metric});if(C.country)p.set('country',C.country);if(C.category)p.set('category',C.category);
+ history.replaceState(null,'',location.pathname+'?'+new URLSearchParams({mode:'channels',...Object.fromEntries(p)}));
+ try{CR=await (await fetch('/api/topch?'+p)).json()}catch(e){return}
+ seg('cplat',[['youtube','YOUTUBE'],['twitch','TWITCH'],['kick','KICK']],C.platform,v=>{C.platform=v;C.category='';goCh()});
+ seg('cmetric',[['size',C.platform==='youtube'?'SUBSCRIBERS':'FOLLOWERS'],['growth',C.platform==='youtube'?'VIEWS, 30D':'GROWTH, 30D'],['live','LIVE HOURS']],C.metric,v=>{C.metric=v;goCh()});
+ const cc=document.getElementById('ccat');cc.innerHTML='<option value="">All categories</option>'+(CR.categories||[]).map(x=>`<option${x===C.category?' selected':''}>${esc(x)}</option>`).join('');
+ const ct=document.getElementById('cctry');ct.innerHTML='<option value="">All countries</option>'+(CR.countries||[]).map(x=>`<option value="${x.code}"${x.code===C.country?' selected':''}>${esc(x.name)}</option>`).join('');
+ cc.onchange=e=>{C.category=e.target.value;goCh()};ct.onchange=e=>{C.country=e.target.value;goCh()};
+ const others=['size','growth','live'].filter(m=>m!==C.metric);
+ ['h1c','h2c','h3c'].forEach((id,i)=>document.getElementById(id).textContent=CML([C.metric,...others][i]));
+ document.getElementById('span').textContent=`${full(CR.total)} ${C.platform==='youtube'?'YouTube':C.platform==='twitch'?'Twitch':'Kick'} channels tracked${C.category?' in '+C.category:''}${C.country?' from '+((CR.countries.find(x=>x.code===C.country)||{}).name||C.country):''} · ranked by ${CML(C.metric).toLowerCase()} · updated ${CR.updated?Math.round((Date.now()/1000-CR.updated)/60)+' min ago':'soon'}`;
+ const L=CR.rows||[],P=L.slice(0,3),ord=P.length===3?[P[1],P[0],P[2]]:P,link=x=>`${RP}/ch/${encodeURIComponent(x.sid)}`;
+ document.getElementById('podium').innerHTML=ord.map(x=>`<a class="pd p${x.rank}" href="${link(x)}" style="text-decoration:none"><div class="md">#${x.rank}</div>${x.logo?`<img src="${esc(x.logo)}" alt="" referrerpolicy="no-referrer">`:`<span class="ph">${ini(x.name)}</span>`}<div class="n">${esc(x.name)}</div><div class="v">${CMV(C.metric,x[C.metric])}</div><div class="s">${esc([x.category,x.country_name].filter(Boolean).join(' · '))}</div></a>`).join('');
+ document.getElementById('rows').innerHTML=L.slice(3,ALL?100:25).map(x=>`<a class="row" href="${link(x)}" style="text-decoration:none"><span class="rk">${x.rank}</span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">${esc([x.category,x.game&&x.game!==x.category?x.game:'',x.country_name].filter(Boolean).join(' · '))}</div></span>`+
+  [C.metric,...others].map((m,i)=>`<span class="c${i===0?' m':''} x${i+1}">${CMV(m,x[m])}</span>`).join('')+'</a>').join('')||(L.length?'':'<div class="empty">No channels here yet. The list grows every day as the site tracks more channels.</div>');
+ const mo=document.getElementById('more');mo.style.display=L.length>25?'block':'none';mo.textContent=ALL?'Show top 25':`Show top ${Math.min(100,L.length)}`;mo.onclick=()=>{ALL=!ALL;goCh()}}
 function seg(id,opts,cur,on){const e=document.getElementById(id);e.innerHTML=opts.map(([v,l])=>`<button data-v="${v}" class="${v===cur?'on':''}">${l}</button>`).join('');e.onclick=ev=>{const b=ev.target.closest('button');if(b)on(b.dataset.v)}}
 const shift=(d,n)=>{const t=new Date(d+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10)};
 const dshortD=d=>new Date(d+'T12:00:00+05:30').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});
@@ -134,7 +159,7 @@ document.getElementById('rows').addEventListener('click',e=>{if(e.target.closest
 async function go(){const p=new URLSearchParams({region:REGION,period:S.period,metric:S.metric});['date','cat','country','platform','sec'].forEach(k=>{if(S[k])p.set(k,S[k])});
  const u=new URLSearchParams(p);u.delete('region');history.replaceState(null,'',location.pathname+(u.toString()?'?'+u:''));
  try{R=await (await fetch('/api/rank?'+p)).json()}catch(e){return}OPEN=null;ALL=false;controls();render()}
-controls();go();setInterval(()=>{if(!document.hidden&&R&&R.date===R.today)go()},60000);
+controls();setMode(MODE);setInterval(()=>{if(!document.hidden&&MODE==='live'&&R&&R.date===R.today)go()},60000);
 // share: top 10 as an image
 let blob=null;
 function loadImg(u){return new Promise(r=>{if(!u)return r(null);const i=new Image();i.crossOrigin='anonymous';i.onload=()=>r(i);i.onerror=()=>r(null);i.src=u})}
@@ -153,7 +178,7 @@ async function makeCard(logos){const c=document.createElement('canvas');c.width=
   x.textAlign='right';x.fillStyle='#fff';x.font='700 44px "Barlow Condensed",sans-serif';x.fillText(MET[S.metric][1](s[S.metric]),1008,y+46);x.textAlign='left';x.fillStyle='#1d1d2b';x.fillRect(72,y+84,936,1)});
  x.fillStyle='#8d8ca3';x.font='26px "Barlow Condensed",sans-serif';x.fillText((SITE+location.pathname).replace('https://',''),72,1300);
  return new Promise(r=>{try{c.toBlob(r,'image/png')}catch(e){r(null)}})}
-document.getElementById('share').onclick=async()=>{if(!R||!R.rows.length)return;try{await document.fonts.ready}catch(e){}blob=await makeCard(true)||await makeCard(false);
+document.getElementById('share').onclick=async()=>{if(MODE==='channels')return;if(!R||!R.rows.length)return;try{await document.fonts.ready}catch(e){}blob=await makeCard(true)||await makeCard(false);
  document.getElementById('mimg').src=URL.createObjectURL(blob);document.getElementById('modal').style.display='flex'};
 document.getElementById('mclose').onclick=()=>document.getElementById('modal').style.display='none';
 document.getElementById('mdl').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='rankings.png';a.click()};

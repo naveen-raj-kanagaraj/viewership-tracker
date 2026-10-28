@@ -107,6 +107,8 @@ def cmd_run(args) -> int:
         ytextra.start()                    # Super Chats on the biggest YouTube streams + daily channel stats
         from tracker import chat
         chat.start()                       # chat speed (Twitch IRC, Kick websocket) for Moments
+        from tracker import ranks
+        ranks.start()                      # channel ranks (worldwide / country / category), every 30 min
 
     from tracker import autoupdate, backup
     autoupdate.start()

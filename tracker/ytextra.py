@@ -30,7 +30,7 @@ from tracker import events, platforms, store
 SUPERCHAT_TOP = int(os.getenv("SUPERCHAT_TOP", "50"))       # how many of the biggest YouTube streams to read chat for
 SUPERCHAT_ON = os.getenv("SUPERCHAT", "true").lower() == "true"
 STATS_ON = os.getenv("CHANNEL_STATS", "true").lower() == "true"
-STATS_MAX = int(os.getenv("CHANNEL_STATS_MAX", "3000"))     # channels snapshotted per day, most watched first
+STATS_MAX = int(os.getenv("CHANNEL_STATS_MAX", "50000" if os.getenv("YOUTUBE_API_KEY") else "3000"))     # channels snapshotted per day, most watched first
 _pool = ThreadPoolExecutor(6)
 
 # ---------- storage ----------
@@ -56,8 +56,11 @@ def _db():
     c = scene._db()
     if not _ready:
         c.executescript(_SCHEMA)
-        if "short" not in {r[1] for r in c.execute("PRAGMA table_info(yt_videos)")}:
+        cols = {r[1] for r in c.execute("PRAGMA table_info(yt_videos)")}
+        if "short" not in cols:
             c.execute("ALTER TABLE yt_videos ADD COLUMN short INTEGER DEFAULT 0")
+        if "url" not in cols:
+            c.execute("ALTER TABLE yt_videos ADD COLUMN url TEXT DEFAULT ''")
         if not store.kv_get("ytv_fix_premieres"):
             c.execute("UPDATE yt_videos SET updated=0")          # re-read: premieres were counted as live
             c.commit()
@@ -321,6 +324,22 @@ def _about_stats(cid: str):
     return grab("subscriberCountText"), views, grab("videoCountText")
 
 
+_META = {}            # channel id -> {topic, country, name, logo} from the last API read
+_TOPICS = [("Gaming", r"game|gaming|esport"), ("Music", r"music"), ("Sports", r"sport|football|cricket|basketball|tennis|racing|boxing|wrestling|golf|baseball|hockey|volleyball|mixed_martial"),
+           ("News & politics", r"politic|society|military"), ("Religion", r"religion"), ("Education", r"knowledge|technology"),
+           ("Entertainment", r"entertainment|film|television|humour|performing_arts"),
+           ("Lifestyle", r"lifestyle|food|fashion|health|tourism|vehicle|pet|fitness|hobby|beauty")]
+
+
+def topic_of(urls: list) -> str:
+    """YouTube's topic tags (Wikipedia links like .../Action_game) -> one category for ranks."""
+    names = " ".join(u.rsplit("/", 1)[-1].lower() for u in urls)
+    for cat, rx in _TOPICS:
+        if re.search(rx, names):
+            return cat
+    return "Other" if names else ""
+
+
 def channel_stats(cids: list) -> dict:
     """{channel id: (subs, views, videos)}. YouTube Data API (exact views; 1 quota unit per 50) when
     YOUTUBE_API_KEY is set, else About pages."""
@@ -328,10 +347,14 @@ def channel_stats(cids: list) -> dict:
     if key:
         for i in range(0, len(cids), 50):
             r = events._http.get("https://www.googleapis.com/youtube/v3/channels",
-                                 params={"part": "statistics", "id": ",".join(cids[i:i + 50]), "key": key}, timeout=15)
+                                 params={"part": "statistics,topicDetails,snippet", "id": ",".join(cids[i:i + 50]), "key": key}, timeout=15)
             r.raise_for_status()
             for it in r.json().get("items", []):
                 s = it.get("statistics") or {}
+                _META[it["id"]] = {"topic": topic_of((it.get("topicDetails") or {}).get("topicCategories") or []),
+                                   "country": (it.get("snippet") or {}).get("country") or "",
+                                   "name": (it.get("snippet") or {}).get("title") or "",
+                                   "logo": (((it.get("snippet") or {}).get("thumbnails") or {}).get("medium") or {}).get("url") or ""}
                 out[it["id"]] = (None if s.get("hiddenSubscriberCount") else int(s.get("subscriberCount") or 0),
                                  int(s.get("viewCount") or 0), int(s.get("videoCount") or 0))
         return out
@@ -367,7 +390,14 @@ def stats_once(limit: int = 300) -> int:
         c = _db()
         c.executemany("INSERT OR REPLACE INTO sc_chstats VALUES (?,?,?,?,?,?)",
                       [(d, "yt:" + cid, s, v, n, now) for cid, (s, v, n) in got.items()])
+        meta = [(m["topic"], m["country"], m["name"], m["logo"], "yt:" + cid) for cid, m in _META.items() if cid in got]
+        c.executemany("""UPDATE sc_channels SET topic=COALESCE(NULLIF(?,''), topic),
+                         country=CASE WHEN ?!='' THEN ? ELSE country END, name=COALESCE(NULLIF(?,''), name),
+                         logo=COALESCE(NULLIF(?,''), logo) WHERE sid=?""",
+                      [(t, ct, ct, n, lg, sid) for t, ct, n, lg, sid in meta])
+        c.execute("UPDATE sc_channels SET india=1 WHERE country='IN' AND platform='youtube' AND COALESCE(india,0)=0")
         c.commit()
+    _META.clear()
     return len(got)
 
 
@@ -377,7 +407,8 @@ def run_stats():
     time.sleep(120)
     while True:
         try:
-            stats_once(300 if os.getenv("YOUTUBE_API_KEY") else 120)
+            stats_once(2000 if os.getenv("YOUTUBE_API_KEY") else 120)
+            discover_once()
             followers_once(100)
         except Exception as e:
             print(f"Channel stats: {str(e)[:150]}")
@@ -971,7 +1002,7 @@ def _playlist_ids(pid: str, since: float, key: str, pages: int = 20) -> list:
     return ids
 
 
-def _api_videos(cid: str, since: float, key: str) -> list:
+def _api_videos(cid: str, since: float, key: str, pages: int = 20) -> list:
     """YouTube Data API: the uploads playlist (newest first) back to `since`, with exact dates, views, likes,
     comments and length. What kind each video is comes from YouTube's own per-channel playlists: UULV<id> holds the
     channel's live streams and UUSH<id> its Shorts. A premiere is a normal video (it's in neither), even though the
@@ -981,8 +1012,8 @@ def _api_videos(cid: str, since: float, key: str) -> list:
     up = (((j.get("items") or [{}])[0].get("contentDetails") or {}).get("relatedPlaylists") or {}).get("uploads")
     if not up:
         return []
-    ids = _playlist_ids(up, since, key)
-    lives, shorts = set(_playlist_ids("UULV" + cid[2:], since, key, 10)), set(_playlist_ids("UUSH" + cid[2:], since, key, 10))
+    ids = _playlist_ids(up, since, key, pages)
+    lives, shorts = set(_playlist_ids("UULV" + cid[2:], since, key, pages)), set(_playlist_ids("UUSH" + cid[2:], since, key, pages))
     out = []
     for i in range(0, len(ids), 50):
         j = events._http.get("https://www.googleapis.com/youtube/v3/videos",
@@ -1000,47 +1031,124 @@ def _api_videos(cid: str, since: float, key: str) -> list:
     return out
 
 
-def channel_videos(sid: str, force: bool = False) -> list:
-    """The channel's uploads and past live streams of the last year, from the database; refreshed from YouTube when
-    older than 6 hours. With YOUTUBE_API_KEY: exact dates, views, likes, comments. Without: dates from "3 days ago"
-    (approximate), views only."""
-    if not sid.startswith("yt:UC"):
+def _tw_videos(login: str, since: float) -> list:
+    """Twitch: past broadcasts, highlights and uploads (title, date, views, length). Twitch keeps past broadcasts for
+    7 to 60 days, so older streams only appear if the streamer saved them as highlights."""
+    u = (platforms._get("twitch", "https://api.twitch.tv/helix/users", {"login": login}).get("data") or [{}])[0]
+    if not u.get("id"):
         return []
-    with store._lock:
-        last = _db().execute("SELECT MAX(updated) FROM yt_videos WHERE sid=?", (sid,)).fetchone()[0] or 0
-    if force or time.time() - last > 6 * 3600:
-        since, cid, key = time.time() - 370 * 86400, sid[3:], os.getenv("YOUTUBE_API_KEY")
+    out, cur = [], None
+    for _ in range(10):
+        j = platforms._get("twitch", "https://api.twitch.tv/helix/videos",
+                           {"user_id": u["id"], "type": "all", "first": 100, **({"after": cur} if cur else {})})
+        for v in j.get("data") or []:
+            ts = int(datetime.fromisoformat(v["created_at"].replace("Z", "+00:00")).timestamp()) if v.get("created_at") else None
+            if ts and ts < since:
+                continue
+            out.append({"id": "tw:" + v["id"], "title": v.get("title") or "", "ts": ts, "views": v.get("view_count"),
+                        "likes": None, "comments": None, "secs": _dur(v.get("duration")), "live": 1 if v.get("type") == "archive" else 0,
+                        "short": 0, "approx": 0, "url": v.get("url") or ""})
+        cur = (j.get("pagination") or {}).get("cursor")
+        if not cur:
+            break
+    return out
+
+
+def _kick_videos(slug: str, since: float) -> list:
+    """Kick: past broadcasts from kick.com's channel videos list (unofficial; Kick may block it)."""
+    r = events._http.get(f"https://kick.com/api/v2/channels/{slug}/videos", timeout=12,
+                         headers={"User-Agent": events._UA, "Accept": "application/json"})
+    if r.status_code != 200:
+        return []
+    out = []
+    for v in r.json() if isinstance(r.json(), list) else []:
+        ls = v.get("livestream") or {}
+        created = v.get("created_at") or ls.get("created_at") or ls.get("start_time")
         try:
+            ts = int(datetime.fromisoformat(str(created).replace("Z", "+00:00").replace(" ", "T")).timestamp()) if created else None
+        except ValueError:
+            ts = None
+        if ts and ts < since:
+            continue
+        uid = v.get("uuid") or v.get("id")
+        out.append({"id": f"kk:{uid}", "title": ls.get("session_title") or v.get("title") or "", "ts": ts,
+                    "views": v.get("views") or ls.get("views"), "likes": None, "comments": None,
+                    "secs": int((ls.get("duration") or 0) / 1000) if (ls.get("duration") or 0) > 10000 else int(ls.get("duration") or 0),
+                    "live": 1, "short": 0, "approx": 0, "url": f"https://kick.com/{slug}/videos/{uid}"})
+    return out
+
+
+_VBUSY = set()
+
+
+def _refresh_videos(sid: str, full: bool):
+    """Fetch the channel's videos (everything on a full pass, the last 60 days otherwise) and store them."""
+    if sid in _VBUSY:
+        return
+    _VBUSY.add(sid)
+    try:
+        plat, _, ident = sid.partition(":")
+        since = 0 if full else time.time() - 60 * 86400
+        key = os.getenv("YOUTUBE_API_KEY")
+        if plat == "yt":
             if key:
-                vids = _api_videos(cid, since, key)
+                vids = _api_videos(ident, since, key, pages=60 if full else 3)
             else:
-                vids = [{**x, "live": 0, "approx": 1} for x in _yt_tab_all(cid, "videos", since)]
-                vids += [{**x, "live": 1, "approx": 1} for x in _yt_tab_all(cid, "streams", since, pages=6)]
-            now = int(time.time())
-            rows = [(v["id"], sid, v["ts"], v["title"], v.get("views"), v.get("likes"), v.get("comments"), v.get("secs") or 0,
-                     v.get("live", 0), v.get("approx", 1), now, v.get("short", 0)) for v in vids if v.get("id")]
+                vids = [{**x, "live": 0, "approx": 1} for x in _yt_tab_all(ident, "videos", since, pages=30 if full else 3)]
+                vids += [{**x, "live": 1, "approx": 1} for x in _yt_tab_all(ident, "streams", since, pages=15 if full else 2)]
+        elif plat == "twitch":
+            vids = _tw_videos(ident, since)
+        elif plat == "kick":
+            vids = _kick_videos(ident, since)
+        else:
+            vids = []
+        now = int(time.time())
+        rows = [(v["id"], sid, v["ts"], v["title"], v.get("views"), v.get("likes"), v.get("comments"), v.get("secs") or 0,
+                 v.get("live", 0), v.get("approx", 1), now, v.get("short", 0), v.get("url") or "") for v in vids if v.get("id")]
+        with store._lock:
+            c = _db()
             if rows:
-                with store._lock:
-                    c = _db()
-                    # without the API the date is only "3 days ago": keep the first (closer) estimate once we have one
-                    c.executemany("""INSERT INTO yt_videos (vid, sid, ts, title, views, likes, comments, secs, live, approx, updated, short)
-                                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(vid) DO UPDATE SET
-                                     title=excluded.title, views=excluded.views,
-                                     likes=COALESCE(excluded.likes, yt_videos.likes), comments=COALESCE(excluded.comments, yt_videos.comments),
-                                     secs=CASE WHEN excluded.secs>0 THEN excluded.secs ELSE yt_videos.secs END,
-                                     live=CASE WHEN excluded.approx=0 THEN excluded.live ELSE MAX(excluded.live, yt_videos.live) END,
-                                     short=CASE WHEN excluded.approx=0 THEN excluded.short ELSE yt_videos.short END,
-                                     ts=CASE WHEN excluded.approx=0 OR yt_videos.ts IS NULL THEN excluded.ts ELSE yt_videos.ts END,
-                                     approx=MIN(excluded.approx, yt_videos.approx), updated=excluded.updated""", rows)
-                    c.commit()
-        except Exception as e:
-            print(f"Videos of {sid}: {str(e)[:120]}")
+                # without the API a date is only "3 days ago": keep the first (closer) estimate once we have one
+                c.executemany("""INSERT INTO yt_videos (vid, sid, ts, title, views, likes, comments, secs, live, approx, updated, short, url)
+                                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(vid) DO UPDATE SET
+                                 title=excluded.title, views=excluded.views,
+                                 likes=COALESCE(excluded.likes, yt_videos.likes), comments=COALESCE(excluded.comments, yt_videos.comments),
+                                 secs=CASE WHEN excluded.secs>0 THEN excluded.secs ELSE yt_videos.secs END,
+                                 live=CASE WHEN excluded.approx=0 THEN excluded.live ELSE MAX(excluded.live, yt_videos.live) END,
+                                 short=CASE WHEN excluded.approx=0 THEN excluded.short ELSE yt_videos.short END,
+                                 ts=CASE WHEN excluded.approx=0 OR yt_videos.ts IS NULL THEN excluded.ts ELSE yt_videos.ts END,
+                                 approx=MIN(excluded.approx, yt_videos.approx), updated=excluded.updated,
+                                 url=CASE WHEN excluded.url!='' THEN excluded.url ELSE yt_videos.url END""", rows)
+            c.commit()
+        m = store.kv_get(f"vids:{sid}") or {}
+        m["recent"] = now
+        if full:
+            m["full"] = now
+        store.kv_set(f"vids:{sid}", m)
+    except Exception as e:
+        print(f"Videos of {sid}: {str(e)[:120]}")
+    finally:
+        _VBUSY.discard(sid)
+
+
+def channel_videos(sid: str, force: bool = False) -> list:
+    """Every stored video / Short / past stream of the channel. The first visit fetches the whole history (YouTube with
+    YOUTUBE_API_KEY: up to 3,000 videos, exact; without it: what the channel tabs show, dates approximate). After that
+    the page is served from the database at once, while the last 60 days are refreshed in the background every 6 hours
+    and the whole history weekly."""
+    m = store.kv_get(f"vids:{sid}") or {}
+    now = time.time()
+    if force or not m.get("full"):
+        _refresh_videos(sid, full=True)
+    elif now - m["full"] > 7 * 86400:
+        threading.Thread(target=_refresh_videos, args=(sid, True), daemon=True).start()
+    elif now - m.get("recent", 0) > 6 * 3600:
+        threading.Thread(target=_refresh_videos, args=(sid, False), daemon=True).start()
     with store._lock:
-        return [dict(r) for r in _db().execute(
-            "SELECT * FROM yt_videos WHERE sid=? AND ts >= ? ORDER BY ts DESC", (sid, time.time() - 370 * 86400))]
+        return [dict(r) for r in _db().execute("SELECT * FROM yt_videos WHERE sid=? ORDER BY ts DESC", (sid,))]
 
 
-RANGES = {"1w": 7, "1m": 30, "3m": 91, "6m": 182, "ytd": None, "1y": 365}
+RANGES = {"1w": 7, "1m": 30, "3m": 91, "6m": 182, "ytd": None, "1y": 365, "all": 0}
 
 
 def videos_summary(sid: str, rng: str = "3m", kind: str = "all") -> dict:
@@ -1049,7 +1157,8 @@ def videos_summary(sid: str, rng: str = "3m", kind: str = "all") -> dict:
     vids = channel_videos(sid)
     now = datetime.now(events.REPORT_TZ)
     days = RANGES.get(rng, 91)
-    t0 = datetime(now.year, 1, 1, tzinfo=events.REPORT_TZ).timestamp() if days is None else time.time() - days * 86400
+    t0 = (datetime(now.year, 1, 1, tzinfo=events.REPORT_TZ).timestamp() if days is None else
+          min((v["ts"] for v in vids if v["ts"]), default=time.time()) if days == 0 else time.time() - days * 86400)
     kind_of = lambda v: "live" if v["live"] else "shorts" if v.get("short") else "uploads"
     L = [v for v in vids if (v["ts"] or 0) >= t0 and (kind == "all" or kind_of(v) == kind)]
     views = [v["views"] or 0 for v in L]
@@ -1065,3 +1174,37 @@ def videos_summary(sid: str, rng: str = "3m", kind: str = "all") -> dict:
             "per_week": round(len(L) / max(1, (time.time() - t0) / 604800), 1),
             "best": max(L, key=lambda v: v["views"] or 0) if L else None, "videos": L[:400],
             "exact": bool(os.getenv("YOUTUBE_API_KEY")), "oldest": min((v["ts"] for v in vids if v["ts"]), default=None)}
+
+
+# ---------- discovery: grow the list of channels so ranks mean something ----------
+
+DISCOVER = ["BGMI", "Free Fire", "GTA 5 RP", "Valorant", "Minecraft", "Fortnite", "COD Mobile", "PUBG Mobile", "Roblox",
+            "Clash of Clans", "Pokemon Unite", "Mobile Legends", "Counter Strike 2", "League of Legends", "Genshin Impact",
+            "gaming", "esports", "live gaming", "news", "music", "comedy", "vlog", "tech", "cricket", "devotional",
+            "podcast", "education", "cooking", "movie review", "kids"]
+DISCOVER_GL = [("IN", " india"), ("IN", " tamil"), ("IN", " telugu"), ("IN", " hindi"), ("US", ""), ("BR", ""), ("ID", ""),
+               ("PH", ""), ("PK", ""), ("BD", ""), ("GB", "")]
+
+
+def discover_once(n: int = 2) -> int:
+    """A couple of YouTube channel searches per run (rotating through games/topics x countries); new channels are
+    added untracked and picked up by the daily stats. Free: uses YouTube's site search, not the API allowance."""
+    i = store.kv_get("discover_i") or 0
+    added = 0
+    for k in range(n):
+        q, (gl, suffix) = DISCOVER[(i + k) % len(DISCOVER)], DISCOVER_GL[((i + k) // len(DISCOVER)) % len(DISCOVER_GL)]
+        try:
+            res = yt_channel_search(q + suffix, gl)
+        except Exception:
+            continue
+        with store._lock:
+            c = _db()
+            for x in res:
+                cur = c.execute("""INSERT OR IGNORE INTO sc_channels (sid, platform, name, url, logo, first_seen, last_live, title, game,
+                                   country, india, language, tracked) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0)""",
+                                (x["sid"], "youtube", x["name"], f"https://www.youtube.com/channel/{x['sid'][3:]}", x["logo"], time.time(),
+                                 None, "", "", None, 0, ""))
+                added += cur.rowcount
+            c.commit()
+    store.kv_set("discover_i", i + n)
+    return added
