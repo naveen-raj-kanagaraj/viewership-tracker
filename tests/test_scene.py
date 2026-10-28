@@ -463,3 +463,22 @@ assert yx.videos_summary("yt:UCffindia000000000000000", "1y")["count"] == 4 and 
 assert c.get("/api/videos?sid=yt:UCffindia000000000000000&range=6m").get_json()["count"] == 4
 assert yx._iso_dur("PT1H2M3S") == 3723 and yx._iso_dur("PT45S") == 45
 print("VIDEOS OK")
+# YouTube API: live streams and Shorts come from the channel's UULV / UUSH playlists; a premiere is a video
+def _api_get(url, params=None, **k):
+    pl = (params or {}).get("playlistId", "")
+    if url.endswith("/channels"): return RJ({"items": [{"contentDetails": {"relatedPlaylists": {"uploads": "UUabc"}}}]})
+    if url.endswith("/playlistItems"):
+        now_ = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        ids = {"UUabc": ["vid1", "prem1", "live1", "short1"], "UULVabcdefghijklmnopqrstuv": ["live1"], "UUSHabcdefghijklmnopqrstuv": ["short1"]}.get(pl, [])
+        return RJ({"items": [{"contentDetails": {"videoId": i, "videoPublishedAt": now_}} for i in ids]})
+    if url.endswith("/videos"):
+        now_ = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        mk = lambda i, ls: {"id": i, "snippet": {"title": i, "publishedAt": now_}, "statistics": {"viewCount": "1000", "likeCount": "50", "commentCount": "5"},
+                            "contentDetails": {"duration": "PT10M"}, **({"liveStreamingDetails": {"actualStartTime": now_}} if ls else {})}
+        return RJ({"items": [mk("vid1", False), mk("prem1", True), mk("live1", True), mk("short1", False)]})
+    return _og(url, params=params, **k)
+events._http.get = _api_get
+got = {v["id"]: (v["live"], v["short"]) for v in yx._api_videos("UCabcdefghijklmnopqrstuv", time.time() - 86400 * 30, "k")}
+events._http.get = _og
+assert got == {"vid1": (0, 0), "prem1": (0, 0), "live1": (1, 0), "short1": (0, 1)}, got
+print("KINDS OK")

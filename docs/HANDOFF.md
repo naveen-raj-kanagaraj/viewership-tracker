@@ -275,6 +275,11 @@ As of 26 Oct 2026:
   1W/1M/3M/6M/YTD/1Y, all/uploads/live, chart by post date, engagement = (likes + comments) / views.
 - About-page reader fix: total views are read only inside aboutChannelViewModel (it used to grab a video tile's
   views). Old About-based YouTube snapshots were deleted once (kv chstats_fix_about).
+- Channel performance (29 Oct): video kind from YouTube's per-channel playlists UULV<id> (live streams) and
+  UUSH<id> (Shorts); premieres are normal videos (the API gives them liveStreamingDetails too). yt_videos.short
+  added; all rows re-read once (kv ytv_fix_premieres). Channel page: lifetime row, range/kind/metric pickers, line
+  chart per post with median, best day/time (IST) and format insights, "vs median", 1080x1350 share card.
+  Engagement = (likes + comments) / views over the posts in range.
 - Kick seeds always include `skyesports` and `cegc` (`scene.ALWAYS`); "CEGC" is also a tournament name.
 
 ## Ideas not built yet
