@@ -1606,7 +1606,15 @@ def channel(sid: str) -> dict:
                       "game": max(z["games"], key=z["games"].get) if z["games"] else ""}
                      for d, z in sorted(by.items()) if d >= (today - timedelta(days=29)).strftime("%Y-%m-%d")],
             "recent": [[r[0], r[1]] for r in samp[::step]],
-            **(_yt_extra(sid) if sid.startswith("yt:") else {"superchats": None, "top_superchats": [], "stats": None})}
+            **(_yt_extra(sid) if sid.startswith("yt:") else _other_extra(sid))}
+
+
+def _other_extra(sid: str) -> dict:
+    from tracker import ytextra
+    try:
+        return {"superchats": None, "top_superchats": [], "stats": None, "views": ytextra.views_series(sid)}
+    except Exception:
+        return {"superchats": None, "top_superchats": [], "stats": None}
 
 
 def _yt_extra(sid: str) -> dict:

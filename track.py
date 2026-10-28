@@ -105,6 +105,8 @@ def cmd_run(args) -> int:
         threading.Thread(target=scene.run_forever, daemon=True).start()
         from tracker import ytextra
         ytextra.start()                    # Super Chats on the biggest YouTube streams + daily channel stats
+        from tracker import chat
+        chat.start()                       # chat speed (Twitch IRC, Kick websocket) for Moments
 
     from tracker import autoupdate, backup
     autoupdate.start()
@@ -254,6 +256,32 @@ def cmd_scene(args) -> int:
     if a[0] == "superchat" and len(a) >= 2:          # read one live stream's chat for a minute: track.py scene superchat <video>
         from tracker import ytextra
         print(ytextra.probe_chat(a[1], int(a[2]) if len(a) > 2 else 60))
+        return 0
+    if a[0] == "lookup" and len(a) >= 2:             # find a channel on YouTube/Twitch/Kick: track.py scene lookup <name>
+        from tracker import chat, ytextra
+        q = " ".join(a[1:])
+        res = ytextra.lookup(q)
+        for p_, L in res.items():
+            print(f"{p_}: " + (", ".join(f"{x['name']} ({x['sid']})" for x in L) or "-"))
+        logins = [x["sid"].split(":", 1)[1] for x in res["twitch"][:3]]
+        print("twitch followers:", ytextra.twitch_followers(logins) or "none (connect an account: track.py twitch-login)")
+        for x in res["kick"][:2]:
+            j = ytextra.kick_info(x["sid"].split(":", 1)[1])
+            print(f"kick {x['sid']}: followers {j.get('followers_count', '?')}, chatroom {(j.get('chatroom') or {}).get('id', 'blocked')}")
+        return 0
+    if a[0] == "chat":                                # chat readers' status: track.py scene chat
+        from tracker import chat
+        err = {}
+        for p_ in ("twitch", "kick"):                # who's live right now (the running tracker knows; this CLI asks)
+            for r in scene.platform_global(p_, err)[:60]:
+                scene._LIVE[r["vid"]] = {"platform": p_, "viewers": r["viewers"]}
+        chat.start()
+        time.sleep(int(a[1]) if len(a) > 1 else 60)
+        print(chat.STATUS)
+        with chat._L:
+            top = sorted(((sid, sum(n for _, n in d)) for sid, d in chat._C.items()), key=lambda kv: -kv[1])[:15]
+        for sid, n in top:
+            print(f"  {sid:35} {n} messages")
         return 0
     if a[0] == "stats" and len(a) >= 2:              # one channel's subscribers / views / videos: track.py scene stats @handle
         from tracker import ytextra

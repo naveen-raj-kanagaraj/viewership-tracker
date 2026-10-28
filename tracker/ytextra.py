@@ -215,6 +215,17 @@ def _store(vid: str, sid: str, items: list):
         c.commit()
 
 
+def _count_chat(sid: str, actions: list):
+    """Chat speed for Moments: one count per chat item, at the time YouTube stamped it."""
+    from tracker import chat
+    for a in actions or []:
+        it = (a.get("addChatItemAction") or {}).get("item") or {}
+        for r in it.values():
+            if isinstance(r, dict) and r.get("timestampUsec"):
+                chat.add(sid, 1, int(r["timestampUsec"]) / 1e6)
+                break
+
+
 def _targets() -> dict:
     """{video id: channel sid} for the biggest YouTube streams in the latest scan."""
     from tracker import scene
@@ -233,6 +244,7 @@ def _poll(vid: str):
             got = _chat_next(st)
             st["cont"] = got["cont"]
         _store(vid, st["sid"], paid_items(got["actions"]))
+        _count_chat(st["sid"], got["actions"])
         st["fails"] = 0
         st["next"] = time.time() + min(15, max(5, got["wait"] / 1000))
         if not st["cont"]:                    # chat ended or turned off: start over later
@@ -345,6 +357,7 @@ def run_stats():
     while True:
         try:
             stats_once(300 if os.getenv("YOUTUBE_API_KEY") else 120)
+            followers_once(100)
         except Exception as e:
             print(f"Channel stats: {str(e)[:150]}")
         time.sleep(900)                       # every 15 min, until every channel has today's numbers
@@ -509,8 +522,9 @@ def _walk(o, key, out):
     return out
 
 
-def _yt_past(cid: str) -> list:
-    r = events._http.get(f"https://www.youtube.com/channel/{cid}/streams", timeout=15,
+def _yt_past(cid: str, tab: str = "streams") -> list:
+    """Videos on a channel tab: 'streams' (past live streams) or 'videos' (uploads)."""
+    r = events._http.get(f"https://www.youtube.com/channel/{cid}/{tab}", timeout=15,
                          headers={"User-Agent": events._UA, "Accept-Language": "en-US,en;q=0.9"},
                          cookies={"CONSENT": "YES+", "SOCS": "CAI"})
     r.raise_for_status()
@@ -577,6 +591,10 @@ def past_streams(sid: str) -> dict:
     try:
         if plat == "yt":
             res.update(source="YouTube channel, Live tab", streams=_yt_past(ident))
+            try:
+                res["videos"] = _yt_past(ident, "videos")[:30]
+            except Exception:
+                res["videos"] = []
         elif plat == "twitch":
             res.update(source="Twitch past broadcasts", streams=_tw_past(ident))
         else:
@@ -704,3 +722,153 @@ def views_series(sid: str, days: int = 90) -> dict:
         months[g["day"][:7]] = months.get(g["day"][:7], 0) + g["views"]
     return {"first": st[0]["day"] if st else None, "snapshots": st, "gains": gains,
             "months": [{"month": k, "views": v} for k, v in sorted(months.items())]}
+
+
+# ---------- Twitch and Kick channels (lookup, followers) ----------
+
+_KINFO = {}           # kick slug -> (time, json from kick.com/api/v2/channels/<slug>) ; shared with chat.py's chatroom ids
+
+
+def kick_info(slug: str) -> dict:
+    """Kick's own channel JSON (followers_count, chatroom id, user, livestream). Unofficial; Kick may block it."""
+    hit = _KINFO.get(slug)
+    if hit and time.time() - hit[0] < 3600:
+        return hit[1]
+    j = {}
+    try:
+        r = events._http.get(f"https://kick.com/api/v2/channels/{slug}", timeout=10,
+                             headers={"User-Agent": events._UA, "Accept": "application/json"})
+        if r.status_code == 200:
+            j = r.json()
+    except Exception:
+        pass
+    _KINFO[slug] = (time.time(), j)
+    return j
+
+
+def lookup(q: str) -> dict:
+    """Channels matching q on YouTube (channel search), Twitch (channel search) and Kick (exact channel name)."""
+    out = {"youtube": [], "twitch": [], "kick": []}
+    try:
+        out["youtube"] = yt_channel_search(q)
+    except Exception:
+        pass
+    if platforms._keys("twitch"):
+        try:
+            for x in (platforms._get("twitch", "https://api.twitch.tv/helix/search/channels", {"query": q, "first": 6}).get("data") or []):
+                out["twitch"].append({"sid": "twitch:" + x["broadcaster_login"].lower(), "name": x.get("display_name") or x["broadcaster_login"],
+                                      "logo": x.get("thumbnail_url") or "", "live": bool(x.get("is_live")),
+                                      "subs_text": x.get("game_name") or "", "handle": x["broadcaster_login"]})
+        except Exception:
+            pass
+    slug = re.sub(r"[^a-z0-9_-]", "", q.lower().replace(" ", ""))[:40]
+    if slug and platforms._keys("kick"):
+        try:
+            for x in (platforms._get("kick", "https://api.kick.com/public/v1/channels", [("slug", slug)]).get("data") or []):
+                live = (x.get("stream") or {}).get("is_live")
+                out["kick"].append({"sid": "kick:" + x["slug"].lower(), "name": x["slug"], "logo": "", "live": bool(live),
+                                    "subs_text": (x.get("category") or {}).get("name") or "", "handle": x["slug"]})
+        except Exception:
+            pass
+    return out
+
+
+def _twitch_users(logins: list) -> dict:
+    out = {}
+    for i in range(0, len(logins), 100):
+        for u in platforms._get("twitch", "https://api.twitch.tv/helix/users", [("login", x) for x in logins[i:i + 100]]).get("data") or []:
+            out[u["login"].lower()] = u
+    return out
+
+
+def twitch_followers(logins: list) -> dict:
+    """{login: followers}. Needs the connected Twitch account (track.py twitch-login); Twitch only gives follower totals
+    to logged-in accounts."""
+    from tracker import moments
+    tok = moments._user_token()
+    if not tok or not logins:
+        return {}
+    cid = (platforms._keys("twitch") or ("",))[0]
+    users, out = _twitch_users(logins), {}
+    for login, u in users.items():
+        r = platforms._http.get("https://api.twitch.tv/helix/channels/followers", params={"broadcaster_id": u["id"], "first": 1},
+                                headers={"Authorization": f"Bearer {tok}", "Client-Id": cid}, timeout=10)
+        if r.status_code == 200:
+            out[login] = int(r.json().get("total") or 0)
+    return out
+
+
+def ensure_any(sid: str) -> bool:
+    """Like ensure_channel, for Twitch and Kick: add the channel, follow it daily, take its first follower count."""
+    if sid.startswith("yt:"):
+        return ensure_channel(sid)
+    plat, _, ident = sid.partition(":")
+    if plat not in ("twitch", "kick") or not re.fullmatch(r"[a-z0-9_-]{2,40}", ident or ""):
+        return False
+    with store._lock:
+        row = _db().execute("SELECT tracked FROM sc_channels WHERE sid=?", (sid,)).fetchone()
+    if row and row[0]:
+        return True
+    if not row:
+        name, logo = ident, ""
+        try:
+            if plat == "twitch":
+                u = _twitch_users([ident]).get(ident)
+                if not u:
+                    return False
+                name, logo = u.get("display_name") or ident, u.get("profile_image_url") or ""
+            else:
+                j = platforms._get("kick", "https://api.kick.com/public/v1/channels", [("slug", ident)]).get("data") or []
+                if not j:
+                    return False
+                name = j[0].get("slug") or ident
+                logo = ((kick_info(ident).get("user") or {}).get("profile_pic")) or ""
+        except Exception:
+            return False
+        url = f"https://www.twitch.tv/{ident}" if plat == "twitch" else f"https://kick.com/{ident}"
+        with store._lock:
+            c = _db()
+            c.execute("""INSERT OR IGNORE INTO sc_channels (sid, platform, name, url, logo, first_seen, last_live, title, game,
+                         country, india, language, tracked) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1)""",
+                      (sid, plat, name, url, logo, time.time(), None, "", "", None, 0, ""))
+            c.commit()
+    else:
+        with store._lock:
+            c = _db()
+            c.execute("UPDATE sc_channels SET tracked=1 WHERE sid=?", (sid,))
+            c.commit()
+    try:
+        _follower_snapshot([sid])
+    except Exception as e:
+        print(f"First followers for {sid}: {str(e)[:100]}")
+    return True
+
+
+def _follower_snapshot(sids: list) -> int:
+    """Today's follower count for Twitch / Kick channels into sc_chstats (subs column = followers)."""
+    tw = [s.split(":", 1)[1] for s in sids if s.startswith("twitch:")]
+    kk = [s.split(":", 1)[1] for s in sids if s.startswith("kick:")]
+    got = {f"twitch:{k}": v for k, v in twitch_followers(tw).items()}
+    for slug in kk:
+        f = (kick_info(slug) or {}).get("followers_count") or ((kick_info(slug) or {}).get("followersCount"))
+        if f is not None:
+            got[f"kick:{slug}"] = int(f)
+    if got:
+        with store._lock:
+            c = _db()
+            c.executemany("INSERT OR REPLACE INTO sc_chstats VALUES (?,?,?,?,?,?)",
+                          [(_day(), sid, n, None, None, int(time.time())) for sid, n in got.items()])
+            c.commit()
+    return len(got)
+
+
+def followers_once(limit: int = 300) -> int:
+    """Daily follower counts for Twitch/Kick channels: followed (tracked) ones first, then the most watched."""
+    d = _day()
+    since = (datetime.now(events.REPORT_TZ).date() - timedelta(days=30)).strftime("%Y-%m-%d")
+    with store._lock:
+        todo = [r[0] for r in _db().execute(
+            """SELECT c.sid FROM sc_channels c LEFT JOIN (SELECT sid, SUM(hw) hw FROM sc_daily WHERE day>=? GROUP BY sid) d
+               ON d.sid=c.sid WHERE c.platform IN ('twitch','kick') AND c.sid NOT IN (SELECT sid FROM sc_chstats WHERE day=?)
+               ORDER BY COALESCE(c.tracked,0) DESC, COALESCE(d.hw,0) DESC LIMIT ?""", (since, d, limit)).fetchall()]
+    return _follower_snapshot(todo) if todo else 0

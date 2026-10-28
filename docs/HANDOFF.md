@@ -258,6 +258,16 @@ As of 26 Oct 2026:
   clips/hour), else the replay at the time; Kick links the channel. `track.py moments` lists them.
 - Per-scan totals (sc_cat, sc_reg) older than 35 days are compacted to the highest reading per 10 minutes, hourly,
   a few days at a time (kv scene_compacted).
+- Moments v2 (28 Oct): chat speed (tracker/chat.py: Twitch anonymous IRC for the top 150, Kick Pusher websocket for
+  the top 80 (needs chatroom ids from kick.com/api/v2, may be blocked), YouTube from the Super Chat reader) plus
+  viewers, both judged against the stream's own normal (robust z-scores). Raids, first 10 minutes and recovery after a
+  break excluded. `track.py scene chat 60` shows the chat readers working.
+- Lookup for any channel: `/api/lookup` (YouTube channel search, Twitch helix/search/channels, Kick exact slug).
+  Opening a channel follows it daily: YouTube subs/total views (sc_chstats), Twitch followers (needs the connected
+  account from twitch-login), Kick followers (kick.com/api/v2, unofficial). Channel page shows views/followers gained
+  and YouTube's latest uploads. `track.py scene lookup <name>` checks it.
+- YouTube players on the site need a referrer: iframes set referrerpolicy=strict-origin-when-cross-origin (the
+  site-wide header is no-referrer, which makes YouTube show "Video player configuration error").
 - Kick seeds always include `skyesports` and `cegc` (`scene.ALWAYS`); "CEGC" is also a tournament name.
 
 ## Ideas not built yet
