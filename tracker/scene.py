@@ -29,7 +29,9 @@ SCENE_YT_SEC = int(os.getenv("SCENE_YT_SEC", "300"))
 MIN_VIEWERS = int(os.getenv("SCENE_MIN_VIEWERS", "20"))
 KEEP_DAYS = int(os.getenv("SCENE_KEEP_DAYS", "3"))         # raw per-scan readings; per-day totals are kept for good
 GLOBAL_MIN = int(os.getenv("SCENE_GLOBAL_MIN", "100"))     # non-Indian streams smaller than this are left out
-TWITCH_PAGES = int(os.getenv("SCENE_TWITCH_PAGES", "5"))   # global Twitch: top 100 x this many
+TWITCH_PAGES = int(os.getenv("SCENE_TWITCH_PAGES", "20"))  # global Twitch: top 100 x this many (stops below GLOBAL_MIN)
+KICK_CATS = int(os.getenv("SCENE_KICK_CATS", "12"))         # global Kick: top 100 overall + top 100 in this many categories
+YT_LIVE_PAGES = int(os.getenv("SCENE_YT_LIVE_PAGES", "4"))  # YouTube Live page: first page + this many "more" pages
 YT_RECOUNT = int(os.getenv("SCENE_YT_RECOUNT", "400"))     # YouTube streams re-counted each scan (biggest first)
 FAST_MAX = int(os.getenv("SCENE_FAST_MAX", "300"))         # Kick/Twitch channels re-read every 2s (biggest first)
 LANGS = [x.strip() for x in os.getenv("SCENE_LANGS", "hi").split(",") if x.strip()]
@@ -173,7 +175,20 @@ def platform_global(p: str, errors: dict) -> list:
                     break
             rows += platforms._tw_logins(ESPORTS_TWITCH)
         else:
-            rows += _kick_live({})
+            top = _kick_live({})
+            rows += top
+            # Kick lists only 100 per call: also the top 100 in each of the biggest categories
+            cats = []
+            for x in top:
+                if x.get("category") and x["category"] not in cats:
+                    cats.append(x["category"])
+            for name in cats[:KICK_CATS]:
+                try:
+                    cid = _category_id("kick", name)
+                    if cid:
+                        rows += _kick_live({"category_id": cid})
+                except Exception as e:
+                    errors[f"kick category {name}"] = str(e)[:80]
     except Exception as e:
         errors[f"{p} global"] = str(e)[:120]
     return rows
@@ -340,6 +355,8 @@ def _db():
     CREATE TABLE IF NOT EXISTS sc_daily (day TEXT, sid TEXT, game TEXT, peak INTEGER, peak_at INTEGER, mins REAL,
         hw REAL, PRIMARY KEY (day, sid, game));
     CREATE INDEX IF NOT EXISTS sc_daily_game ON sc_daily(game, day);
+    CREATE INDEX IF NOT EXISTS sc_daily_sid ON sc_daily(sid, day);
+    CREATE INDEX IF NOT EXISTS sc_samples_sid ON sc_samples(sid, ts);
     CREATE TABLE IF NOT EXISTS sc_cat (ts INTEGER, game TEXT, viewers INTEGER, streams INTEGER, PRIMARY KEY (game, ts));
     CREATE TABLE IF NOT EXISTS sc_reg (ts INTEGER, region TEXT, game TEXT, viewers INTEGER, streams INTEGER,
         PRIMARY KEY (region, game, ts));
@@ -354,7 +371,7 @@ def _db():
         store.kv_set("scene_mig_pubg", True)
     if not _COLS:
         have = {r[1] for r in c.execute("PRAGMA table_info(sc_channels)")}
-        for col, typ in (("country", "TEXT"), ("india", "INTEGER"), ("language", "TEXT")):
+        for col, typ in (("country", "TEXT"), ("india", "INTEGER"), ("language", "TEXT"), ("tracked", "INTEGER")):
             if col not in have:
                 c.execute(f"ALTER TABLE sc_channels ADD COLUMN {col} {typ}")
         c.commit()
@@ -583,7 +600,41 @@ def yt_live_page(gl: str = "IN") -> list:
                           headers={"User-Agent": events._UA, "Content-Type": "application/json",
                                    "Origin": "https://www.youtube.com"}, timeout=10)
     r.raise_for_status()
-    return _parse(_renderers(r.json()))
+    j = r.json()
+    items = _renderers(j)
+    for _ in range(YT_LIVE_PAGES):            # the page loads more streams as you scroll: follow its continuations
+        tok = _continuation(j)
+        if not tok:
+            break
+        try:
+            r = events._http.post("https://www.youtube.com/youtubei/v1/browse?prettyPrint=false",
+                                  json={"context": {"client": _itv(gl)}, "continuation": tok},
+                                  headers={"User-Agent": events._UA, "Content-Type": "application/json",
+                                           "Origin": "https://www.youtube.com"}, timeout=10)
+            r.raise_for_status()
+            j = r.json()
+        except Exception:
+            break
+        items += _renderers(j)
+    return _parse(items)
+
+
+def _continuation(j):
+    """The last 'load more' token in a YouTube browse response, or None."""
+    out = []
+
+    def walk(o):
+        if isinstance(o, dict):
+            c = (((o.get("continuationItemRenderer") or {}).get("continuationEndpoint") or {}).get("continuationCommand") or {})
+            if c.get("token"):
+                out.append(c["token"])
+            for v in o.values():
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+    walk(j)
+    return out[-1] if out else None
 
 
 def _yt_add(found: dict, s: dict, logo: str = ""):
@@ -1267,7 +1318,8 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
             "games": [{**g, "hw": round(g["hw"])} for g in sorted(games.values(), key=lambda g: -g["hw"])][:60],
             "events": ([e for e in _events() if e["state"] in ("live", "upcoming")] if not (game or sec)
                        else [e for e in _events() if game and e["game"] == game]),
-            "history": game_history(game) if game else [],
+            "history": game_history(game) if game else (game_history("BGMI") if sec == "esports" and region == "in" else []),
+            "history_game": game or ("BGMI" if sec == "esports" and region == "in" else ""),
             "cat_period": sorted(cat_period, key=lambda x: -x["avg"]), "tracked": tracked,
             "langs": LANGS, "min": MIN_VIEWERS if region == "in" else GLOBAL_MIN,
             "keys": {p: bool(platforms._keys(p)) for p in ("kick", "twitch")}}
@@ -1522,7 +1574,7 @@ def channel(sid: str) -> dict:
 def _yt_extra(sid: str) -> dict:
     from tracker import ytextra
     try:
-        return ytextra.channel_extra(sid)
+        return {**ytextra.channel_extra(sid), "views": ytextra.views_series(sid)}
     except Exception as e:
         print(f"Channel extras for {sid}: {str(e)[:120]}")
         return {"superchats": None, "top_superchats": [], "stats": None}

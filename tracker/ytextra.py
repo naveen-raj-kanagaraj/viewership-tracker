@@ -323,7 +323,7 @@ def stats_once(limit: int = 300) -> int:
         todo = [r[0] for r in c.execute(
             """SELECT c.sid FROM sc_channels c LEFT JOIN (SELECT sid, SUM(hw) hw FROM sc_daily WHERE day>=? GROUP BY sid) d
                ON d.sid=c.sid WHERE c.platform='youtube' AND c.sid NOT IN (SELECT sid FROM sc_chstats WHERE day=?)
-               ORDER BY COALESCE(d.hw,0) DESC LIMIT ?""", (since, d, STATS_MAX)).fetchall()]
+               ORDER BY COALESCE(c.tracked,0) DESC, COALESCE(d.hw,0) DESC LIMIT ?""", (since, d, STATS_MAX)).fetchall()]
         done_today = c.execute("SELECT COUNT(*) FROM sc_chstats WHERE day=?", (d,)).fetchone()[0]
     todo = todo[:max(0, min(limit, STATS_MAX - done_today))]
     if not todo:
@@ -595,3 +595,112 @@ def past_streams(sid: str) -> dict:
         for k in sorted(_PAST, key=lambda k: _PAST[k][0])[:500]:
             _PAST.pop(k, None)
     return res
+
+
+# ---------- any YouTube channel: search, add, track daily ----------
+
+_YTS = {}             # query -> (time, results)
+
+
+def yt_channel_search(q: str, gl: str = "IN") -> list:
+    """YouTube's own channel search: [{sid, name, logo, subs_text, handle}]. Cached 10 minutes."""
+    q = (q or "").strip()[:60]
+    hit = _YTS.get(q.lower())
+    if hit and time.time() - hit[0] < 600:
+        return hit[1]
+    r = events._http.post("https://www.youtube.com/youtubei/v1/search?prettyPrint=false",
+                          json={"context": {"client": {"clientName": "WEB", "clientVersion": "2.20251001.00.00", "hl": "en", "gl": gl}},
+                                "query": q, "params": "EgIQAg=="},          # filter: channels
+                          headers={"User-Agent": events._UA, "Content-Type": "application/json",
+                                   "Origin": "https://www.youtube.com"}, timeout=10)
+    r.raise_for_status()
+    out = []
+    for ch in _walk(r.json(), "channelRenderer", []):
+        cid = ch.get("channelId") or ""
+        if not cid.startswith("UC"):
+            continue
+        texts = [_text(ch.get(k)) for k in ("subscriberCountText", "videoCountText")]
+        subs = next((t for t in texts if "subscriber" in t.lower()), "")
+        handle = next((t for t in texts if t.startswith("@")), "")
+        th = ((ch.get("thumbnail") or {}).get("thumbnails") or [{}])[-1].get("url", "")
+        out.append({"sid": "yt:" + cid, "name": _text(ch.get("title")), "logo": ("https:" + th) if th.startswith("//") else th,
+                    "subs_text": subs, "handle": handle})
+    _YTS[q.lower()] = (time.time(), out[:10])
+    if len(_YTS) > 1000:
+        _YTS.clear()
+    return out[:10]
+
+
+def _channel_info(cid: str) -> dict:
+    """Name, avatar and country from the channel's page."""
+    r = events._http.get(f"https://www.youtube.com/channel/{cid}/about", timeout=12,
+                         headers={"User-Agent": events._UA, "Accept-Language": "en-US,en;q=0.9"},
+                         cookies={"CONSENT": "YES+", "SOCS": "CAI"})
+    r.raise_for_status()
+    h = r.text
+    meta = lambda p: (re.search(r'<meta property="%s" content="([^"]*)"' % p, h) or [None, ""])[1]
+    import html as _html
+    m = re.search(r'"country"\s*:\s*"([^"]+)"', h)
+    return {"name": _html.unescape(meta("og:title")), "logo": meta("og:image"), "country": m.group(1) if m else ""}
+
+
+def ensure_channel(sid: str, name: str = "", logo: str = "") -> bool:
+    """Make sure a YouTube channel is in sc_channels and followed daily (tracked=1), even if it has never been seen
+    live. Takes its first stats snapshot right away. False if the channel can't be found."""
+    from tracker import scene
+    if not re.fullmatch(r"yt:UC[\w-]{22}", sid or ""):
+        return False
+    with store._lock:
+        row = _db().execute("SELECT sid, tracked FROM sc_channels WHERE sid=?", (sid,)).fetchone()
+    if row and row[1]:
+        return True
+    cid = sid[3:]
+    if not row:
+        try:
+            info = _channel_info(cid)
+        except Exception:
+            info = {"name": name, "logo": logo, "country": ""}
+        nm = info.get("name") or name
+        if not nm:
+            return False
+        ctry = scene._norm_country(info.get("country"))
+        with store._lock:
+            c = _db()
+            c.execute("""INSERT OR IGNORE INTO sc_channels (sid, platform, name, url, logo, first_seen, last_live, title, game,
+                         country, india, language, tracked) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1)""",
+                      (sid, "youtube", nm, f"https://www.youtube.com/channel/{cid}", info.get("logo") or logo, time.time(),
+                       None, "", "", ctry, 1 if ctry == "IN" else 0, ""))
+            c.commit()
+    else:
+        with store._lock:
+            c = _db()
+            c.execute("UPDATE sc_channels SET tracked=1 WHERE sid=?", (sid,))
+            c.commit()
+    try:
+        got = channel_stats([cid]).get(cid)
+        if got:
+            with store._lock:
+                c = _db()
+                c.execute("INSERT OR REPLACE INTO sc_chstats VALUES (?,?,?,?,?,?)", (_day(), sid, *got, int(time.time())))
+                c.commit()
+    except Exception as e:
+        print(f"First stats for {sid}: {str(e)[:100]}")
+    return True
+
+
+def views_series(sid: str, days: int = 90) -> dict:
+    """Daily snapshots and the views / subscribers gained between them, plus 7 / 30 day and per-month totals."""
+    with store._lock:
+        st = [dict(r) for r in _db().execute("SELECT day, subs, views, videos FROM sc_chstats WHERE sid=? ORDER BY day DESC LIMIT ?",
+                                             (sid, days + 1))]
+    st.reverse()
+    gains = []
+    for a, b in zip(st, st[1:]):
+        gap = (datetime.strptime(b["day"], "%Y-%m-%d") - datetime.strptime(a["day"], "%Y-%m-%d")).days or 1
+        gains.append({"day": b["day"], "views": max(0, (b["views"] or 0) - (a["views"] or 0)), "days": gap,
+                      "subs": (b["subs"] - a["subs"]) if a["subs"] is not None and b["subs"] is not None else None})
+    months = {}
+    for g in gains:
+        months[g["day"][:7]] = months.get(g["day"][:7], 0) + g["views"]
+    return {"first": st[0]["day"] if st else None, "snapshots": st, "gains": gains,
+            "months": [{"month": k, "views": v} for k, v in sorted(months.items())]}

@@ -304,3 +304,31 @@ events._http.get = _old_get
 s0 = ps["streams"][0]
 assert s0["id"] == "dpkwMjudZME" and s0["views"] == 2000000 and s0["secs"] == 40907 and abs(time.time() - s0["ts"] - 16 * 3600) < 120, s0
 print("LOCKUP OK")
+# YouTube channel search -> channel page -> tracked daily
+ysr = {"contents": {"x": [{"channelRenderer": {"channelId": "UCffindia000000000000000", "title": {"simpleText": "Garena Free Fire India"},
+        "thumbnail": {"thumbnails": [{"url": "//yt3.ggpht.com/ff.jpg"}]}, "subscriberCountText": {"simpleText": "@FreeFireIndiaOfficial"},
+        "videoCountText": {"simpleText": "5.2M subscribers"}}}]}}
+class RJ:
+    status_code = 200
+    def __init__(s, j=None, t=""): s._j = j; s.text = t
+    def json(s): return s._j
+    def raise_for_status(s): pass
+_op, _og = events._http.post, events._http.get
+events._http.post = lambda url, json=None, **k: RJ(ysr) if json and json.get("params") == "EgIQAg==" else _op(url, json=json, **k)
+about = '<meta property="og:title" content="Garena Free Fire India"><meta property="og:image" content="https://yt3/ff.jpg">"country":"IN" "viewCountText":"1,234,567,890 views" "subscriberCountText":"5.2M subscribers" "videoCountText":"3,456 videos"'
+events._http.get = lambda url, **k: RJ(t=about) if "/about" in url else _og(url, **k)
+yj = c.get("/api/ytsearch?q=garena free fire india").get_json()
+assert yj["channels"][0]["sid"] == "yt:UCffindia000000000000000" and yj["channels"][0]["subs_text"] == "5.2M subscribers" and not yj["channels"][0]["known"], yj
+assert c.get("/ch/yt:UCffindia000000000000000").status_code == 200
+with store._lock:
+    rw = sc._db().execute("SELECT name, india, tracked FROM sc_channels WHERE sid='yt:UCffindia000000000000000'").fetchone()
+    vv = sc._db().execute("SELECT views, subs FROM sc_chstats WHERE sid='yt:UCffindia000000000000000'").fetchone()
+assert tuple(rw) == ("Garena Free Fire India", 1, 1) and tuple(vv) == (1234567890, 5200000), (tuple(rw), vv and tuple(vv))
+events._http.post, events._http.get = _op, _og
+vs = yx.views_series("yt:UCtg")
+assert vs["gains"][-1]["views"] == 1100 and vs["months"] and sc.channel("yt:UCtg")["views"]["first"]
+# CEGC countdown preset, BGMI history on India's esports page
+assert events.PRESETS["cegc"]["next_start"] == "2026-11-03 13:30" and events.PRESETS["cegc"]["auto"]
+de = sc.data("today", region="in", sec="esports")
+assert de["history"] and de["history_game"] == "BGMI" and not sc.data("today", region="global", sec="esports")["history"]
+print("YT CHANNELS / CEGC OK")
