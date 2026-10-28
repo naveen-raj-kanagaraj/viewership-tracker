@@ -299,6 +299,20 @@ def cmd_scene(args) -> int:
     return 1
 
 
+def cmd_twitch_login(args) -> int:
+    from tracker import moments
+    print(moments.twitch_login())
+    return 0
+
+
+def cmd_moments(args) -> int:
+    from tracker import moments
+    for m in moments.recent("global", "7d", limit=20)["moments"]:
+        print(f"{time.strftime('%d %b %H:%M', time.localtime(m['ts']))}  {m['name'][:22]:22} {m['base']:>8,} -> {m['peak']:>8,}  "
+              f"{m['platform']:7} {m['link'] or '-'}")
+    return 0
+
+
 def cmd_backup(args) -> int:
     from tracker import backup
     path = backup.make()
@@ -345,6 +359,8 @@ def main() -> int:
     s.add_argument("key")
     sub.add_parser("platforms", help="which connectors have keys")
     sub.add_parser("backup", help="save a copy of the database to backups/")
+    sub.add_parser("twitch-login", help="connect a Twitch account once so big Twitch spikes get clipped")
+    sub.add_parser("moments", help="list the biggest moments (viewer jumps) of the last 7 days")
     s = sub.add_parser("scene", help="India rankings: top, probe, add/remove a channel, block")
     s.add_argument("args", nargs="*")
     for name, help_text in (("stats", "peak, average, hours watched"),
@@ -357,7 +373,7 @@ def main() -> int:
                 "pause": cmd_pause, "resume": cmd_resume, "stats": cmd_stats,
                 "export": cmd_export, "visitors": cmd_visitors, "new": cmd_new, "kick": cmd_platform,
                 "twitch": cmd_platform, "home": cmd_home, "platforms": cmd_platforms,
-                "scene": cmd_scene, "backup": cmd_backup}
+                "scene": cmd_scene, "backup": cmd_backup, "twitch-login": cmd_twitch_login, "moments": cmd_moments}
     try:
         return handlers[args.cmd](args)
     except KeyboardInterrupt:

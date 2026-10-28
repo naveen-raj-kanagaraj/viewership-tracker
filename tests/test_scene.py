@@ -332,3 +332,65 @@ assert events.PRESETS["cegc"]["next_start"] == "2026-11-03 13:30" and events.PRE
 de = sc.data("today", region="in", sec="esports")
 assert de["history"] and de["history_game"] == "BGMI" and not sc.data("today", region="global", sec="esports")["history"]
 print("YT CHANNELS / CEGC OK")
+# Moments: a sudden jump on a big stream becomes a moment with a link at that second
+from tracker import moments as mo
+from datetime import datetime, timezone
+import threading as _th
+_runs = []
+_th_orig = _th.Thread
+class _NowThread:
+    def __init__(s, target=None, args=(), daemon=None): s.t, s.a = target, args
+    def start(s): _runs.append(1); s.t(*s.a)
+mo.threading.Thread = _NowThread
+sc._LIVE.clear()
+sc._LIVE["yt:UCmom"] = {"sid": "yt:UCmom", "platform": "youtube", "name": "Moment Guy", "url": "https://youtu.be/vmom", "logo": "",
+                        "game": "BGMI", "title": "clutch time", "streams": {"vmom": 5000}}
+sc._LIVE["twitch:spiker"] = {"sid": "twitch:spiker", "platform": "twitch", "name": "Spiker", "url": "https://twitch.tv/spiker", "logo": "",
+                             "game": "Valorant", "title": "ranked", "streams": {"twitch:spiker": 4000}}
+t0 = time.time() - 400
+for i in range(200):                                       # 400 s steady, then a jump
+    t = t0 + i * 2
+    jump = i >= 196
+    sc._FASTV["yt:UCmom"] = [t, 9000 if jump else 5000, 0]
+    sc._FASTV["twitch:spiker"] = [t, 7000 if jump else 4000, 0]
+    _start = time.time() - 3600
+    events._http.get = lambda url, **k: RJ(t=f'"startTimestamp":"{datetime.fromtimestamp(_start, timezone.utc).isoformat()}"') if "watch" in url else _og(url, **k)
+    def _pg(p, url, params):
+        if url.endswith("/users"): return {"data": [{"id": "77"}]}
+        if url.endswith("/videos"): return {"data": [{"id": "v900", "created_at": datetime.fromtimestamp(_start, timezone.utc).isoformat().replace("+00:00", "Z"), "url": "https://www.twitch.tv/videos/v900", "thumbnail_url": ""}]}
+        raise AssertionError(url)
+    platforms._get = _pg
+    mo.observe(now=t)
+events._http.get = _og
+mo.threading.Thread = _th_orig
+ms = {m["sid"]: m for m in mo.recent("global", "today")["moments"]}
+assert set(ms) == {"yt:UCmom", "twitch:spiker"}, ms.keys()
+y = ms["yt:UCmom"]
+assert y["base"] == 5000 and y["peak"] == 9000 and y["embed"] == "yt" and y["link"].startswith("https://youtu.be/vmom?t=") and 3200 < y["embed_t"] < 3600, y
+tw = ms["twitch:spiker"]
+assert tw["embed"] == "tw_vod" and "?t=" in tw["link"], tw          # no Twitch account connected: replay at the time
+assert c.get("/api/moments?region=global&period=today").get_json()["moments"] and c.get("/moments").status_code == 200 and c.get("/india/moments").status_code == 200
+# compaction keeps the highest reading per 10 minutes for old days
+with store._lock:
+    cc = sc._db(); old = int(time.time()) - 40 * 86400
+    old -= old % 600                                     # start of a 10-minute bucket
+    for k in range(5):
+        cc.execute("INSERT OR REPLACE INTO sc_cat VALUES (?,?,?,?)", (old + k * 120, "ZZ", 100 + k, 1))
+    cc.commit()
+store.kv_set("scene_compacted", old - 1)
+sc.compact(max_days=2)
+with store._lock:
+    left = sc._db().execute("SELECT viewers FROM sc_cat WHERE game='ZZ'").fetchall()
+assert [r[0] for r in left] == [104], left
+print("MOMENTS OK")
+# with a connected Twitch account a spike is clipped
+store.kv_set("twitch_user", {"access": "u", "refresh": "r", "exp": time.time() + 3600, "login": "me"})
+os.environ.update(TWITCH_CLIENT_ID="x", TWITCH_CLIENT_SECRET="y")
+class PR:
+    status_code = 202
+    def json(s): return {"data": [{"id": "BraveClip123", "edit_url": "e"}]}
+_hp = platforms._http.post
+platforms._http.post = lambda url, **k: PR() if "helix/clips" in url else _hp(url, **k)
+assert mo._clip("77") == "BraveClip123"
+platforms._http.post = _hp
+print("CLIP OK")
