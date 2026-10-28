@@ -264,7 +264,13 @@ def cmd_scene(args) -> int:
         for p_, L in res.items():
             print(f"{p_}: " + (", ".join(f"{x['name']} ({x['sid']})" for x in L) or "-"))
         logins = [x["sid"].split(":", 1)[1] for x in res["twitch"][:3]]
-        print("twitch followers:", ytextra.twitch_followers(logins) or "none (connect an account: track.py twitch-login)")
+        from tracker import moments
+        if not logins:
+            print("twitch followers: no Twitch channel matched")
+        elif not moments._user().get("refresh"):
+            print("twitch followers: connect an account first (track.py twitch-login)")
+        else:
+            print("twitch followers:", ytextra.twitch_followers(logins) or "Twitch refused (see the message above)")
         for x in res["kick"][:2]:
             j = ytextra.kick_info(x["sid"].split(":", 1)[1])
             print(f"kick {x['sid']}: followers {j.get('followers_count', '?')}, chatroom {(j.get('chatroom') or {}).get('id', 'blocked')}")
