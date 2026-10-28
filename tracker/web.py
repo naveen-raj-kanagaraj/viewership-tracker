@@ -23,7 +23,7 @@ PORT = int(os.getenv("EVENT_WEB_PORT", "8092"))
 app = Flask(__name__)
 
 
-CACHE = {"/api/lookup": 600, "/api/moments": 20, "/moments": 300, "/india/moments": 300, "/api/ytsearch": 600, "/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
+CACHE = {"/api/videos": 300, "/api/lookup": 600, "/api/moments": 20, "/moments": 300, "/india/moments": 300, "/api/ytsearch": 600, "/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
 
 
 
@@ -409,6 +409,18 @@ def moments_page():
 def moments_page_india():
     from tracker import momentpage
     return _memo("/moments:in", 300, lambda: momentpage.build_html("in"), "text/html")
+
+
+@app.route("/api/videos")
+def api_videos():
+    """A YouTube channel's uploads and past live streams in a range: /api/videos?sid=yt:UC...&range=1w|1m|3m|6m|ytd|1y&kind=all|uploads|live"""
+    from tracker import ytextra
+    sid = (request.args.get("sid") or "")[:60]
+    rng = request.args.get("range", "3m") if request.args.get("range") in ytextra.RANGES else "3m"
+    kind = request.args.get("kind", "all") if request.args.get("kind") in ("all", "uploads", "live") else "all"
+    if not __import__("re").fullmatch(r"yt:UC[\w-]{22}", sid):
+        return Response("{}", status=404, mimetype="application/json")
+    return _memo(f"/api/videos:{sid}:{rng}:{kind}", 300, _jdump(lambda: ytextra.videos_summary(sid, rng, kind)), "application/json")
 
 
 @app.route("/api/past")

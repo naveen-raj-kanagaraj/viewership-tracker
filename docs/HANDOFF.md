@@ -268,6 +268,13 @@ As of 26 Oct 2026:
   and YouTube's latest uploads. `track.py scene lookup <name>` checks it.
 - YouTube players on the site need a referrer: iframes set referrerpolicy=strict-origin-when-cross-origin (the
   site-wide header is no-referrer, which makes YouTube show "Video player configuration error").
+- Channel videos (29 Oct): `yt_videos` table, `ytextra.channel_videos/videos_summary`, `/api/videos`. A year of
+  uploads and past live streams per YouTube channel (refreshed every 6 h when the page is opened). With
+  YOUTUBE_API_KEY: uploads playlist + videos.list (exact dates, views, likes, comments; ~1 quota unit per 50 videos).
+  Without: the Videos/Live tabs with "load more" continuations (dates approximate, views only). Channel page: range
+  1W/1M/3M/6M/YTD/1Y, all/uploads/live, chart by post date, engagement = (likes + comments) / views.
+- About-page reader fix: total views are read only inside aboutChannelViewModel (it used to grab a video tile's
+  views). Old About-based YouTube snapshots were deleted once (kv chstats_fix_about).
 - Kick seeds always include `skyesports` and `cegc` (`scene.ALWAYS`); "CEGC" is also a tournament name.
 
 ## Ideas not built yet

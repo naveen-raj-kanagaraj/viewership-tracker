@@ -315,7 +315,7 @@ class RJ:
     def raise_for_status(s): pass
 _op, _og = events._http.post, events._http.get
 events._http.post = lambda url, json=None, **k: RJ(ysr) if json and json.get("params") == "EgIQAg==" else _op(url, json=json, **k)
-about = '<meta property="og:title" content="Garena Free Fire India"><meta property="og:image" content="https://yt3/ff.jpg">"country":"IN" "viewCountText":"1,234,567,890 views" "subscriberCountText":"5.2M subscribers" "videoCountText":"3,456 videos"'
+about = '<meta property="og:title" content="Garena Free Fire India"><meta property="og:image" content="https://yt3/ff.jpg">"country":"IN" "aboutChannelViewModel":{"viewCountText":"1,234,567,890 views" "subscriberCountText":"5.2M subscribers" "videoCountText":"3,456 videos"'
 events._http.get = lambda url, **k: RJ(t=about) if "/about" in url else _og(url, **k)
 yj = c.get("/api/ytsearch?q=garena free fire india").get_json()
 assert yj["channels"][0]["sid"] == "yt:UCffindia000000000000000" and yj["channels"][0]["subs_text"] == "5.2M subscribers" and not yj["channels"][0]["known"], yj
@@ -438,3 +438,28 @@ w = ch2._WS.__new__(ch2._WS); w.s = FS()
 w.buf = bytes([0x81, 5]) + b"hello" + bytes([0x89, 0])
 assert w.recv() == "hello" and w.recv() is None and w.s.sent and w.s.sent[0][0] == 0x8A
 print("LOOKUP / CHAT OK")
+# channel stats come only from the About panel; a year of videos with ranges and engagement
+about2 = ('"lockupViewModel":{"x":1} "viewCountText":"446,800 views" ... "aboutChannelViewModel":{"subscriberCountText":"8.97M subscribers",'
+          '"viewCountText":"2,345,678,901 views","videoCountText":"3,210 videos","country":"India"}')
+events._http.get = lambda url, **k: RJ(t=about2) if "/about" in url else _og(url, **k)
+assert yx._about_stats("UCx") == (8970000, 2345678901, 3210)
+events._http.get = lambda url, **k: RJ(t='"viewCountText":"446,800 views"') if "/about" in url else _og(url, **k)
+assert yx._about_stats("UCx") is None                  # no About panel: nothing rather than a video's views
+def lock(vid, title, views, when, dur="10:00"):
+    return {"lockupViewModel": {"contentId": vid, "contentType": "LOCKUP_CONTENT_TYPE_VIDEO",
+            "metadata": {"lockupMetadataViewModel": {"title": {"content": title}, "metadata": {"contentMetadataViewModel": {"metadataRows": [
+                {"metadataParts": [{"text": {"content": f"{views} views"}}, {"text": {"content": when}}]}]}}}},
+            "contentImage": {"badges": [{"thumbnailBadgeViewModel": {"text": dur}}]}}}
+page1 = 'var ytInitialData = ' + json.dumps({"c": [lock("a1", "new one", "1.2M", "2 days ago"), lock("a2", "older", "300K", "3 weeks ago"),
+    {"continuationItemRenderer": {"continuationEndpoint": {"continuationCommand": {"token": "MORE"}}}}]}) + ';</script>'
+page2 = {"c": [lock("a3", "months back", "50K", "4 months ago"), lock("a4", "ancient", "9K", "2 years ago")]}
+streams = 'var ytInitialData = ' + json.dumps({"c": [lock("s1", "live show", "80K", "Streamed 5 days ago", "2:00:00")]}) + ';</script>'
+events._http.get = lambda url, **k: RJ(t=page1) if url.endswith("/videos") else RJ(t=streams) if url.endswith("/streams") else _og(url, **k)
+events._http.post = lambda url, json=None, **k: RJ(page2) if json and json.get("continuation") == "MORE" else _op(url, json=json, **k)
+sm = yx.videos_summary("yt:UCffindia000000000000000", "1m")
+events._http.get, events._http.post = _og, _op
+assert sm["count"] == 3 and sm["views"] == 1200000 + 300000 + 80000 and sm["lives"] == 1 and sm["best"]["vid"] == "a1", sm
+assert yx.videos_summary("yt:UCffindia000000000000000", "1y")["count"] == 4 and yx.videos_summary("yt:UCffindia000000000000000", "1y", "live")["count"] == 1
+assert c.get("/api/videos?sid=yt:UCffindia000000000000000&range=6m").get_json()["count"] == 4
+assert yx._iso_dur("PT1H2M3S") == 3723 and yx._iso_dur("PT45S") == 45
+print("VIDEOS OK")

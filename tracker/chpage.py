@@ -46,9 +46,17 @@ h1{font:700 40px/1.05 "Barlow Condensed",sans-serif;margin:0;text-transform:uppe
 .vk b{display:block;font:700 24px "Barlow Condensed",sans-serif;color:var(--ink)}.vk b.up{color:var(--lime)}
 .vseg{display:inline-flex;border:1px solid var(--line);margin:12px 16px 0}.vseg button{background:none;border:0;color:var(--muted);font:600 12px "Barlow Condensed",sans-serif;letter-spacing:.04em;padding:6px 10px;cursor:pointer}.vseg button.on{background:var(--lime);color:#0b0b12}
 #vchart{display:block;width:calc(100% - 32px);height:200px;margin:10px 16px 0}
+.vtools{display:flex;flex-wrap:wrap;gap:0 8px}.vtools .vseg{margin-right:0}
+#vidchart{display:block;width:calc(100% - 32px);height:220px;margin:12px 16px 0;cursor:crosshair}
+.vtip{position:fixed;pointer-events:none;background:rgba(18,18,25,.96);border:1px solid var(--line);padding:6px 9px;font-size:12px;max-width:280px;display:none;z-index:50}
+.vtip b{font:700 15px "Barlow Condensed",sans-serif}
+.vl a{grid-template-columns:70px minmax(0,1fr) 70px 70px 70px 64px!important}.vl .hdr{grid-template-columns:70px minmax(0,1fr) 70px 70px 70px 64px!important}
+.lvtag{color:var(--red);font:600 10px "Barlow Condensed",sans-serif;margin-right:4px;letter-spacing:.04em}
 .vm{padding:8px 16px 16px;display:flex;flex-wrap:wrap;gap:6px}.vm span{background:var(--card2);padding:5px 9px;font-size:12px;color:var(--muted)}.vm b{color:var(--ink);font-weight:600}
 __PANEL_CSS__
-@media(max-width:640px){.vk{grid-template-columns:repeat(2,1fr);padding:10px 12px 0}.vk div:last-child{grid-column:1/-1}#vchart{width:calc(100% - 24px);margin:10px 12px 0;height:170px}.vseg{margin:10px 12px 0}.vm{padding:8px 12px 12px}
+@media(max-width:640px){#vidchart{width:calc(100% - 24px);margin:10px 12px 0;height:180px}.vtools{padding:0}
+.vl a,.vl .hdr{grid-template-columns:58px minmax(0,1fr) 62px!important}.vl a>:nth-child(n+4),.vl .hdr>:nth-child(n+4){display:none}
+.vk{grid-template-columns:repeat(2,1fr);padding:10px 12px 0}.vk div:last-child{grid-column:1/-1}#vchart{width:calc(100% - 24px);margin:10px 12px 0;height:170px}.vseg{margin:10px 12px 0}.vm{padding:8px 12px 12px}
 .wrap{padding:0 12px 20px}.top .in{padding:9px 12px}.brand{font-size:15px}.nav{gap:8px}
 .hd{grid-template-columns:60px minmax(0,1fr);gap:12px}.hd img,.hd .ph{width:60px;height:60px}h1{font-size:28px}.hd .act{grid-column:1/-1}.hd .act .btn{width:100%;text-align:center}
 .cx{padding:4px 12px 12px}.cxc{grid-template-columns:1fr}.cxt td{font-size:14px;padding:4px 3px}.cxt th{padding:4px 3px;font-size:10px}.cxd div{grid-template-columns:52px minmax(0,1fr) 64px 50px}.cxd div span:nth-child(5){display:none}
@@ -58,10 +66,13 @@ __PANEL_CSS__
 <div class="wrap">
 <div class="crumb"><a href="__HOME__">__WHERECAP__</a> / CHANNEL</div>
 <div class="hd" id="hd"><span class="ph">..</span><div><h1>__NAME__</h1><div class="meta">Loading...</div></div></div>
+<div class="card" id="vidcard" style="display:none"><h2>Videos and streams</h2><div class="cap" id="vidcap"></div>
+ <div class="vtools"><div class="vseg" id="vrange"></div><div class="vseg" id="vkind"></div></div>
+ <div class="vk" id="vidk"></div><canvas id="vidchart"></canvas><div class="vtip" id="vtip"></div>
+ <div class="ps" id="vidlist"></div></div>
 <div class="card" id="vcard" style="display:none"><h2>Channel views on YouTube</h2><div class="cap">The channel's public counters on YouTube (total views of all its videos, live and uploaded; subscribers), recorded once a day by this site. Views gained = how much the total grew between two days.</div><div id="views"></div></div>
 <div class="card" id="lcard"><h2>Live stats on this site</h2><div class="cap">Recorded by this site every 2 seconds while the channel is live.</div><div id="stats"></div></div>
 <div class="card" id="mcard" style="display:none"><h2>Moments</h2><div class="cap">Sudden jumps in viewers on this channel, newest first. Opens at the moment.</div><div class="ps" id="moms"></div></div>
-<div class="card" id="ucard" style="display:none"><h2>Latest uploads</h2><div class="cap">The channel's newest videos on YouTube, with their total views so far.</div><div id="ups"></div></div>
 <div class="card"><h2>Streams, last 30 days</h2><div class="cap" id="pcap">From the platform's own list of past streams.</div><div id="past"><div class="empty">Loading...</div></div></div>
 </div>
 <script>
@@ -76,14 +87,36 @@ const ini=s=>esc(String(s||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCa
 const av=x=>x.logo?`<img src="${esc(x.logo)}" alt="" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=ph>${ini(x.name)}</span>'">`:`<span class="ph">${ini(x.name)}</span>`;
 const liveMap=()=>({});let OPEN=null;function render(){}
 __PANEL_JS__
-let VR=30;
+let VR=30,VRANGE='3m',VKIND='all',VID=null;
+const RANGES=[['1w','1W'],['1m','1M'],['3m','3M'],['6m','6M'],['ytd','YTD'],['1y','1Y']];
+async function videos(){if(!SID.startsWith('yt:'))return;try{const j=await (await fetch(`/api/videos?sid=${encodeURIComponent(SID)}&range=${VRANGE}&kind=${VKIND}`)).json();VID=j;
+ const box=document.getElementById('vidcard');if(!j.oldest){box.style.display='none';return}box.style.display='';
+ document.getElementById('vidcap').textContent=`Every upload and past live stream on the channel, by the day it was posted. Views, likes and comments are their totals so far, from YouTube (refreshed every 6 hours).`+(j.exact?'':' Dates are approximate ("3 weeks ago") and likes and comments need a YouTube API key on the server.');
+ const sg=(id,opts,cur,on)=>{const e=document.getElementById(id);e.innerHTML=opts.map(([v,l])=>`<button data-v="${v}" class="${v===cur?'on':''}">${l}</button>`).join('');e.onclick=ev=>{const b=ev.target.closest('button');if(b)on(b.dataset.v)}};
+ sg('vrange',RANGES,VRANGE,v=>{VRANGE=v;videos()});sg('vkind',[['all','ALL'],['uploads','UPLOADS'],['live','LIVE STREAMS']],VKIND,v=>{VKIND=v;videos()});
+ document.getElementById('vidk').innerHTML=`<div><b>${full(j.count)}</b>videos${j.lives&&VKIND==='all'?` (${j.lives} live)`:''} · ${j.per_week}/week</div><div><b class="up">${fmt(j.views)}</b>views on them</div><div><b>${fmt(j.avg)}</b>average per video</div><div><b>${fmt(j.median)}</b>median per video</div><div><b>${j.engagement!=null?j.engagement+'%':'-'}</b>engagement${j.likes!=null?` · ${fmt(j.likes)} likes, ${fmt(j.comments)} comments`:''}</div>`;
+ drawVids();
+ const L=(j.videos||[]).slice().sort((a,b)=>(b.views||0)-(a.views||0)).slice(0,15);
+ document.getElementById('vidlist').className='ps vl';
+ document.getElementById('vidlist').innerHTML=L.length?`<div class="hdr"><span>POSTED</span><span>TOP VIDEOS IN THIS RANGE</span><span>VIEWS</span><span>LIKES</span><span>COMMENTS</span><span>ENGAGE</span></div>${L.map(v=>`<a href="https://www.youtube.com/watch?v=${esc(v.vid)}" target="_blank" rel="noopener"><span class="d">${v.ts?(v.approx?'~':'')+ist(v.ts,{day:'numeric',month:'short'}):''}</span><span class="t">${v.live?'<span class="lvtag">LIVE</span>':''}${esc(v.title)}</span><span class="n">${fmt(v.views)}</span><span class="n">${v.likes!=null?fmt(v.likes):'-'}</span><span class="n">${v.comments!=null?fmt(v.comments):'-'}</span><span class="n">${v.likes!=null&&v.views?(100*((v.likes||0)+(v.comments||0))/v.views).toFixed(1)+'%':'-'}</span></a>`).join('')}`:'<div class="empty">Nothing posted in this range.</div>'}catch(e){}}
+function drawVids(){const cv=document.getElementById('vidchart'),j=VID;if(!cv||!j)return;const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;const x=cv.getContext('2d');x.scale(dpr,dpr);
+ const L=(j.videos||[]).filter(v=>v.ts),t0=j.since,t1=Date.now()/1000,pb=22,pr=50,mx=Math.max(1,...L.map(v=>v.views||0))*1.12,X=t=>(W-pr)*(t-t0)/(t1-t0),Y=v=>(H-pb)*(1-v/mx);
+ x.font='11px "Barlow Condensed",sans-serif';x.strokeStyle='#262636';x.fillStyle='#8d8ca3';
+ for(let i=0;i<=3;i++){const y=(H-pb)*i/3;x.beginPath();x.moveTo(0,y);x.lineTo(W-pr,y);x.stroke();x.fillText(fmt(mx*(1-i/3)),W-pr+4,y+10)}
+ const nt=W<500?3:6;for(let i=0;i<=nt;i++){const t=t0+(t1-t0)*i/nt;x.textAlign=i===0?'left':i===nt?'right':'center';x.fillText(new Date(t*1000).toLocaleDateString('en-IN',{day:'numeric',month:'short'}),X(t),H-6)}x.textAlign='left';
+ const bw=Math.max(2,Math.min(14,(W-pr)/Math.max(L.length,1)*.7)),best=L.reduce((a,v)=>(v.views||0)>((a&&a.views)||0)?v:a,null);
+ cv._pts=L.map(v=>{const px=X(v.ts),py=Y(v.views||0);x.fillStyle=v===best?'#b6f23a':v.live?'#ff4d5e':'#7a5cff';x.fillRect(px-bw/2,py,bw,H-pb-py);return [px,py,v]});
+ const tip=document.getElementById('vtip');cv.onmousemove=e=>{const r=cv.getBoundingClientRect(),mxp=e.clientX-r.left;let b=null,d=1e9;for(const p of cv._pts){const dd=Math.abs(p[0]-mxp);if(dd<d){d=dd;b=p}}
+  if(!b||d>20){tip.style.display='none';return}const v=b[2];tip.innerHTML=`${v.live?'<span class="lvtag">LIVE</span>':''}${esc(v.title)}<br><b>${fmt(v.views)}</b> views${v.likes!=null?' · '+fmt(v.likes)+' likes':''} · ${v.approx?'~':''}${ist(v.ts,{day:'numeric',month:'short',year:'numeric'})}`;tip.style.display='block';tip.style.left=Math.min(e.clientX+12,innerWidth-290)+'px';tip.style.top=(e.clientY+12)+'px'};
+ cv.onmouseleave=()=>{tip.style.display='none'};cv.onclick=e=>{const r=cv.getBoundingClientRect(),mxp=e.clientX-r.left;const b=cv._pts.reduce((a,p)=>!a||Math.abs(p[0]-mxp)<Math.abs(a[0]-mxp)?p:a,null);if(b&&Math.abs(b[0]-mxp)<20)window.open('https://www.youtube.com/watch?v='+b[2].vid,'_blank','noopener')}}
+window.addEventListener('resize',()=>{drawVids()});
 function viewsCard(c){const V=c.views,S=c.stats;const box=document.getElementById('vcard');if(!V||!(V.snapshots||[]).length){box.style.display='none';return}box.style.display='';
  if(c.platform!=='youtube')return followersCard(c);
  const G=V.gains||[],sum=n=>G.filter(g=>g.day>=new Date(Date.now()-n*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})).reduce((a,g)=>a+g.views,0),last=G[G.length-1];
  const sg=G.filter(g=>g.subs!=null).slice(-7).reduce((a,g)=>a+g.subs,0);
  document.getElementById('views').innerHTML=`<div class="vk"><div><b>${S&&S.views!=null?fmt(S.views):'-'}</b>total views</div><div><b>${S&&S.subs!=null?fmt(S.subs):'hidden'}</b>subscribers</div>
   <div><b class="up">${last?'+'+fmt(last.views):'-'}</b>views, last day</div><div><b class="up">${G.length?'+'+fmt(sum(7)):'-'}</b>views, 7 days</div><div><b class="up">${G.length?'+'+fmt(sum(30)):'-'}</b>views, 30 days${G.length?'':''}</div></div>
-  ${G.length?`<div class="vseg" id="vseg">${[[7,'7D'],[30,'30D'],[90,'90D']].map(([v,l])=>`<button data-v="${v}" class="${v===VR?'on':''}">${l}</button>`).join('')}</div><canvas id="vchart"></canvas>
+  ${G.length?`<div class="vseg" id="vseg">${[[7,'1W'],[30,'1M'],[91,'3M'],[182,'6M'],[Math.ceil((Date.now()-new Date(new Date().getFullYear(),0,1))/864e5),'YTD'],[365,'1Y']].map(([v,l])=>`<button data-v="${v}" class="${v===VR?'on':''}">${l}</button>`).join('')}</div><canvas id="vchart"></canvas>
   <div class="vm">${(V.months||[]).slice(-6).map(m=>`<span>${new Date(m.month+'-15').toLocaleDateString('en-IN',{month:'short',year:'numeric'})} <b>+${fmt(m.views)}</b> views</span>`).join('')}${sg?`<span>Subscribers, 7 days <b>${sg>=0?'+':''}${fmt(sg)}</b></span>`:''}<span>Recorded since ${dshortD(V.first)}</span></div>`
   :`<div class="empty">First snapshot taken ${dshortD(V.first)}. Views gained per day start showing tomorrow, and weekly and monthly totals build up from there.</div>`}`;
  const sg_=document.getElementById('vseg');if(sg_)sg_.onclick=e=>{const b=e.target.closest('button');if(b){VR=+b.dataset.v;viewsCard(c)}};drawViews(G)}
@@ -113,7 +146,7 @@ async function load(){try{const c=await (await fetch('/api/channel?sid='+encodeU
  const seen=c.periods&&c.periods.all&&c.periods.all.days;
  document.getElementById('stats').innerHTML=seen?panel(SID):`<div class="empty">This site hasn't seen ${esc(c.name)} live yet. Live numbers (watching now, peak, hours watched) start the first time they stream; their YouTube channel views above are recorded every day.</div>`}catch(e){}}
 async function past(){try{const j=await (await fetch('/api/past?sid='+encodeURIComponent(SID))).json();const L=j.streams||[];
- const U=j.videos||[];if(U.length){document.getElementById('ucard').style.display='';
+ const U=[];if(U.length){
   document.getElementById('ups').innerHTML=`<div class="ps"><div class="hdr"><span>POSTED</span><span>VIDEO</span><span>LENGTH</span><span>VIEWS</span><span></span></div>${U.map(x=>`<a href="${esc(x.url)}" target="_blank" rel="noopener"><span class="d">${x.ts?ist(x.ts,{day:'numeric',month:'short'}):''}${x.when?'<br>'+esc(x.when.replace('Streamed ','')):''}</span><span class="t">${esc(x.title)}</span><span class="n">${x.secs?hm(x.secs):'-'}</span><span class="n">${x.views!=null?fmt(x.views):'-'}</span><span></span></a>`).join('')}</div>`}
  document.getElementById('pcap').textContent=(j.source?'From '+j.source+'. Views = total views of the stream, including replays. Peak = the most watching at once that day, recorded by this site.':'')+(j.note?' '+j.note:'');
  document.getElementById('past').innerHTML=L.length?`<div class="ps"><div class="hdr"><span>DATE</span><span>STREAM</span><span>LENGTH</span><span>VIEWS</span><span>PEAK THAT DAY</span></div>${L.map(x=>`<a href="${esc(x.url)}" target="_blank" rel="noopener"><span class="d">${x.ts?ist(x.ts,{day:'numeric',month:'short'}):esc(x.when)}${x.when&&/ago/.test(x.when)?'<br>'+esc(x.when.replace('Streamed ','')):''}</span><span class="t">${esc(x.title)}</span><span class="n">${x.secs?hm(x.secs):'-'}</span><span class="n">${x.views!=null?fmt(x.views):'-'}</span><span class="n">${x.peak_day?fmt(x.peak_day):'-'}</span></a>`).join('')}</div>`:`<div class="empty">${j.note?'Nothing to show here.':'No past streams listed in the last 30 days.'}</div>`}catch(e){document.getElementById('past').innerHTML='<div class="empty">Couldn\'t load past streams right now.</div>'}}
@@ -121,7 +154,7 @@ async function moms(){try{const j=await (await fetch('/api/moments?sid='+encodeU
  document.getElementById('mcard').style.display='';
  document.getElementById('moms').innerHTML=L.slice(0,20).map(m=>`<a href="${esc(m.link||c_url)}" target="_blank" rel="noopener"><span class="d">${ist(m.ts,{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}</span><span class="t">${esc(m.title)}</span><span class="n" style="color:var(--lime)">+${fmt(m.peak-m.base)}</span><span class="n">${fmt(m.peak)}<small>peak</small></span><span class="n">${m.embed==='tw_clip'?'clip':m.embed?'replay':'channel'}</span></a>`).join('')}catch(e){}}
 let c_url='#';
-load();past();moms();setInterval(()=>{if(!document.hidden)load()},15000);
+load();past();moms();videos();setInterval(()=>{if(!document.hidden)load()},15000);
 </script></body></html>"""
 
 

@@ -43,6 +43,9 @@ CREATE INDEX IF NOT EXISTS sc_superchat_day ON sc_superchat(day);
 CREATE TABLE IF NOT EXISTS sc_chstats (day TEXT, sid TEXT, subs INTEGER, views INTEGER, videos INTEGER, ts INTEGER,
     PRIMARY KEY (day, sid));
 CREATE INDEX IF NOT EXISTS sc_chstats_sid ON sc_chstats(sid, day);
+CREATE TABLE IF NOT EXISTS yt_videos (vid TEXT PRIMARY KEY, sid TEXT, ts INTEGER, title TEXT, views INTEGER, likes INTEGER,
+    comments INTEGER, secs INTEGER, live INTEGER, approx INTEGER, updated INTEGER);
+CREATE INDEX IF NOT EXISTS yt_videos_sid ON yt_videos(sid, ts);
 """
 _ready = False
 
@@ -53,6 +56,10 @@ def _db():
     c = scene._db()
     if not _ready:
         c.executescript(_SCHEMA)
+        if not store.kv_get("chstats_fix_about") and not os.getenv("YOUTUBE_API_KEY"):
+            c.execute("DELETE FROM sc_chstats WHERE sid LIKE 'yt:%'")      # the old reader could store a video's views
+            c.commit()
+            store.kv_set("chstats_fix_about", True)
         _ready = True
     return c
 
@@ -289,14 +296,22 @@ def _about_stats(cid: str):
                          cookies={"CONSENT": "YES+", "SOCS": "CAI"})
     if r.status_code != 200:
         return None
-    h = r.text
+    i = r.text.find('"aboutChannelViewModel"')
+    if i < 0:
+        return None                           # no About panel in the page: better nothing than a wrong number
+    h = r.text[i:i + 30000]                   # only the About panel: video tiles elsewhere have their own view counts
 
     def grab(name):
-        m = re.search(r'"%s"\s*:\s*(?:"([^"]+)"|\{"simpleText"\s*:\s*"([^"]+)")' % name, h)
-        return platforms.parse_count((m.group(1) or m.group(2)) if m else "")
-    views = grab("viewCountText")
+        m = re.search(r'"%s"\s*:\s*(?:"([^"]+)"|\{"(?:simpleText|content)"\s*:\s*"([^"]+)")' % name, h)
+        return (m.group(1) or m.group(2)) if m else ""
+    vt = grab("viewCountText")
+    if "view" not in vt.lower():
+        return None
+    views = platforms.parse_count(vt)
     if views is None:
         return None
+    grab_n = lambda n: platforms.parse_count(grab(n))
+    return grab_n("subscriberCountText"), views, grab_n("videoCountText")
     return grab("subscriberCountText"), views, grab("videoCountText")
 
 
@@ -531,7 +546,10 @@ def _yt_past(cid: str, tab: str = "streams") -> list:
     m = re.search(r'var ytInitialData\s*=\s*(\{.+?\})\s*;\s*</script>', r.text, re.S)
     if not m:
         return []
-    data = json.loads(m.group(1))
+    return _parse_tab(json.loads(m.group(1)))
+
+
+def _parse_tab(data) -> list:
     out = []
     # newer layout: lockupViewModel (title, "2M" views with "2 million views" label, "Streamed 16h ago", duration badge)
     for v in _walk(data, "lockupViewModel", []):
@@ -591,10 +609,6 @@ def past_streams(sid: str) -> dict:
     try:
         if plat == "yt":
             res.update(source="YouTube channel, Live tab", streams=_yt_past(ident))
-            try:
-                res["videos"] = _yt_past(ident, "videos")[:30]
-            except Exception:
-                res["videos"] = []
         elif plat == "twitch":
             res.update(source="Twitch past broadcasts", streams=_tw_past(ident))
         else:
@@ -872,3 +886,147 @@ def followers_once(limit: int = 300) -> int:
                ON d.sid=c.sid WHERE c.platform IN ('twitch','kick') AND c.sid NOT IN (SELECT sid FROM sc_chstats WHERE day=?)
                ORDER BY COALESCE(c.tracked,0) DESC, COALESCE(d.hw,0) DESC LIMIT ?""", (since, d, limit)).fetchall()]
     return _follower_snapshot(todo) if todo else 0
+
+
+# ---------- a channel's videos (uploads and past live streams) ----------
+
+def _iso_dur(t: str) -> int:
+    m = re.fullmatch(r"P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", t or "")
+    return sum(int(v or 0) * k for v, k in zip(m.groups(), (86400, 3600, 60, 1))) if m else 0
+
+
+def _yt_tab_all(cid: str, tab: str, since: float, pages: int = 12) -> list:
+    """Every video on a channel tab back to `since`, following the tab's "load more" pages."""
+    from tracker import scene
+    r = events._http.get(f"https://www.youtube.com/channel/{cid}/{tab}", timeout=15,
+                         headers={"User-Agent": events._UA, "Accept-Language": "en-US,en;q=0.9"},
+                         cookies={"CONSENT": "YES+", "SOCS": "CAI"})
+    r.raise_for_status()
+    m = re.search(r'var ytInitialData\s*=\s*(\{.+?\})\s*;\s*</script>', r.text, re.S)
+    if not m:
+        return []
+    data = json.loads(m.group(1))
+    out = _parse_tab(data)
+    for _ in range(pages):
+        if not out or min((x["ts"] or time.time()) for x in out) < since:
+            break
+        tok = scene._continuation(data)
+        if not tok:
+            break
+        r = events._http.post("https://www.youtube.com/youtubei/v1/browse?prettyPrint=false",
+                              json={"context": {"client": {"clientName": "WEB", "clientVersion": "2.20251001.00.00", "hl": "en", "gl": "US"}},
+                                    "continuation": tok},
+                              headers={"User-Agent": events._UA, "Content-Type": "application/json",
+                                       "Origin": "https://www.youtube.com"}, timeout=15)
+        if r.status_code != 200:
+            break
+        data = r.json()
+        more = _parse_tab(data)
+        if not more:
+            break
+        out += more
+    return out
+
+
+def _api_videos(cid: str, since: float, key: str) -> list:
+    """YouTube Data API: the uploads playlist (newest first) back to `since`, with exact dates, views, likes,
+    comments, length and whether it was a live stream. About 1 quota unit per 50 videos."""
+    j = events._http.get("https://www.googleapis.com/youtube/v3/channels",
+                         params={"part": "contentDetails", "id": cid, "key": key}, timeout=15).json()
+    up = (((j.get("items") or [{}])[0].get("contentDetails") or {}).get("relatedPlaylists") or {}).get("uploads")
+    if not up:
+        return []
+    ids, tok = [], None
+    for _ in range(20):
+        p = {"part": "contentDetails", "playlistId": up, "maxResults": 50, "key": key, **({"pageToken": tok} if tok else {})}
+        j = events._http.get("https://www.googleapis.com/youtube/v3/playlistItems", params=p, timeout=15).json()
+        items = j.get("items") or []
+        old = False
+        for it in items:
+            pub = (it.get("contentDetails") or {}).get("videoPublishedAt")
+            ts = datetime.fromisoformat(pub.replace("Z", "+00:00")).timestamp() if pub else None
+            if ts and ts < since:
+                old = True
+                continue
+            ids.append(it["contentDetails"]["videoId"])
+        tok = j.get("nextPageToken")
+        if old or not tok:
+            break
+    out = []
+    for i in range(0, len(ids), 50):
+        j = events._http.get("https://www.googleapis.com/youtube/v3/videos",
+                             params={"part": "snippet,statistics,contentDetails,liveStreamingDetails", "id": ",".join(ids[i:i + 50]),
+                                     "key": key}, timeout=15).json()
+        for v in j.get("items") or []:
+            st, sn, ls = v.get("statistics") or {}, v.get("snippet") or {}, v.get("liveStreamingDetails") or {}
+            pub = ls.get("actualStartTime") or sn.get("publishedAt")
+            out.append({"id": v["id"], "title": sn.get("title") or "",
+                        "ts": int(datetime.fromisoformat(pub.replace("Z", "+00:00")).timestamp()) if pub else None,
+                        "views": int(st["viewCount"]) if "viewCount" in st else None,
+                        "likes": int(st["likeCount"]) if "likeCount" in st else None,
+                        "comments": int(st["commentCount"]) if "commentCount" in st else None,
+                        "secs": _iso_dur((v.get("contentDetails") or {}).get("duration")), "live": 1 if ls else 0, "approx": 0})
+    return out
+
+
+def channel_videos(sid: str, force: bool = False) -> list:
+    """The channel's uploads and past live streams of the last year, from the database; refreshed from YouTube when
+    older than 6 hours. With YOUTUBE_API_KEY: exact dates, views, likes, comments. Without: dates from "3 days ago"
+    (approximate), views only."""
+    if not sid.startswith("yt:UC"):
+        return []
+    with store._lock:
+        last = _db().execute("SELECT MAX(updated) FROM yt_videos WHERE sid=?", (sid,)).fetchone()[0] or 0
+    if force or time.time() - last > 6 * 3600:
+        since, cid, key = time.time() - 370 * 86400, sid[3:], os.getenv("YOUTUBE_API_KEY")
+        try:
+            if key:
+                vids = _api_videos(cid, since, key)
+            else:
+                vids = [{**x, "live": 0, "approx": 1} for x in _yt_tab_all(cid, "videos", since)]
+                vids += [{**x, "live": 1, "approx": 1} for x in _yt_tab_all(cid, "streams", since, pages=6)]
+            now = int(time.time())
+            rows = [(v["id"], sid, v["ts"], v["title"], v.get("views"), v.get("likes"), v.get("comments"), v.get("secs") or 0,
+                     v.get("live", 0), v.get("approx", 1), now) for v in vids if v.get("id")]
+            if rows:
+                with store._lock:
+                    c = _db()
+                    # without the API the date is only "3 days ago": keep the first (closer) estimate once we have one
+                    c.executemany("""INSERT INTO yt_videos VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(vid) DO UPDATE SET
+                                     title=excluded.title, views=excluded.views,
+                                     likes=COALESCE(excluded.likes, yt_videos.likes), comments=COALESCE(excluded.comments, yt_videos.comments),
+                                     secs=CASE WHEN excluded.secs>0 THEN excluded.secs ELSE yt_videos.secs END,
+                                     live=MAX(excluded.live, yt_videos.live),
+                                     ts=CASE WHEN excluded.approx=0 OR yt_videos.ts IS NULL THEN excluded.ts ELSE yt_videos.ts END,
+                                     approx=MIN(excluded.approx, yt_videos.approx), updated=excluded.updated""", rows)
+                    c.commit()
+        except Exception as e:
+            print(f"Videos of {sid}: {str(e)[:120]}")
+    with store._lock:
+        return [dict(r) for r in _db().execute(
+            "SELECT * FROM yt_videos WHERE sid=? AND ts >= ? ORDER BY ts DESC", (sid, time.time() - 370 * 86400))]
+
+
+RANGES = {"1w": 7, "1m": 30, "3m": 91, "6m": 182, "ytd": None, "1y": 365}
+
+
+def videos_summary(sid: str, rng: str = "3m", kind: str = "all") -> dict:
+    """Uploads and past live streams published in the range, with totals: count, views, average and median views per
+    video, likes, comments, engagement ((likes + comments) / views) and the best video."""
+    vids = channel_videos(sid)
+    now = datetime.now(events.REPORT_TZ)
+    days = RANGES.get(rng, 91)
+    t0 = datetime(now.year, 1, 1, tzinfo=events.REPORT_TZ).timestamp() if days is None else time.time() - days * 86400
+    L = [v for v in vids if (v["ts"] or 0) >= t0 and (kind == "all" or (kind == "live") == bool(v["live"]))]
+    views = [v["views"] or 0 for v in L]
+    lk = [v for v in L if v["likes"] is not None]
+    eng = (sum((v["likes"] or 0) + (v["comments"] or 0) for v in lk) / max(1, sum(v["views"] or 0 for v in lk))) if lk else None
+    srt = sorted(views)
+    return {"range": rng, "kind": kind, "since": int(t0), "count": len(L), "views": sum(views),
+            "avg": round(sum(views) / len(L)) if L else 0, "median": srt[len(srt) // 2] if srt else 0,
+            "likes": sum(v["likes"] or 0 for v in lk) if lk else None, "comments": sum(v["comments"] or 0 for v in lk) if lk else None,
+            "engagement": round(100 * eng, 2) if eng is not None else None,
+            "uploads": sum(1 for v in L if not v["live"]), "lives": sum(1 for v in L if v["live"]),
+            "per_week": round(len(L) / max(1, (time.time() - t0) / 604800), 1),
+            "best": max(L, key=lambda v: v["views"] or 0) if L else None, "videos": L[:400],
+            "exact": bool(os.getenv("YOUTUBE_API_KEY")), "oldest": min((v["ts"] for v in vids if v["ts"]), default=None)}
