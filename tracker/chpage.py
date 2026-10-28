@@ -42,6 +42,8 @@ h1{font:700 40px/1.05 "Barlow Condensed",sans-serif;margin:0;text-transform:uppe
 .ps .hdr{display:grid;grid-template-columns:96px minmax(0,1fr) 80px 80px 90px;gap:10px;font:500 11px "Barlow Condensed",sans-serif;color:var(--muted);letter-spacing:.05em;padding:4px 0;border-bottom:1px solid var(--line)}
 .ps .hdr span:nth-child(n+3){text-align:right}
 .empty{color:var(--muted);padding:12px 16px 16px}
+.rks{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.rk{background:var(--card);border:1px solid var(--line);padding:5px 10px;font-size:12px;color:var(--muted);text-decoration:none}
+.rk b{font:700 17px "Barlow Condensed",sans-serif;color:var(--ink);margin-right:4px}.rk.g1 b{color:#ffd23f}.rk.g2 b{color:#d9dde8}.rk.g3 b{color:#ff9f5a}.rk:hover{border-color:var(--lime)}
 .vk{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:12px 16px 0}.vk div{background:var(--card2);padding:10px 12px;font-size:12px;color:var(--muted)}
 .vk b{display:block;font:700 24px "Barlow Condensed",sans-serif;color:var(--ink)}.vk b.up{color:var(--lime)}
 .vseg{display:inline-flex;border:1px solid var(--line);margin:12px 16px 0}.vseg button{background:none;border:0;color:var(--muted);font:600 12px "Barlow Condensed",sans-serif;letter-spacing:.04em;padding:6px 10px;cursor:pointer}.vseg button.on{background:var(--lime);color:#0b0b12}
@@ -101,25 +103,30 @@ const av=x=>x.logo?`<img src="${esc(x.logo)}" alt="" referrerpolicy="no-referrer
 const liveMap=()=>({});let OPEN=null;function render(){}
 __PANEL_JS__
 let VR=30,VRANGE='3m',VKIND='all',VMET='views',VID=null,CDATA=null;
-const RANGES=[['1w','1W'],['1m','1M'],['3m','3M'],['6m','6M'],['ytd','YTD'],['1y','1Y']];
+const RANGES=[['1w','1W'],['1m','1M'],['3m','3M'],['6m','6M'],['ytd','YTD'],['1y','1Y'],['all','ALL TIME']];
 const KINDC={uploads:'#a58bff',shorts:'#4cc9f0',live:'#ff4d5e'},kindOf=v=>v.live?'live':v.short?'shorts':'uploads',KINDN={uploads:'Videos',shorts:'Shorts',live:'Live'};
 const engOf=v=>v.likes!=null&&v.views?100*((v.likes||0)+(v.comments||0))/v.views:null;
 const MET={views:['Views',v=>v.views||0,fmt],likes:['Likes',v=>v.likes||0,fmt],comments:['Comments',v=>v.comments||0,fmt],eng:['Engagement',v=>engOf(v)||0,v=>v.toFixed(1)+'%']};
-const RNAME={'1w':'last week','1m':'last month','3m':'last 3 months','6m':'last 6 months','ytd':'this year','1y':'last 12 months'};
+const RNAME={'1w':'last week','1m':'last month','3m':'last 3 months','6m':'last 6 months','ytd':'this year','1y':'last 12 months','all':'all time'};
 function renderLife(){const c=CDATA,j=VID;if(!c||!j)return;const S=c.stats||{},V=c.views||{},G=V.gains||[],sum=n=>G.filter(g=>g.day>=new Date(Date.now()-n*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})).reduce((a,g)=>a+g.views,0);
+ if(c.platform!=='youtube'){const sn=V.snapshots||[],f=(sn[sn.length-1]||{}).subs,fg=n=>G.filter(g=>g.subs!=null&&g.day>=new Date(Date.now()-n*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})).reduce((a,g)=>a+g.subs,0),P=c.periods||{};
+  document.getElementById('lifek').innerHTML=`<div><b>${f!=null?fmt(f):'-'}</b>followers</div><div><b class="up">${G.length?(fg(30)>=0?'+':'')+fmt(fg(30)):'-'}</b>followers, 30 days</div><div><b>${P.all&&P.all.peak?fmt(P.all.peak):'-'}</b>peak live viewers (this site)</div><div><b>${P['30d']?fmt(P['30d'].hw)+'h':'-'}</b>hours watched, 30 days</div><div><b>${full(j.count)}</b>broadcasts listed</div>`;return}
  document.getElementById('lifek').innerHTML=`<div><b>${S.views!=null?fmt(S.views):'-'}</b>lifetime views</div><div><b>${S.subs!=null?fmt(S.subs):'hidden'}</b>subscribers</div><div><b>${S.videos!=null?full(S.videos):'-'}</b>videos, lifetime</div><div><b class="up">${G.length?'+'+fmt(sum(30)):'-'}</b>channel views, 30 days</div><div><b class="up">${G.length?'+'+fmt(sum(1)):'-'}</b>channel views, last day</div>`}
-async function videos(){if(!SID.startsWith('yt:'))return;try{const j=await (await fetch(`/api/videos?sid=${encodeURIComponent(SID)}&range=${VRANGE}&kind=${VKIND}`)).json();VID=j;
+const YT=SID.startsWith('yt:'),VURL=v=>v.url||'https://www.youtube.com/watch?v='+v.vid;
+async function videos(){try{const j=await (await fetch(`/api/videos?sid=${encodeURIComponent(SID)}&range=${VRANGE}&kind=${VKIND}`)).json();VID=j;
  const box=document.getElementById('vidcard');if(!j.oldest){box.style.display='none';return}box.style.display='';renderLife();
+ if(!YT){document.getElementById('vidcap').textContent=`Past broadcasts, highlights and uploads as ${NAMES[CDATA?CDATA.platform:'twitch']||''} lists them, with their total views (replays included). ${SID.startsWith('twitch')?'Twitch keeps past broadcasts for 7 to 60 days, so older streams only show if saved as highlights.':"Read from kick.com's public data (unofficial)."} Likes and comments aren't published.`}else
  document.getElementById('vidcap').textContent=`Lifetime numbers are the channel's own counters. Below: every video, Short and live stream posted in the range, with its totals so far (YouTube, refreshed every 6 hours). Premieres count as videos.`+(j.exact?'':' Dates are approximate ("3 weeks ago") and likes and comments need a YouTube API key on the server.');
  const sg=(id,opts,cur,on)=>{const e=document.getElementById(id);e.innerHTML=opts.map(([v,l])=>`<button data-v="${v}" class="${v===cur?'on':''}">${l}</button>`).join('');e.onclick=ev=>{const b=ev.target.closest('button');if(b)on(b.dataset.v)}};
- sg('vrange',RANGES,VRANGE,v=>{VRANGE=v;videos()});sg('vkind',[['all','ALL'],['uploads','VIDEOS'],['shorts','SHORTS'],['live','LIVE']],VKIND,v=>{VKIND=v;videos()});
- sg('vmetric',[['views','VIEWS'],['likes','LIKES'],['comments','COMMENTS'],['eng','ENGAGEMENT']],VMET,v=>{VMET=v;drawVids();topList()});
+ sg('vrange',RANGES,VRANGE,v=>{VRANGE=v;videos()});
+ sg('vkind',YT?[['all','ALL'],['uploads','VIDEOS'],['shorts','SHORTS'],['live','LIVE']]:[['all','ALL'],['live','PAST BROADCASTS'],['uploads','HIGHLIGHTS & UPLOADS']],VKIND,v=>{VKIND=v;videos()});
+ if(YT)sg('vmetric',[['views','VIEWS'],['likes','LIKES'],['comments','COMMENTS'],['eng','ENGAGEMENT']],VMET,v=>{VMET=v;drawVids();topList()});else{VMET='views';document.getElementById('vmetric').style.display='none'}
  document.getElementById('vidk').innerHTML=`<div><b>${full(j.count)}</b>posted, ${RNAME[VRANGE]} · ${j.per_week}/week</div><div><b class="up">${fmt(j.views)}</b>views on them</div><div><b>${fmt(j.avg)}</b>average per post</div><div><b>${fmt(j.median)}</b>median per post</div><div><b>${j.engagement!=null?j.engagement+'%':'-'}</b>engagement${j.likes!=null?` · ${fmt(j.likes)} likes · ${fmt(j.comments)} comments`:''}</div>`;
  drawVids();insights();topList()}catch(e){}}
 function topList(){const j=VID;if(!j)return;const m=MET[VMET],med=j.median||1;
  const L=(j.videos||[]).slice().sort((a,b)=>m[1](b)-m[1](a)).slice(0,15);
  document.getElementById('vidlist').className='ps vl';
- document.getElementById('vidlist').innerHTML=L.length?`<div class="hdr"><span>POSTED</span><span>TOP BY ${m[0].toUpperCase()}</span><span>VIEWS</span><span>LIKES</span><span>COMMENTS</span><span>ENGAGE</span><span>VS MEDIAN</span></div>${L.map(v=>`<a href="https://www.youtube.com/watch?v=${esc(v.vid)}" target="_blank" rel="noopener"><span class="d">${v.ts?(v.approx?'~':'')+ist(v.ts,{day:'numeric',month:'short'}):''}</span><span class="t"><span class="lvtag" style="color:${KINDC[kindOf(v)]}">${KINDN[kindOf(v)].toUpperCase()}</span>${esc(v.title)}</span><span class="n">${fmt(v.views)}</span><span class="n">${v.likes!=null?fmt(v.likes):'-'}</span><span class="n">${v.comments!=null?fmt(v.comments):'-'}</span><span class="n">${engOf(v)!=null?engOf(v).toFixed(1)+'%':'-'}</span><span class="n ${(v.views||0)>=2*med?'xm':''}">${((v.views||0)/med).toFixed(1)}x</span></a>`).join('')}`:'<div class="empty">Nothing posted in this range.</div>'}
+ document.getElementById('vidlist').innerHTML=L.length?`<div class="hdr"><span>POSTED</span><span>TOP BY ${m[0].toUpperCase()}</span><span>VIEWS</span><span>LIKES</span><span>COMMENTS</span><span>ENGAGE</span><span>VS MEDIAN</span></div>${L.map(v=>`<a href="${esc(VURL(v))}" target="_blank" rel="noopener"><span class="d">${v.ts?(v.approx?'~':'')+ist(v.ts,{day:'numeric',month:'short'}):''}</span><span class="t"><span class="lvtag" style="color:${KINDC[kindOf(v)]}">${KINDN[kindOf(v)].toUpperCase()}</span>${esc(v.title)}</span><span class="n">${fmt(v.views)}</span><span class="n">${v.likes!=null?fmt(v.likes):'-'}</span><span class="n">${v.comments!=null?fmt(v.comments):'-'}</span><span class="n">${engOf(v)!=null?engOf(v).toFixed(1)+'%':'-'}</span><span class="n ${(v.views||0)>=2*med?'xm':''}">${((v.views||0)/med).toFixed(1)}x</span></a>`).join('')}`:'<div class="empty">Nothing posted in this range.</div>'}
 function insights(){const j=VID,L=(j.videos||[]).filter(v=>v.ts&&!v.approx),el=document.getElementById('vins');
  if(L.length<5){el.innerHTML='';return}
  const avgBy=f=>{const m={};L.forEach(v=>{const k=f(v);(m[k]=m[k]||[]).push(v.views||0)});return Object.fromEntries(Object.entries(m).map(([k,a])=>[k,{avg:a.reduce((x,y)=>x+y,0)/a.length,n:a.length}]))};
@@ -153,7 +160,7 @@ function drawVids(){const cv=document.getElementById('vidchart'),j=VID;if(!cv||!
  cv._pts=P;const tip=document.getElementById('vtip');
  const near=e=>{const r=cv.getBoundingClientRect(),mx_=e.clientX-r.left,my=e.clientY-r.top;let best=null,d=1e9;for(const p of cv._pts){const dd=Math.hypot(p[0]-mx_,(p[1]-my)*.3);if(dd<d){d=dd;best=p}}return d<30?best:null};
  cv.onmousemove=e=>{const p=near(e);if(!p){tip.style.display='none';return}const v=p[2];tip.innerHTML=`<span class="lvtag" style="color:${KINDC[kindOf(v)]}">${KINDN[kindOf(v)].toUpperCase()}</span>${esc(v.title)}<br><b>${fmt(v.views)}</b> views${v.likes!=null?' · '+fmt(v.likes)+' likes · '+fmt(v.comments)+' comments':''}${engOf(v)!=null?' · '+engOf(v).toFixed(1)+'%':''}<br>${v.approx?'~':''}${ist(v.ts,{day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'})} IST`;tip.style.display='block';tip.style.left=Math.min(e.clientX+12,innerWidth-290)+'px';tip.style.top=(e.clientY+12)+'px'};
- cv.onmouseleave=()=>{tip.style.display='none'};cv.onclick=e=>{const p=near(e);if(p)window.open('https://www.youtube.com/watch?v='+p[2].vid,'_blank','noopener')}}
+ cv.onmouseleave=()=>{tip.style.display='none'};cv.onclick=e=>{const p=near(e);if(p)window.open(VURL(p[2]),'_blank','noopener')}}
 window.addEventListener('resize',()=>{drawVids();if(CDATA)viewsCard(CDATA)});
 // ---- share card: the channel's performance as an image
 function loadImg(u){return new Promise(r=>{if(!u)return r(null);const i=new Image();i.crossOrigin='anonymous';i.onload=()=>r(i);i.onerror=()=>r(null);i.src=u})}
@@ -213,11 +220,17 @@ function drawViews(G){const cv=document.getElementById('vchart');if(!cv)return;c
  path();x.lineTo(P[P.length-1][0],H-pb);x.lineTo(P[0][0],H-pb);x.closePath();x.fillStyle=g;x.fill();path();x.strokeStyle='#a58bff';x.lineWidth=2.2;x.stroke();
  P.forEach((p,i)=>{if(i===best||i===P.length-1){x.beginPath();x.arc(p[0],p[1],4,0,7);x.fillStyle=i===best?'#b6f23a':'#eeeef5';x.fill();x.textAlign='center';x.fillText('+'+fmt(S[i].views),p[0],Math.max(10,p[1]-8));x.textAlign='left'}});
  S.forEach((g,i)=>{if(i%Math.ceil(S.length/7)===0||i===S.length-1){x.fillStyle='#8d8ca3';x.textAlign=i===0?'left':i===S.length-1?'right':'center';x.fillText(new Date(g.day+'T12:00:00+05:30').toLocaleDateString('en-IN',{day:'numeric',month:'short'}),P[i][0],H-6)}});x.textAlign='left'}
+function rankBadges(c){const R=c.ranks||[];if(!R.length)return '';const ML={size:c.platform==='youtube'?'subscribers':'followers',growth:c.platform==='youtube'?'views, 30 days':'follower growth, 30 days',live:'live hours, 30 days'};
+ const best={};R.forEach(r=>{const k=r.scope;if(!best[k]||r.rank/Math.max(r.of,1)<best[k].rank/Math.max(best[k].of,1))best[k]=r});
+ const order=['country','category','game','world'].filter(k=>best[k]);
+ return `<div class="rks" style="grid-column:1/-1">${order.map(k=>{const r=best[k],q=new URLSearchParams({mode:'channels',platform:c.platform,metric:r.metric,...(k==='country'?{country:c.country_code||''}:{}),...(k==='category'?{category:r.where}:{})});
+  return `<a class="rk g${r.rank<=3?r.rank:0}" href="${RP}/rankings?${q}" title="${r.rank} of ${r.of} tracked ${NAMES[c.platform]} channels"><b>#${full(r.rank)}</b>${esc(r.where)} · ${ML[r.metric]} <span style="opacity:.7">of ${full(r.of)}</span></a>`}).join('')}</div>`}
 const hm=s=>{s=+s||0;const h=Math.floor(s/3600),m=Math.round(s%3600/60);return h?`${h}h ${m}m`:`${m}m`};
 async function load(){try{const c=await (await fetch('/api/channel?sid='+encodeURIComponent(SID)+'&t='+Math.floor(Date.now()/15000))).json();if(!c.sid)return;CH[SID]=c;
  const now=c.now,S=c.stats;
  document.getElementById('hd').className='hd'+(now?' live':'');
  document.getElementById('hd').innerHTML=`${av(c)}<div style="min-width:0"><h1>${esc(c.name)}</h1><div class="meta"><b style="color:${COL[c.platform]}">${NAMES[c.platform]||''}</b>${c.country?' · '+esc(c.country):''}${S&&S.subs!=null?' · <b>'+fmt(S.subs)+'</b> subscribers':''}${now||c.last_live?' · ':''}${now?`<span class="lv">LIVE</span><b>${full(now)}</b> watching${c.game?' · '+esc(c.game):''}`:c.last_live?'last live '+ago(c.last_live):''}</div>${now&&c.title?`<div class="meta" style="margin-top:6px">${esc(c.title)}</div>`:''}</div>
+  ${rankBadges(c)}
   <div class="act"><a class="btn${now?' red':''}" href="${esc(c.url)}" target="_blank" rel="noopener">${now?'WATCH LIVE':'OPEN'} ON ${(NAMES[c.platform]||'').toUpperCase()}</a></div>`;
  CDATA=c;viewsCard(c);renderLife();
  const seen=c.periods&&c.periods.all&&c.periods.all.days;

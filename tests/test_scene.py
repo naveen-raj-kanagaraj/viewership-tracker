@@ -482,3 +482,32 @@ got = {v["id"]: (v["live"], v["short"]) for v in yx._api_videos("UCabcdefghijklm
 events._http.get = _og
 assert got == {"vid1": (0, 0), "prem1": (0, 0), "live1": (1, 0), "short1": (0, 1)}, got
 print("KINDS OK")
+# ranks among tracked channels; Twitch past broadcasts; discovery
+from tracker import ranks as rk
+with store._lock:
+    cc = sc._db()
+    dd = datetime.now(events.REPORT_TZ).date()
+    for k, (sid_, subs_) in enumerate([("yt:UCaman", 9000000), ("yt:UCtg", 40000000), ("yt:UCffindia000000000000000", 5200000)]):
+        cc.execute("INSERT OR REPLACE INTO sc_chstats VALUES (?,?,?,?,?,?)", (dd.strftime("%Y-%m-%d"), sid_, subs_, 10**9 + k, 100, 0))
+    cc.execute("UPDATE sc_channels SET topic='Gaming', country='IN' WHERE sid IN ('yt:UCaman','yt:UCtg','yt:UCffindia000000000000000')")
+    cc.commit()
+assert rk.compute() > 0
+mine = {(r["metric"], r["scope"]): (r["rank"], r["of"]) for r in rk.for_channel("yt:UCaman")}
+assert mine[("size", "world")][0] == 2 and mine[("size", "country")] == mine[("size", "world")] and mine[("size", "category")][0] == 2, mine
+tp = c.get("/api/topch?platform=youtube&metric=size&country=IN&category=Gaming").get_json()
+assert [r["sid"] for r in tp["rows"][:3]] == ["yt:UCtg", "yt:UCaman", "yt:UCffindia000000000000000"], tp["rows"][:3]
+assert sc.channel("yt:UCaman")["ranks"] and c.get("/rankings?mode=channels").status_code == 200
+def _pg3(p, url, params):
+    if url.endswith("/helix/users"): return {"data": [{"id": "9"}]}
+    if url.endswith("/helix/videos"): return {"data": [{"id": "111", "title": "big stream", "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                                                       "view_count": 4321, "duration": "3h2m1s", "type": "archive", "url": "https://www.twitch.tv/videos/111"}]}
+    raise AssertionError(url)
+platforms._get = _pg3
+tv = yx.videos_summary("twitch:newguy", "1m")
+assert tv["count"] == 1 and tv["views"] == 4321 and tv["videos"][0]["url"].endswith("/111") and tv["videos"][0]["live"] == 1, tv
+yx.yt_channel_search = lambda q, gl="IN": [{"sid": "yt:UCdisc0000000000000000000"[:24], "name": "Found " + q, "logo": "", "subs_text": "", "handle": ""}]
+assert yx.discover_once(1) == 1 and yx.discover_once(1) == 0       # added once, then known
+yx.yt_channel_search = _yxs
+assert yx.topic_of(["https://en.wikipedia.org/wiki/Action_game", "https://en.wikipedia.org/wiki/Video_game_culture"]) == "Gaming"
+assert yx.topic_of(["https://en.wikipedia.org/wiki/Hip_hop_music"]) == "Music" and yx.topic_of([]) == ""
+print("RANKS OK")

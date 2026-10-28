@@ -65,6 +65,7 @@ PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta property="og:type" content="website"><meta name="theme-color" content="#07051a">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<script>window.__F=fetch('/api/scene?__QS__&period=today&t='+Math.floor(Date.now()/20000),{cache:'no-store'}).then(function(r){return r.json()}).catch(function(){return null});</script>
 <style>
 :root{color-scheme:dark;--bg:#0b0b12;--bg2:#121219;--card:#13131c;--card2:#1a1a26;--ink:#eeeef5;--muted:#8d8ca3;--line:#262636;
 --lime:#b6f23a;--purple:#a58bff;--red:#ff4d5e;--yt:#ff4d5e;--kick:#53fc18;--twitch:#a970ff}
@@ -287,7 +288,7 @@ setH('crumb',`<a href="${HOME}">${GL?'WORLDWIDE':'INDIA'}</a>`+(SEC||CAT?` / ${S
 setH('h1',CAT?`<em>${esc(CATNAME)}</em> live ${WHERE}`:SEC?`<em>${esc(SECNAME[SEC])}</em> live ${WHERE}`:GL?`Live streaming <em>worldwide</em>, right now`:`Live streaming <em>in India</em>, right now`);
 setT('intro','YouTube, Kick and Twitch, updated every 2 seconds.');
 document.getElementById('secard').style.display='none';
-if(GL&&!CAT&&!SEC){document.getElementById('gframe').src='/map?embed=1'}else{document.getElementById('gcardw').remove();document.getElementById('hero').classList.add('noglobe')}
+if(GL&&!CAT&&!SEC){setTimeout(()=>{document.getElementById('gframe').src='/map?embed=1'},1200)}else{document.getElementById('gcardw').remove();document.getElementById('hero').classList.add('noglobe')}
 {const sb=document.getElementById('sbox'),gs=document.getElementById('gs'),sr=document.getElementById('sres');let st=null,sq='';
  document.getElementById('sbtn').onclick=()=>{const on=sb.classList.toggle('on');document.getElementById('sbtn').classList.toggle('on',on);if(on)gs.focus()};
  document.addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement.tagName!=='INPUT'){e.preventDefault();sb.classList.add('on');gs.focus()}if(e.key==='Escape'){sb.classList.remove('on');sr.innerHTML=''}});
@@ -527,7 +528,7 @@ async function shareTo(app){if(!cur)return;const f=new File([cur.blob],cur.name,
  else{window.open('https://www.instagram.com/','_blank','noopener');setT('mhint','Image downloaded. Upload it as a post or story on Instagram.')}}
 document.getElementById('mig').onclick=()=>shareTo('ig');document.getElementById('mxb').onclick=()=>shareTo('x');
 const QS=()=>'region='+REGION+(SEC?'&sec='+SEC:'')+(CAT?'&cat='+CAT:'');
-async function load(){try{const r=await fetch('/api/scene?'+QS()+'&period='+per+'&t='+Math.floor(Date.now()/20000),{cache:'no-store'});D=await r.json();LASTOK=Date.now();render()}catch(e){}}
+async function load(){if(window.__F&&per==='today'){const f=window.__F;window.__F=null;const d=await f;if(d){D=d;LASTOK=Date.now();render();return}}try{const r=await fetch('/api/scene?'+QS()+'&period='+per+'&t='+Math.floor(Date.now()/20000),{cache:'no-store'});D=await r.json();LASTOK=Date.now();render()}catch(e){}}
 let LASTOK=0;function updLabel(){const a=LASTOK?Math.round((Date.now()-LASTOK)/1000):null,old=D&&D.updated&&Date.now()/1000-D.updated>600;
  setT('upd',old?'paused '+Math.round((Date.now()/1000-D.updated)/60)+' min':a===null?'-':a+'s ago')}
 async function loadLive(){if(!D||document.hidden)return;try{const r=await fetch('/api/scene/live?'+QS()+'&t='+Math.floor(Date.now()/2000),{cache:'no-store'});const j=await r.json();
@@ -553,7 +554,8 @@ def build_html(cat: str = "", cat_name: str = "", region: str = "in", sec: str =
         desc = (f"How many people are watching live streams {where} on YouTube, Kick and Twitch right now: top streams, "
                 "top streamers, gaming, esports tournaments, IRL, news and more, updated every 2 seconds.")
     home = "/" if region == "global" else "/india"
-    return (PAGE.replace("__PANEL_JS__", PANEL_JS).replace("__PANEL_CSS__", PANEL_CSS).replace("__TITLE__", html.escape(title)).replace("__DESC__", html.escape(desc))
+    qs = f"region={region}" + (f"&sec={sec}" if sec else "") + (f"&cat={cat}" if cat else "")
+    return (PAGE.replace("__QS__", qs).replace("__PANEL_JS__", PANEL_JS).replace("__PANEL_CSS__", PANEL_CSS).replace("__TITLE__", html.escape(title)).replace("__DESC__", html.escape(desc))
                 .replace("__CATNAME__", json.dumps(cat_name)).replace("__CAT__", json.dumps(cat))
                 .replace("__SEC__", json.dumps(sec)).replace("__REGION__", json.dumps(region))
                 .replace("__SECTIONS__", json.dumps(scene.SECTIONS)).replace("__HOME__", home)
