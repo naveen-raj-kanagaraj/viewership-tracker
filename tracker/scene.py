@@ -959,11 +959,75 @@ def compact(now: float = None, max_days: int = 3) -> int:
     return n
 
 
+# Twitch's whole audience: the scan keeps the biggest ~2,000 streams (100+ viewers); the long tail of small streams
+# holds a large share of Twitch viewers. Every 5 minutes every live stream is paged through (about 1,000 API calls,
+# well inside Twitch's 800 per minute) and the full total replaces the tracked one in the worldwide "watching now".
+_TWFULL = {"viewers": 0, "streams": 0, "ts": 0.0}
+TWITCH_FULL_EVERY = int(os.getenv("SCENE_TWITCH_FULL_SEC", "300"))
+
+
+def twitch_full_once() -> dict:
+    after, tot, n = None, 0, 0
+    for _ in range(3000):
+        j = platforms._get("twitch", "https://api.twitch.tv/helix/streams", {"first": 100, **({"after": after} if after else {})})
+        d = j.get("data") or []
+        tot += sum(int(x.get("viewer_count") or 0) for x in d)
+        n += len(d)
+        after = (j.get("pagination") or {}).get("cursor")
+        if not after or not d:
+            break
+        time.sleep(0.12)                      # ~500 calls a minute at most
+    _TWFULL.update(viewers=tot, streams=n, ts=time.time())
+    return dict(_TWFULL)
+
+
+def run_twitch_full():
+    time.sleep(60)
+    while True:
+        try:
+            if platforms._keys("twitch"):
+                twitch_full_once()
+        except Exception as e:
+            print(f"Twitch full count: {str(e)[:150]}")
+        time.sleep(TWITCH_FULL_EVERY)
+
+
+def _with_full(out: dict, region: str, game, sec: str) -> dict:
+    """Worldwide overview only: Twitch = every live stream (from the 5-minute full count), not only the tracked ones."""
+    f = dict(_TWFULL)
+    if region != "global" or game or sec or not f["viewers"] or time.time() - f["ts"] > 3 * TWITCH_FULL_EVERY:
+        return out
+    pl = out.get("platforms") or []
+    tw = next((x for x in pl if x["platform"] == "twitch"), None)
+    extra = f["viewers"] - (tw["viewers"] if tw else 0)
+    if extra <= 0:
+        return out
+    if tw:
+        tw["viewers"] = f["viewers"]
+    else:
+        pl.append({"platform": "twitch", "name": platforms.NAMES["twitch"], "viewers": f["viewers"]})
+    pl.sort(key=lambda x: -x["viewers"])
+    k = out.get("kpis") or {}
+    if "watching" in k:
+        k["watching"] += extra
+        day = datetime.now(events.REPORT_TZ).strftime("%Y-%m-%d")
+        best = store.kv_get("allpeak") or {}
+        if best.get("day") != day or k["watching"] > best.get("v", 0):
+            best = {"day": day, "v": k["watching"], "ts": int(time.time())}
+            store.kv_set("allpeak", best)
+        if best["v"] > (k.get("peak_today") or 0):
+            k["peak_today"], k["peak_today_at"] = best["v"], best["ts"]
+    out["india_total"] = (out.get("india_total") or 0) + extra
+    out["twitch_full"] = {"viewers": f["viewers"], "streams": f["streams"], "ts": int(f["ts"])}
+    return out
+
+
 def run_forever():
     if _STATE["running"]:
         return
     _STATE["running"] = True
     threading.Thread(target=run_fast, daemon=True).start()
+    threading.Thread(target=run_twitch_full, daemon=True).start()
     time.sleep(20)                           # let the event counter start first
     while True:
         t0 = time.time()
@@ -1274,7 +1338,7 @@ def live_data(cat: str = "", region: str = "in", sec: str = "") -> dict:
     lv = _live_part(game, region, sec)
     with store._lock:
         k = _kpis(_db(), region, sec, game, lv)
-    return {**_common(lv, region), "kpis": k}
+    return _with_full({**_common(lv, region), "kpis": k}, region, game, sec)
 
 
 def data(period: str = "today", cat: str = "", region: str = "in", sec: str = "") -> dict:
@@ -1348,7 +1412,7 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
                   for r in cstats]
     if sec:
         cat_period = [x for x in cat_period if x["section"] == sec]
-    return {**_common(lv, region), "kpis": kp, "period": period, "every": SCENE_SEC, "region": region,
+    return _with_full({**_common(lv, region), "kpis": kp, "period": period, "every": SCENE_SEC, "region": region,
             "sec": sec, "sec_name": SECTION_NAMES.get(sec, ""), "cat": cat if game else "", "cat_name": game or "",
             "peak": {"viewers": pk[1], "ts": pk[0]} if pk else None,
             "peak_all": {"viewers": pk_all[1], "ts": pk_all[0]} if pk_all else None,
@@ -1361,7 +1425,7 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
             "history_game": game or ("BGMI" if sec == "esports" and region == "in" else ""),
             "cat_period": sorted(cat_period, key=lambda x: -x["avg"]), "tracked": tracked,
             "langs": LANGS, "min": MIN_VIEWERS if region == "in" else GLOBAL_MIN,
-            "keys": {p: bool(platforms._keys(p)) for p in ("kick", "twitch")}}
+            "keys": {p: bool(platforms._keys(p)) for p in ("kick", "twitch")}}, region, game, sec)
 
 
 def _prev_ranks(c, region, game, sec, period) -> dict:

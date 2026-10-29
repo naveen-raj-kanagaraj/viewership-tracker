@@ -594,3 +594,15 @@ with store._lock:
 assert sc.compact if hasattr(sc, "compact") else True
 assert not c.get("/api/scene?region=global&period=today").get_json().get("events")
 print("ADMIN OK")
+# impossible readings are dropped; hourly readings; Twitch full count on the worldwide overview
+with store._lock:
+    cc = sc._db()
+    cc.execute("INSERT OR REPLACE INTO yt_videos (vid, sid, ts, title, views, approx, updated) VALUES ('bigv','yt:UCsane00000000000000000',?, 't', 12000000, 0, 0)", (int(time.time()),))
+    cc.commit()
+assert yx._sane({"UCsane00000000000000000": (6320000, 1230000, 617)}) == {}
+assert yx._sane({"UCsane00000000000000000": (6320000, 1230000000, 617)})
+sc._TWFULL.update(viewers=1200000, streams=90000, ts=time.time())
+gd = sc.live_data(region="global")
+assert any(p_["platform"] == "twitch" and p_["viewers"] == 1200000 for p_ in gd["platforms"]) and gd["twitch_full"]["streams"] == 90000, gd["platforms"]
+assert sc.live_data(region="in").get("twitch_full") is None and sc.data(region="global")["twitch_full"]
+print("ACCURACY OK")

@@ -333,6 +333,11 @@ As of 26 Oct 2026:
 - Search results (`/api/lookup`) are followed at once (ytextra.track_found, tracked=1): daily stats start without
   anyone opening them. /api/videos while still loading is cached 3 s, not 5 min (X-Short-Cache), and the channel
   page polls until the videos arrive. Day-over-day gains ignore jumps over 25% (views and subscribers).
+- v20 (29 Oct): Accuracy. ytextra._sane drops impossible YouTube readings (lifetime views below the channel's own
+  biggest video, or a total down >2%); stored ones were deleted once (kv chstats_fix_below_video). intra_once takes
+  hourly readings of up to 1,250 channels per 15-minute run (25 API units), so channels show "views, last N hours"
+  the same day. Twitch full count (scene.twitch_full_once, every 5 min, all live streams) replaces the tracked Twitch
+  number on the worldwide overview (_with_full); peak today takes the full total into account (kv allpeak).
 
 ## Ideas not built yet
 
