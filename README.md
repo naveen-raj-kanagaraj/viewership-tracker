@@ -1,106 +1,71 @@
-# Live Viewership Tracker
+# letsgrowesports Live
 
-> Picking this up fresh? Read [docs/HANDOFF.md](docs/HANDOFF.md): what runs where, the rules, the code map and the current state. Moving it to another machine or domain: [docs/MOVING.md](docs/MOVING.md).
+**Real-time audience analytics for creators and live streams across YouTube, Twitch and Kick.**
+Live at [live.letsgrowesports.com](https://live.letsgrowesports.com) · Built and run by Naveen Raj Kanagaraj
 
-Runs [live.letsgrowesports.com](https://live.letsgrowesports.com): live streaming analytics for YouTube, Kick and Twitch, worldwide and for India, plus live trackers for esports tournaments.
-
-- **Live dashboard** (`/`, `/india`): how many people are watching right now, split by platform, section (Gaming, Esports, IRL, Just Chatting, News, Music, Sports ...) and game. Updated every 2 seconds.
-- **Rankings** (`/rankings`, `/india/rankings`): the top streamers for any day, week or month, by hours watched, peak viewers, average viewers, hours live, Super Chats or views gained. Filter by category, the streamer's country and platform. Rank moves against the period before.
-- **Channel pages** (`/ch/<id>`): one channel's numbers for today, 7 days, 30 days and all time, Super Chats, subscribers and total views, and its streams in the last 30 days.
-- **World map** (`/map`): a rotatable 3D globe of who the world is watching, by the streamer's country, with each country's top categories and streamers.
-- **Game pages** (`/c/<game>`): everyone streaming one game, and for BGMI the viewership history of every KRAFTON India event.
-- **Tournament trackers** (`/e/<event>/`): every stream carrying an event at once (the official broadcast, watch parties and community restreams), counted together.
-- **Search** across every channel and stream title the site has seen live.
-- **Share cards** for every view, sized for Instagram and X, including a per-streamer card with rank and stats.
-
-Built because published viewership arrives days late and often counts the official broadcast alone. In Indian esports that misses a large share of the audience, because much of it watches through creators' watch parties.
-
-YouTube works with no keys: it's read from public pages. Kick and Twitch use their official APIs with free developer keys (Kick also works without, with less coverage). A free YouTube Data API key makes channel countries and channel stats exact.
+> Maintaining it? Start with [docs/HANDOFF.md](docs/HANDOFF.md). How it works under the hood: [docs/TECHNICAL.md](docs/TECHNICAL.md).
 
 ![The live dashboard, worldwide](docs/site-overview.jpg)
 
-<p align="center"><img src="docs/demo.gif" width="300" alt="The live dashboard on a phone"></p>
+## The problem
+
+Audience numbers for creators and live events are late, partial and split across platforms.
+
+- Event viewership is usually published days later and often counts only the official broadcast.
+- YouTube, Twitch and Kick each report in their own way; nobody adds them up per creator, game or country.
+- Channel trackers say little about creators outside the US, about live audiences, or about how a channel's recent videos actually perform.
+
+**What the data showed:** at the peak of BMSD 2026, a national esports final, this site measured **653,067 people watching at once, and 57% of them were on creators' watch parties, not the official stream.** An official-only report would have missed most of the audience.
+
+## Who it's for
+
+| User | What they get |
+|---|---|
+| Creators and streamers | Growth, rank in their category and country, share cards and a live rank badge for their media kit |
+| Brands and agencies | Creators ranked by real, current views; side-by-side compare across platforms |
+| Tournament organizers | The true live audience of an event, official broadcast plus watch parties, every 2 seconds |
+| Fans and media | What the world (or India) is watching right now, top creators today, the moments everyone jumped in |
+
+## What it does
+
+- **Live dashboard:** everyone watching right now across YouTube, Twitch and Kick, by platform, category and game, refreshed every 2 seconds. Worldwide and India views.
+- **Channel pages for any channel:** subscribers, lifetime views, views gained per day, every recent video with views, likes, comments and engagement, best day and time to post, and live stats while the channel is streaming.
+- **Rankings:** channels by views gained (day, week, month), total views or subscribers; streamers by hours watched, peak or average viewers; filter by YouTube category, game and country.
+- **Tournament trackers:** every stream carrying an event (official broadcast and permitted watch parties) counted together, with the official vs watch-party split.
+- **Moments:** sudden audience jumps detected from chat speed and viewer counts, linked to that second of the stream.
+- **Compare, search, share cards, creator badges, world map.**
 
 | Rankings | World map |
 |---|---|
-| ![Rankings: top streamers of the day with rank moves](docs/site-rankings.jpg) | ![The 3D globe: where the streamers are from](docs/site-map.jpg) |
+| ![Rankings](docs/site-rankings.jpg) | ![The 3D globe of who the world is watching](docs/site-map.jpg) |
 | **Channel page** | **Game page (BGMI)** |
-| ![A channel's live stats, Super Chats, subscribers and views](docs/site-channel.jpg) | ![BGMI live in India with the viewership history of every KRAFTON India event](docs/site-bgmi.jpg) |
+| ![A channel page](docs/site-channel.jpg) | ![BGMI live in India with event history](docs/site-bgmi.jpg) |
 
-Screenshots from the live site, 28 October 2026 (IST).
+## My role
 
----
+I own the product end to end: problem definition, users, requirements, metric definitions, prioritization, release decisions and operations. I built it with an AI coding agent (Claude): I wrote the specs and acceptance criteria, reviewed every release, set the guardrails (tests before every merge, no secrets in code, owner-only data stays private) and tested each version on the live site.
 
-## Live streaming rankings
-
-### What is tracked
-
-Every 2 minutes, a scan of what is live:
-
-| Source | What |
+| Product work | Artifact |
 |---|---|
-| Twitch | The top 500 live streams worldwide, plus official esports channels, plus streams in the India languages (`SCENE_LANGS`) |
-| Kick | The top live streams, plus the India languages and main Indian categories |
-| YouTube | YouTube's own Live page for India, the US and 20 more countries (`SCENE_YT_COUNTRIES`), plus live searches for every big game, esport and category |
-| Hand-added channels | `python track.py scene add youtube @handle` (or a Kick slug / Twitch login) |
+| Product requirements: problem, users and jobs to be done, goals and non-goals, prioritized requirements, risks | [PRD](docs/product/PRD.md) |
+| One definition for every number on the site, north star and health metrics | [Metric definitions](docs/product/METRICS.md) |
+| The calls that shaped the product and the trade-off behind each | [Decision log](docs/product/DECISIONS.md) |
+| What comes next and how success is judged | [Roadmap](docs/product/ROADMAP.md) |
+| Event analysis: BMSD 2026 audience, official vs watch parties | [Case study](#case-study-bmsd-2026) |
+| Platform compliance: privacy policy, terms, YouTube API attribution, API quota extension request | [Privacy](https://live.letsgrowesports.com/privacy) · [Terms](https://live.letsgrowesports.com/terms) |
 
-Viewer counts are then refreshed every 2 seconds for every Kick and Twitch stream and the biggest YouTube streams, and every scan for the rest.
+**Execution:** 55 releases merged in 11 days (19 to 29 Oct 2026), each with automated tests; about 13,000 lines of Python.
 
-**Indian or not.** A YouTube channel's own country setting decides. Otherwise the stream's language tag (Kick, Twitch), an Indian script, or Indian words in the title. Channels can be allowed or blocked by hand.
+**Problems worked through along the way**
+- **Trust:** wrong readings (a channel's lifetime views below its own biggest video, a misread "10.56K" as 1,056) are now rejected automatically instead of shown.
+- **Platform limits:** a background job was using up the daily YouTube API allowance; I added a usage meter with priorities, cut the cost per channel, and filed a quota extension so the site can follow 100,000+ channels.
+- **Coverage:** Twitch totals looked low next to other trackers because only the top streams were counted; the worldwide view now counts every live Twitch stream.
+- **Signal over noise:** moments now need a real audience jump (8% and 1,000 viewers) and skip news streams, after small 3% jumps were flagged as moments.
+- **Product health:** an owner-only page shows visitors, API use and any data source that failed, so problems are caught by the product, not by users.
 
-**Categories.** From the platform's category (Kick, Twitch) or the stream title (YouTube): BGMI, Free Fire, PUBG Mobile, Valorant, GTA V, Call of Duty, Cricket, News, Devotional, Music and so on, grouped into sections. Esports streams are detected from tournament names in the title (VCT, BGIS, PMGC, CEGC ...) and grouped with their co-streams.
+## Case study: BMSD 2026
 
-### Metrics
-
-| Metric | How it is derived |
-|---|---|
-| **Watching now** | Sum of every tracked live stream's current viewers (each platform's own count) |
-| **Peak** | Highest "watching now" at one moment (per day IST, per stream, per channel) |
-| **Hours watched** | Viewers integrated over time live |
-| **Average viewers** | Hours watched / hours live |
-| **Hours live** | Time a channel was live |
-| **Super Chats** | Super Chats and Super Stickers paid on the 50 biggest YouTube live streams, converted at the day's exchange rate, before YouTube's cut |
-| **Views gained** | Growth of a YouTube channel's total views (all videos) between daily snapshots |
-
-**Super Chats.** The live chat of the top 50 YouTube streams (`SUPERCHAT_TOP`) is read every 5 to 15 seconds, the way the YouTube player reads it. Each paid message, sticker, membership and gift is stored once. Smaller streams are not read; Kick and Twitch have no equivalent.
-
-**Channel stats.** Once a day, every YouTube channel the site has seen live gets a snapshot of subscribers, total views and video count (`CHANNEL_STATS_MAX` per day, most watched first). With `YOUTUBE_API_KEY` this uses the YouTube Data API; without it, channel About pages.
-
-**Past streams.** A channel page lists its streams in the last 30 days from the platform itself: the YouTube channel's Live tab, or Twitch's past broadcasts. Kick has no public list.
-
-**Where the streamers are from (the globe).** A viewer is placed on the streamer's country: the YouTube channel's country, India for streams detected as Indian, and for Kick and Twitch the stream language where it points to one country (Portuguese = Brazil, Korean, Japanese, Turkish ...). English and Spanish Kick/Twitch streams can't be placed and are left off; the page says how many.
-
-### Commands
-
-```bash
-python track.py scene top 7d                     # top streamers in the terminal
-python track.py scene probe                      # check each source once
-python track.py scene add kick skyesports        # youtube @handle, kick slug or twitch login
-python track.py scene block "Some Channel"       # hide from the rankings
-python track.py scene allow "Some Channel"       # count as Indian
-python track.py scene superchat <video id> 60    # read one stream's chat for 60s and list what was paid
-python track.py scene stats @handle              # one channel's subscribers, total views, videos
-```
-
----
-
-## Tournament trackers
-
-Each event is a short definition: the phrases that identify it, the official broadcaster, and the creator channels allowed to restream it. The same tracker runs for any tournament and any set of channels.
-
-### Events tracked
-
-| Event | Dates | Broadcast days | Streams | Peak concurrent | Watch parties at peak | Data |
-|---|---|---|---|---|---|---|
-| BMSD 2026 (BGMI Showdown) | 10 to 18 Oct 2026 | 7 | 92 | 653,067 | 57% | [`exports/bmsd/`](exports/bmsd/) |
-
-Each event's numbers are exported to `exports/<event>/` when it ends, so every figure in this table can be checked against the raw data.
-
----
-
-### Case study: BMSD 2026
-
-Battlegrounds Mobile India Showdown 2026, the first event tracked end to end: 7 broadcast days, 92 streams, one reading every 2 seconds.
+Battlegrounds Mobile India Showdown 2026, tracked end to end: 7 broadcast days, 92 streams, one reading every 2 seconds.
 
 | | |
 |---|---|
@@ -110,269 +75,28 @@ Battlegrounds Mobile India Showdown 2026, the first event tracked end to end: 7 
 
 ![BMSD 2026 Grand Finals, concurrent viewers](docs/finals-day.png)
 
-The finals day, minute by minute. The official broadcast and the watch parties rise and fall together with each match, but the watch parties carried more of the audience at all but one of the day's match peaks.
+The official broadcast and the watch parties rise and fall together with each match, but watch parties carried more of the audience at all but one of the finals' match peaks. Every figure is reproducible from `exports/bmsd/`.
 
-![Peak concurrent viewers by broadcast day](docs/daily-peaks.png)
+## How it works
 
-Every figure here is reproducible from `exports/bmsd/`: `daily_peaks.csv` for the bars, `full/viewership_2026-10-18.csv` for the finals day.
+- **Sources:** YouTube Data API (channel and video statistics, read-only), YouTube's public live pages, Twitch and Kick official APIs.
+- **Freshness:** live counts every 2 seconds; channel statistics daily plus hourly readings for the most active channels.
+- **Accuracy:** sanity checks on every reading, labelled estimates, metered API use.
+- **Stack:** Python and Flask, SQLite, Cloudflare in front of a single cloud VM, stdlib-first so updates deploy without new dependencies.
+- **Privacy:** no accounts, no tracking cookies, no IP addresses stored.
 
-### How a tournament is tracked
+Details, commands and configuration: [docs/TECHNICAL.md](docs/TECHNICAL.md).
 
-**Finds the streams.** Every 60 seconds it searches YouTube for live streams matching the event's phrases, and checks a list of known channels directly. A stream that drops out of search ranking is re-checked for 15 minutes before being treated as ended, so a ranking change is not recorded as the audience leaving.
-
-**Counts them.** Every 2 seconds each live stream is re-counted. Streams under 50 viewers are re-counted less often, so the budget goes where the audience is.
-
-**Classifies them.** Each stream is labelled official, watch party or community. An allow-list decides which watch-party channels count, which keeps unrelated streams that happen to mention the tournament out of the totals.
-
-**Catches bad readings.** When a stream ends, YouTube's watch page can report total views where a live viewer count used to be. Left alone that lands as a sudden spike. A jump or drop above a size and percentage threshold inside ~15 seconds is held as unconfirmed until the next reading agrees with it, and is recorded as an anomaly either way.
-
-**Serves it.** A dashboard shows the live total, the per-stream breakdown, per-day peaks and, for BGMI events, the event's place in BGMI viewership history. It is served locally and can be exposed through a cloudflared tunnel without a server.
-
-### Tournament metrics
-
-| Metric | How it is derived |
-|---|---|
-| **Peak concurrent** | Highest combined total across all live streams at one moment, not the sum of each stream's individual peak |
-| **Average concurrent** | Mean of the combined totals, measured only while the official broadcast was live |
-| **Hours watched** | Concurrent viewers integrated over time |
-| **Airtime** | How long each stream was live |
-| **Official / watch party / community split** | The same totals attributed by stream type |
-| **Anomalies** | Jumps and drops that failed confirmation, kept for audit rather than discarded silently |
-
-Peak concurrent is the combined figure at a single moment, which is the comparable number and is always lower than adding up per-stream peaks, since streams peak at different times.
-
-### Commands
+## Run it
 
 ```bash
-python track.py create bmsd      # start tracking an event
-python track.py events           # events and their state
-python track.py stats bmsd       # peak, average, per day, per channel
-python track.py export bmsd      # CSV and xlsx exports
-python track.py pause bmsd       # stop recording, keep serving history
-python track.py home bmic        # show this event at / (python track.py home hub to undo)
+pip install -r requirements.txt
+cp .env.example .env      # every setting is optional
+python track.py           # tracker + website at http://localhost:8092
 ```
 
-### Adding an event
-
-Every event is one entry in `PRESETS` in `tracker/events.py`. `bmsd` is there as a full worked example. A new one looks like this:
-
-```python
-"bgis26": {
-    "name": "BGIS 2026",
-    "match":   ["bgis", "battlegrounds india series"],        # a stream's title must contain one of these
-    "queries": ["BGIS 2026", "BGIS live", "BGIS watch party"], # what YouTube is searched for
-    "official": ["krafton india esports"],                      # channel names counted as official
-    "official_channels": ["UCugG6-k5QGbq_iDEPAnG4NQ"],          # channel IDs whose every live stream is tracked
-    "always_check": ["@DynamoGaming", "@SoulAman"],             # creator channels checked directly every minute
-    "allowed": ["dynamo", "soulaman"],                          # watch-party channels that count toward the total
-    "ended": False,                                             # True once it is over: recording stops, history stays
-    "next_start": "2026-11-20 13:00",                           # IST; the dashboard counts down to it
-    "hist": ["BGIS", "26"],                                     # BGMI events: its point in the history chart
-    "roster": True,                                             # show the watch-party roster (ROSTER) and NOT LIVE alert
-},
-```
-
-Then:
-
-```bash
-python track.py create bgis26
-python track.py
-```
-
-**Tracking channels.** `always_check` is the list of YouTube channels the tracker looks at directly every minute, whether or not they surface in search. Use it for the creators who usually host watch parties. `allowed` decides which of those channels count toward the event's total, so an unrelated stream that mentions the tournament is left out. Leave `allowed` empty to count every matching stream.
-
-### Other games and platforms (Kick, Twitch)
-
-Any game works; YouTube is always on, and Kick and Twitch are added per event. Without editing code:
-
-```bash
-python track.py new valo "VCT Pacific" --game Valorant --match "vct,pacific" --queries "VCT Pacific"
-python track.py kick valo official valorant        # kick.com/valorant is the official broadcast
-python track.py kick valo add tarik                # counted while the stream title matches the event
-python track.py twitch valo official valorant
-python track.py twitch valo category VALORANT      # top live streams in the category, title must match
-python track.py kick valo remove tarik
-python track.py platforms                          # which connectors have keys
-```
-
-Changes are picked up within a minute by a running tracker. The same fields work in a preset:
-
-```python
-"kick":   {"official": ["slug"], "channels": ["slug"], "category": "PUBG Mobile"},
-"twitch": {"official": ["login"], "channels": ["login"], "category": "VALORANT"},
-"game": "Valorant",
-"need_official": False,   # record whenever anything is live, not only while the official broadcast is
-"any_title": True,        # count listed Kick/Twitch channels whatever their title says
-```
-
-- Twitch uses the official Helix API and needs `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET` in `.env`.
-- Kick uses its official API with `KICK_CLIENT_ID` and `KICK_CLIENT_SECRET`. Without keys it reads the public channel pages
-  kick.com itself uses (unofficial: may be rate limited or change); category discovery needs the keys.
-- A Kick/Twitch stream is stored as `kick:<slug>` / `twitch:<login>`, one per channel, in the same tables as YouTube
-  streams. Counts refresh every `PLATFORM_COUNT_SEC` (15s) in one batched request per platform.
-- Every event has its own page at `/e/<key>/`, `/events` lists them, and `/` shows the home event
-  (`"home": True` in a preset, or `python track.py home <key>`). The dashboard labels each stream's platform and splits
-  the total by platform.
-
-**When an event ends.** Set `"ended": True`, run `python track.py export <key>`, and add a row to the Events tracked table. Its page keeps serving the history.
-
-### Predict & Win
-
-A prediction game runs on the same dashboard, at `/predict`: viewers pick outcomes, scores resolve when the answers are set, and a leaderboard ranks them. It exists to give the dashboard a reason to be revisited between matches rather than only during them.
-
-Player handles are treated as private. They are written to `exports/private/`, which is gitignored and never pushed. The public export carries questions, answers and the crowd split with no player data.
-
-During BMSD 2026, 1,875 players made 13,824 picks. The results card the game produced:
-
-![What the community predicted](exports/bmsd_predictions_x.png)
-
-Set `PREDICT_OPEN=1` to accept entries. With it off, the page shows what the crowd predicted and how it turned out.
+Keys go in `.env` (never in git). Setup, hosting and every option: [docs/TECHNICAL.md](docs/TECHNICAL.md).
 
 ---
 
-## Install and run
-
-```bash
-git clone https://github.com/naveen-raj-kanagaraj/viewership-tracker
-cd viewership-tracker
-python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env             # every setting is optional
-python track.py                  # tracker + website at http://localhost:8092
-```
-
-## Hosting
-
-It runs as one Python process with one SQLite file, so any always-on Linux machine works. Production runs on an Oracle Cloud Always Free ARM VM (Ubuntu 24.04) as a systemd service, published through a Cloudflare tunnel.
-
-```bash
-bash scripts/deploy_oracle.sh <server ip> <ssh key>   # first install on a fresh server
-bash scripts/oracle.sh status                         # is it running, last log lines
-bash scripts/oracle.sh logs                           # follow the log
-bash scripts/oracle.sh restart
-bash scripts/oracle.sh backup                         # copy a database backup to this machine
-bash scripts/oracle.sh run scene probe                # any track.py command on the server
-```
-
-The server's address and key path live in a local `.server` file, which is gitignored.
-
-**Updates deploy themselves.** Every 10 minutes the tracker fetches `main`, fast-forwards, checks that every file compiles (rolling back if not) and restarts in place. It skips this while a tournament broadcast is live. Turn off with `AUTO_UPDATE=false`.
-
-**Backups.** A copy of the database is made every night (about 03:00 IST); the newest 3 are kept in `backups/`.
-
-## Data
-
-Everything is in one SQLite file, `data/tracker.db` (WAL mode, so counting and serving run at once). It holds private Predict & Win player data and is never committed.
-
-| Table | Holds |
-|---|---|
-| `sc_channels` | Every channel seen live: platform, name, logo, country, Indian or not, last title and game |
-| `sc_samples` | Each live channel's viewers every scan (kept `SCENE_KEEP_DAYS`) |
-| `sc_daily` | Per channel, game and IST day: peak, minutes live, hours watched (kept for good) |
-| `sc_cat`, `sc_reg` | Totals per scan for India, worldwide, each section and each tournament |
-| `sc_superchat` | Every Super Chat, sticker, membership and gift read, with amount, currency, USD and INR |
-| `sc_chstats` | Daily YouTube channel snapshots: subscribers, total views, videos |
-| `ev_streams`, `ev_samples`, `ev_fine`, `ev_ticks`, `ev_anomalies` | Tournament trackers: streams, readings, combined totals by stream type, flagged readings |
-
-`python track.py export <event>` writes analysis-ready CSV and xlsx to `exports/<event>/`. Private player data only ever goes to `exports/private/` and `backups/`, both gitignored.
-
-## API
-
-All JSON, read-only, cached for a few seconds:
-
-| Endpoint | Returns |
-|---|---|
-| `/api/scene/live?region=global\|in&sec=&cat=` | What moves every 2 seconds: totals, platforms, sections, games, live streams |
-| `/api/scene?region=&sec=&cat=&period=today\|7d\|30d` | Everything on a dashboard page, including top streamers and day-by-day totals |
-| `/api/rank?region=&metric=hw\|peak\|avg\|hours\|sc\|vg&period=day\|week\|month&date=&cat=&country=&platform=` | Rankings |
-| `/api/channel?sid=` | One channel's analytics |
-| `/api/past?sid=` | A channel's streams in the last 30 days, from the platform |
-| `/api/search?q=&region=` | Channels and stream titles matching `q`, and matching categories |
-| `/api/geo` | Live viewers by streamer country |
-
-## Limits
-
-**YouTube, Kick and Twitch only.** Loco, Rooter and JioCinema are not counted.
-
-**Not a census.** YouTube has no complete list of live streams, so YouTube totals are a floor: a stream that never shows up on the Live pages, in searches or on a hand-added channel is missed.
-
-**Concurrent viewers are each platform's number,** including however each counts a viewer. The tracker combines, attributes and checks them; it doesn't audit them.
-
-**Peaks before tracking started can't be recovered.** YouTube doesn't keep concurrent viewers after a stream ends; past streams show total views instead.
-
-**Total views of live streams aren't ranked.** Kick and Twitch don't publish them, and YouTube's include replays.
-
-**Super Chats cover the top 50 YouTube streams.** Amounts are what viewers paid, before YouTube's cut, at that day's exchange rate.
-
-**Country placement is partial** for Kick and Twitch, which publish no streamer country.
-
-**The tournament allow-list is a judgement.** Which watch parties count is a decision, kept explicit in `PRESETS` rather than hidden in a heuristic.
-
-**Sampling is every 2 seconds.** A spike shorter than that is not seen.
-
-## Configuration
-
-Copy `.env.example` to `.env`. Every setting is optional.
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `YOUTUBE_API_KEY` | none | Exact channel countries and channel stats from the YouTube Data API |
-| `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` | none | Twitch (dev.twitch.tv app) |
-| `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET` | none | Kick (kick.com developer app) |
-| `SCENE_ENABLED` | `true` | The live rankings scan |
-| `SCENE_SEC` | `120` | How often new streams are looked for |
-| `SCENE_YT_SEC` | `300` | How often YouTube Live pages and searches run |
-| `SCENE_YT_COUNTRIES` | 20 countries | Extra YouTube Live page editions read |
-| `SCENE_LANGS` | `hi` | Kick/Twitch languages counted as Indian |
-| `SCENE_MIN_VIEWERS` / `SCENE_GLOBAL_MIN` | `20` / `100` | Smallest Indian / other stream kept |
-| `SCENE_KEEP_DAYS` | `3` | Days of raw per-scan readings kept |
-| `SUPERCHAT`, `SUPERCHAT_TOP` | `true`, `50` | Super Chat reading, and on how many YouTube streams |
-| `CHANNEL_STATS`, `CHANNEL_STATS_MAX` | `true`, `3000` | Daily YouTube channel snapshots, and how many per day |
-| `EVENT_FAST_SEC` / `EVENT_POLL_SEC` | `2` / `60` | Tournament re-count and search intervals |
-| `EVENT_TZ` | `Asia/Kolkata` | Day boundaries |
-| `EVENT_WEB_PORT` | `8092` | Website port |
-| `EVENT_PUBLIC_LINK`, `EVENT_TUNNEL_NAME`, `EVENT_PUBLIC_URL` | | Cloudflare tunnel and public address |
-| `AUTO_UPDATE`, `AUTO_UPDATE_MIN` | `true`, `10` | Self-update from GitHub |
-| `BACKUP_NIGHTLY`, `BACKUP_KEEP` | `true`, `3` | Nightly database backups |
-| `PREDICT_OPEN` | `0` | Whether Predict & Win accepts entries |
-| `TRACKER_DB` | `data/tracker.db` | Database location |
-
-## Layout
-
-```
-track.py                  CLI: run, scene, events, stats, export, backup
-tracker/scene.py          live rankings: scan, classification, countries, rankings, channel analytics
-tracker/ytextra.py        Super Chats, daily YouTube channel stats, past streams
-tracker/platforms.py      Kick and Twitch APIs, count parsing
-tracker/scenepage.py      dashboard pages (/, /india, sections, games) and the shared channel panel
-tracker/rankpage.py       rankings page
-tracker/chpage.py         channel pages
-tracker/mappage.py        the 3D globe
-tracker/events.py         tournament trackers: discovery, counting, classification, anomalies, statistics
-tracker/eventpage.py      tournament pages
-tracker/web.py            Flask server, routes, response cache
-tracker/store.py          SQLite
-tracker/autoupdate.py     self-update from GitHub
-tracker/backup.py         nightly backups
-tracker/tunnel.py         Cloudflare tunnel
-tracker/predict.py        Predict & Win (and predictpage.py, crowd.py, crowdpage.py)
-tracker/eventlog.py       spreadsheet exports and alerts
-tracker/dataexport.py     analysis-ready CSV and xlsx
-tracker/visitors.py       site traffic
-scripts/deploy_oracle.sh  first install on a server
-scripts/oracle.sh         manage the server from your computer
-tests/                    test_scene.py, test_plat.py (mocked platforms, temporary database)
-migrate_from_agent.py     one-off import from the old agent database
-```
-
-### Migrating from the agent
-
-This tracker previously ran inside a larger personal agent. To bring that data across:
-
-```bash
-python migrate_from_agent.py ~/path/to/my-agent/data/agent.db --dry-run
-python migrate_from_agent.py ~/path/to/my-agent/data/agent.db
-```
-
-It copies the event tables, the prediction game and the related key-value rows, and leaves everything else in the agent alone. The source database is opened read-only. Running it twice does not duplicate rows.
-
+Unofficial. Not affiliated with YouTube, Google, Twitch, Kick or any game publisher. Uses YouTube API Services: [YouTube Terms of Service](https://www.youtube.com/t/terms), [Google Privacy Policy](https://policies.google.com/privacy).
