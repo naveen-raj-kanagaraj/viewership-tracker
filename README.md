@@ -55,7 +55,7 @@ Built with LLM coding tools (Claude, Cursor, Lovable) and tested on the live sit
 | **Go-to-market and launch** | Launched on a live national esports event (BMSD 2026) for an instant audience. Built distribution into the product: share cards sized for Instagram and X, live rank badges creators embed on their own pages, an India-first view for the core market. Free during beta to grow audience and data first. | [Decision 11](docs/product/DECISIONS.md) |
 | **Metrics, data and iteration** | One written definition for every number. Instrumented privacy-friendly visitor analytics, data-source health and API usage on an owner dashboard. Iterated from what the data and testing showed: tightened moments after small jumps were flagged, fixed low Twitch totals, added same-day views for new channels. | [Metric definitions](docs/product/METRICS.md) |
 
-**Product manager and product owner.** As product manager: the vision, market positioning, roadmap and success metrics. As product owner: the backlog and the release cadence, with 57 releases merged in 11 days (19 to 29 Oct 2026), each with automated tests and an acceptance check on the live site.
+**Product manager and product owner.** As product manager: the vision, market positioning, roadmap and success metrics. As product owner: the backlog and the release cadence, with 58 releases merged in 11 days (19 to 29 Oct 2026), each with automated tests and an acceptance check on the live site.
 
 **Problems worked through**
 - **Trust:** impossible readings (lifetime views below a channel's own biggest video, "10.56K" misread as 1,056) are rejected automatically instead of shown.
