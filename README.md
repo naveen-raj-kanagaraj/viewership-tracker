@@ -1,4 +1,4 @@
-# letsgrowesports Live
+# Live Viewership Tracker
 
 **Real-time audience analytics for creators and live streams across YouTube, Twitch and Kick.**
 Live at [live.letsgrowesports.com](https://live.letsgrowesports.com) · Built and run by Naveen Raj Kanagaraj

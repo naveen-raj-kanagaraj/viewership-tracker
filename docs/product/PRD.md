@@ -1,4 +1,4 @@
-# PRD: letsgrowesports Live
+# PRD: Live Viewership Tracker
 
 Owner: Naveen Raj Kanagaraj (product, design direction, data definitions) · Status: live, in beta · Last updated 29 Oct 2026
 
