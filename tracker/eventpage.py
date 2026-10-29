@@ -225,7 +225,7 @@ def build_html(key: str = None, live: bool = False, style: str = None) -> str:
                 .replace("__NEEDOFF__", "false" if _preset(key).get("need_official") is False else "true")
                 .replace("__ENDED__", "true" if _ended(key) else "false")
                 .replace("__V2__", "true" if (style or os.getenv("EVENT_STYLE", "v1")) == "v2" else "false")
-                .replace("__ROSTERN__", json.dumps([n for _, n, _ in (events.roster(key or "") or events.ROSTER)])).replace("__DNAME__", json.dumps(d.get("name") or "Event"))
+                .replace("__ROSTERN__", json.dumps([n for _, n, _ in (events.roster(key or "") or events.ROSTER)])).replace("__DNAME__", json.dumps(d.get("name") or "Event")).replace("__DSTART__", json.dumps(events.next_start(key) if key else None))
                 .replace("__REFRESH__", str(REFRESH_SEC))
                 .replace("__SOCIAL__", _social())
                 .replace("__PWB__", "" if (_ended(key) or not _preset(key).get("predict")) else PWB if os.getenv("PREDICT_OPEN", "0") == "1" else (PWR if os.getenv("PREDICT_SPLIT", "1") == "1" else ""))
@@ -441,6 +441,7 @@ const PLATS=()=>((typeof D!=='undefined'&&D&&D.platform_names)||['YouTube']).joi
 const DISC=()=>GAME==='BGMI'?'Not affiliated with or endorsed by KRAFTON.':'Not affiliated with or endorsed by the organisers or the platforms.';
 const PB=s=>s&&s.platform&&s.platform!=='youtube'?`<span class="pf ${esc(s.platform)}">${esc(s.platform.toUpperCase())}</span>`:'';
 const DEMO=false, DLOGO={}, ELOGO=__ELOGO__, V2=__V2__, ROSTERN=__ROSTERN__, DNAME=__DNAME__;
+const DSTART=__DSTART__||(Date.now()/1000+5*3600),DDAY=new Date(DSTART*1000).toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',weekday:'short',day:'numeric',month:'short'});
 const LIVE=__LIVE__||DEMO, EVERY=__REFRESH__*1000, URLX='__SITEURL__', BRAND='__BRAND__', TITLE='__TITLE__';
 let D=__DATA__, prev={}, prevTotal=null, view='total', range='full', wpAll=false, kind='all', q='', skew=0, lastFetch=Date.now(), failing=false, mode=null, showAll=false, hover=null, hidden={};
 const PAL=['#b6f23a','#4cc9f0','#ff8a3d','#ff5fa2','#a78bfa','#ffd23f','#2dd4bf','#ff6b6b'];
@@ -920,10 +921,10 @@ function demoData(){const now=Date.now()/1000;if(!DM)demoInit('live');while(DM.l
  const ws={};wp.forEach(w=>ws[w.vid]=DM.hist[w.vid]);
  const roster=DM.st.map(s=>({name:s.channel,logo:s.logo||'',url:'#',vid:s.base?s.vid:'',status:!s.base?'upcoming':liveM?'live':endM?'ended':'upcoming',viewers:liveM&&s.base?s.cur:0,peak:liveM||endM?s.peak||0:0})).sort((a,b)=>({live:0,ended:1,upcoming:2}[a.status]-{live:0,ended:1,upcoming:2}[b.status])||b.viewers-a.viewers||b.peak-a.peak||a.name.localeCompare(b.name));
  const LBs=all.map(s=>({vid:s.vid,channel:s.channel,title:s.title,kind:s.vid[0]==='o'?'official':'watch party',viewers:s.peak,avg:Math.round((DM.hist[s.vid]||[]).reduce((a,r)=>a+r[1],0)/Math.max(1,(DM.hist[s.vid]||[]).length)),at:tf(DM.t0+3600).replace(' IST',''),url:'#',logo:s.logo||''})).sort((a,b)=>b.viewers-a.viewers);
- return{name:DNAME,ticks:DM.tot.length,now,every:2,method:'demo data',updated:DM.last,official_live:liveM,next_start:liveM||endM?null:(Date.UTC(2026,9,16,9,0)/1000>now?Date.UTC(2026,9,16,9,0)/1000:now+5*3600),live,wp,wp_series:ws,roster,
+ return{name:DNAME,ticks:DM.tot.length,now,every:2,method:'demo data',updated:DM.last,official_live:liveM,next_start:liveM||endM?null:(DSTART>now?DSTART:now+5*3600),live,wp,wp_series:ws,roster,
   peak:pk[1],peak_when:tf(pk[0]),avg:Math.round(DM.tot.reduce((a,r)=>a+r[1],0)/DM.tot.length),peak_official:Math.max(...DM.tot.map(r=>r[2])),peak_watch:Math.max(...DM.tot.map(r=>r[3])),
-  days:[{day:'Fri 16 Oct',peak:pk[1],at:tf(pk[0]).replace(' IST',''),avg:Math.round(pk[1]*.6)}],series_all:DM.tot.slice(),series_recent:DM.tot.slice(),
-  last_broadcast:{start:DM.t0,end:DM.last,peak:pk[1],peak_at:pk[0],peak_when:tf(pk[0]),split:{official:pk[2],watch:pk[3],community:0},streams:LBs,when:'Today, demo',day:'Today',date:'FRI 16 OCT',avg:Math.round(DM.tot.reduce((q,r)=>q+r[1],0)/Math.max(1,DM.tot.length)),peak_official:Math.max(0,...DM.tot.map(r=>r[2])),peak_watch:Math.max(0,...DM.tot.map(r=>r[3]))}}}
+  days:[{day:DDAY,peak:pk[1],at:tf(pk[0]).replace(' IST',''),avg:Math.round(pk[1]*.6)}],series_all:DM.tot.slice(),series_recent:DM.tot.slice(),
+  last_broadcast:{start:DM.t0,end:DM.last,peak:pk[1],peak_at:pk[0],peak_when:tf(pk[0]),split:{official:pk[2],watch:pk[3],community:0},streams:LBs,when:'Today, demo',day:'Today',date:DDAY.toUpperCase(),avg:Math.round(DM.tot.reduce((q,r)=>q+r[1],0)/Math.max(1,DM.tot.length)),peak_official:Math.max(0,...DM.tot.map(r=>r[2])),peak_watch:Math.max(0,...DM.tot.map(r=>r[3]))}}}
 function demoBar(){if(!DEMO)return;const b=document.createElement('div');b.className='demo';b.innerHTML='DEMO <button data-m="countdown">COUNTDOWN</button><button data-m="live">LIVE</button><button data-m="ended">ENDED</button>';document.body.appendChild(b);
  const mk=()=>b.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.m===DM.mode));mk();
  b.querySelectorAll('button').forEach(x=>x.onclick=()=>{DM.mode=x.dataset.m;D=demoData();mode=null;document.getElementById('app').innerHTML='';render();mk()})}

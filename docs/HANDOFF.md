@@ -192,7 +192,7 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 As of 26 Oct 2026:
 - BMSD 2026: finished, peak 653K. Results and Predict & Win winners published.
-- BMIC 2026: countdown to 30 Oct 2026 13:00 IST. 22 permitted watch parties (owner's list, 29 Oct): events.ROSTER_BMIC,
+- BMIC 2026: countdown to 30 Oct 2026 12:30 IST. 22 permitted watch parties (owner's list, 29 Oct): events.ROSTER_BMIC,
   preset "allowed" tokens. Streamers listed without a handle are found by YouTube search on startup (kv
   roster_ids:bmic) and their channels are checked directly every minute. Demo: eventpage.build_demo_html(key="bmic").
 - Hosting: Oracle Cloud (us-chicago-1, A1.Flex, Ubuntu 24.04), systemd service `tracker`; the Mac copy stays
