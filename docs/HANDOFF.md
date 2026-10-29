@@ -306,6 +306,9 @@ As of 26 Oct 2026:
   embeds when its start offset is known and the stream has ended (else "replay when it ends"), never from 0:00.
 - Daily channel views: no public source gives past days. Every tracked channel is snapshotted daily from now on;
   "views per day" fills in after two snapshots. Gains are divided by the day gap and >25%-of-total jumps ignored.
+- Back button (29 Oct): web.FASTNAV adds a BACK arrow to the top bar of every page except / and /india (goes back
+  in history when the visitor came from this site, else to the dashboard). Phones: channel page hides the top links,
+  map hides GLOBAL/INDIA and the clock so nothing overflows.
 
 ## Ideas not built yet
 

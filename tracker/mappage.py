@@ -70,7 +70,7 @@ body.emb .wrap{padding:0;max-width:none}body.emb .stage{display:block;margin:0}b
 body.emb .mini{display:block;position:absolute;left:8px;bottom:8px;font:600 12px "Barlow Condensed",sans-serif;letter-spacing:.03em;background:rgba(11,11,18,.7);padding:6px 9px;border:1px solid var(--line);pointer-events:none}
 body.emb .mini div{display:flex;gap:6px;white-space:nowrap}body.emb .mini span{color:var(--lime);margin-left:auto;padding-left:8px}
 @media(max-width:900px){.stage{grid-template-columns:1fr}#gl{height:min(62vh,460px)}}
-@media(max-width:600px){.wrap{padding:0 12px 20px}.top .in{padding:9px 12px;gap:10px}.brand{font-size:15px}.upd span{display:none}h1{font-size:26px}.intro{font-size:13px;color:var(--muted)}
+@media(max-width:600px){.wrap{padding:0 12px 20px}.top .in{padding:9px 12px;gap:10px}.brand{font-size:15px}.upd{display:none}.rg a[href="/"],.rg a[href="/india"]{display:none}h1{font-size:26px}.intro{font-size:13px;color:var(--muted)}
 .crumb{margin-top:12px;font-size:11px}#gl{height:380px}.big{font-size:36px}.legend .bar{width:100px}}
 </style></head><body>
 <div class="top"><div class="in"><a class="brand" href="/">__BRAND__</a><span class="beta">BETA</span><span class="rg"><a href="/">GLOBAL</a><a href="/india">INDIA</a><a href="/map" class="on">MAP</a><a href="/rankings">RANKS</a></span><span class="upd"><span class="dot"></span><span>LIVE </span><b id="upd">-</b></span></div></div>
