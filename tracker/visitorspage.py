@@ -16,6 +16,22 @@ def _bars(pairs, total, fmt=lambda k: k):
                    f'<span class="v">{v:,}<small>{100 * v / max(total, 1):.0f}%</small></span></div>' for k, v in pairs)
 
 
+def _sources(src: dict) -> str:
+    """Data sources health: what the last scan found per platform and every source that failed."""
+    if not src:
+        return ""
+    last = datetime.fromtimestamp(src["last"], TZ).strftime("%I:%M:%S %p IST") if src.get("last") else "-"
+    by = src.get("by") or {}
+    rows = "".join(f'<div class="b"><span class="k">{html.escape(p.title())}</span><span class="t"></span><span class="v">{n:,}<small>{v:,} watching</small></span></div>'
+                   for p, (n, v) in sorted(by.items()))
+    tf = src.get("twitch_full") or {}
+    if tf.get("viewers"):
+        rows += f'<div class="b"><span class="k">Twitch, all streams</span><span class="t"></span><span class="v">{tf.get("streams", 0):,}<small>{tf["viewers"]:,} watching</small></span></div>'
+    errs = "".join(f'<div style="color:#ff4d5e;font-size:13px;margin-top:4px"><b>{html.escape(k)}</b>: {html.escape(str(v))}</div>' for k, v in (src.get("errors") or {}).items())
+    return (f'<div class="c" style="margin-top:10px"><h2>Data sources (last scan {last})</h2>{rows or "<div class=e>No scan yet.</div>"}'
+            f'{errs or "<div class=e style=margin-top:6px>No source failed in the last scan.</div>"}</div>')
+
+
 def build_html(s: dict) -> str:
     pk = s.get("peak") or {}
     when = datetime.fromtimestamp(pk["ts"], TZ).strftime("%d %b, %I:%M %p IST") if pk.get("ts") else "-"
@@ -37,6 +53,7 @@ h1{{font-size:26px;margin:0 0 2px}}.sub{{color:#8d8ca3;font-size:13px}}.k4{{disp
 <h1>Visitors</h1><div class="sub">Owner only, refreshes every 30 s. One browser tab = one visitor; no cookies, no IP addresses. Days are IST.</div>
 <div class="k4"><div class="c"><b>{s.get('active', 0):,}</b><span>on the site now</span></div><div class="c"><b>{tod:,}</b><span>visitors today</span></div>
 <div class="c"><b>{pk.get('n', 0):,}</b><span>most at once ({html.escape(when)})</span></div><div class="c"><b>{s.get('avg_min', 0)} min</b><span>average time on site today</span></div></div>
+{_sources(s.get('sources') or {})}
 <div class="sub" style="margin-top:8px">YouTube API used today: {(s.get('ytq') or (0, 0))[0]:,} of {(s.get('ytq') or (0, 0))[1]:,} units (resets at midnight Pacific).</div>
 <div class="c" style="margin-top:10px"><h2>Visitors per day, last 30 days</h2><div class="d">{''.join(f'<div style="height:{100 * n / dmax:.0f}%" title="{d}: {n:,}"><span>{n if n * 6 >= dmax else ""}</span></div>' for d, n in days) or '<div class="e">No history yet.</div>'}</div>
 <div class="dl"><span>{days[0][0][5:] if days else ''}</span><span>{days[-1][0][5:] if days else ''}</span></div></div>

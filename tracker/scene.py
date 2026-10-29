@@ -1970,6 +1970,15 @@ def probe() -> str:
                      (", top " + ", ".join(f"{r['channel']} {r['viewers']:,} ({r.get('category') or '-'})" for r in top) if top else ""))
         for k, v in errs.items():
             lines.append(f"  {k} FAILED: {v}")
+    for p in ("kick", "twitch"):                # the worldwide lists behind the Global page
+        if not platforms._keys(p):
+            continue
+        errs = {}
+        rows = list({r["vid"]: r for r in platform_global(p, errs)}.values())
+        lines.append(f"{platforms.NAMES[p]} worldwide: {len(rows)} live, {sum(r['viewers'] for r in rows):,} watching" +
+                     (", top " + ", ".join(f"{r['channel']} {r['viewers']:,}" for r in sorted(rows, key=lambda r: -r["viewers"])[:3]) if rows else ""))
+        for k, v in errs.items():
+            lines.append(f"  {k} FAILED: {v}")
     for p in ("kick", "twitch"):
         st = platforms.status()[p]
         try:
