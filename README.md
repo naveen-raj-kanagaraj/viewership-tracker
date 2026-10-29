@@ -1,7 +1,7 @@
 # Live Viewership Tracker
 
 **Real-time audience analytics for creators and live streams across YouTube, Twitch and Kick.**
-Live at [live.letsgrowesports.com](https://live.letsgrowesports.com) · Built and run by Naveen Raj Kanagaraj
+Live at [live.letsgrowesports.com](https://live.letsgrowesports.com)
 
 > Maintaining it? Start with [docs/HANDOFF.md](docs/HANDOFF.md). How it works under the hood: [docs/TECHNICAL.md](docs/TECHNICAL.md).
 
@@ -41,27 +41,28 @@ Audience numbers for creators and live events are late, partial and split across
 | **Channel page** | **Game page (BGMI)** |
 | ![A channel page](docs/site-channel.jpg) | ![BGMI live in India with event history](docs/site-bgmi.jpg) |
 
-## My role
+## Product management
 
-I own the product end to end: problem definition, users, requirements, metric definitions, prioritization, release decisions and operations. I built it with an AI coding agent (Claude): I wrote the specs and acceptance criteria, reviewed every release, set the guardrails (tests before every merge, no secrets in code, owner-only data stays private) and tested each version on the live site.
+Built with LLM coding tools (Claude, Cursor, Lovable) and tested on the live site before every release. The work below is the product side: what to build, for whom, why, and how to know it worked.
 
-| Product work | Artifact |
-|---|---|
-| Product requirements: problem, users and jobs to be done, goals and non-goals, prioritized requirements, risks | [PRD](docs/product/PRD.md) |
-| One definition for every number on the site, north star and health metrics | [Metric definitions](docs/product/METRICS.md) |
-| The calls that shaped the product and the trade-off behind each | [Decision log](docs/product/DECISIONS.md) |
-| What comes next and how success is judged | [Roadmap](docs/product/ROADMAP.md) |
-| Event analysis: BMSD 2026 audience, official vs watch parties | [Case study](#case-study-bmsd-2026) |
-| Platform compliance: privacy policy, terms, YouTube API attribution, API quota extension request | [Privacy](https://live.letsgrowesports.com/privacy) · [Terms](https://live.letsgrowesports.com/terms) |
+| PM responsibility | What was done here | Evidence |
+|---|---|---|
+| **Strategy and vision** | Positioned the product where existing trackers are weak: live audiences across three platforms, creators outside the US, and event audiences including watch parties. Set the north star (channel pages viewed per week) and a now / next / later roadmap. | [Roadmap](docs/product/ROADMAP.md), [PRD goals](docs/product/PRD.md#3-goals-and-non-goals) |
+| **Voice of the customer** | Defined four users and their jobs to be done. Benchmarked the experience against Social Blade, Playboard, StreamsCharts and Esports Charts. Validated the core problem with data: 57% of the BMSD 2026 peak audience was on watch parties that official-only reports leave out. | [Users and jobs](docs/product/PRD.md#2-users-and-jobs-to-be-done), [Case study](#case-study-bmsd-2026) |
+| **Requirements and scoping** | Wrote the PRD with prioritized requirements (P0 to P3), explicit non-goals (no logins, no paid plans in beta) and acceptance criteria for each release. | [PRD](docs/product/PRD.md) |
+| **Decisions and trade-offs** | Logged 12 product decisions with the trade-off behind each, for example rejecting impossible readings rather than showing them, and counting every Twitch stream instead of only the top 2,000. | [Decision log](docs/product/DECISIONS.md) |
+| **Cross-functional and partners** | Worked within YouTube, Twitch and Kick developer programs; prepared the YouTube API compliance audit and quota extension (privacy policy, terms, architecture and user flow diagrams); used the tournament organizer's official list of permitted watch-party streamers. | [Privacy](https://live.letsgrowesports.com/privacy), [Terms](https://live.letsgrowesports.com/terms) |
+| **Go-to-market and launch** | Launched on a live national esports event (BMSD 2026) for an instant audience. Built distribution into the product: share cards sized for Instagram and X, live rank badges creators embed on their own pages, an India-first view for the core market. Free during beta to grow audience and data first. | [Decision 11](docs/product/DECISIONS.md) |
+| **Metrics, data and iteration** | One written definition for every number. Instrumented privacy-friendly visitor analytics, data-source health and API usage on an owner dashboard. Iterated from what the data and testing showed: tightened moments after small jumps were flagged, fixed low Twitch totals, added same-day views for new channels. | [Metric definitions](docs/product/METRICS.md) |
 
-**Execution:** 55 releases merged in 11 days (19 to 29 Oct 2026), each with automated tests; about 13,000 lines of Python.
+**Product manager and product owner.** As product manager: the vision, market positioning, roadmap and success metrics. As product owner: the backlog and the release cadence, with 57 releases merged in 11 days (19 to 29 Oct 2026), each with automated tests and an acceptance check on the live site.
 
-**Problems worked through along the way**
-- **Trust:** wrong readings (a channel's lifetime views below its own biggest video, a misread "10.56K" as 1,056) are now rejected automatically instead of shown.
-- **Platform limits:** a background job was using up the daily YouTube API allowance; I added a usage meter with priorities, cut the cost per channel, and filed a quota extension so the site can follow 100,000+ channels.
+**Problems worked through**
+- **Trust:** impossible readings (lifetime views below a channel's own biggest video, "10.56K" misread as 1,056) are rejected automatically instead of shown.
+- **Platform limits:** a background job was using up the daily YouTube API allowance; added a usage meter with priorities, cut the cost per channel, and filed a quota extension so the site can follow 100,000+ channels.
 - **Coverage:** Twitch totals looked low next to other trackers because only the top streams were counted; the worldwide view now counts every live Twitch stream.
-- **Signal over noise:** moments now need a real audience jump (8% and 1,000 viewers) and skip news streams, after small 3% jumps were flagged as moments.
-- **Product health:** an owner-only page shows visitors, API use and any data source that failed, so problems are caught by the product, not by users.
+- **Signal over noise:** moments now need a real audience jump (8% and 1,000 viewers) and skip news streams.
+- **Product health:** an owner-only dashboard shows visitors, API use and any data source that failed, so problems are caught by the product, not by users.
 
 ## Case study: BMSD 2026
 
