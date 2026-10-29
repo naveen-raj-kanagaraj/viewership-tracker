@@ -72,6 +72,11 @@ def _db():
                 c.execute("UPDATE sc_channels SET topic=? WHERE topic=?", (b, a))
             c.commit()
             store.kv_set("topics_v2", True)
+        if not store.kv_get("chstats_fix_below_video"):        # lifetime views below the channel's own biggest video
+            c.execute("""DELETE FROM sc_chstats WHERE sid LIKE 'yt:%' AND views IS NOT NULL AND views <
+                         (SELECT MAX(v.views) FROM yt_videos v WHERE v.sid=sc_chstats.sid AND v.approx=0)""")
+            c.commit()
+            store.kv_set("chstats_fix_below_video", True)
         if not store.kv_get("ytv_fix_premieres"):
             c.execute("UPDATE yt_videos SET updated=0")          # re-read: premieres were counted as live
             c.commit()
@@ -409,7 +414,7 @@ def stats_once(limit: int = 300) -> int:
     todo = todo[:max(0, min(limit, STATS_MAX - done_today))]
     if not todo:
         return 0
-    got = channel_stats([s[3:] for s in todo])
+    got = _sane(channel_stats([s[3:] for s in todo]))
     now = int(time.time())
     with store._lock:
         c = _db()
@@ -428,6 +433,56 @@ def stats_once(limit: int = 300) -> int:
     return len(got)
 
 
+def _sane(got: dict) -> dict:
+    """Drop readings that can't be right: lifetime views below the channel's own biggest video, or a total that
+    went down by more than 2% since the last reading (YouTube totals only grow, apart from small corrections)."""
+    if not got:
+        return got
+    sids = ["yt:" + k for k in got]
+    q = ",".join("?" * len(sids))
+    with store._lock:
+        c = _db()
+        top = dict(c.execute(f"SELECT sid, MAX(views) FROM yt_videos WHERE sid IN ({q}) AND approx=0 GROUP BY sid", sids).fetchall())
+        prev = dict(c.execute(f"""SELECT s.sid, s.views FROM sc_chstats s JOIN (SELECT sid, MAX(day) d FROM sc_chstats
+                                  WHERE sid IN ({q}) GROUP BY sid) m ON m.sid=s.sid AND m.d=s.day""", sids).fetchall())
+    out = {}
+    for cid, (subs, views, n) in got.items():
+        sid = "yt:" + cid
+        if views is not None and ((top.get(sid) and views < top[sid]) or (prev.get(sid) and views < .98 * prev[sid])):
+            print(f"Stats: ignored a wrong reading for {sid} ({views} views)")
+            continue
+        out[cid] = (subs, views, n)
+    return out
+
+
+INTRA_PER_RUN = int(os.getenv("CHANNEL_INTRA_PER_RUN", "1250"))     # 25 API units per 15 min = 2,400 a day
+
+
+def intra_once(limit: int = INTRA_PER_RUN) -> int:
+    """Hourly readings of the biggest followed channels (50 per API unit), so "views in the last hours" shows for
+    them all day, not only after tomorrow's daily snapshot."""
+    if not os.getenv("YOUTUBE_API_KEY"):
+        return 0
+    with store._lock:
+        c = _db()
+        todo = [r[0] for r in c.execute(
+            """SELECT c.sid FROM sc_channels c LEFT JOIN (SELECT sid, MAX(ts) t FROM sc_intra GROUP BY sid) i ON i.sid=c.sid
+               LEFT JOIN (SELECT s.sid, s.subs FROM sc_chstats s JOIN (SELECT sid, MAX(day) d FROM sc_chstats GROUP BY sid) m
+               ON m.sid=s.sid AND m.d=s.day) t ON t.sid=c.sid
+               WHERE c.platform='youtube' AND COALESCE(i.t,0) < ? ORDER BY COALESCE(c.tracked,0) DESC, COALESCE(t.subs,0) DESC LIMIT ?""",
+            (time.time() - 3300, limit))]
+    if not todo:
+        return 0
+    got = _sane(channel_stats([s[3:] for s in todo]))
+    _META.clear()
+    now = int(time.time())
+    with store._lock:
+        c = _db()
+        c.executemany("INSERT OR IGNORE INTO sc_intra VALUES (?,?,?,?)", [("yt:" + k, now, s_, v) for k, (s_, v, n) in got.items()])
+        c.commit()
+    return len(got)
+
+
 def run_stats():
     if not STATS_ON:
         return
@@ -438,6 +493,7 @@ def run_stats():
             discover_once()
             prefetch_once(8 if os.getenv("YOUTUBE_API_KEY") else 2)
             followers_once(100)
+            intra_once()
         except Exception as e:
             print(f"Channel stats: {str(e)[:150]}")
         time.sleep(900)                       # every 15 min, until every channel has today's numbers
@@ -791,7 +847,7 @@ def ensure_channel(sid: str, name: str = "", logo: str = "") -> bool:
             c.execute("UPDATE sc_channels SET tracked=1 WHERE sid=?", (sid,))
             c.commit()
     try:
-        got = channel_stats([cid]).get(cid)
+        got = _sane(channel_stats([cid])).get(cid)
         if got:
             with store._lock:
                 c = _db()
@@ -835,7 +891,7 @@ def recent_views(sid: str) -> dict:
 
         def read():
             try:
-                got = channel_stats([sid[3:]]).get(sid[3:])
+                got = _sane(channel_stats([sid[3:]])).get(sid[3:])
                 if got:
                     with store._lock:
                         c = _db()
