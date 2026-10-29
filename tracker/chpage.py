@@ -69,7 +69,7 @@ __PANEL_CSS__
 #vidchart{width:calc(100% - 24px);margin:10px 12px 0;height:180px}.vtools{padding:0}
 .vl a,.vl .hdr{grid-template-columns:52px minmax(0,1fr) 58px 44px!important}.vl a>:nth-child(n+4):not(:last-child),.vl .hdr>:nth-child(n+4):not(:last-child){display:none}
 .vk{grid-template-columns:repeat(2,1fr);padding:10px 12px 0}.vk div:last-child{grid-column:1/-1}#vchart{width:calc(100% - 24px);margin:10px 12px 0;height:170px}.vseg{margin:10px 12px 0}.vm{padding:8px 12px 12px}
-.wrap{padding:0 12px 20px}.top .in{padding:9px 12px}.brand{font-size:15px}.nav{gap:8px}
+.wrap{padding:0 12px 20px}.top .in{padding:9px 12px}.brand{font-size:15px}.nav{display:none}
 .hd .act{display:flex;gap:8px}.hd .act .btn{flex:1}.hd{grid-template-columns:60px minmax(0,1fr);gap:12px}.hd img,.hd .ph{width:60px;height:60px}h1{font-size:28px}.hd .act{grid-column:1/-1}.hd .act .btn{width:100%;text-align:center}
 .cx{padding:4px 12px 12px}.cxc{grid-template-columns:1fr}.cxt td{font-size:14px;padding:4px 3px}.cxt th{padding:4px 3px;font-size:10px}.cxd div{grid-template-columns:52px minmax(0,1fr) 64px 50px}.cxd div span:nth-child(5){display:none}
 .ps{padding:4px 12px 12px}.ps a,.ps .hdr{grid-template-columns:62px minmax(0,1fr) 64px}.ps a>:nth-child(3),.ps .hdr>:nth-child(3),.ps a>:nth-child(5),.ps .hdr>:nth-child(5){display:none}}
