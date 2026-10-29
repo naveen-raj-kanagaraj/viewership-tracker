@@ -350,6 +350,11 @@ As of 26 Oct 2026:
 - Channel page "Live now" card: /api/chlive (scene.live_now), re-read every 2 s; opening a page puts the channel on
   the 2-second YouTube count (scene.HOT). /api/channel never fails silently (falls back to the stored row; the page
   retries). Site-wide "UNDER CONSTRUCTION" strip (web.WIP).
+- v22 (29 Oct): /privacy and /terms (tracker/legalpage.py; contact = CONTACT_EMAIL in .env, else the X/Instagram
+  accounts) and a footer line on every page (web.LEGAL: Uses YouTube API Services, Terms, Privacy, Google Privacy
+  Policy). Built for the YouTube API quota extension request. Scale: CHANNEL_STATS_MAX 300,000/day, up to 5,000
+  channels per 15-min run while under 85% of quota; prefetch scales with YOUTUBE_QUOTA (quota/600 channels per run);
+  discovery 6 searches per run. Raise YOUTUBE_QUOTA in .env when Google grants more.
 
 ## Ideas not built yet
 

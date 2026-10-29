@@ -637,3 +637,9 @@ assert not c.get("/api/chlive?sid=kick:nobodyhere").get_json()["live"]
 _h = c.get("/india").data; assert b"UNDER CONSTRUCTION" in _h, _h[:300]
 assert b"liveTick" in c.get("/ch/kick:soulaman").data
 print("LIVE CARD OK")
+# privacy and terms pages, footer on every page
+pv = c.get("/privacy").data.decode()
+assert "YouTube API Services" in pv and "youtube.com/t/terms" in pv and "policies.google.com/privacy" in pv and "myaccount.google.com/permissions" in pv
+assert "YouTube Terms of Service" in c.get("/terms").data.decode()
+assert 'href="/privacy"' in c.get("/india").data.decode()
+print("LEGAL OK")
