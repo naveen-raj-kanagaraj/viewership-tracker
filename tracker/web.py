@@ -59,6 +59,8 @@ def _headers(resp):
     elif path.startswith(("/c/", "/s/", "/india/c/", "/india/s/")):
         path = "/india"
     secs = CACHE.get(path)
+    if resp.headers.pop("X-Short-Cache", None):
+        secs = 3
     if request.path.startswith("/predict/api/profile/") and request.method == "GET":
         secs = 15
     if request.method != "GET" or resp.status_code >= 400:
@@ -111,7 +113,16 @@ st.textContent='.bk{display:inline-flex;align-items:center;gap:6px;flex:none;hei
 document.head.appendChild(st);var a=document.createElement('a');a.className='bk';a.href=home;a.setAttribute('aria-label','Back');
 a.innerHTML='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg><span>BACK</span>';
 a.onclick=function(e){var r=document.referrer;if(r&&r.indexOf(location.origin+'/')===0&&history.length>1){e.preventDefault();history.back()}};
-bar.insertBefore(a,bar.firstChild)})()</script>"""
+bar.insertBefore(a,bar.firstChild)})()</script>
+<script>(function(){if(/[?&]embed=/.test(location.search)||location.pathname.indexOf('/e/')===0)return;var k;try{k=sessionStorage.getItem('lge_s');if(!k){k=Math.random().toString(36).slice(2)+Date.now().toString(36);sessionStorage.setItem('lge_s',k)}}catch(e){k=Math.random().toString(36).slice(2)}
+var r=document.referrer&&document.referrer.indexOf(location.origin)!==0?document.referrer:'';
+function ping(){if(document.hidden)return;try{fetch('/hit',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({sid:k,ref:r,w:innerWidth})}).catch(function(){})}catch(e){}}
+ping();setInterval(ping,30000);document.addEventListener('visibilitychange',ping);
+document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('.rg a');if(!a)return;var h=a.getAttribute('href')||'';try{localStorage.setItem('lge_region',h.indexOf('/india')===0?'in':'global')}catch(x){}},true)})()</script>"""
+# India visitors land on /india (device time zone = India, unless they chose Global on the site). Runs before the page
+# draws, and works with the CDN cache (the same cached page for everyone; the choice is made in the browser).
+REGIONJS = """<script>(function(){try{if(location.pathname!=='/'||location.search||localStorage.getItem('lge_region'))return;
+var z=Intl.DateTimeFormat().resolvedOptions().timeZone||'';if(z==='Asia/Kolkata'||z==='Asia/Calcutta')location.replace('/india')}catch(e){}})()</script>"""
 
 
 def _html(build):
@@ -119,6 +130,8 @@ def _html(build):
         h = build()
         if isinstance(h, bytes):
             h = h.decode()
+        if "<head>" in h:
+            h = h.replace("<head>", "<head>" + REGIONJS, 1)
         return h.replace("</body>", FASTNAV + "</body>", 1) if "</body>" in h else h
     return b
 
@@ -413,6 +426,10 @@ def scene_lookup():
         with __import__("tracker").store._lock:
             known = {r[0] for r in scene._db().execute(
                 f"SELECT sid FROM sc_channels WHERE sid IN ({','.join('?' * len(allsids)) or 'NULL'})", allsids)}
+        try:
+            ytextra.track_found(res)            # every channel found is followed from now on (daily stats)
+        except Exception as e:
+            print(f"Track found: {str(e)[:100]}")
         return {k: [{**x, "known": x["sid"] in known} for x in L] for k, L in res.items()}
     return _memo(f"/api/lookup:{q.lower()}", 600, _jdump(build), "application/json")
 
@@ -471,7 +488,12 @@ def api_videos():
     kind = request.args.get("kind", "all") if request.args.get("kind") in ("all", "uploads", "shorts", "live") else "all"
     if not __import__("re").fullmatch(r"(yt:UC[\w-]{22}|(twitch|kick):[a-z0-9_-]{2,40})", sid):
         return Response("{}", status=404, mimetype="application/json")
-    return _memo(f"/api/videos:{sid}:{rng}:{kind}", 8, _jdump(lambda: ytextra.videos_summary(sid, rng, kind)), "application/json")
+    key = f"/api/videos:{sid}:{rng}:{kind}"
+    r = _memo(key, 8, _jdump(lambda: ytextra.videos_summary(sid, rng, kind)), "application/json")
+    body = (_MEMO.get(key) or (0, b""))[1]
+    if b'"loading":true' in body or b'"oldest":null' in body:
+        r.headers["X-Short-Cache"] = "1"        # still reading the channel: don't let the CDN keep this copy
+    return r
 
 
 @app.route("/api/topch")
@@ -626,6 +648,19 @@ def _events_html():
             + ("".join(rows) or "<p>No events yet.</p>")
             + '<a class="r" href="/india"><b>India live streaming rankings</b><span>every game</span><span>YouTube + Kick + Twitch</span>'
             '<i class="live">ALWAYS ON</i></a></main></body></html>')
+
+
+@app.route("/admin/visitors")
+def admin_visitors():
+    """Owner-only traffic page: /admin/visitors?key=<ADMIN_KEY from .env>. 404 for anyone else (and if no key is set)."""
+    import hmac
+    want = os.getenv("ADMIN_KEY", "")
+    if len(want) < 16 or not hmac.compare_digest(want, request.args.get("key", "")):
+        return Response("Not found", status=404, mimetype="text/plain")
+    from tracker import visitorspage
+    r = Response(visitorspage.build_html(visitors.stats()), mimetype="text/html")
+    r.headers["X-Robots-Tag"] = "noindex"
+    return r
 
 
 @app.route("/hit", methods=["POST"])

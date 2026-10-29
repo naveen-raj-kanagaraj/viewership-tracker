@@ -569,3 +569,28 @@ assert sv.startswith("<svg") and "#2" in sv and "People &amp; Blogs" in sv and "
 assert c.get("/badge/bad.svg").status_code == 404 and c.get(f"/api/badges?sid={F11}").get_json()
 assert "badges()" in c.get(f"/ch/{F11}").data.decode()
 print("BADGES OK")
+# owner-only visitors page, site-wide visit ping, India redirect script, intraday views, lookup follows channels
+os.environ.pop("ADMIN_KEY", None)
+assert c.get("/admin/visitors").status_code == 404
+os.environ["ADMIN_KEY"] = "k" * 24
+assert c.get("/admin/visitors?key=wrong").status_code == 404
+c.post("/hit", json={"sid": "tab1", "ref": "", "w": 400}, headers={"CF-IPCountry": "IN", "User-Agent": "Mozilla"})
+time.sleep(.3)
+av_ = c.get("/admin/visitors?key=" + "k" * 24)
+assert av_.status_code == 200 and b"Visitors" in av_.data and av_.headers["Cache-Control"] == "no-store"
+hp = c.get("/").data.decode()
+assert "lge_region" in hp and "Asia/Kolkata" in hp and "fetch('/hit'" in hp
+with store._lock:
+    cc = sc._db()
+    cc.execute("DELETE FROM sc_intra WHERE sid='yt:UCaman'")
+    cc.execute("INSERT INTO sc_intra VALUES ('yt:UCaman', ?, 100, 5000)", (int(time.time()) - 7200,))
+    cc.execute("INSERT INTO sc_intra VALUES ('yt:UCaman', ?, 110, 9000)", (int(time.time()) - 60,))
+    cc.commit()
+rv = yx.recent_views("yt:UCaman")
+assert rv["views"] == 4000 and rv["subs"] == 10 and 1.9 < rv["hours"] < 2.1, rv
+assert yx.track_found({"youtube": [{"sid": "yt:UCnewfound000000000000001"[:27], "name": "Found Ch"}], "twitch": [], "kick": []}) >= 0
+with store._lock:
+    assert sc._db().execute("SELECT tracked FROM sc_channels WHERE sid=?", ("yt:UCnewfound000000000000001"[:27],)).fetchone()[0] == 1
+assert sc.compact if hasattr(sc, "compact") else True
+assert not c.get("/api/scene?region=global&period=today").get_json().get("events")
+print("ADMIN OK")

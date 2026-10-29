@@ -46,6 +46,7 @@ CREATE INDEX IF NOT EXISTS sc_chstats_sid ON sc_chstats(sid, day);
 CREATE TABLE IF NOT EXISTS yt_videos (vid TEXT PRIMARY KEY, sid TEXT, ts INTEGER, title TEXT, views INTEGER, likes INTEGER,
     comments INTEGER, secs INTEGER, live INTEGER, approx INTEGER, updated INTEGER);
 CREATE INDEX IF NOT EXISTS yt_videos_sid ON yt_videos(sid, ts);
+CREATE TABLE IF NOT EXISTS sc_intra (sid TEXT, ts INTEGER, subs INTEGER, views INTEGER, PRIMARY KEY (sid, ts));
 """
 _ready = False
 
@@ -414,6 +415,8 @@ def stats_once(limit: int = 300) -> int:
         c = _db()
         c.executemany("INSERT OR REPLACE INTO sc_chstats VALUES (?,?,?,?,?,?)",
                       [(d, "yt:" + cid, s, v, n, now) for cid, (s, v, n) in got.items()])
+        c.executemany("INSERT OR IGNORE INTO sc_intra VALUES (?,?,?,?)", [("yt:" + cid, now, s, v) for cid, (s, v, n) in got.items()])
+        c.execute("DELETE FROM sc_intra WHERE ts<?", (now - 3 * 86400,))
         meta = [(m["topic"], m["country"], m["name"], m["logo"], "yt:" + cid) for cid, m in _META.items() if cid in got]
         c.executemany("""UPDATE sc_channels SET topic=COALESCE(NULLIF(?,''), topic),
                          country=CASE WHEN ?!='' THEN ? ELSE country END, name=COALESCE(NULLIF(?,''), name),
@@ -762,8 +765,8 @@ def ensure_channel(sid: str, name: str = "", logo: str = "") -> bool:
     if not re.fullmatch(r"yt:UC[\w-]{22}", sid or ""):
         return False
     with store._lock:
-        row = _db().execute("SELECT sid, tracked FROM sc_channels WHERE sid=?", (sid,)).fetchone()
-    if row and row[1]:
+        row = _db().execute("SELECT sid, tracked, EXISTS(SELECT 1 FROM sc_chstats WHERE sid=?) FROM sc_channels WHERE sid=?", (sid, sid)).fetchone()
+    if row and row[1] and row[2]:
         return True
     cid = sid[3:]
     if not row:
@@ -793,6 +796,7 @@ def ensure_channel(sid: str, name: str = "", logo: str = "") -> bool:
             with store._lock:
                 c = _db()
                 c.execute("INSERT OR REPLACE INTO sc_chstats VALUES (?,?,?,?,?,?)", (_day(), sid, *got, int(time.time())))
+                c.execute("INSERT OR IGNORE INTO sc_intra VALUES (?,?,?,?)", (sid, int(time.time()), got[0], got[1]))
                 c.commit()
     except Exception as e:
         print(f"First stats for {sid}: {str(e)[:100]}")
@@ -814,7 +818,64 @@ def views_series(sid: str, days: int = 90) -> dict:
     for g in gains:
         months[g["day"][:7]] = months.get(g["day"][:7], 0) + g["views"]
     return {"first": st[0]["day"] if st else None, "snapshots": st, "gains": gains,
-            "months": [{"month": k, "views": v} for k, v in sorted(months.items())]}
+            "months": [{"month": k, "views": v} for k, v in sorted(months.items())], "recent": recent_views(sid)}
+
+
+_IBUSY = set()
+
+
+def recent_views(sid: str) -> dict:
+    """Views gained over the last hours, from readings taken during the day: shows a newly followed channel's views
+    the same day instead of waiting for tomorrow's snapshot. Opening the page takes a fresh reading at most once an
+    hour (1 YouTube API unit)."""
+    with store._lock:
+        R = _db().execute("SELECT ts, subs, views FROM sc_intra WHERE sid=? AND ts>? ORDER BY ts", (sid, time.time() - 26 * 3600)).fetchall()
+    if sid.startswith("yt:") and os.getenv("YOUTUBE_API_KEY") and (not R or time.time() - R[-1][0] > 3600) and sid not in _IBUSY:
+        _IBUSY.add(sid)
+
+        def read():
+            try:
+                got = channel_stats([sid[3:]]).get(sid[3:])
+                if got:
+                    with store._lock:
+                        c = _db()
+                        c.execute("INSERT OR IGNORE INTO sc_intra VALUES (?,?,?,?)", (sid, int(time.time()), got[0], got[1]))
+                        c.commit()
+            except Exception:
+                pass
+            finally:
+                _IBUSY.discard(sid)
+                _META.clear()
+        threading.Thread(target=read, daemon=True).start()
+    if len(R) < 2 or R[-1][0] - R[0][0] < 1800 or R[0][2] is None or R[-1][2] is None or R[-1][2] < R[0][2]:
+        return {"since": R[0][0] if R else None}
+    return {"since": R[0][0], "ts": R[-1][0], "hours": round((R[-1][0] - R[0][0]) / 3600, 1), "views": R[-1][2] - R[0][2],
+            "subs": (R[-1][1] - R[0][1]) if R[0][1] is not None and R[-1][1] is not None else None}
+
+
+def track_found(res: dict) -> int:
+    """Follow every channel a search turned up (daily stats start without anyone opening them). Only adds rows:
+    the stats loop reads them in batches (YouTube: 1 API unit per 50 channels)."""
+    from tracker import scene
+    rows = []
+    for plat, L in res.items():
+        for x in L:
+            sid = x.get("sid") or ""
+            if not re.fullmatch(r"(yt:UC[\w-]{22}|(twitch|kick):[a-z0-9_-]{2,40})", sid):
+                continue
+            url = (f"https://www.youtube.com/channel/{sid[3:]}" if sid.startswith("yt:") else
+                   f"https://www.twitch.tv/{sid[7:]}" if sid.startswith("twitch:") else f"https://kick.com/{sid[5:]}")
+            rows.append((sid, sid.split(":")[0].replace("yt", "youtube"), x.get("name") or sid.split(":", 1)[1], url, x.get("logo") or "", time.time()))
+    if not rows:
+        return 0
+    with store._lock:
+        c = _db()
+        n0 = c.total_changes
+        c.executemany("""INSERT OR IGNORE INTO sc_channels (sid, platform, name, url, logo, first_seen, last_live, title, game, tracked)
+                         VALUES (?,?,?,?,?,?,NULL,'','',1)""", rows)
+        c.executemany("UPDATE sc_channels SET tracked=1 WHERE sid=? AND COALESCE(tracked,0)=0", [(r[0],) for r in rows])
+        c.commit()
+        return c.total_changes - n0
 
 
 # ---------- Twitch and Kick channels (lookup, followers) ----------
@@ -899,8 +960,8 @@ def ensure_any(sid: str) -> bool:
     if plat not in ("twitch", "kick") or not re.fullmatch(r"[a-z0-9_-]{2,40}", ident or ""):
         return False
     with store._lock:
-        row = _db().execute("SELECT tracked FROM sc_channels WHERE sid=?", (sid,)).fetchone()
-    if row and row[0]:
+        row = _db().execute("SELECT tracked, EXISTS(SELECT 1 FROM sc_chstats WHERE sid=?) FROM sc_channels WHERE sid=?", (sid, sid)).fetchone()
+    if row and row[0] and row[1]:
         return True
     if not row:
         name, logo = ident, ""
@@ -1401,7 +1462,7 @@ def _latest_gains(day_back: int = 1) -> dict:
             gap = max(1, (datetime.strptime(b[1], "%Y-%m-%d") - datetime.strptime(a[1], "%Y-%m-%d")).days)   # per day
             ok = a[3] is not None and b[3] is not None and 0 <= b[3] - a[3] <= 0.25 * max(b[3], 1)   # skip misread snapshots
             out[sid] = (round((b[3] - a[3]) / gap) if ok else None,
-                        round((b[2] - a[2]) / gap) if a[2] is not None and b[2] is not None else None)
+                        round((b[2] - a[2]) / gap) if a[2] is not None and b[2] is not None and abs(b[2] - a[2]) <= .25 * max(b[2], 1000) else None)
     return out
 
 
@@ -1426,6 +1487,16 @@ def home_lists(region: str = "global", game: str = "", n: int = 25, topic: str =
         top.append({**c, "views_day": v, "subs_day": sg})
         if len(top) >= n:
             break
+    subs = []
+    for sid, (v, sg) in sorted(g.items(), key=lambda kv: -(kv[1][1] or 0)):
+        if not sg or sg <= 0:
+            break
+        c = ch.get(sid) or _chan_rows([sid]).get(sid)
+        if not c or (region == "in" and not c["india"]) or (game and c["game"] != game) or (topic and c["topic"] != topic):
+            continue
+        subs.append({**c, "views_day": v, "subs_day": sg})
+        if len(subs) >= n:
+            break
     t0 = time.time() - 3 * 86400
     q = """SELECT v.vid, v.sid, v.title, v.ts, v.views, v.likes, v.comments, v.live, v.short, v.url, v.game, c.name, c.logo, c.platform
            FROM yt_videos v JOIN sc_channels c ON c.sid=v.sid WHERE v.ts >= ? AND v.approx=0"""
@@ -1443,7 +1514,7 @@ def home_lists(region: str = "global", game: str = "", n: int = 25, topic: str =
         vids = [dict(r) for r in _db().execute(q + " ORDER BY v.views DESC LIMIT ?", (*a, n))]
         live_sids = [r[0] for r in _db().execute("SELECT sid FROM sc_channels WHERE COALESCE(NULLIF(ytcat,''), topic)=? AND last_live>?",
                                                   (topic, time.time() - 2 * 86400))] if topic else []
-    return {"channels_today": top, "trending": vids, "live_sids": live_sids}
+    return {"channels_today": top, "subs_today": subs, "trending": vids, "live_sids": live_sids}
 
 
 def category_channels(game: str, region: str = "global", n: int = 25, topic: str = "") -> list:

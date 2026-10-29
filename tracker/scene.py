@@ -1354,7 +1354,8 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
             "peak_all": {"viewers": pk_all[1], "ts": pk_all[0]} if pk_all else None,
             "series": series, "daily": daily, "board": board[:300], "tour_day": tour_day,
             "games": [{**g, "hw": round(g["hw"])} for g in sorted(games.values(), key=lambda g: -g["hw"])][:60],
-            "events": ([e for e in _events() if e["state"] in ("live", "upcoming")] if not (game or sec)
+            "events": ([] if region != "in" else         # tournaments are India events: India pages only
+                       [e for e in _events() if e["state"] in ("live", "upcoming")] if not (game or sec)
                        else [e for e in _events() if game and e["game"] == game]),
             "history": game_history(game) if game else (game_history("BGMI") if sec == "esports" and region == "in" else []),
             "history_game": game or ("BGMI" if sec == "esports" and region == "in" else ""),

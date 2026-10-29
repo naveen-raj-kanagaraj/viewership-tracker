@@ -320,6 +320,19 @@ As of 26 Oct 2026:
   among 10+ channels), cached 30 min. Channel page "Creator badge" card: pick a rank, copy HTML / Markdown / link,
   download PNG. `/api/badges?sid=`.
 - Home event cards: upcoming tournaments sorted soonest first (BMIC 30 Oct, then CEGC 3 Nov).
+- v19 (29 Oct): Visitors are now counted on every page (web.FASTNAV pings /hit every 30 s; event pages keep their
+  own ping). Owner page `/admin/visitors?key=<ADMIN_KEY>`: 404 unless ADMIN_KEY (16+ chars) is set in .env.
+  India visitors land on /india: WEB.REGIONJS runs in <head> of "/" and redirects when the device time zone is
+  Asia/Kolkata, unless the visitor picked GLOBAL/INDIA before (localStorage lge_region). Done in the browser so the
+  CDN can keep one cached copy of "/".
+- Tournament cards (BMIC, CEGC) only on India pages. Home: 6 cards (adds "Most subscribers gained"), "See all"
+  scrolls inside the card. Category dropdown always lists every game in scene.GAMES (BGMI, Free Fire ...) plus
+  whatever is live, alphabetical. Channel lines show the YouTube category, not the live game.
+- Same-day views: sc_intra keeps readings for 3 days (daily stats + a fresh reading when a channel page is opened,
+  at most hourly, 1 API unit). views_series()["recent"] = views/subs gained between the first and latest reading.
+- Search results (`/api/lookup`) are followed at once (ytextra.track_found, tracked=1): daily stats start without
+  anyone opening them. /api/videos while still loading is cached 3 s, not 5 min (X-Short-Cache), and the channel
+  page polls until the videos arrive. Day-over-day gains ignore jumps over 25% (views and subscribers).
 
 ## Ideas not built yet
 
