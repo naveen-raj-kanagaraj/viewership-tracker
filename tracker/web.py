@@ -696,7 +696,15 @@ def admin_visitors():
     from tracker import visitorspage
     from tracker import events as ev_
     used = ev_._YTQ["n"] if ev_._YTQ["day"] else 0
-    r = Response(visitorspage.build_html({**visitors.stats(), "ytq": (used, ev_.YT_QUOTA)}), mimetype="text/html")
+    from tracker import scene as sc_
+    with sc_._lock:
+        by = {}
+        for x in sc_._LIVE.values():
+            z = by.setdefault(x["platform"], [0, 0])
+            z[0] += 1
+            z[1] += x.get("viewers") or 0
+    src = {"errors": dict(sc_._STATE.get("errors") or {}), "last": sc_._STATE.get("last"), "by": by, "twitch_full": dict(sc_._TWFULL)}
+    r = Response(visitorspage.build_html({**visitors.stats(), "ytq": (used, ev_.YT_QUOTA), "sources": src}), mimetype="text/html")
     r.headers["X-Robots-Tag"] = "noindex"
     return r
 
