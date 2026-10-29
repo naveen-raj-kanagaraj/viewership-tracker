@@ -202,9 +202,22 @@ def _new(sid, x, start, base, cur, now, kind="viewers", score=0.0, chat_base=Non
 # ---------- links, players, clips ----------
 
 def _yt_start(vid: str) -> int:
-    if vid in _YT_START:
+    if _YT_START.get(vid):
         return _YT_START[vid]
     st = 0
+    key = os.getenv("YOUTUBE_API_KEY")
+    if key:                                    # exact: the API's actual start time of the broadcast
+        try:
+            j = events._http.get("https://www.googleapis.com/youtube/v3/videos",
+                                 params={"part": "liveStreamingDetails", "id": vid, "key": key}, timeout=12).json()
+            a = (((j.get("items") or [{}])[0]).get("liveStreamingDetails") or {}).get("actualStartTime")
+            if a:
+                st = int(datetime.fromisoformat(a.replace("Z", "+00:00")).timestamp())
+        except Exception:
+            pass
+    if st:
+        _YT_START[vid] = st
+        return st
     try:
         r = events._http.get("https://www.youtube.com/watch", params={"v": vid}, timeout=12,
                              headers={"User-Agent": events._UA, "Accept-Language": "en-US,en;q=0.9"},
@@ -214,7 +227,8 @@ def _yt_start(vid: str) -> int:
             st = int(datetime.fromisoformat(m.group(1).replace("Z", "+00:00")).timestamp())
     except Exception as e:
         print(f"Moment: no start time for {vid}: {str(e)[:80]}")
-    _YT_START[vid] = st
+    if st:
+        _YT_START[vid] = st                    # failures aren't cached: tried again next time
     if len(_YT_START) > 2000:
         _YT_START.clear()
     return st
@@ -340,7 +354,7 @@ def twitch_login() -> str:
 
 # ---------- for the pages ----------
 
-def recent(region: str = "global", period: str = "today", game: str = "", sid: str = "", limit: int = 60) -> dict:
+def recent(region: str = "global", period: str = "today", game: str = "", sid: str = "", limit: int = 60, sort: str = "views") -> dict:
     days = {"today": 1, "7d": 7, "30d": 30}.get(period, 1)
     if period == "today":
         t0 = datetime.combine(datetime.now(events.REPORT_TZ).date(), datetime.min.time(), events.REPORT_TZ).timestamp()
@@ -357,12 +371,28 @@ def recent(region: str = "global", period: str = "today", game: str = "", sid: s
         q = "SELECT * FROM moments WHERE sid=?"
         a = [sid]
     with store._lock:
-        rows = [dict(r) for r in _db().execute(q + " ORDER BY COALESCE(score, 0) DESC, ts DESC LIMIT ?", (*a, limit))]
+        order = {"views": "peak DESC", "jump": "(peak - base) DESC", "hype": "COALESCE(score, 0) DESC", "new": "ts DESC"}.get(sort, "peak DESC")
+        rows = [dict(r) for r in _db().execute(q + f" ORDER BY {order}, ts DESC LIMIT ?", (*a, limit))]
         games = [g for (g,) in _db().execute("SELECT game FROM moments WHERE ts>=? GROUP BY game ORDER BY COUNT(*) DESC LIMIT 30", (t0,))]
     for r in rows:
         r["jump"] = r["peak"] - r["base"]
         r["pct"] = round(100 * r["jump"] / r["base"]) if r["base"] else 0
         r["secs"] = max(2, (r["peak_ts"] or r["ts"]) - r["ts"])
+    from tracker import scene
+    with scene._lock:
+        live_vids = {v for x in scene._LIVE.values() for v in (x.get("streams") or {})}
+    for r in rows:
+        r["live_now"] = r["vid"] in live_vids    # a YouTube embed can't rewind a stream that's still live
+        if r["embed"] == "yt" and not r["embed_t"] and time.time() - r["ts"] < 7 * 86400 and not r["live_now"]:
+            s0 = _yt_start(r["vid"])           # start time wasn't known when the moment happened: try again
+            if s0:
+                r["embed_t"] = max(0, r["ts"] - s0 - LEAD)
+                r["link"] = f"https://youtu.be/{r['vid']}?t={r['embed_t']}"
+                with store._lock:
+                    c = _db()
+                    c.execute("UPDATE moments SET embed_t=?, link=? WHERE id=?", (r["embed_t"], r["link"], r["id"]))
+                    c.commit()
+        r["exact_time"] = bool(r["embed_t"]) or r["embed"] == "tw_clip"
     if sid:
         rows.sort(key=lambda r: -r["ts"])
     return {"moments": rows, "games": [g for g in games if g], "clips": bool(_user().get("refresh"))}

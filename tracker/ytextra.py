@@ -61,6 +61,9 @@ def _db():
             c.execute("ALTER TABLE yt_videos ADD COLUMN short INTEGER DEFAULT 0")
         if "url" not in cols:
             c.execute("ALTER TABLE yt_videos ADD COLUMN url TEXT DEFAULT ''")
+        if "game" not in cols:
+            c.execute("ALTER TABLE yt_videos ADD COLUMN game TEXT DEFAULT ''")
+            c.execute("CREATE INDEX IF NOT EXISTS yt_videos_game ON yt_videos(game, ts)")
         if not store.kv_get("ytv_fix_premieres"):
             c.execute("UPDATE yt_videos SET updated=0")          # re-read: premieres were counted as live
             c.commit()
@@ -409,6 +412,7 @@ def run_stats():
         try:
             stats_once(2000 if os.getenv("YOUTUBE_API_KEY") else 120)
             discover_once()
+            prefetch_once(8 if os.getenv("YOUTUBE_API_KEY") else 2)
             followers_once(100)
         except Exception as e:
             print(f"Channel stats: {str(e)[:150]}")
@@ -1103,14 +1107,16 @@ def _refresh_videos(sid: str, full: bool):
         else:
             vids = []
         now = int(time.time())
+        from tracker import scene
         rows = [(v["id"], sid, v["ts"], v["title"], v.get("views"), v.get("likes"), v.get("comments"), v.get("secs") or 0,
-                 v.get("live", 0), v.get("approx", 1), now, v.get("short", 0), v.get("url") or "") for v in vids if v.get("id")]
+                 v.get("live", 0), v.get("approx", 1), now, v.get("short", 0), v.get("url") or "",
+                 scene.classify("", v.get("title") or "")) for v in vids if v.get("id")]
         with store._lock:
             c = _db()
             if rows:
                 # without the API a date is only "3 days ago": keep the first (closer) estimate once we have one
-                c.executemany("""INSERT INTO yt_videos (vid, sid, ts, title, views, likes, comments, secs, live, approx, updated, short, url)
-                                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(vid) DO UPDATE SET
+                c.executemany("""INSERT INTO yt_videos (vid, sid, ts, title, views, likes, comments, secs, live, approx, updated, short, url, game)
+                                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(vid) DO UPDATE SET game=excluded.game,
                                  title=excluded.title, views=excluded.views,
                                  likes=COALESCE(excluded.likes, yt_videos.likes), comments=COALESCE(excluded.comments, yt_videos.comments),
                                  secs=CASE WHEN excluded.secs>0 THEN excluded.secs ELSE yt_videos.secs END,
@@ -1119,6 +1125,13 @@ def _refresh_videos(sid: str, full: bool):
                                  ts=CASE WHEN excluded.approx=0 OR yt_videos.ts IS NULL THEN excluded.ts ELSE yt_videos.ts END,
                                  approx=MIN(excluded.approx, yt_videos.approx), updated=excluded.updated,
                                  url=CASE WHEN excluded.url!='' THEN excluded.url ELSE yt_videos.url END""", rows)
+            # what the channel makes: the game of most of its last 40 posts (for uploaders never seen live)
+            gs = [g for (g,) in c.execute("SELECT game FROM yt_videos WHERE sid=? ORDER BY ts DESC LIMIT 40", (sid,))]
+            named = [g for g in gs if g and g != "Other"]
+            if named:
+                top = max(set(named), key=named.count)
+                if named.count(top) >= .3 * len(gs):
+                    c.execute("UPDATE sc_channels SET game=? WHERE sid=? AND (COALESCE(game,'') IN ('', 'Other') OR last_live IS NULL)", (top, sid))
             c.commit()
         m = store.kv_get(f"vids:{sid}") or {}
         m["recent"] = now
@@ -1138,8 +1151,14 @@ def channel_videos(sid: str, force: bool = False) -> list:
     and the whole history weekly."""
     m = store.kv_get(f"vids:{sid}") or {}
     now = time.time()
-    if force or not m.get("full"):
+    if force:
         _refresh_videos(sid, full=True)
+    elif not m.get("full"):
+        # first visit: the last 60 days now (a second or two), the whole history in the background
+        if not m.get("recent") and sid not in _VBUSY:
+            _refresh_videos(sid, full=False)
+        if sid not in _VBUSY:
+            threading.Thread(target=_refresh_videos, args=(sid, True), daemon=True).start()
     elif now - m["full"] > 7 * 86400:
         threading.Thread(target=_refresh_videos, args=(sid, True), daemon=True).start()
     elif now - m.get("recent", 0) > 6 * 3600:
@@ -1148,7 +1167,31 @@ def channel_videos(sid: str, force: bool = False) -> list:
         return [dict(r) for r in _db().execute("SELECT * FROM yt_videos WHERE sid=? ORDER BY ts DESC", (sid,))]
 
 
-RANGES = {"1w": 7, "1m": 30, "3m": 91, "6m": 182, "ytd": None, "1y": 365, "all": 0}
+RANGES = {"7d": 7, "30d": 30, "90d": 90, "6m": 182, "ytd": None, "1y": 365, "all": 0,
+          "1w": 7, "1m": 30, "3m": 91}                       # (old names still accepted)
+
+
+def history_loading(sid: str) -> bool:
+    return sid in _VBUSY or not (store.kv_get(f"vids:{sid}") or {}).get("full")
+
+
+def prefetch_once(n: int = 5) -> int:
+    """Pull the full video history of a few channels that don't have it yet (followed ones first, then the biggest),
+    so their pages are complete before anyone opens them."""
+    with store._lock:
+        cand = [r[0] for r in _db().execute(
+            """SELECT c.sid FROM sc_channels c LEFT JOIN (SELECT s.sid, s.subs FROM sc_chstats s JOIN
+               (SELECT sid, MAX(day) d FROM sc_chstats GROUP BY sid) m ON m.sid=s.sid AND m.d=s.day) t ON t.sid=c.sid
+               WHERE c.platform IN ('youtube','twitch','kick') ORDER BY COALESCE(c.tracked,0) DESC, COALESCE(t.subs,0) DESC LIMIT 2000""")]
+    done = 0
+    for sid in cand:
+        if done >= n:
+            break
+        if (store.kv_get(f"vids:{sid}") or {}).get("full") or sid in _VBUSY:
+            continue
+        _refresh_videos(sid, full=True)
+        done += 1
+    return done
 
 
 def videos_summary(sid: str, rng: str = "3m", kind: str = "all") -> dict:
@@ -1172,8 +1215,54 @@ def videos_summary(sid: str, rng: str = "3m", kind: str = "all") -> dict:
             "uploads": sum(1 for v in L if kind_of(v) == "uploads"), "lives": sum(1 for v in L if v["live"]),
             "shorts": sum(1 for v in L if kind_of(v) == "shorts"),
             "per_week": round(len(L) / max(1, (time.time() - t0) / 604800), 1),
-            "best": max(L, key=lambda v: v["views"] or 0) if L else None, "videos": L[:400],
-            "exact": bool(os.getenv("YOUTUBE_API_KEY")), "oldest": min((v["ts"] for v in vids if v["ts"]), default=None)}
+            "best": max(L, key=lambda v: v["views"] or 0) if L else None,
+            "exact": bool(os.getenv("YOUTUBE_API_KEY")), "oldest": min((v["ts"] for v in vids if v["ts"]), default=None),
+            "loading": history_loading(sid), "insights": _insights(L, kind_of), **_chart(L, t0)}
+
+
+def _insights(L: list, kind_of) -> dict:
+    """Average views by weekday and time of day (IST) and by format, over every post in the range (exact dates only)."""
+    P = [v for v in L if v["ts"] and not v["approx"]]
+    if len(P) < 5:
+        return {}
+    def avg_by(f):
+        m = {}
+        for v in P:
+            m.setdefault(f(v), []).append(v["views"] or 0)
+        return {k: {"avg": round(sum(a) / len(a)), "n": len(a)} for k, a in m.items()}
+    dt = lambda v: datetime.fromtimestamp(v["ts"], events.REPORT_TZ)
+    slot = lambda h: "Late night (0-6)" if h < 6 else "Morning (6-12)" if h < 12 else "Afternoon (12-17)" if h < 17 else "Evening (17-21)" if h < 21 else "Night (21-24)"
+    return {"weekday": avg_by(lambda v: dt(v).strftime("%a")), "time": avg_by(lambda v: slot(dt(v).hour)), "format": avg_by(kind_of)}
+
+
+def _chart(L: list, t0: float) -> dict:
+    """What the chart and the lists need. Up to ~120 posts: every post. More (long ranges, busy channels): one point
+    per week or month (posts, total views, average per post), so the line stays readable; the lists then get the
+    top posts by each measure instead of all of them."""
+    span = time.time() - t0
+    pts = [v for v in L if v["ts"]]
+    if len(pts) <= 120:
+        return {"bucket": "post", "videos": L}
+    size = 30 * 86400 if span > 2 * 365 * 86400 else 7 * 86400
+    b = {}
+    for v in pts:
+        k = int(v["ts"] // size * size)
+        z = b.setdefault(k, {"ts": k, "posts": 0, "views": 0, "likes": 0, "comments": 0, "lk": 0})
+        z["posts"] += 1
+        z["views"] += v["views"] or 0
+        if v["likes"] is not None:
+            z["likes"] += v["likes"] or 0
+            z["comments"] += v["comments"] or 0
+            z["lk"] += v["views"] or 0
+    series = [{**z, "avg": round(z["views"] / z["posts"]), "eng": round(100 * (z["likes"] + z["comments"]) / z["lk"], 2) if z["lk"] else None}
+              for _, z in sorted(b.items())]
+    keep = {}
+    for key in (lambda v: v["views"] or 0, lambda v: v["likes"] or 0, lambda v: v["comments"] or 0,
+                lambda v: ((v["likes"] or 0) + (v["comments"] or 0)) / v["views"] if v["views"] and v["likes"] is not None and v["views"] > 1000 else 0):
+        for v in sorted(L, key=key, reverse=True)[:30]:
+            keep[v["vid"]] = v
+    return {"bucket": "month" if size > 7 * 86400 else "week", "series": series,
+            "videos": sorted(keep.values(), key=lambda v: -(v["ts"] or 0))}
 
 
 # ---------- discovery: grow the list of channels so ranks mean something ----------
@@ -1208,3 +1297,172 @@ def discover_once(n: int = 2) -> int:
             c.commit()
     store.kv_set("discover_i", i + n)
     return added
+
+
+# ---------- the same creator on several platforms ----------
+
+_NN = {"at": 0, "map": {}}
+
+
+def _norm(name: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", (name or "").lower())
+
+
+def linked(sid: str) -> list:
+    """The same creator's channels on the other platforms: links set by hand (track.py scene link ...), else channels
+    whose name matches exactly once spaces and symbols are dropped (e.g. "Soul Aman" on YouTube and "soulaman" on Kick)."""
+    groups = store.kv_get("chan_links") or []
+    for g in groups:
+        if sid in g:
+            others = [x for x in g if x != sid]
+            break
+    else:
+        if time.time() - _NN["at"] > 600:
+            m = {}
+            with store._lock:
+                for s_, n in _db().execute("SELECT sid, name FROM sc_channels"):
+                    k = _norm(n)
+                    if len(k) >= 5:
+                        m.setdefault(k, []).append(s_)
+            _NN.update(at=time.time(), map=m)
+        with store._lock:
+            row = _db().execute("SELECT name FROM sc_channels WHERE sid=?", (sid,)).fetchone()
+        mine = sid.split(":", 1)[0]
+        others = [x for x in _NN["map"].get(_norm(row[0] if row else ""), []) if x.split(":", 1)[0] != mine]
+        if sid.startswith(("kick:", "twitch:")):                    # a Kick slug / Twitch login equal to a name elsewhere
+            others += [x for x in _NN["map"].get(_norm(sid.split(":", 1)[1]), []) if x.split(":", 1)[0] != mine and x not in others]
+    if not others:
+        return []
+    with store._lock:
+        rows = _db().execute(f"SELECT sid, platform, name, logo FROM sc_channels WHERE sid IN ({','.join('?' * len(others))})", others).fetchall()
+    best = {}
+    for r in rows:                                               # one per platform
+        best.setdefault(r["platform"], dict(r))
+    return list(best.values())
+
+
+def link(a: str, b: str, on: bool = True) -> list:
+    groups = [set(g) for g in (store.kv_get("chan_links") or [])]
+    ga = next((g for g in groups if a in g), None)
+    gb = next((g for g in groups if b in g), None)
+    if on:
+        new = (ga or {a}) | (gb or {b})
+        groups = [g for g in groups if g is not ga and g is not gb] + [new]
+    else:
+        for g in groups:
+            g.discard(b if a in g else a)
+        groups = [g for g in groups if len(g) > 1]
+    store.kv_set("chan_links", [sorted(g) for g in groups])
+    return [sorted(g) for g in groups]
+
+
+# ---------- home page and game pages: channels and videos, not only live ----------
+
+def _latest_gains(day_back: int = 1) -> dict:
+    """{sid: (views gained, subs gained)} between each channel's last two daily snapshots (the newest no older than
+    two days)."""
+    d0 = (datetime.now(events.REPORT_TZ).date() - timedelta(days=2)).strftime("%Y-%m-%d")
+    out = {}
+    with store._lock:
+        rows = _db().execute("SELECT sid, day, subs, views FROM sc_chstats WHERE day >= ? ORDER BY sid, day",
+                             ((datetime.now(events.REPORT_TZ).date() - timedelta(days=4)).strftime("%Y-%m-%d"),)).fetchall()
+    by = {}
+    for r in rows:
+        by.setdefault(r[0], []).append(r)
+    for sid, L in by.items():
+        if len(L) >= 2 and L[-1][1] >= d0:
+            a, b = L[-2], L[-1]
+            gap = max(1, (datetime.strptime(b[1], "%Y-%m-%d") - datetime.strptime(a[1], "%Y-%m-%d")).days)   # per day
+            ok = a[3] is not None and b[3] is not None and 0 <= b[3] - a[3] <= 0.25 * max(b[3], 1)   # skip misread snapshots
+            out[sid] = (round((b[3] - a[3]) / gap) if ok else None,
+                        round((b[2] - a[2]) / gap) if a[2] is not None and b[2] is not None else None)
+    return out
+
+
+def _chan_rows(sids: list) -> dict:
+    if not sids:
+        return {}
+    with store._lock:
+        return {r["sid"]: dict(r) for r in _db().execute(
+            f"SELECT sid, platform, name, logo, url, game, topic, country, COALESCE(india,0) india FROM sc_channels WHERE sid IN ({','.join('?' * len(sids))})", sids)}
+
+
+def home_lists(region: str = "global", game: str = "", n: int = 25) -> dict:
+    """Top channels by views gained in their last day (YouTube) and the most-viewed videos posted in the last 3 days,
+    for a region and optionally one game."""
+    g = _latest_gains()
+    ch = _chan_rows([s for s, (v, _) in g.items() if v])
+    top = []
+    for sid, (v, sg) in sorted(g.items(), key=lambda kv: -(kv[1][0] or 0)):
+        c = ch.get(sid)
+        if not c or not v or (region == "in" and not c["india"]) or (game and c["game"] != game):
+            continue
+        top.append({**c, "views_day": v, "subs_day": sg})
+        if len(top) >= n:
+            break
+    t0 = time.time() - 3 * 86400
+    q = """SELECT v.vid, v.sid, v.title, v.ts, v.views, v.likes, v.comments, v.live, v.short, v.url, v.game, c.name, c.logo, c.platform
+           FROM yt_videos v JOIN sc_channels c ON c.sid=v.sid WHERE v.ts >= ? AND v.approx=0"""
+    a = [t0]
+    if region == "in":
+        q += " AND COALESCE(c.india,0)=1"
+    if game:
+        q += " AND v.game=?"
+        a.append(game)
+    with store._lock:
+        vids = [dict(r) for r in _db().execute(q + " ORDER BY v.views DESC LIMIT ?", (*a, n))]
+    return {"channels_today": top, "trending": vids}
+
+
+def category_channels(game: str, region: str = "global", n: int = 25) -> list:
+    """Channels whose main game is this one (streamers and uploaders), biggest first, with today's views gained."""
+    with store._lock:
+        rows = [dict(r) for r in _db().execute(
+            """SELECT c.sid, c.platform, c.name, c.logo, c.url, c.game, COALESCE(c.india,0) india, s.subs, s.views
+               FROM sc_channels c JOIN (SELECT s.sid, s.subs, s.views FROM sc_chstats s JOIN (SELECT sid, MAX(day) d FROM sc_chstats GROUP BY sid) m
+               ON m.sid=s.sid AND m.d=s.day) s ON s.sid=c.sid WHERE c.game=?""" + (" AND COALESCE(c.india,0)=1" if region == "in" else "") +
+            " ORDER BY COALESCE(s.subs,0) DESC LIMIT ?", (game, n))]
+    g = _latest_gains()
+    for r in rows:
+        r["views_day"] = (g.get(r["sid"]) or (None, None))[0]
+    return rows
+
+
+def compare(sids: list, rng: str = "90d") -> dict:
+    """Side by side: lifetime counters, posts in the range, live numbers, ranks and a common chart (average views
+    per post per period)."""
+    from tracker import scene
+    days = RANGES.get(rng, 90) or 0
+    t0 = (datetime(datetime.now().year, 1, 1).timestamp() if RANGES.get(rng, 90) is None else
+          time.time() - (days or 3650) * 86400)
+    size = max(86400, (time.time() - t0) / 14)                  # ~14 points whatever the range
+    out, missing = [], []
+    for sid in sids[:4]:
+        try:
+            ch = scene.channel(sid)
+        except Exception:
+            ch = {}
+        if not ch:
+            missing.append(sid)
+            continue
+        sm = videos_summary(sid, rng)
+        snaps = (ch.get("views") or {}).get("snapshots") or []
+        stats = ch.get("stats") or ({"subs": snaps[-1].get("subs")} if snaps and snaps[-1].get("subs") is not None else None)
+        vids = channel_videos(sid)
+        b = {}
+        for v in vids:
+            if v["ts"] and v["ts"] >= t0:
+                k = int((v["ts"] - t0) // size)
+                z = b.setdefault(k, [0, 0])
+                z[0] += v["views"] or 0
+                z[1] += 1
+        series = [[int(t0 + (k + .5) * size), round(z[0] / z[1])] for k, z in sorted(b.items())]
+        P = ch.get("periods") or {}
+        out.append({"sid": sid, "name": ch.get("name"), "logo": ch.get("logo"), "platform": ch.get("platform"), "url": ch.get("url"),
+                    "country": ch.get("country"), "stats": stats, "views": (ch.get("views") or {}).get("gains", [])[-30:],
+                    "posts": {k: sm.get(k) for k in ("count", "views", "avg", "median", "engagement", "per_week", "likes", "comments")},
+                    "live": {"peak": (P.get("30d") or {}).get("peak", 0), "avg": (P.get("30d") or {}).get("avg", 0),
+                             "hw": (P.get("30d") or {}).get("hw", 0), "hours": (P.get("30d") or {}).get("hours", 0),
+                             "peak_all": (P.get("all") or {}).get("peak", 0)},
+                    "ranks": ch.get("ranks") or [], "series": series, "loading": sm.get("loading")})
+    return {"range": rng, "since": int(t0), "channels": out, "missing": missing}

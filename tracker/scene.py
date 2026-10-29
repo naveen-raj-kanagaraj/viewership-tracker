@@ -1606,8 +1606,16 @@ def channel(sid: str) -> dict:
                       "hw": round(z["hw"]), "avg": round(z["hw"] * 60 / z["mins"]) if z["mins"] else 0,
                       "game": max(z["games"], key=z["games"].get) if z["games"] else ""}
                      for d, z in sorted(by.items()) if d >= (today - timedelta(days=29)).strftime("%Y-%m-%d")],
-            "recent": [[r[0], r[1]] for r in samp[::step]], "ranks": _ranks_of(sid),
+            "recent": [[r[0], r[1]] for r in samp[::step]], "ranks": _ranks_of(sid), "linked": _linked(sid),
             **(_yt_extra(sid) if sid.startswith("yt:") else _other_extra(sid))}
+
+
+def _linked(sid: str) -> list:
+    from tracker import ytextra
+    try:
+        return ytextra.linked(sid)
+    except Exception:
+        return []
 
 
 def _ranks_of(sid: str) -> list:
