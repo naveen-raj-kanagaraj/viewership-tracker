@@ -67,6 +67,7 @@ def _rows():
             continue
         ct = scene.country_of(ch["country"]) or (scene.country_of("IN") if ch["india"] else None)
         g = (top_game.get(sid) or (ch["game"], 0))[0] or ""
+        g = "" if g == "Other" else g                 # "Other" is not a game: no rank for it
         sec = scene.section_of(g) if g else ""
         if ch["platform"] == "youtube":          # YouTube's own categories only (until known: nearest one to what they stream)
             cat = next((x for x in (ch["ytcat"], ch["topic"]) if x and x != "Other"), "") or _YT_FROM_SEC.get(sec, "")
