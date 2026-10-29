@@ -23,7 +23,7 @@ PORT = int(os.getenv("EVENT_WEB_PORT", "8092"))
 app = Flask(__name__)
 
 
-CACHE = {"/api/home": 120, "/api/compare": 30, "/compare": 300, "/india/compare": 300, "/api/topch": 120, "/api/videos": 300, "/api/lookup": 600, "/api/moments": 20, "/moments": 300, "/india/moments": 300, "/api/ytsearch": 600, "/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
+CACHE = {"/badge": 1800, "/api/badges": 600, "/api/home": 120, "/api/compare": 30, "/compare": 300, "/india/compare": 300, "/api/topch": 120, "/api/videos": 300, "/api/lookup": 600, "/api/moments": 20, "/moments": 300, "/india/moments": 300, "/api/ytsearch": 600, "/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
 
 
 
@@ -54,6 +54,8 @@ def _headers(resp):
         path = "/" + (parts[3] if len(parts) > 3 else "")
     elif path.startswith(("/ch/", "/india/ch/")):
         path = "/map"
+    elif path.startswith("/badge/"):
+        path = "/badge"
     elif path.startswith(("/c/", "/s/", "/india/c/", "/india/s/")):
         path = "/india"
     secs = CACHE.get(path)
@@ -474,15 +476,15 @@ def api_videos():
 
 @app.route("/api/topch")
 def api_topch():
-    """Top channels by size / growth / live hours: /api/topch?platform=youtube|twitch|kick&metric=size|growth|live&country=IN&category=Gaming"""
+    """Top channels: /api/topch?platform=youtube|twitch|kick&metric=size|views|vday|v7|growth|live&country=IN&category=Gaming&game=BGMI"""
     from tracker import ranks
     g = request.args.get
     plat = g("platform", "youtube") if g("platform") in ("youtube", "twitch", "kick") else "youtube"
     metric = g("metric", "size") if g("metric") in ranks.METRICS else "size"
     country = (g("country") or "")[:2].upper()
-    category = (g("category") or "")[:40]
-    return _memo(f"/api/topch:{plat}:{metric}:{country}:{category}", 120,
-                 _jdump(lambda: ranks.top(plat, metric, country, category)), "application/json")
+    category, game = (g("category") or "")[:40], (g("game") or "")[:60]
+    return _memo(f"/api/topch:{plat}:{metric}:{country}:{category}:{game}", 120,
+                 _jdump(lambda: ranks.top(plat, metric, country, category, game=game)), "application/json")
 
 
 SID_RX = r"(yt:UC[\w-]{22}|(twitch|kick):[a-z0-9_-]{2,40})"
@@ -490,13 +492,37 @@ SID_RX = r"(yt:UC[\w-]{22}|(twitch|kick):[a-z0-9_-]{2,40})"
 
 @app.route("/api/home")
 def api_home():
-    """Top channels today (views gained, YouTube) and trending videos (last 3 days): /api/home?region=&game="""
+    """Top channels today (views gained, YouTube), trending videos (last 3 days), biggest channels, for a region and
+    one game (?cat=<slug>) or one YouTube category (?topic=People%20%26%20Blogs)"""
     from tracker import scene, ytextra
     region = request.args.get("region", "global") if request.args.get("region") in scene.REGIONS else "global"
     cat = request.args.get("cat", "")
-    game = scene.category_name(cat) if __import__("re").fullmatch(r"[a-z0-9-]{1,40}", cat or "") else None
-    return _memo(f"/api/home:{region}:{game}", 120, _jdump(lambda: {**ytextra.home_lists(region, game or "", 50),
-                 "channels": ytextra.category_channels(game, region) if game else []}), "application/json")
+    topic = request.args.get("topic", "") if request.args.get("topic") in ytextra.CATEGORIES else ""
+    game = None if topic else scene.category_name(cat) if __import__("re").fullmatch(r"[a-z0-9-]{1,40}", cat or "") else None
+    return _memo(f"/api/home:{region}:{game}:{topic}", 120, _jdump(lambda: {
+        **ytextra.home_lists(region, game or "", 50, topic), "topics": ytextra.CATEGORIES,
+        "channels": ytextra.category_channels(game or "", region, 50, topic) if (game or topic) else []}), "application/json")
+
+
+@app.route("/badge/<path:sid>.svg")
+def badge_svg(sid):
+    """Creator badge image: /badge/yt:UC....svg?m=size&s=game (default: the channel's best rank)."""
+    from tracker import badge
+    re_ = __import__("re")
+    if not re_.fullmatch(SID_RX, sid):
+        return Response("Not found", status=404, mimetype="text/plain")
+    m, s_ = (request.args.get("m") or "")[:10], (request.args.get("s") or "")[:10]
+    return _memo(f"/badge:{sid}:{m}:{s_}", 1800, lambda: badge.svg(sid, m, s_), "image/svg+xml")
+
+
+@app.route("/api/badges")
+def api_badges():
+    """The ranks a channel can show on a badge: /api/badges?sid="""
+    from tracker import badge
+    sid = request.args.get("sid") or ""
+    if not __import__("re").fullmatch(SID_RX, sid):
+        return Response("[]", mimetype="application/json")
+    return _memo(f"/api/badges:{sid}", 600, _jdump(lambda: badge.options(sid)), "application/json")
 
 
 @app.route("/api/compare")

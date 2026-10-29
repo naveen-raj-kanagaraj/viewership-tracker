@@ -320,29 +320,37 @@ if(GL&&!CAT&&!SEC){if(window.innerWidth<640){const g=document.getElementById('gc
 if(CAT)document.getElementById('gcard').style.display='none';
 if(!CAT&&!SEC)document.querySelector('.two').style.display='none';
 // Home: five-row cards for today (live now, streamers, channels, trending videos, moments), filtered by one category
-const HM={slug:CAT||'',j:null,m:null,open:{},key:''};
-async function homeLoad(){const sl=HM.slug,name=sl?(CAT?CATNAME:((D&&D.categories||[]).find(g=>g.slug===sl)||{}).game||''):'';
- try{const [a,b]=await Promise.all([fetch('/api/home?region='+REGION+(sl?'&cat='+encodeURIComponent(sl):'')).then(r=>r.json()),
-   fetch('/api/moments?region='+REGION+'&period=today&sort=views'+(name?'&game='+encodeURIComponent(name):'')).then(r=>r.json())]);
+const HM={slug:CAT||'',j:null,m:null,open:{},key:''},TOPICS=__TOPICS__;
+// HM.slug: '' (everything), a game slug, or 't:<YouTube category>'
+const hTopic=()=>HM.slug.startsWith('t:')?HM.slug.slice(2):'';
+const hGame=()=>{const sl=HM.slug;if(!sl||hTopic())return '';return CAT?CATNAME:(((D&&D.categories)||[]).find(g=>g.slug===sl)||{}).game||(HM.gname||'')};
+async function homeLoad(){const sl=HM.slug,tp=hTopic(),gn=hGame();
+ try{const [a,b]=await Promise.all([fetch('/api/home?region='+REGION+(tp?'&topic='+encodeURIComponent(tp):sl?'&cat='+encodeURIComponent(sl):'')).then(r=>r.json()),
+   fetch('/api/moments?region='+REGION+'&period=today&sort=views'+(gn?'&game='+encodeURIComponent(gn):'')).then(r=>r.json())]);
   if(sl!==HM.slug)return;HM.j=a;HM.m=b;renderHome()}catch(e){}}
 function hcard(id,title,cap,L,fn,empty,link){const n=L.length,o=HM.open[id],show=o?L.slice(0,50):L.slice(0,5);
  return `<div class="list"><div class="lh"><h2>${title}</h2>${link?`<div class="r"><a class="hopen" href="${link}">ALL</a></div>`:''}<div class="cap">${cap}</div></div>${show.map(fn).join('')||`<div class="empty">${empty}</div>`}${n>5?`<button class="more" data-hm="${id}">${o?'Show top 5':'See all '+Math.min(n,50)}</button>`:''}</div>`}
 function renderHome(){const box=document.getElementById('hcs');if(!box)return;if(SEC){box.remove();document.getElementById('hbar').remove();return}
- const sl=HM.slug,g=sl?(CAT?{game:CATNAME}:(D.categories||[]).find(x=>x.slug===sl)||{game:''}):null,gn=g?g.game:'';
- if(!CAT){const sel=document.getElementById('hcat'),C=(D.categories||[]).slice(0,80),opts='<option value="">All categories</option>'+C.map(x=>`<option value="${esc(x.slug)}"${x.slug===sl?' selected':''}>${esc(x.game)}</option>`).join('')+(sl&&!C.some(x=>x.slug===sl)?`<option value="${esc(sl)}" selected>${esc(gn||sl)}</option>`:'');
-  if(sel._o!==opts){sel.innerHTML=opts;sel._o=opts;sel.value=sl}sel.onchange=()=>{HM.slug=sel.value;HM.j=HM.m=null;HM.open={};renderHome();homeLoad()};
-  const ho=document.getElementById('hopen');ho.style.display=sl?'':'none';if(sl){ho.href=CU(sl);ho.textContent='OPEN '+String(gn).toUpperCase()+' PAGE >'}}
+ const sl=HM.slug,tp=hTopic(),gn=hGame(),lab=tp||gn;
+ if(!CAT){const sel=document.getElementById('hcat'),G=((D.categories||[]).slice(0,120)).sort((a,b)=>a.game.localeCompare(b.game));
+  const opts='<option value="">All categories</option><optgroup label="YouTube categories">'+TOPICS.map(t=>`<option value="t:${esc(t)}">${esc(t)}</option>`).join('')+'</optgroup><optgroup label="Games &amp; categories live now">'+G.map(x=>`<option value="${esc(x.slug)}">${esc(x.game)}</option>`).join('')+(sl&&!tp&&!G.some(x=>x.slug===sl)?`<option value="${esc(sl)}">${esc(gn||sl)}</option>`:'')+'</optgroup>';
+  if(sel._o!==opts){sel.innerHTML=opts;sel._o=opts}sel.value=sl;sel.onchange=()=>{HM.slug=sel.value;HM.gname=sel.selectedOptions[0]?sel.selectedOptions[0].textContent:'';HM.j=HM.m=null;HM.open={};renderHome();homeLoad()};
+  const ho=document.getElementById('hopen');ho.style.display=sl?'':'none';
+  if(sl){ho.href=tp?RP+'/rankings?mode=channels&platform=youtube&metric=vday&category='+encodeURIComponent(tp)+(GL?'':'&country=IN'):CU(sl);ho.textContent=(tp?'RANK ALL '+tp.toUpperCase()+' CHANNELS':'OPEN '+String(gn).toUpperCase()+' PAGE')+' >'}}
  else document.querySelector('#hbar .hsel').style.display='none';
- setT('hbt',CAT?`${CATNAME}: channels, videos and moments`:gn?`Top today in ${gn}`:'Top today');
- const lm=liveMap(),J=HM.j||{},M=(HM.m||{}).moments||[];
- const live=(D.live||[]).filter(x=>!gn||x.game===gn),board=(D.board||[]).filter(x=>!gn||x.game===gn).map(x=>({...x,now:lm[x.sid]||x.now||0})).sort((a,b)=>b.hw-a.hw);
+ setT('hbt',CAT?`${CATNAME}: channels, videos and moments`:lab?`Top today in ${lab}`:'Top today');
+ const lm=liveMap(),J=HM.j||{},LS=tp?new Set(J.live_sids||[]):null,keep=x=>tp?LS.has(x.sid):!gn||x.game===gn;
+ const M=((HM.m||{}).moments||[]).filter(m=>!tp||LS.has(m.sid));
+ const live=(D.live||[]).filter(keep),board=(D.board||[]).filter(keep).map(x=>({...x,now:lm[x.sid]||x.now||0})).sort((a,b)=>b.hw-a.hw);
  const chL=c=>`${RP}/ch/${encodeURIComponent(c.sid)}`,R=(i,inner,href,cls)=>`<a class="row${cls?' '+cls:''}" href="${href}"${/^https?:/.test(href)?' target="_blank" rel="noopener"':''}><span class="rk${i<3?' r'+(i+1):''}">${i+1}</span>${inner}</a>`;
- const ld=HM.j?'':'Loading...';
+ const ld=HM.j?'':'Loading...',chq=(m,extra)=>RP+'/rankings?mode=channels&platform=youtube&metric='+m+(tp?'&category='+encodeURIComponent(tp):'')+(gn?'&game='+encodeURIComponent(gn):'')+(GL?'':'&country=IN');
  const cards=[];
- if(!CAT){cards.push(hcard('live','Top live now','Most watching at once, right now.',live,(x,i)=>R(i,`${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">${gn?'':esc(x.game)+' · '}${esc(x.title)}</div></span><span class="vv">${full(x.viewers)}</span>`,chL(x)),'Nothing live right now.'));
-  cards.push(hcard('board','Top streamers today','Hours watched since midnight IST.',board,(x,i)=>R(i,`${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}${dl(x.delta)}</div><div class="ds">${x.now?`<span class="lv">LIVE</span>${full(x.now)} · `:''}${gn?'':esc(x.game)+' · '}peak ${fmt(x.peak)}</div></span><span class="vv">${fmt(x.hw)}h<small>avg ${fmt(x.avg)}</small></span>`,chL(x)),'No streamers recorded today yet.',RP+'/rankings'))}
- if(CAT){const T=J.channels||[];cards.push(hcard('cat','Biggest channels','Channels whose main game is '+esc(CATNAME)+', streamers and uploaders, by subscribers / followers.',T,(x,i)=>R(i,`${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">${NAMES[x.platform]||''}${x.views_day?' · +'+fmt(x.views_day)+' views today':''}</div></span><span class="vv">${x.subs!=null?fmt(x.subs):'-'}<small>${x.platform==='youtube'?'subscribers':'followers'}</small></span>`,chL(x)),ld||'No channels found for this game yet. Channels are tagged by what they post, so this fills in as they are tracked.'))}
- cards.push(hcard('chan','Top channels today','YouTube channel views gained in the last day.',J.channels_today||[],(x,i)=>R(i,`${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">${esc(x.game||x.topic||'')}${x.subs_day?' · '+(x.subs_day>0?'+':'')+fmt(x.subs_day)+' subs':''}</div></span><span class="vv">+${fmt(x.views_day)}<small>views</small></span>`,chL(x)),ld||'Fills in after two daily snapshots of each channel.'));
+ const chanCard=()=>hcard('chan','Top YouTube channels today','Channel views gained in the last day (all videos, not only live).',J.channels_today||[],(x,i)=>R(i,`${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">${esc(x.topic||x.game||'')}${x.subs_day?' · '+(x.subs_day>0?'+':'')+fmt(x.subs_day)+' subs':''}</div></span><span class="vv">+${fmt(x.views_day)}<small>views</small></span>`,chL(x)),ld||'Fills in after two daily snapshots of each channel.',chq('vday'));
+ const bigCard=()=>{const T=J.channels||[];return hcard('cat','Biggest channels',tp?`YouTube channels in ${esc(tp)}, by subscribers.`:'Channels whose main game is '+esc(gn)+', streamers and uploaders, by subscribers / followers.',T,(x,i)=>R(i,`${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">${NAMES[x.platform]||''}${x.views_day?' · +'+fmt(x.views_day)+' views today':''}</div></span><span class="vv">${x.subs!=null?fmt(x.subs):'-'}<small>${x.platform==='youtube'?'subscribers':'followers'}</small></span>`,chL(x)),ld||'No channels found here yet. Channels are tagged by what they post, so this fills in as they are tracked.',chq('size'))};
+ if(!CAT&&!tp)cards.push(chanCard());
+ if(CAT||tp)cards.push(bigCard(),chanCard());
+ if(!CAT){cards.push(hcard('live','Top live now','Most watching at once, right now.',live,(x,i)=>R(i,`${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">${gn?'':esc(x.game)+' · '}${esc(x.title)}</div></span><span class="vv">${full(x.viewers)}</span>`,chL(x)),tp&&!HM.j?'Loading...':'Nothing live right now.'));
+  cards.push(hcard('board','Top streamers today','Hours watched live since midnight IST.',board,(x,i)=>R(i,`${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}${dl(x.delta)}</div><div class="ds">${x.now?`<span class="lv">LIVE</span>${full(x.now)} · `:''}${gn?'':esc(x.game)+' · '}peak ${fmt(x.peak)}</div></span><span class="vv">${fmt(x.hw)}h<small>avg ${fmt(x.avg)}</small></span>`,chL(x)),'No streamers recorded today yet.',RP+'/rankings?mode=live'))}
  cards.push(hcard('vids','Trending videos','Most viewed videos posted in the last 3 days.',J.trending||[],(v,i)=>R(i,`${v.platform==='youtube'?`<img class="th" src="https://i.ytimg.com/vi/${esc(v.vid)}/mqdefault.jpg" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">`:`<span class="th" style="display:grid;place-items:center;color:${COL[v.platform]};font:600 11px 'Barlow Condensed',sans-serif">${(NAMES[v.platform]||'').toUpperCase()}</span>`}<span style="min-width:0"><div class="nm">${esc(v.title)}</div><div class="ds">${esc(v.name)} · ${ago(v.ts)}${v.short?' · Short':v.live?' · stream':''}</div></span><span class="vv">${fmt(v.views)}<small>views</small></span>`,v.url||('https://youtu.be/'+v.vid),'v'),ld||'No videos tracked for this yet.'));
  cards.push(hcard('mom','Top moments today','Biggest viewer jumps today, ranked by peak viewers.',M,(m,i)=>R(i,`${av(m)}<span style="min-width:0"><div class="nm">${esc(m.name)}</div><div class="ds">${esc(m.title)}</div></span><span class="vv">${fmt(m.peak)}<small>+${fmt(m.peak-m.base)}</small></span>`,RP+'/moments?period=today&sort=views&id='+m.id),HM.m?'No moments yet today.':'Loading...',RP+'/moments?period=today'+(gn?'&game='+encodeURIComponent(gn):'')));
  const h=cards.join('');if(HM.key!==h){HM.key=h;box.innerHTML=h}
@@ -599,7 +607,7 @@ def build_html(cat: str = "", cat_name: str = "", region: str = "in", sec: str =
     return (PAGE.replace("__QS__", qs).replace("__PANEL_JS__", PANEL_JS).replace("__PANEL_CSS__", PANEL_CSS).replace("__TITLE__", html.escape(title)).replace("__DESC__", html.escape(desc))
                 .replace("__CATNAME__", json.dumps(cat_name)).replace("__CAT__", json.dumps(cat))
                 .replace("__SEC__", json.dumps(sec)).replace("__REGION__", json.dumps(region))
-                .replace("__SECTIONS__", json.dumps(scene.SECTIONS)).replace("__HOME__", home)
+                .replace("__SECTIONS__", json.dumps(scene.SECTIONS)).replace("__TOPICS__", json.dumps(__import__("tracker.ytextra", fromlist=["x"]).CATEGORIES)).replace("__HOME__", home)
                 .replace("__BRAND__", html.escape(eventpage.BRAND)).replace("__SITEURL__", json.dumps(eventpage.SITE_URL))
                 .replace("__SOCIAL__", " · ".join(f'<a href="{html.escape(u, quote=True)}" target="_blank" rel="noopener">{html.escape(h)}</a>'
                                                      for _, u, h in eventpage.SOCIAL)))

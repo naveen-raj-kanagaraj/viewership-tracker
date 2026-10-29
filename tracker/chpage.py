@@ -74,6 +74,9 @@ __PANEL_CSS__
 .cx{padding:4px 12px 12px}.cxc{grid-template-columns:1fr}.cxt td{font-size:14px;padding:4px 3px}.cxt th{padding:4px 3px;font-size:10px}.cxd div{grid-template-columns:52px minmax(0,1fr) 64px 50px}.cxd div span:nth-child(5){display:none}
 .ps{padding:4px 12px 12px}.ps a,.ps .hdr{grid-template-columns:62px minmax(0,1fr) 64px}.ps a>:nth-child(3),.ps .hdr>:nth-child(3),.ps a>:nth-child(5),.ps .hdr>:nth-child(5){display:none}}
 .plats{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.plats>*{font:600 12px "Barlow Condensed",sans-serif;letter-spacing:.05em;text-transform:uppercase;padding:5px 12px;border:1px solid;border-left-width:3px;text-decoration:none;color:var(--muted)}.plats .on{color:var(--ink);background:var(--card2)}.act{display:flex;gap:8px;flex-wrap:wrap}.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
+.bopts{display:flex;flex-wrap:wrap;gap:6px;margin:12px 16px 0}.bopts button{background:var(--card2);border:1px solid var(--line);color:var(--muted);font:600 12px "Barlow Condensed",sans-serif;letter-spacing:.03em;padding:6px 10px;cursor:pointer;text-align:left}.bopts button.on{border-color:var(--lime);color:var(--ink)}.bopts b{color:var(--lime);margin-right:4px}
+.bprev{margin:14px 16px 0;padding:18px;background:repeating-conic-gradient(#15151f 0 25%,#101018 0 50%) 0 0/16px 16px;border:1px solid var(--line);display:flex;justify-content:center;overflow:hidden}.bprev img{max-width:100%;height:auto;display:block}
+.bcode{margin:4px 16px 16px}.bcode textarea{width:100%;margin-top:8px;background:#0b0b12;color:var(--ink);border:1px solid var(--line);font:12px ui-monospace,Menlo,monospace;padding:8px;resize:none}.brow{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
 </style></head><body>
 <div class="top"><div class="in"><a class="brand" href="__HOME__">__BRAND__</a><span class="beta">BETA</span><span class="nav"><a href="__HOME__">DASHBOARD</a><a href="__RP__/rankings">RANKINGS</a><a href="/map">MAP</a></span></div></div>
 <div class="wrap">
@@ -87,6 +90,9 @@ __PANEL_CSS__
  <div class="ps" id="vidlist"></div></div>
 <div id="smodal" style="position:fixed;inset:0;z-index:60;background:rgba(3,2,12,.85);display:none;align-items:center;justify-content:center;padding:16px"><div style="background:var(--bg2);border:1px solid var(--line);padding:14px;max-width:440px;width:100%;max-height:94vh;overflow:auto">
  <img id="simg" alt="Share card" style="width:100%;display:block;border:1px solid var(--line);margin-bottom:10px"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="sgo">SHARE</button><button class="btn" id="sdl">DOWNLOAD</button><button class="btn" id="sx" style="background:none;color:var(--muted);border:1px solid var(--line)">CLOSE</button></div></div></div>
+<div class="card" id="bcard" style="display:none"><div class="vhead"><div><h2>Creator badge</h2><div class="cap">A live badge for your website, link page or press kit. It updates itself as the rank changes. Pick which rank to show.</div></div></div>
+ <div class="bopts" id="bopts"></div><div class="bprev"><img id="bimg" alt="Badge preview"></div>
+ <div class="bcode"><div class="vseg" id="bfmt" style="margin:8px 0 0"></div><textarea id="btxt" readonly rows="3"></textarea><div class="brow"><button class="btn" id="bcopy">COPY CODE</button><button class="btn ghost" id="bpng">DOWNLOAD PNG</button></div></div></div>
 <div class="card" id="vcard" style="display:none"><h2>Channel views per day</h2><div class="cap">The channel's public counters on YouTube (total views of all its videos, live and uploaded; subscribers), recorded once a day by this site. Views gained = how much the total grew between two days.</div><div id="views"></div></div>
 <div class="card" id="lcard"><h2>Live stats on this site</h2><div class="cap">Recorded by this site every 2 seconds while the channel is live.</div><div id="stats"></div></div>
 <div class="card" id="mcard" style="display:none"><h2>Moments</h2><div class="cap">Sudden jumps in viewers on this channel, newest first. Opens at the moment.</div><div class="ps" id="moms"></div></div>
@@ -251,7 +257,22 @@ async function moms(){try{const j=await (await fetch('/api/moments?sid='+encodeU
  document.getElementById('mcard').style.display='';
  document.getElementById('moms').innerHTML=L.slice(0,20).map(m=>`<a href="${esc(m.link||c_url)}" target="_blank" rel="noopener"><span class="d">${ist(m.ts,{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}</span><span class="t">${esc(m.title)}</span><span class="n" style="color:var(--lime)">+${fmt(m.peak-m.base)}</span><span class="n">${fmt(m.peak)}<small>peak</small></span><span class="n">${m.embed==='tw_clip'?'clip':m.embed?'replay':'channel'}</span></a>`).join('')}catch(e){}}
 let c_url='#';
-load();past();moms();videos();setInterval(()=>{if(!document.hidden)load()},15000);
+const SITE=__SITEURL__;
+async function badges(){try{const O=await (await fetch('/api/badges?sid='+encodeURIComponent(SID))).json();if(!O.length)return;
+ document.getElementById('bcard').style.display='';let k=0,f='html';
+ const url=o=>SITE+'/badge/'+SID+'.svg?m='+o.m+'&s='+o.s,page=SITE+RP+'/ch/'+SID,alt=o=>`Ranked #${o.rank} ${o.title} ${o.by}`;
+ const code=o=>f==='html'?`<a href="${page}" target="_blank" rel="noopener"><img src="${url(o)}" alt="${esc(alt(o))}" height="80"></a>`:f==='md'?`[![${alt(o)}](${url(o)})](${page})`:page;
+ const draw=()=>{const o=O[k];document.getElementById('bopts').innerHTML=O.slice(0,12).map((x,i)=>`<button data-i="${i}" class="${i===k?'on':''}"><b>#${full(x.rank)}</b>${esc(x.title)} · ${esc(x.by)}</button>`).join('');
+  document.getElementById('bimg').src='/badge/'+SID+'.svg?m='+o.m+'&s='+o.s;
+  const fe=document.getElementById('bfmt');fe.innerHTML=[['html','HTML'],['md','MARKDOWN'],['link','LINK']].map(([v,l])=>`<button data-v="${v}" class="${v===f?'on':''}">${l}</button>`).join('');
+  document.getElementById('btxt').value=code(o)};
+ document.getElementById('bopts').onclick=e=>{const b=e.target.closest('button');if(b){k=+b.dataset.i;draw()}};
+ document.getElementById('bfmt').onclick=e=>{const b=e.target.closest('button');if(b){f=b.dataset.v;draw()}};
+ document.getElementById('bcopy').onclick=async e=>{const t=document.getElementById('btxt');try{await navigator.clipboard.writeText(t.value)}catch(_){t.select();document.execCommand('copy')}e.target.textContent='COPIED';setTimeout(()=>e.target.textContent='COPY CODE',1500)};
+ document.getElementById('bpng').onclick=()=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),s=3;c.width=im.naturalWidth*s;c.height=im.naturalHeight*s;const x=c.getContext('2d');x.scale(s,s);x.drawImage(im,0,0);
+  c.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(CDATA&&CDATA.name||'badge').replace(/[^\w-]+/g,'_')+'_rank.png';a.click()},'image/png')};im.src=document.getElementById('bimg').src};
+ draw()}catch(e){}}
+load();past();moms();videos();badges();setInterval(()=>{if(!document.hidden)load()},15000);
 </script></body></html>"""
 
 
@@ -259,6 +280,6 @@ def build_html(sid: str, name: str, region: str = "global") -> str:
     region = "in" if region == "in" else "global"
     return (PAGE.replace("__PANEL_JS__", scenepage.PANEL_JS).replace("__PANEL_CSS__", scenepage.PANEL_CSS)
             .replace("__NAME__", html.escape(name)).replace("__BRAND__", html.escape(eventpage.BRAND))
-            .replace("__SID__", json.dumps(sid)).replace("__REGION__", json.dumps(region))
+            .replace("__SID__", json.dumps(sid)).replace("__SITEURL__", json.dumps(eventpage.SITE_URL)).replace("__REGION__", json.dumps(region))
             .replace("__RP__", "/india" if region == "in" else "").replace("__HOME__", "/india" if region == "in" else "/")
             .replace("__WHERECAP__", "INDIA" if region == "in" else "WORLDWIDE"))

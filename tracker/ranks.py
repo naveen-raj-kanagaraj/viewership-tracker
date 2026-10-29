@@ -4,10 +4,13 @@ snapshot of each channel), so pages read them instantly.
 
 Metrics
     size     subscribers (YouTube) / followers (Twitch, Kick): the latest daily snapshot
-    growth   YouTube: channel views gained in the last 30 days; Twitch / Kick: followers gained in 30 days
+    views    YouTube: total channel views (lifetime)
+    vday     YouTube: channel views gained in the last day; Twitch / Kick: followers gained
+    v7       the same over 7 days
+    growth   the same over 30 days
     live     hours watched live in the last 30 days (recorded by this site)
-Country: YouTube's channel country, or India for channels detected as Indian. Category: YouTube's topic tags
-(Gaming, Music, Sports ...) for YouTube channels, the section of their most-streamed game for Twitch / Kick.
+Country: YouTube's channel country, or India for channels detected as Indian. Category: YouTube's own category
+(Gaming, People & Blogs, Music ...) for YouTube channels, the section of their most-streamed game for Twitch / Kick.
 """
 import threading
 import time
@@ -17,7 +20,9 @@ from tracker import events, store
 
 _R = {"at": 0, "rank": {}, "tot": {}, "rows": {}}
 _lock = threading.Lock()
-METRICS = ("size", "growth", "live")
+_YT_FROM_SEC = {"gaming": "Gaming", "esports": "Gaming", "news": "News & Politics", "music": "Music", "sports": "Sports",
+                "irl": "People & Blogs", "just-chatting": "People & Blogs", "devotional": "People & Blogs", "podcasts": "Entertainment"}
+METRICS = ("size", "views", "vday", "v7", "growth", "live")
 
 
 def _rows():
@@ -30,33 +35,46 @@ def _rows():
         latest = {r[0]: (r[1], r[2]) for r in c.execute(
             """SELECT s.sid, s.subs, s.views FROM sc_chstats s JOIN (SELECT sid, MAX(day) d FROM sc_chstats GROUP BY sid) m
                ON m.sid=s.sid AND m.d=s.day""")}
-        old = {r[0]: (r[1], r[2]) for r in c.execute(
-            """SELECT s.sid, s.subs, s.views FROM sc_chstats s JOIN (SELECT sid, MIN(day) d FROM sc_chstats WHERE day>=? GROUP BY sid) m
-               ON m.sid=s.sid AND m.d=s.day""", (d30,))}
+        def first_since(d):
+            return {r[0]: (r[1], r[2], r[3]) for r in c.execute(
+                """SELECT s.sid, s.subs, s.views, s.day FROM sc_chstats s JOIN (SELECT sid, MIN(day) d FROM sc_chstats WHERE day>=? GROUP BY sid) m
+                   ON m.sid=s.sid AND m.d=s.day""", (d,))}
+        old, old7 = first_since(d30), first_since((today - timedelta(days=7)).strftime("%Y-%m-%d"))
         hw = dict(c.execute("SELECT sid, SUM(hw) FROM sc_daily WHERE day>=? GROUP BY sid", (d30,)).fetchall())
         top_game = {}
         for sid, g, h in c.execute("SELECT sid, game, SUM(hw) FROM sc_daily WHERE day>=? GROUP BY sid, game", (d30,)):
             if h and (sid not in top_game or h > top_game[sid][1]):
                 top_game[sid] = (g, h)
         chans = {r["sid"]: dict(r) for r in c.execute(
-            "SELECT sid, platform, name, logo, url, country, COALESCE(india,0) india, game, topic FROM sc_channels")}
+            "SELECT sid, platform, name, logo, url, country, COALESCE(india,0) india, game, topic, ytcat FROM sc_channels")}
+    day1 = ytextra._latest_gains()
     rows = []
     for sid, ch in chans.items():
-        L, O = latest.get(sid), old.get(sid)
+        L, O, O7 = latest.get(sid), old.get(sid), old7.get(sid)
         size = L[0] if L else None
-        if ch["platform"] == "youtube":
-            growth = (L[1] - O[1]) if L and O and L[1] is not None and O[1] is not None else None
-        else:
-            growth = (L[0] - O[0]) if L and O and L[0] is not None and O[0] is not None else None
+        k = 1 if ch["platform"] == "youtube" else 0          # YouTube: views; Twitch / Kick: followers
+
+        def gain(A):
+            if not (L and A and L[k] is not None and A[k] is not None) or L[k] - A[k] < 0:
+                return None
+            return L[k] - A[k] if k == 0 or L[k] - A[k] <= .25 * max(L[k], 1) else None    # skip misread snapshots
+        growth, v7 = gain(O), gain(O7)
+        g1 = day1.get(sid)
+        vday = g1[0 if k else 1] if g1 else None
+        views = L[1] if k and L else None
         live = hw.get(sid) or 0
         if size is None and not live:
             continue
         ct = scene.country_of(ch["country"]) or (scene.country_of("IN") if ch["india"] else None)
         g = (top_game.get(sid) or (ch["game"], 0))[0] or ""
-        cat = ch["topic"] if ch["platform"] == "youtube" and ch["topic"] else (scene.SECTION_NAMES.get(scene.section_of(g), "") if g else "")
+        sec = scene.section_of(g) if g else ""
+        if ch["platform"] == "youtube":          # YouTube's own categories only (until known: nearest one to what they stream)
+            cat = ch["ytcat"] or ch["topic"] or _YT_FROM_SEC.get(sec, "")
+        else:
+            cat = scene.SECTION_NAMES.get(sec, "")
         rows.append({"sid": sid, "platform": ch["platform"], "name": ch["name"], "logo": ch["logo"], "url": ch["url"],
                      "country": ct[0] if ct else "", "country_name": ct[2] if ct else "", "category": cat or "", "game": g,
-                     "size": size, "growth": growth, "live": round(live)})
+                     "size": size, "views": views, "vday": vday, "v7": v7, "growth": growth, "live": round(live)})
     return rows
 
 
@@ -67,7 +85,7 @@ def compute():
         for scope in ("world", "country", "category", "game"):
             groups = {}
             for r in rows:
-                if r[m] is None or (m == "live" and not r[m]) or (m == "growth" and r[m] <= 0):
+                if r[m] is None or (m in ("live", "views") and not r[m]) or (m in ("growth", "vday", "v7") and r[m] <= 0):
                     continue
                 key = {"world": "", "country": r["country"], "category": r["category"], "game": r["game"]}[scope]
                 if scope != "world" and not key:
@@ -114,16 +132,18 @@ def for_channel(sid: str) -> list:
     return out
 
 
-def top(platform: str = "youtube", metric: str = "size", country: str = "", category: str = "", limit: int = 100) -> dict:
+def top(platform: str = "youtube", metric: str = "size", country: str = "", category: str = "", limit: int = 100, game: str = "") -> dict:
     with _lock:
         rows = [r for r in _R["rows"].values() if r["platform"] == platform and r[metric] is not None
-                and (metric != "growth" or r[metric] > 0) and (metric != "live" or r[metric])
-                and (not country or r["country"] == country) and (not category or r["category"] == category)]
-        cats = sorted({r["category"] for r in _R["rows"].values() if r["platform"] == platform and r["category"]})
+                and (metric not in ("growth", "vday", "v7") or r[metric] > 0) and (metric not in ("live", "views") or r[metric])
+                and (not country or r["country"] == country) and (not category or r["category"] == category)
+                and (not game or r["game"] == game)]
+        cats = sorted({r["category"] for r in _R["rows"].values() if r["platform"] == platform and r["category"]}, key=str.lower)
         ctrs = sorted({(r["country"], r["country_name"]) for r in _R["rows"].values() if r["platform"] == platform and r["country"]},
                       key=lambda x: x[1])
         at = _R["at"]
     rows.sort(key=lambda r: -r[metric])
-    return {"platform": platform, "metric": metric, "total": len(rows), "updated": at,
+    games = sorted({r["game"] for r in _R["rows"].values() if r["platform"] == platform and r["game"] and r["game"] != "Other"}, key=str.lower)
+    return {"platform": platform, "metric": metric, "total": len(rows), "updated": at, "games": games,
             "rows": [{**r, "rank": i + 1} for i, r in enumerate(rows[:limit])],
             "categories": cats, "countries": [{"code": a, "name": b} for a, b in ctrs]}

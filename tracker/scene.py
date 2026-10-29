@@ -371,7 +371,7 @@ def _db():
         store.kv_set("scene_mig_pubg", True)
     if not _COLS:
         have = {r[1] for r in c.execute("PRAGMA table_info(sc_channels)")}
-        for col, typ in (("country", "TEXT"), ("india", "INTEGER"), ("language", "TEXT"), ("tracked", "INTEGER"), ("topic", "TEXT")):
+        for col, typ in (("country", "TEXT"), ("india", "INTEGER"), ("language", "TEXT"), ("tracked", "INTEGER"), ("topic", "TEXT"), ("ytcat", "TEXT")):
             if col not in have:
                 c.execute(f"ALTER TABLE sc_channels ADD COLUMN {col} {typ}")
         c.commit()
@@ -1065,7 +1065,7 @@ def _events() -> list:
                         "next_start": events.next_start(ev["key"]), "now": last[1] if live else 0, "peak": peak,
                         "url": f"/e/{ev['key']}/"})
     order = {"live": 0, "upcoming": 1, "off": 2, "ended": 3}
-    return sorted(out, key=lambda e: order[e["state"]])
+    return sorted(out, key=lambda e: (order[e["state"]], (e["next_start"] or 9e18) if e["state"] == "upcoming" else 0))   # soonest first
 
 
 def category_name(cat: str):
