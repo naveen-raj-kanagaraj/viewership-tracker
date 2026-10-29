@@ -309,6 +309,17 @@ As of 26 Oct 2026:
 - Back button (29 Oct): web.FASTNAV adds a BACK arrow to the top bar of every page except / and /india (goes back
   in history when the visitor came from this site, else to the dashboard). Phones: channel page hides the top links,
   map hides GLOBAL/INDIA and the clock so nothing overflows.
+- v18 (29 Oct): YouTube categories are YouTube's own 15 (ytextra.YT_CATS / CATEGORIES, alphabetical): a channel's
+  category = the categoryId most of its last 40 videos carry (sc_channels.ytcat, needs the API key), else its topic
+  tags mapped to the nearest one (topic_of). Home dropdown: "YouTube categories" + "Games & categories live now",
+  both alphabetical; a YouTube category filters every card (`/api/home?topic=`). Home leads with "Top YouTube channels
+  today" (views gained). Rankings opens on CHANNELS (YouTube: views today / 7d / 30d / total views / subscribers / live
+  hours; Twitch, Kick: followers and follower gains), filters: YouTube category, game, country. ranks.METRICS adds
+  views, vday, v7. Live streamers stay one tab away (`/rankings?mode=live`).
+- Creator badges (tracker/badge.py): `/badge/<sid>.svg?m=<metric>&s=<scope>`, a live image of one rank (only ranks
+  among 10+ channels), cached 30 min. Channel page "Creator badge" card: pick a rank, copy HTML / Markdown / link,
+  download PNG. `/api/badges?sid=`.
+- Home event cards: upcoming tournaments sorted soonest first (BMIC 30 Oct, then CEGC 3 Nov).
 
 ## Ideas not built yet
 

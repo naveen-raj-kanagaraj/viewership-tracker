@@ -542,3 +542,30 @@ with store._lock:
 assert [m["peak"] for m in mo.recent("global", "today", "Free Fire", sort="views")["moments"] if m["sid"].startswith("kick:m")] == [9000, 5000, 3000]
 assert [m["peak"] - m["base"] for m in mo.recent("global", "today", "Free Fire", sort="jump")["moments"] if m["sid"].startswith("kick:m")] == [7000, 2500, 1000]
 print("HOME OK")
+# YouTube categories, channel ranks by views, badges, events order
+assert yx.topic_of(["https://en.wikipedia.org/wiki/Lifestyle_(sociology)"]) == "People & Blogs" and yx.topic_of(["https://en.wikipedia.org/wiki/Humour"]) == "Comedy"
+assert yx.CATEGORIES == sorted(yx.CATEGORIES) and "People & Blogs" in yx.CATEGORIES
+with store._lock:
+    cc = sc._db()
+    cc.execute("UPDATE sc_channels SET ytcat='People & Blogs' WHERE sid='yt:UCaman'")
+    for k_ in range(12):
+        cc.execute("INSERT OR IGNORE INTO sc_channels (sid, platform, name, country, topic) VALUES (?,?,?,?,?)", (f"yt:UCfill{k_:018d}", "youtube", f"Fill {k_}", "IN", "People & Blogs"))
+        for dd_, vv in ((yd, 1000), (dd.strftime("%Y-%m-%d"), 1000 + 10 * k_)):
+            cc.execute("INSERT OR REPLACE INTO sc_chstats VALUES (?,?,?,?,?,?)", (dd_, f"yt:UCfill{k_:018d}", 100 + k_, vv, 5, 0))
+    cc.commit()
+rk.compute()
+tv_ = c.get("/api/topch?platform=youtube&metric=vday&category=People%20%26%20Blogs").get_json()
+assert tv_["rows"][0]["sid"] == "yt:UCaman" and tv_["rows"][0]["vday"] == 50000 and "People & Blogs" in tv_["categories"], tv_["rows"][:2]
+assert c.get("/api/topch?platform=youtube&metric=views").get_json()["rows"][0]["views"] >= 10**9
+ho = c.get("/api/home?region=global&topic=People%20%26%20Blogs").get_json()
+assert [x["sid"] for x in ho["channels_today"]][0] == "yt:UCaman" and ho["channels"] and ho["topics"] == yx.CATEGORIES
+from tracker import badge as bg
+bo = bg.options("yt:UCaman")
+assert bo and bo[0]["rank"] == 1 and all(o["of"] >= 10 for o in bo), bo
+F11 = "yt:UCfill" + "%018d" % 11
+assert any(o["rank"] == 2 and o["s"] == "category" and o["m"] == "vday" for o in bg.options(F11)), bg.options(F11)
+sv = c.get(f"/badge/{F11}.svg?m=vday&s=category").data.decode()
+assert sv.startswith("<svg") and "#2" in sv and "People &amp; Blogs" in sv and "letsgrowesports".upper() in sv.upper(), sv[:200]
+assert c.get("/badge/bad.svg").status_code == 404 and c.get(f"/api/badges?sid={F11}").get_json()
+assert "badges()" in c.get(f"/ch/{F11}").data.decode()
+print("BADGES OK")

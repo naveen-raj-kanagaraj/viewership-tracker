@@ -64,6 +64,13 @@ def _db():
         if "game" not in cols:
             c.execute("ALTER TABLE yt_videos ADD COLUMN game TEXT DEFAULT ''")
             c.execute("CREATE INDEX IF NOT EXISTS yt_videos_game ON yt_videos(game, ts)")
+        if "cat" not in cols:
+            c.execute("ALTER TABLE yt_videos ADD COLUMN cat INTEGER")
+        if not store.kv_get("topics_v2"):                       # old coarse names -> YouTube's own category names
+            for a, b in (("News & politics", "News & Politics"), ("Lifestyle", "People & Blogs"), ("Religion", "People & Blogs"), ("Other", "")):
+                c.execute("UPDATE sc_channels SET topic=? WHERE topic=?", (b, a))
+            c.commit()
+            store.kv_set("topics_v2", True)
         if not store.kv_get("ytv_fix_premieres"):
             c.execute("UPDATE yt_videos SET updated=0")          # re-read: premieres were counted as live
             c.commit()
@@ -328,19 +335,33 @@ def _about_stats(cid: str):
 
 
 _META = {}            # channel id -> {topic, country, name, logo} from the last API read
-_TOPICS = [("Gaming", r"game|gaming|esport"), ("Music", r"music"), ("Sports", r"sport|football|cricket|basketball|tennis|racing|boxing|wrestling|golf|baseball|hockey|volleyball|mixed_martial"),
-           ("News & politics", r"politic|society|military"), ("Religion", r"religion"), ("Education", r"knowledge|technology"),
-           ("Entertainment", r"entertainment|film|television|humour|performing_arts"),
-           ("Lifestyle", r"lifestyle|food|fashion|health|tourism|vehicle|pet|fitness|hobby|beauty")]
+# YouTube's own video categories (videos.list snippet.categoryId). A channel's category is the one most of its
+# recent videos are filed under; until its videos are read, it's derived from the channel's topic tags.
+YT_CATS = {1: "Film & Animation", 2: "Autos & Vehicles", 10: "Music", 15: "Pets & Animals", 17: "Sports", 19: "Travel & Events",
+           20: "Gaming", 22: "People & Blogs", 23: "Comedy", 24: "Entertainment", 25: "News & Politics", 26: "Howto & Style",
+           27: "Education", 28: "Science & Technology", 29: "Nonprofits & Activism"}
+CATEGORIES = sorted(set(YT_CATS.values()))
+_TOPICS = [("Gaming", r"game|gaming|esport"), ("Music", r"music|jazz|reggae"),
+           ("Sports", r"sport|football|cricket|basketball|tennis|racing|boxing|golf|baseball|hockey|volleyball|mixed_martial"),
+           ("Comedy", r"humour"), ("Film & Animation", r"film"), ("Pets & Animals", r"\bpet\b"), ("Autos & Vehicles", r"vehicle"),
+           ("Travel & Events", r"tourism"), ("Science & Technology", r"technology"),
+           ("Howto & Style", r"fashion|physical_attractiveness|food|fitness|hobby|health"), ("News & Politics", r"politic|military"),
+           ("Education", r"knowledge|business"), ("People & Blogs", r"lifestyle|religion"),
+           ("Entertainment", r"entertainment|television|performing_arts|wrestling"), ("People & Blogs", r"society")]
 
 
 def topic_of(urls: list) -> str:
-    """YouTube's topic tags (Wikipedia links like .../Action_game) -> one category for ranks."""
+    """YouTube's topic tags (Wikipedia links like .../Action_game) -> the nearest YouTube category."""
     names = " ".join(u.rsplit("/", 1)[-1].lower() for u in urls)
     for cat, rx in _TOPICS:
         if re.search(rx, names):
             return cat
-    return "Other" if names else ""
+    return ""
+
+
+def cat_of(row) -> str:
+    """A channel's category: from its videos when known, else from its topic tags."""
+    return (row["ytcat"] if "ytcat" in row.keys() and row["ytcat"] else row["topic"]) or ""
 
 
 def channel_stats(cids: list) -> dict:
@@ -1031,7 +1052,8 @@ def _api_videos(cid: str, since: float, key: str, pages: int = 20) -> list:
                         "views": int(st["viewCount"]) if "viewCount" in st else None,
                         "likes": int(st["likeCount"]) if "likeCount" in st else None,
                         "comments": int(st["commentCount"]) if "commentCount" in st else None,
-                        "secs": _iso_dur((v.get("contentDetails") or {}).get("duration")), "live": 1 if v["id"] in lives else 0, "approx": 0})
+                        "secs": _iso_dur((v.get("contentDetails") or {}).get("duration")), "live": 1 if v["id"] in lives else 0, "approx": 0,
+                        "cat": int(sn["categoryId"]) if str(sn.get("categoryId") or "").isdigit() else None})
     return out
 
 
@@ -1110,13 +1132,14 @@ def _refresh_videos(sid: str, full: bool):
         from tracker import scene
         rows = [(v["id"], sid, v["ts"], v["title"], v.get("views"), v.get("likes"), v.get("comments"), v.get("secs") or 0,
                  v.get("live", 0), v.get("approx", 1), now, v.get("short", 0), v.get("url") or "",
-                 scene.classify("", v.get("title") or "")) for v in vids if v.get("id")]
+                 scene.classify("", v.get("title") or ""), v.get("cat")) for v in vids if v.get("id")]
         with store._lock:
             c = _db()
             if rows:
                 # without the API a date is only "3 days ago": keep the first (closer) estimate once we have one
-                c.executemany("""INSERT INTO yt_videos (vid, sid, ts, title, views, likes, comments, secs, live, approx, updated, short, url, game)
-                                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(vid) DO UPDATE SET game=excluded.game,
+                c.executemany("""INSERT INTO yt_videos (vid, sid, ts, title, views, likes, comments, secs, live, approx, updated, short, url, game, cat)
+                                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(vid) DO UPDATE SET game=excluded.game,
+                                 cat=COALESCE(excluded.cat, yt_videos.cat),
                                  title=excluded.title, views=excluded.views,
                                  likes=COALESCE(excluded.likes, yt_videos.likes), comments=COALESCE(excluded.comments, yt_videos.comments),
                                  secs=CASE WHEN excluded.secs>0 THEN excluded.secs ELSE yt_videos.secs END,
@@ -1132,6 +1155,9 @@ def _refresh_videos(sid: str, full: bool):
                 top = max(set(named), key=named.count)
                 if named.count(top) >= .3 * len(gs):
                     c.execute("UPDATE sc_channels SET game=? WHERE sid=? AND (COALESCE(game,'') IN ('', 'Other') OR last_live IS NULL)", (top, sid))
+            cs = [k for (k,) in c.execute("SELECT cat FROM yt_videos WHERE sid=? AND cat IS NOT NULL ORDER BY ts DESC LIMIT 40", (sid,))]
+            if len(cs) >= 3:
+                c.execute("UPDATE sc_channels SET ytcat=? WHERE sid=?", (YT_CATS.get(max(set(cs), key=cs.count), ""), sid))
             c.commit()
         m = store.kv_get(f"vids:{sid}") or {}
         m["recent"] = now
@@ -1384,18 +1410,18 @@ def _chan_rows(sids: list) -> dict:
         return {}
     with store._lock:
         return {r["sid"]: dict(r) for r in _db().execute(
-            f"SELECT sid, platform, name, logo, url, game, topic, country, COALESCE(india,0) india FROM sc_channels WHERE sid IN ({','.join('?' * len(sids))})", sids)}
+            f"SELECT sid, platform, name, logo, url, game, COALESCE(NULLIF(ytcat,''), topic) topic, country, COALESCE(india,0) india FROM sc_channels WHERE sid IN ({','.join('?' * len(sids))})", sids)}
 
 
-def home_lists(region: str = "global", game: str = "", n: int = 25) -> dict:
+def home_lists(region: str = "global", game: str = "", n: int = 25, topic: str = "") -> dict:
     """Top channels by views gained in their last day (YouTube) and the most-viewed videos posted in the last 3 days,
-    for a region and optionally one game."""
+    for a region and optionally one game or one YouTube category."""
     g = _latest_gains()
     ch = _chan_rows([s for s, (v, _) in g.items() if v])
     top = []
     for sid, (v, sg) in sorted(g.items(), key=lambda kv: -(kv[1][0] or 0)):
         c = ch.get(sid)
-        if not c or not v or (region == "in" and not c["india"]) or (game and c["game"] != game):
+        if not c or not v or (region == "in" and not c["india"]) or (game and c["game"] != game) or (topic and c["topic"] != topic):
             continue
         top.append({**c, "views_day": v, "subs_day": sg})
         if len(top) >= n:
@@ -1409,19 +1435,26 @@ def home_lists(region: str = "global", game: str = "", n: int = 25) -> dict:
     if game:
         q += " AND v.game=?"
         a.append(game)
+    if topic:
+        ids = [k for k, v in YT_CATS.items() if v == topic]
+        q += f" AND (v.cat IN ({','.join('?' * len(ids)) or 'NULL'}) OR (v.cat IS NULL AND COALESCE(NULLIF(c.ytcat,''), c.topic)=?))"
+        a += ids + [topic]
     with store._lock:
         vids = [dict(r) for r in _db().execute(q + " ORDER BY v.views DESC LIMIT ?", (*a, n))]
-    return {"channels_today": top, "trending": vids}
+        live_sids = [r[0] for r in _db().execute("SELECT sid FROM sc_channels WHERE COALESCE(NULLIF(ytcat,''), topic)=? AND last_live>?",
+                                                  (topic, time.time() - 2 * 86400))] if topic else []
+    return {"channels_today": top, "trending": vids, "live_sids": live_sids}
 
 
-def category_channels(game: str, region: str = "global", n: int = 25) -> list:
-    """Channels whose main game is this one (streamers and uploaders), biggest first, with today's views gained."""
+def category_channels(game: str, region: str = "global", n: int = 25, topic: str = "") -> list:
+    """Channels whose main game is this one, or in this YouTube category (streamers and uploaders), biggest first,
+    with today's views gained."""
     with store._lock:
         rows = [dict(r) for r in _db().execute(
             """SELECT c.sid, c.platform, c.name, c.logo, c.url, c.game, COALESCE(c.india,0) india, s.subs, s.views
                FROM sc_channels c JOIN (SELECT s.sid, s.subs, s.views FROM sc_chstats s JOIN (SELECT sid, MAX(day) d FROM sc_chstats GROUP BY sid) m
-               ON m.sid=s.sid AND m.d=s.day) s ON s.sid=c.sid WHERE c.game=?""" + (" AND COALESCE(c.india,0)=1" if region == "in" else "") +
-            " ORDER BY COALESCE(s.subs,0) DESC LIMIT ?", (game, n))]
+               ON m.sid=s.sid AND m.d=s.day) s ON s.sid=c.sid WHERE """ + ("COALESCE(NULLIF(c.ytcat,''), c.topic)=?" if topic else "c.game=?") +
+            (" AND COALESCE(c.india,0)=1" if region == "in" else "") + " ORDER BY COALESCE(s.subs,0) DESC LIMIT ?", (topic or game, n))]
     g = _latest_gains()
     for r in rows:
         r["views_day"] = (g.get(r["sid"]) or (None, None))[0]

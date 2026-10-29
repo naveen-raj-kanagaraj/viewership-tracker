@@ -69,7 +69,7 @@ __PANEL_CSS__
 <p class="intro" id="intro">Ranked by what people actually watched live. Tap a streamer for their full numbers.</p>
 <div class="filters"><div class="seg" id="mode"></div></div>
 <div class="filters" id="cf" style="display:none"><div class="seg" id="cplat"></div><div class="seg" id="cmetric"></div>
- <select id="ccat"><option value="">All categories</option></select><select id="cctry"><option value="">All countries</option></select></div>
+ <select id="ccat"><option value="">All categories</option></select><select id="cgame"><option value="">All games</option></select><select id="cctry"><option value="">All countries</option></select></div>
 <div class="filters" id="lf">
  <div class="seg" id="period"></div>
  <div class="dt"><button id="prev" aria-label="Earlier">&#8249;</button><input type="date" id="date"><button id="next" aria-label="Later">&#8250;</button></div>
@@ -103,27 +103,32 @@ const liveMap=()=>{const m={};(R?R.rows:[]).forEach(x=>{if(x.now)m[x.sid]=x.now}
 const Q=new URLSearchParams(location.search);
 let S={period:['day','week','month'].includes(Q.get('period'))?Q.get('period'):'day',metric:Q.get('metric')||'hw',date:Q.get('date')||'',cat:Q.get('cat')||'',country:Q.get('country')||'',platform:Q.get('platform')||'',sec:Q.get('sec')||''};
 let R=null,OPEN=null,ALL=false;
-let MODE=Q.get('mode')==='channels'?'channels':'live',C={platform:['youtube','twitch','kick'].includes(Q.get('platform'))?Q.get('platform'):'youtube',metric:['size','growth','live'].includes(Q.get('metric'))?Q.get('metric'):'size',country:Q.get('country')||'',category:Q.get('category')||''},CR=null;
+let MODE=Q.get('mode')==='live'||(!Q.get('mode')&&(Q.get('period')||Q.get('cat')||Q.get('sec')))?'live':'channels',C={platform:['youtube','twitch','kick'].includes(Q.get('platform'))?Q.get('platform'):'youtube',metric:['size','views','vday','v7','growth','live'].includes(Q.get('metric'))?Q.get('metric'):'vday',country:Q.get('country')||(GL?'':'IN'),category:Q.get('category')||'',game:Q.get('game')||''},CR=null;
 if(MODE==='channels')S.metric='hw';
-const CML=m=>({size:C.platform==='youtube'?'SUBSCRIBERS':'FOLLOWERS',growth:C.platform==='youtube'?'VIEWS GAINED, 30D':'FOLLOWERS GAINED, 30D',live:'LIVE HOURS, 30D'})[m];
-const CMV=(m,v)=>v==null?'-':m==='live'?fmt(v)+'h':m==='growth'?'+'+fmt(v):fmt(v);
-function setMode(m){MODE=m;document.querySelector('h1').innerHTML=(m==='live'?'Top streamers ':'Top channels ')+`<em>${WHERE}</em>`;document.getElementById('lf').style.display=m==='live'?'':'none';document.getElementById('cf').style.display=m==='channels'?'':'none';
- seg('mode',[['live','LIVE STREAMERS'],['channels','CHANNELS']],MODE,v=>{setMode(v)});m==='live'?go():goCh()}
-async function goCh(){const p=new URLSearchParams({platform:C.platform,metric:C.metric});if(C.country)p.set('country',C.country);if(C.category)p.set('category',C.category);
+const YT=()=>C.platform==='youtube';
+const CML=m=>(YT()?{vday:'VIEWS, LAST DAY',v7:'VIEWS, 7 DAYS',growth:'VIEWS, 30 DAYS',views:'TOTAL VIEWS',size:'SUBSCRIBERS',live:'LIVE HOURS, 30D'}:{size:'FOLLOWERS',vday:'FOLLOWERS GAINED, DAY',v7:'FOLLOWERS GAINED, 7D',growth:'FOLLOWERS GAINED, 30D',live:'LIVE HOURS, 30D'})[m];
+const CMS=()=>YT()?[['vday','VIEWS TODAY'],['v7','VIEWS 7D'],['growth','VIEWS 30D'],['views','TOTAL VIEWS'],['size','SUBSCRIBERS'],['live','LIVE HOURS']]:[['size','FOLLOWERS'],['vday','GAINED TODAY'],['v7','GAINED 7D'],['growth','GAINED 30D'],['live','LIVE HOURS']];
+const CMV=(m,v)=>v==null?'-':m==='live'?fmt(v)+'h':['vday','v7','growth'].includes(m)?'+'+fmt(v):fmt(v);
+function setMode(m){MODE=m;document.querySelector('h1').innerHTML=(m==='live'?'Top streamers ':'Top channels ')+`<em>${WHERE}</em>`;document.getElementById('lf').style.display=m==='live'?'':'none';document.getElementById('cf').style.display=m==='channels'?'':'none';document.querySelector('.lth .lc').textContent=m==='live'?'STREAMER':'CHANNEL';
+ document.getElementById('intro').textContent=m==='live'?'Ranked by what people actually watched live. Tap a streamer for their full numbers.':'Every YouTube, Twitch and Kick channel this site tracks, uploaders and streamers, ranked by views, subscribers or growth. Tap one for its full stats.';
+ seg('mode',[['channels','CHANNELS'],['live','LIVE STREAMERS']],MODE,v=>{setMode(v)});m==='live'?go():goCh()}
+async function goCh(){if(!CMS().some(x=>x[0]===C.metric))C.metric=CMS()[0][0];
+ const p=new URLSearchParams({platform:C.platform,metric:C.metric});if(C.country)p.set('country',C.country);if(C.category)p.set('category',C.category);if(C.game)p.set('game',C.game);
  history.replaceState(null,'',location.pathname+'?'+new URLSearchParams({mode:'channels',...Object.fromEntries(p)}));
  try{CR=await (await fetch('/api/topch?'+p)).json()}catch(e){return}
- seg('cplat',[['youtube','YOUTUBE'],['twitch','TWITCH'],['kick','KICK']],C.platform,v=>{C.platform=v;C.category='';goCh()});
- seg('cmetric',[['size',C.platform==='youtube'?'SUBSCRIBERS':'FOLLOWERS'],['growth',C.platform==='youtube'?'VIEWS, 30D':'GROWTH, 30D'],['live','LIVE HOURS']],C.metric,v=>{C.metric=v;goCh()});
- const cc=document.getElementById('ccat');cc.innerHTML='<option value="">All categories</option>'+(CR.categories||[]).map(x=>`<option${x===C.category?' selected':''}>${esc(x)}</option>`).join('');
+ seg('cplat',[['youtube','YOUTUBE'],['twitch','TWITCH'],['kick','KICK']],C.platform,v=>{C.platform=v;C.category='';C.game='';goCh()});
+ seg('cmetric',CMS(),C.metric,v=>{C.metric=v;goCh()});
+ const cc=document.getElementById('ccat');cc.innerHTML=`<option value="">${YT()?'All YouTube categories':'All sections'}</option>`+(CR.categories||[]).map(x=>`<option${x===C.category?' selected':''}>${esc(x)}</option>`).join('');
+ const cg=document.getElementById('cgame');cg.innerHTML='<option value="">All games</option>'+(CR.games||[]).map(x=>`<option${x===C.game?' selected':''}>${esc(x)}</option>`).join('');
  const ct=document.getElementById('cctry');ct.innerHTML='<option value="">All countries</option>'+(CR.countries||[]).map(x=>`<option value="${x.code}"${x.code===C.country?' selected':''}>${esc(x.name)}</option>`).join('');
- cc.onchange=e=>{C.category=e.target.value;goCh()};ct.onchange=e=>{C.country=e.target.value;goCh()};
- const others=['size','growth','live'].filter(m=>m!==C.metric);
+ cc.onchange=e=>{C.category=e.target.value;goCh()};cg.onchange=e=>{C.game=e.target.value;goCh()};ct.onchange=e=>{C.country=e.target.value;goCh()};
+ const others=CMS().map(x=>x[0]).filter(m=>m!==C.metric).slice(0,2);
  ['h1c','h2c','h3c'].forEach((id,i)=>document.getElementById(id).textContent=CML([C.metric,...others][i]));
- document.getElementById('span').textContent=`${full(CR.total)} ${C.platform==='youtube'?'YouTube':C.platform==='twitch'?'Twitch':'Kick'} channels tracked${C.category?' in '+C.category:''}${C.country?' from '+((CR.countries.find(x=>x.code===C.country)||{}).name||C.country):''} · ranked by ${CML(C.metric).toLowerCase()} · updated ${CR.updated?Math.round((Date.now()/1000-CR.updated)/60)+' min ago':'soon'}`;
+ document.getElementById('span').textContent=`${full(CR.total)} ${NAMES[C.platform]} channels${C.category?' in '+C.category:''}${C.game?' making '+C.game:''}${C.country?' from '+((CR.countries.find(x=>x.code===C.country)||{}).name||C.country):''} · ranked by ${CML(C.metric).toLowerCase()} · updated ${CR.updated?Math.round((Date.now()/1000-CR.updated)/60)+' min ago':'soon'}`;
  const L=CR.rows||[],P=L.slice(0,3),ord=P.length===3?[P[1],P[0],P[2]]:P,link=x=>`${RP}/ch/${encodeURIComponent(x.sid)}`;
  document.getElementById('podium').innerHTML=ord.map(x=>`<a class="pd p${x.rank}" href="${link(x)}" style="text-decoration:none"><div class="md">#${x.rank}</div>${x.logo?`<img src="${esc(x.logo)}" alt="" referrerpolicy="no-referrer">`:`<span class="ph">${ini(x.name)}</span>`}<div class="n">${esc(x.name)}</div><div class="v">${CMV(C.metric,x[C.metric])}</div><div class="s">${esc([x.category,x.country_name].filter(Boolean).join(' · '))}</div></a>`).join('');
  document.getElementById('rows').innerHTML=L.slice(3,ALL?100:25).map(x=>`<a class="row" href="${link(x)}" style="text-decoration:none"><span class="rk">${x.rank}</span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">${esc([x.category,x.game&&x.game!==x.category?x.game:'',x.country_name].filter(Boolean).join(' · '))}</div></span>`+
-  [C.metric,...others].map((m,i)=>`<span class="c${i===0?' m':''} x${i+1}">${CMV(m,x[m])}</span>`).join('')+'</a>').join('')||(L.length?'':'<div class="empty">No channels here yet. The list grows every day as the site tracks more channels.</div>');
+  [C.metric,...others].map((m,i)=>`<span class="c${i===0?' m':''} x${i+1}">${CMV(m,x[m])}</span>`).join('')+'</a>').join('')||(L.length?'':'<div class="empty">No channels here yet. Views per day need two daily snapshots of a channel, so this fills in from the day after a channel is first tracked.</div>');
  const mo=document.getElementById('more');mo.style.display=L.length>25?'block':'none';mo.textContent=ALL?'Show top 25':`Show top ${Math.min(100,L.length)}`;mo.onclick=()=>{ALL=!ALL;goCh()}}
 function seg(id,opts,cur,on){const e=document.getElementById(id);e.innerHTML=opts.map(([v,l])=>`<button data-v="${v}" class="${v===cur?'on':''}">${l}</button>`).join('');e.onclick=ev=>{const b=ev.target.closest('button');if(b)on(b.dataset.v)}}
 const shift=(d,n)=>{const t=new Date(d+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10)};
@@ -149,7 +154,7 @@ function controls(){seg('period',[['day','DAY'],['week','WEEK'],['month','MONTH'
  seg('plat',[['','ALL'],['youtube','YT'],['kick','KICK'],['twitch','TWITCH']],S.platform,v=>{S.platform=v;go()});
  const di=document.getElementById('date');if(R){di.max=R.today;di.min=R.first_day||'';di.value=R.date;
   document.getElementById('prev').disabled=!!R.first_day&&R.start<=R.first_day;document.getElementById('next').disabled=R.date>=R.today}
- const cs=document.getElementById('cat');cs.innerHTML='<option value="">All categories</option>'+((R&&R.categories)||[]).map(g=>`<option value="${esc(g.slug)}"${g.slug===S.cat?' selected':''}>${esc(g.game)}</option>`).join('')+(S.cat&&R&&!R.categories.some(g=>g.slug===S.cat)?`<option value="${esc(S.cat)}" selected>${esc(S.cat)}</option>`:'');
+ const cs=document.getElementById('cat');cs.innerHTML='<option value="">All categories</option>'+((R&&R.categories)||[]).slice().sort((a,b)=>a.game.localeCompare(b.game)).map(g=>`<option value="${esc(g.slug)}"${g.slug===S.cat?' selected':''}>${esc(g.game)}</option>`).join('')+(S.cat&&R&&!R.categories.some(g=>g.slug===S.cat)?`<option value="${esc(S.cat)}" selected>${esc(S.cat)}</option>`:'');
  const co=document.getElementById('country');co.style.display=GL?'':'none';co.innerHTML='<option value="">All countries</option>'+((R&&R.countries)||[]).map(c=>`<option value="${c.code}"${c.code===S.country?' selected':''}>${esc(c.name)}</option>`).join('')}
 document.getElementById('date').onchange=e=>{S.date=e.target.value;go()};
 document.getElementById('prev').onclick=()=>{S.date=shift(R.date,-({day:1,week:7,month:30}[S.period]));go()};
