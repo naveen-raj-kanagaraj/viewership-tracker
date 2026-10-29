@@ -21,7 +21,7 @@ import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from tracker import events, platforms, store
 
@@ -1714,7 +1714,10 @@ def _daily(c, tbl, w, a, key, days: int = 30) -> list:
     return [{**z, "hw": round(z["hw"])} for _, z in sorted(out.items())]
 
 
-def categories(region: str = "global", limit: int = 60) -> dict:
+CAT_RANGES = {"7d": 7, "1m": 30, "3m": 91, "6m": 182, "ytd": None, "1y": 365, "all": 0}
+
+
+def categories(region: str = "global", limit: int = 60, rng: str = "1m") -> dict:
     """Games and categories like a player-count chart: watching now, change against 24 hours earlier, the last 48
     hours, daily peaks for 30 days, 30-day peak and hours watched. Trending = biggest rise in 24 hours among
     categories big enough to matter."""
@@ -1725,26 +1728,33 @@ def categories(region: str = "global", limit: int = 60) -> dict:
     names = [x["game"] for x in top]
     tbl, w, a = _totals_sql(region)
     now = time.time()
-    t30 = now - 30 * 86400
-    d30 = (datetime.now(events.REPORT_TZ).date() - timedelta(days=29)).strftime("%Y-%m-%d")
+    rng = rng if rng in CAT_RANGES else "1m"
+    today = datetime.now(events.REPORT_TZ).date()
     q = ",".join("?" * len(names)) or "NULL"
     with store._lock:
         c = _db()
+        first = c.execute(f"SELECT MIN(ts) FROM {tbl} WHERE 1=1{w}", a).fetchone()[0] or now
+        n = CAT_RANGES[rng]
+        start_day = (date(today.year, 1, 1) if n is None else today - timedelta(days=n - 1) if n else
+                     datetime.fromtimestamp(first, events.REPORT_TZ).date())
+        t30 = datetime.combine(start_day, datetime.min.time(), events.REPORT_TZ).timestamp()
+        d30 = start_day.strftime("%Y-%m-%d")
+        ndays = (today - start_day).days + 1
+        bd = max(1, -(-ndays // 30))                 # days per bar: at most 30 bars whatever the range
         ago = dict(c.execute(f"SELECT game, MAX(viewers) FROM {tbl} WHERE ts BETWEEN ? AND ?{w} AND game IN ({q}) GROUP BY game",
                              (now - 86400 - 900, now - 86400 + 900, *a, *names)).fetchall())
         h48 = c.execute(f"SELECT game, CAST(ts/3600 AS INT) h, MAX(viewers) FROM {tbl} WHERE ts>=?{w} AND game IN ({q}) GROUP BY game, h",
                         (now - 48 * 3600, *a, *names)).fetchall()
-        d = c.execute(f"SELECT game, CAST((ts+19800)/86400 AS INT) dd, MAX(viewers) FROM {tbl} WHERE ts>=?{w} AND game IN ({q}) GROUP BY game, dd",
-                      (t30, *a, *names)).fetchall()
+        d = c.execute(f"SELECT game, CAST((ts-?)/? AS INT) dd, MAX(viewers) FROM {tbl} WHERE ts>=?{w} AND game IN ({q}) GROUP BY game, dd",
+                      (t30, bd * 86400, t30, *a, *names)).fetchall()
         hwq = """SELECT d.game, SUM(d.hw) FROM sc_daily d""" + (" JOIN sc_channels c ON c.sid=d.sid AND COALESCE(c.india,0)=1" if region == "in" else "")
         hw = dict(c.execute(hwq + f" WHERE d.day>=? AND d.game IN ({q}) GROUP BY d.game", (d30, *names)).fetchall())
-        first = c.execute(f"SELECT MIN(ts) FROM {tbl} WHERE 1=1{w}", a).fetchone()[0] or now
     s48, s30 = {}, {}
     for g, h, v in h48:
         s48.setdefault(g, {})[h] = v
     for g, dd, v in d:
         s30.setdefault(g, {})[dd] = v
-    h0, dd0 = int((now - 48 * 3600) / 3600), int((t30 + 19800) / 86400)
+    h0, nb = int((now - 48 * 3600) / 3600), -(-ndays // bd)
     rows = []
     for x in top:
         g = x["game"]
@@ -1753,12 +1763,13 @@ def categories(region: str = "global", limit: int = 60) -> dict:
                      "viewers": x["viewers"], "streams": x["streams"], "ago": b,
                      "change": round(100 * (x["viewers"] - b) / b, 1) if b else None,
                      "h48": [s48.get(g, {}).get(h, 0) for h in range(h0, h0 + 49)],
-                     "d30": [s30.get(g, {}).get(k, 0) for k in range(dd0, dd0 + 31)],
+                     "d30": [s30.get(g, {}).get(k, 0) for k in range(nb)],
                      "peak30": max(s30.get(g, {}).values(), default=x["viewers"]), "hw30": round(hw.get(g) or 0)})
     big = 300 if region == "in" else 2000
     trend = sorted([r for r in rows if r["change"] is not None and r["viewers"] >= big and (r["ago"] or 0) >= big / 4],
                    key=lambda r: -r["change"])[:5]
-    return {"region": region, "updated": lv.get("updated"), "since": first, "rows": rows,
+    return {"region": region, "updated": lv.get("updated"), "since": first, "rows": rows, "range": rng,
+            "bar_days": bd, "start": d30, "days": ndays,
             "trending": [r["game"] for r in trend if r["change"] > 0]}
 
 

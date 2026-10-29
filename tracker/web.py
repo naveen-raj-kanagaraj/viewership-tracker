@@ -410,7 +410,8 @@ def scene_cats():
     """Games and categories, player-chart style: /api/cats?region=global|in"""
     from tracker import scene
     region = request.args.get("region", "global") if request.args.get("region") in scene.REGIONS else "global"
-    return _memo(f"/api/cats:{region}", 60, _jdump(lambda: scene.categories(region)), "application/json")
+    rng = request.args.get("range", "1m") if request.args.get("range") in scene.CAT_RANGES else "1m"
+    return _memo(f"/api/cats:{region}:{rng}", 60, _jdump(lambda: scene.categories(region, rng=rng)), "application/json")
 
 
 @app.route("/api/catmonths")
