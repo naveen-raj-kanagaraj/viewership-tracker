@@ -228,6 +228,8 @@ def build_html(key: str = None, live: bool = False, style: str = None) -> str:
                 .replace("__ROSTERN__", json.dumps([n for _, n, _ in (events.roster(key or "") or events.ROSTER)])).replace("__DNAME__", json.dumps(d.get("name") or "Event")).replace("__DSTART__", json.dumps(events.next_start(key) if key else None))
                 .replace("__REFRESH__", str(REFRESH_SEC))
                 .replace("__SOCIAL__", _social())
+                .replace("__GAMESLUG__", __import__("tracker.scene", fromlist=["x"]).slug(_preset(key).get("game") or "BGMI"))
+                .replace("__GAMENAME__", html.escape(_preset(key).get("game") or "BGMI"))
                 .replace("__PWB__", "" if (_ended(key) or not _preset(key).get("predict")) else PWB if os.getenv("PREDICT_OPEN", "0") == "1" else (PWR if os.getenv("PREDICT_SPLIT", "1") == "1" else ""))
                 .replace("__BRAND__", html.escape(BRAND)).replace("__BRANDURL__", html.escape(BRAND_URL, quote=True))
                 .replace("__SITEURL__", SITE_URL))
@@ -310,7 +312,9 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 .bar{position:sticky;top:0;z-index:20;background:rgba(11,11,18,.9);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 .bar .in{max-width:1180px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .title{margin-right:auto;line-height:1.1}
-.brand{display:block;font-family:"Barlow Condensed",sans-serif;font-size:12px;color:var(--lime);letter-spacing:.04em}
+.brand{display:block;font-family:"Barlow Condensed",sans-serif;font-size:12px;color:var(--lime);letter-spacing:.04em;text-decoration:none}
+.snav{border-bottom:1px solid var(--line);background:rgba(11,11,18,.6)}.snav .in{max-width:1180px;margin:0 auto;padding:8px 16px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}.snav .in::-webkit-scrollbar{display:none}
+.snav a{flex:none;color:var(--ink);text-decoration:none;font:600 13px "Barlow",sans-serif;padding:6px 12px;border:1px solid var(--line);border-radius:999px;white-space:nowrap}.snav a:hover{border-color:var(--lime);color:var(--lime)}.snav a:first-child{color:var(--lime)}
 .title h1{margin:2px 0 0;font-size:19px;font-weight:700;text-transform:uppercase;letter-spacing:.02em}
 .title h1 span{color:var(--muted);font-weight:600}
 .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--line);background:var(--card);font:12px "Barlow Condensed",sans-serif;white-space:nowrap;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
@@ -421,11 +425,12 @@ tr.fu td.num{animation:fu 1.2s}tr.fd td.num{animation:fd 1.2s}@keyframes fu{0%{c
 .dxt table{width:100%}.dxt .lbl{margin-bottom:4px}.dxs{display:flex;align-items:center;gap:8px;color:var(--ink)}.dxs img{width:22px;height:22px;border-radius:50%}.dxs span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
 </style></head><body>
 <div class="bar"><div class="in">
- <div class="title"><span class="brand">__BRAND__</span><h1>__TITLE__ <span>live viewership</span></h1></div>
+ <div class="title"><a class="brand" href="/india">__BRAND__</a><h1>__TITLE__ <span>live viewership</span></h1></div>
  <span id="st" class="pill"><span class="dot"></span><span id="stt">Live</span></span>
  <span class="pill" title="Time since the newest reading">UPDATED <span id="ago">-</span></span>
  <span class="pill" id="nx"><svg class="ring" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><circle class="p" id="rp" cx="10" cy="10" r="7" stroke-dasharray="44" stroke-dashoffset="0"/></svg>NEXT <span id="nxt">-</span></span>
 </div></div>
+<nav class="snav" aria-label="Site"><div class="in"><a href="/india">India overview</a><a href="/india/c/__GAMESLUG__">__GAMENAME__ live</a><a href="/india/rankings">Rankings</a><a href="/india/moments">Moments</a><a href="/map">World map</a><a href="/">Worldwide</a></div></nav>
 <div class="wrap" style="padding-bottom:0">__PWB__
 <div class="follow"><span>// FOLLOW FOR LIVE ESPORTS NUMBERS</span><a class="soc" href="/india"><b>INDIA LIVE</b><span>every channel, ranked &rarr;</span></a>__SOCIAL__</div></div>
 <div class="wrap" id="app"></div>
