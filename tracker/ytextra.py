@@ -30,7 +30,8 @@ from tracker import events, platforms, store
 SUPERCHAT_TOP = int(os.getenv("SUPERCHAT_TOP", "50"))       # how many of the biggest YouTube streams to read chat for
 SUPERCHAT_ON = os.getenv("SUPERCHAT", "true").lower() == "true"
 STATS_ON = os.getenv("CHANNEL_STATS", "true").lower() == "true"
-STATS_MAX = int(os.getenv("CHANNEL_STATS_MAX", "50000" if os.getenv("YOUTUBE_API_KEY") else "3000"))     # channels snapshotted per day, most watched first
+# channels snapshotted per day, most watched first: 50 per API unit, so 300,000 channels = 6,000 units
+STATS_MAX = int(os.getenv("CHANNEL_STATS_MAX", "300000" if os.getenv("YOUTUBE_API_KEY") else "3000"))
 _pool = ThreadPoolExecutor(6)
 
 # ---------- storage ----------
@@ -489,9 +490,10 @@ def run_stats():
     time.sleep(120)
     while True:
         try:
-            stats_once(2000 if os.getenv("YOUTUBE_API_KEY") else 120)
-            discover_once()
-            prefetch_once(16 if os.getenv("YOUTUBE_API_KEY") else 2)
+            key = os.getenv("YOUTUBE_API_KEY")
+            stats_once(5000 if key and events.yt_quota_left(.85) else 120)
+            discover_once(DISCOVER_PER_RUN)
+            prefetch_once(max(16, events.YT_QUOTA // 600) if key else 2)    # scales with the quota Google allows
             followers_once(100)
             intra_once()
         except Exception as e:
@@ -1414,6 +1416,9 @@ DISCOVER = ["BGMI", "Free Fire", "GTA 5 RP", "Valorant", "Minecraft", "Fortnite"
             "podcast", "education", "cooking", "movie review", "kids"]
 DISCOVER_GL = [("IN", " india"), ("IN", " tamil"), ("IN", " telugu"), ("IN", " hindi"), ("US", ""), ("BR", ""), ("ID", ""),
                ("PH", ""), ("PK", ""), ("BD", ""), ("GB", "")]
+
+
+DISCOVER_PER_RUN = int(os.getenv("CHANNEL_DISCOVER_PER_RUN", "6"))   # YouTube channel searches per 15 min (no API quota)
 
 
 def discover_once(n: int = 2) -> int:

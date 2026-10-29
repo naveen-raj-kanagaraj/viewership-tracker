@@ -23,7 +23,7 @@ PORT = int(os.getenv("EVENT_WEB_PORT", "8092"))
 app = Flask(__name__)
 
 
-CACHE = {"/api/chlive": 2, "/badge": 1800, "/api/badges": 600, "/api/home": 120, "/api/compare": 30, "/compare": 300, "/india/compare": 300, "/api/topch": 120, "/api/videos": 300, "/api/lookup": 600, "/api/moments": 20, "/moments": 300, "/india/moments": 300, "/api/ytsearch": 600, "/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
+CACHE = {"/privacy": 3600, "/terms": 3600, "/api/chlive": 2, "/badge": 1800, "/api/badges": 600, "/api/home": 120, "/api/compare": 30, "/compare": 300, "/india/compare": 300, "/api/topch": 120, "/api/videos": 300, "/api/lookup": 600, "/api/moments": 20, "/moments": 300, "/india/moments": 300, "/api/ytsearch": 600, "/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
 
 
 
@@ -122,6 +122,8 @@ document.addEventListener('click',function(e){var a=e.target.closest&&e.target.c
 # Site-wide notice while the data is still being built up (owner, 29 Oct). Hidden in embeds.
 WIP = """<div id="wip" style="background:#ffd23f;color:#0b0b12;font:600 12px/1.35 'Barlow',system-ui,sans-serif;text-align:center;padding:6px 12px;position:relative;z-index:80"><b style="font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em">UNDER CONSTRUCTION</b> &middot; Data is still being collected and filled in, so numbers are not final yet.</div><script>if(/[?&]embed=/.test(location.search)){var w=document.getElementById('wip');w&&w.remove()}</script>"""
 
+LEGAL = """<div id="legal" style="max-width:1100px;margin:0 auto;padding:14px 16px 64px;font:12px/1.6 system-ui,sans-serif;color:#8d8ca3;text-align:center">Uses <a href="https://www.youtube.com/t/terms" style="color:inherit">YouTube API Services</a> &middot; <a href="/terms" style="color:inherit">Terms</a> &middot; <a href="/privacy" style="color:inherit">Privacy</a> &middot; <a href="https://policies.google.com/privacy" style="color:inherit">Google Privacy Policy</a> &middot; Not affiliated with YouTube, Twitch or Kick</div><script>if(/[?&]embed=/.test(location.search)){var l=document.getElementById('legal');l&&l.remove()}</script>"""
+
 # India visitors land on /india (device time zone = India, unless they chose Global on the site). Runs before the page
 # draws, and works with the CDN cache (the same cached page for everyone; the choice is made in the browser).
 REGIONJS = """<script>(function(){try{if(location.pathname!=='/'||location.search||localStorage.getItem('lge_region'))return;
@@ -136,7 +138,7 @@ def _html(build):
         if "<head>" in h:
             h = h.replace("<head>", "<head>" + REGIONJS, 1)
         h = __import__("re").sub(r"(<body[^>]*>)", lambda m: m.group(1) + WIP, h, count=1)
-        return h.replace("</body>", FASTNAV + "</body>", 1) if "</body>" in h else h
+        return h.replace("</body>", LEGAL + FASTNAV + "</body>", 1) if "</body>" in h else h
     return b
 
 
@@ -670,6 +672,18 @@ def _events_html():
             + ("".join(rows) or "<p>No events yet.</p>")
             + '<a class="r" href="/india"><b>India live streaming rankings</b><span>every game</span><span>YouTube + Kick + Twitch</span>'
             '<i class="live">ALWAYS ON</i></a></main></body></html>')
+
+
+@app.route("/privacy")
+def privacy_page():
+    from tracker import legalpage
+    return _memo("/privacy", 3600, legalpage.privacy_html, "text/html")
+
+
+@app.route("/terms")
+def terms_page():
+    from tracker import legalpage
+    return _memo("/terms", 3600, legalpage.terms_html, "text/html")
 
 
 @app.route("/admin/visitors")
