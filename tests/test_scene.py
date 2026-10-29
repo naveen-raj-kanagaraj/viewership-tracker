@@ -643,3 +643,8 @@ assert "YouTube API Services" in pv and "youtube.com/t/terms" in pv and "policie
 assert "YouTube Terms of Service" in c.get("/terms").data.decode()
 assert 'href="/privacy"' in c.get("/india").data.decode()
 print("LEGAL OK")
+with store._lock:
+    cc = sc._db(); cc.execute("UPDATE sc_channels SET game='Other', topic='', ytcat='' WHERE sid='yt:UCtg'"); cc.commit()
+rk.compute()
+assert not any(r["where"] == "Other" for r in rk.for_channel("yt:UCtg")), rk.for_channel("yt:UCtg")
+print("NO OTHER OK")
