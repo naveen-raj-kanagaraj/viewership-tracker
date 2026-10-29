@@ -37,6 +37,7 @@ h1{{font-size:26px;margin:0 0 2px}}.sub{{color:#8d8ca3;font-size:13px}}.k4{{disp
 <h1>Visitors</h1><div class="sub">Owner only, refreshes every 30 s. One browser tab = one visitor; no cookies, no IP addresses. Days are IST.</div>
 <div class="k4"><div class="c"><b>{s.get('active', 0):,}</b><span>on the site now</span></div><div class="c"><b>{tod:,}</b><span>visitors today</span></div>
 <div class="c"><b>{pk.get('n', 0):,}</b><span>most at once ({html.escape(when)})</span></div><div class="c"><b>{s.get('avg_min', 0)} min</b><span>average time on site today</span></div></div>
+<div class="sub" style="margin-top:8px">YouTube API used today: {(s.get('ytq') or (0, 0))[0]:,} of {(s.get('ytq') or (0, 0))[1]:,} units (resets at midnight Pacific).</div>
 <div class="c" style="margin-top:10px"><h2>Visitors per day, last 30 days</h2><div class="d">{''.join(f'<div style="height:{100 * n / dmax:.0f}%" title="{d}: {n:,}"><span>{n if n * 6 >= dmax else ""}</span></div>' for d, n in days) or '<div class="e">No history yet.</div>'}</div>
 <div class="dl"><span>{days[0][0][5:] if days else ''}</span><span>{days[-1][0][5:] if days else ''}</span></div></div>
 <div class="g"><div class="c"><h2>On the site now, by country</h2>{_bars(s.get('active_all_countries', []), s.get('active', 0), ctry)}</div>

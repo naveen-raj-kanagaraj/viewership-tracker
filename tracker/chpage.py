@@ -78,11 +78,18 @@ __PANEL_CSS__
 .bprev{margin:14px 16px 0;padding:18px;background:repeating-conic-gradient(#15151f 0 25%,#101018 0 50%) 0 0/16px 16px;border:1px solid var(--line);display:flex;justify-content:center;overflow:hidden}.bprev img{max-width:100%;height:auto;display:block}
 .bcode{margin:4px 16px 16px}.bcode textarea{width:100%;margin-top:8px;background:#0b0b12;color:var(--ink);border:1px solid var(--line);font:12px ui-monospace,Menlo,monospace;padding:8px;resize:none}.brow{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
 #vidcard.ld>:not(.vhead){display:none}#vidcard.ld .vhead .btn{display:none}#vidcard.ld .vhead{padding-bottom:16px}
+.lvc{border-color:#ff4d5e55;background:linear-gradient(180deg,#1d1220,#13131c 60%)}.lvdot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#ff4d5e;margin-right:8px;vertical-align:middle;animation:lvp 1.2s infinite}@keyframes lvp{50%{opacity:.3}}
+.lvbig{padding:6px 16px 0;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}.lvbig b{font:700 54px/1 "Barlow Condensed",sans-serif;font-variant-numeric:tabular-nums}.lvbig span{font-size:13px}.lvbig .up{color:var(--lime)}.lvbig .dn{color:#ff4d5e}
+.vk.lvk{grid-template-columns:repeat(3,1fr)!important}.vk.lvk div:last-child{grid-column:auto!important}#lvchart{display:block;width:calc(100% - 32px);height:220px;margin:12px 16px 16px}@media(max-width:640px){.lvbig b{font-size:42px}#lvchart{height:170px;width:calc(100% - 24px);margin:10px 12px 12px}.lvbig{padding:6px 12px 0}}
 </style></head><body>
 <div class="top"><div class="in"><a class="brand" href="__HOME__">__BRAND__</a><span class="beta">BETA</span><span class="nav"><a href="__HOME__">DASHBOARD</a><a href="__RP__/rankings">RANKINGS</a><a href="/map">MAP</a></span></div></div>
 <div class="wrap">
 <div class="crumb"><a href="__HOME__">__WHERECAP__</a> / CHANNEL</div>
 <div class="hd" id="hd"><span class="ph">..</span><div><h1>__NAME__</h1><div class="meta">Loading...</div></div></div>
+<div class="card lvc" id="lvcard" style="display:none"><div class="vhead"><div><h2><span class="lvdot"></span>Live now</h2><div class="cap" id="lvcap"></div></div><a class="btn red" id="lvwatch" target="_blank" rel="noopener">WATCH</a></div>
+ <div class="lvbig"><b id="lvnow">-</b><span id="lvd"></span></div>
+ <div class="vk lvk"><div><b id="lvpk">-</b>peak this stream</div><div><b id="lvavg">-</b>average this stream</div><div><b id="lvdur">-</b>live for</div></div>
+ <canvas id="lvchart"></canvas></div>
 <div class="card" id="vidcard" style="display:none"><div class="vhead"><div><h2>Channel performance</h2><div class="cap" id="vidcap"></div></div><button class="btn" id="vshare">SHARE</button></div>
  <div class="vk life" id="lifek"></div>
  <div class="vtools"><div class="vseg" id="vrange"></div><div class="vseg" id="vkind"></div><div class="vseg" id="vmetric"></div></div>
@@ -121,7 +128,7 @@ function renderLife(){const c=CDATA,j=VID;if(!c||!j)return;const S=c.stats||{},V
  if(c.platform!=='youtube'){const sn=V.snapshots||[],f=(sn[sn.length-1]||{}).subs,fg=n=>G.filter(g=>g.subs!=null&&g.day>=new Date(Date.now()-n*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})).reduce((a,g)=>a+g.subs,0),P=c.periods||{};
   document.getElementById('lifek').innerHTML=`<div><b>${f!=null?fmt(f):'-'}</b>followers</div><div><b class="up">${G.length?(fg(30)>=0?'+':'')+fmt(fg(30)):'-'}</b>followers, 30 days</div><div><b>${P.all&&P.all.peak?fmt(P.all.peak):'-'}</b>peak live viewers (this site)</div><div><b>${P['30d']?fmt(P['30d'].hw)+'h':'-'}</b>hours watched, 30 days</div><div><b>${full(j.count)}</b>broadcasts listed</div>`;return}
  document.getElementById('lifek').innerHTML=`<div><b>${S.views!=null?fmt(S.views):'-'}</b>lifetime views</div><div><b>${S.subs!=null?fmt(S.subs):'hidden'}</b>subscribers</div><div><b>${S.videos!=null?full(S.videos):'-'}</b>videos, lifetime</div>${G.length?`<div><b class="up">+${fmt(sum(30))}</b>channel views, ${G.length>=30?'30 days':'since '+dshortD(V.first)}</div><div><b class="up">+${fmt((G[G.length-1]||{}).views||0)}</b>channel views, last day</div>`:RVo(V)}`}
-function RVo(V){const R=V.recent||{};if(R.views==null)return `<div><b>...</b>channel views per day: first readings taken, the next one within the hour</div>`;
+function RVo(V){const R=V.recent||{};if(R.views===0)return `<div><b>-</b>channel views: YouTube hasn't refreshed this channel's total yet today</div>`;if(R.views==null)return `<div><b>...</b>channel views per day: first readings taken, the next one within the hour</div>`;
  const h=R.hours>=1?Math.round(R.hours)+' hours':Math.round(R.hours*60)+' min';
  return `<div><b class="up">+${fmt(R.views)}</b>channel views, last ${h}</div>${R.hours>=3?`<div><b class="up">~+${fmt(R.views*24/R.hours)}</b>per day at this pace (estimate)</div>`:''}`}
 const YT=SID.startsWith('yt:'),VURL=v=>v.url||'https://www.youtube.com/watch?v='+v.vid;
@@ -214,7 +221,7 @@ function viewsCard(c){const V=c.views,S=c.stats;const box=document.getElementByI
  const sg=G.filter(g=>g.subs!=null).slice(-7).reduce((a,g)=>a+g.subs,0);
  const RV=V.recent||{},snap=(V.snapshots||[])[V.snapshots.length-1]||{},tv=(S&&S.views)||snap.views;
  const fh=h=>h>=1?Math.round(h)+(Math.round(h)===1?' hour':' hours'):Math.round(h*60)+' min';
- document.getElementById('views').innerHTML=`<div class="vk"><div><b>${tv!=null?fmt(tv):'-'}</b>total views, lifetime</div>${!last&&RV.views!=null?`<div><b class="up">+${fmt(RV.views)}</b>views, last ${fh(RV.hours)}</div>`:''}<div><b class="up">${last?'+'+fmt(last.views):'-'}</b>views, last day</div><div><b class="up">${G.length?'+'+fmt(sum(7)):'-'}</b>views, 7 days</div><div><b class="up">${G.length?'+'+fmt(sum(30)):'-'}</b>views, 30 days${G.length?'':''}</div></div>
+ document.getElementById('views').innerHTML=`<div class="vk"><div><b>${tv!=null?fmt(tv):'-'}</b>total views, lifetime</div>${!last&&RV.views>0?`<div><b class="up">+${fmt(RV.views)}</b>views, last ${fh(RV.hours)}</div>`:''}<div><b class="up">${last?'+'+fmt(last.views):'-'}</b>views, last day</div><div><b class="up">${G.length?'+'+fmt(sum(7)):'-'}</b>views, 7 days</div><div><b class="up">${G.length?'+'+fmt(sum(30)):'-'}</b>views, 30 days${G.length?'':''}</div></div>
   ${G.length?`<div class="vseg" id="vseg">${[[7,'1W'],[30,'1M'],[91,'3M'],[182,'6M'],[Math.ceil((Date.now()-new Date(new Date().getFullYear(),0,1))/864e5),'YTD'],[365,'1Y']].map(([v,l])=>`<button data-v="${v}" class="${v===VR?'on':''}">${l}</button>`).join('')}</div><canvas id="vchart"></canvas>
   <div class="vm">${(V.months||[]).slice(-6).map(m=>`<span>${new Date(m.month+'-15').toLocaleDateString('en-IN',{month:'short',year:'numeric'})} <b>+${fmt(m.views)}</b> views</span>`).join('')}${sg?`<span>Subscribers, 7 days <b>${sg>=0?'+':''}${fmt(sg)}</b></span>`:''}<span>Recorded since ${dshortD(V.first)}</span></div>`
   :`<div class="empty">${RV.views!=null?`+${full(RV.views)} views in the last ${fh(RV.hours)}${RV.subs?` and ${RV.subs>0?'+':''}${full(RV.subs)} subscribers`:''}, from readings this site took since ${ist(RV.since,{hour:'numeric',minute:'2-digit'})} IST.`:`First reading taken ${RV.since?ist(RV.since,{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})+' IST':dshortD(V.first)}. The next one is taken within the hour, then views gained show here.`} YouTube doesn't publish a channel's past daily views, so per-day history starts from the day this site began following the channel; tomorrow the daily, weekly and monthly totals start.</div>`}`;
@@ -245,7 +252,7 @@ function rankBadges(c){const R=c.ranks||[];if(!R.length)return '';const yt_=c.pl
  return `<div class="rks" style="grid-column:1/-1">${order.map(k=>{const r=best[k],q=new URLSearchParams({mode:'channels',platform:c.platform,metric:r.metric,...(k==='country'?{country:c.country_code||''}:{}),...(k==='category'?{category:r.where}:{})});
   return `<a class="rk g${r.rank<=3?r.rank:0}" href="${RP}/rankings?${q}" title="${r.rank} of ${r.of} tracked ${NAMES[c.platform]} channels"><b>#${full(r.rank)}</b>${esc(r.where)} · ${ML[r.metric]} <span style="opacity:.7">of ${full(r.of)}</span></a>`}).join('')}</div>`}
 const hm=s=>{s=+s||0;const h=Math.floor(s/3600),m=Math.round(s%3600/60);return h?`${h}h ${m}m`:`${m}m`};
-async function load(){try{const c=await (await fetch('/api/channel?sid='+encodeURIComponent(SID)+'&t='+Math.floor(Date.now()/15000))).json();if(!c.sid)return;CH[SID]=c;
+async function load(){try{const r_=await fetch('/api/channel?sid='+encodeURIComponent(SID)+'&t='+Math.floor(Date.now()/15000));if(!r_.ok){setTimeout(load,5000);return}const c=await r_.json();if(!c.sid){setTimeout(load,5000);return}CH[SID]=c;
  const now=c.now,S=c.stats;
  document.getElementById('hd').className='hd'+(now?' live':'');
  document.getElementById('hd').innerHTML=`${av(c)}<div style="min-width:0"><h1>${esc(c.name)}</h1><div class="meta"><b style="color:${COL[c.platform]}">${NAMES[c.platform]||''}</b>${c.country?' · '+esc(c.country):''}${S&&S.subs!=null?' · <b>'+fmt(S.subs)+'</b> subscribers':''}${now||c.last_live?' · ':''}${now?`<span class="lv">LIVE</span><b>${full(now)}</b> watching${c.game?' · '+esc(c.game):''}`:c.last_live?'last live '+ago(c.last_live):''}</div>${now&&c.title?`<div class="meta" style="margin-top:6px">${esc(c.title)}</div>`:''}</div>
@@ -254,7 +261,7 @@ async function load(){try{const c=await (await fetch('/api/channel?sid='+encodeU
   <div class="act"><a class="btn${now?' red':''}" href="${esc(c.url)}" target="_blank" rel="noopener">${now?'WATCH LIVE':'OPEN'} ON ${(NAMES[c.platform]||'').toUpperCase()}</a><a class="btn ghost" href="${RP}/compare?c=${encodeURIComponent([SID,...(c.linked||[]).map(l=>l.sid)].join(','))}">COMPARE</a></div>`;
  CDATA=c;viewsCard(c);renderLife();
  const seen=c.periods&&c.periods.all&&c.periods.all.days;
- document.getElementById('stats').innerHTML=seen?panel(SID):`<div class="empty">This site hasn't seen ${esc(c.name)} live yet. Live numbers (watching now, peak, hours watched) start the first time they stream; their YouTube channel views above are recorded every day.</div>`}catch(e){}}
+ document.getElementById('stats').innerHTML=seen?panel(SID):`<div class="empty">This site hasn't seen ${esc(c.name)} live yet. Live numbers (watching now, peak, hours watched) start the first time they stream; their YouTube channel views above are recorded every day.</div>`}catch(e){console.error(e);setTimeout(load,8000)}}
 async function past(){try{const j=await (await fetch('/api/past?sid='+encodeURIComponent(SID))).json();const L=j.streams||[];
  const U=[];if(U.length){
   document.getElementById('ups').innerHTML=`<div class="ps"><div class="hdr"><span>POSTED</span><span>VIDEO</span><span>LENGTH</span><span>VIEWS</span><span></span></div>${U.map(x=>`<a href="${esc(x.url)}" target="_blank" rel="noopener"><span class="d">${x.ts?ist(x.ts,{day:'numeric',month:'short'}):''}${x.when?'<br>'+esc(x.when.replace('Streamed ','')):''}</span><span class="t">${esc(x.title)}</span><span class="n">${x.secs?hm(x.secs):'-'}</span><span class="n">${x.views!=null?fmt(x.views):'-'}</span><span></span></a>`).join('')}</div>`}
@@ -264,6 +271,30 @@ async function moms(){try{const j=await (await fetch('/api/moments?sid='+encodeU
  document.getElementById('mcard').style.display='';
  document.getElementById('moms').innerHTML=L.slice(0,20).map(m=>`<a href="${esc(m.link||c_url)}" target="_blank" rel="noopener"><span class="d">${ist(m.ts,{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}</span><span class="t">${esc(m.title)}</span><span class="n" style="color:var(--lime)">+${fmt(m.peak-m.base)}</span><span class="n">${fmt(m.peak)}<small>peak</small></span><span class="n">${m.embed==='tw_clip'?'clip':m.embed?'replay':'channel'}</span></a>`).join('')}catch(e){}}
 let c_url='#';
+// live card: like the tournament page, re-read every 2 seconds while the channel is live
+let LV={on:false,last:null,t:null};
+async function liveTick(){clearTimeout(LV.t);let j;try{j=await (await fetch('/api/chlive?sid='+encodeURIComponent(SID)+'&t='+Math.floor(Date.now()/2000))).json()}catch(e){LV.t=setTimeout(liveTick,4000);return}
+ const box=document.getElementById('lvcard');if(!j.live){box.style.display='none';LV.on=false;return}
+ box.style.display='';LV.on=true;
+ const d=LV.last!=null?j.now-LV.last:0;LV.last=j.now;
+ document.getElementById('lvnow').textContent=full(j.now);
+ document.getElementById('lvd').innerHTML=d?`<span class="${d>0?'up':'dn'}">${d>0?'&#9650; +':'&#9660; '}${full(d)}</span> since last reading`:'watching now';
+ document.getElementById('lvpk').textContent=fmt(j.peak);document.getElementById('lvavg').textContent=fmt(j.avg);
+ document.getElementById('lvdur').textContent=j.start?hm(Date.now()/1000-j.start):'-';
+ document.getElementById('lvcap').textContent=(j.game?j.game+' · ':'')+(j.title||'')+` · updates every ${j.every<=2?'2 seconds':Math.round(j.every/60)+' min'}`;
+ const w=document.getElementById('lvwatch');if(j.url)w.href=j.url;
+ drawLive(j.series||[]);if(!document.hidden)LV.t=setTimeout(liveTick,2000);else LV.t=setTimeout(liveTick,10000)}
+function drawLive(S){const cv=document.getElementById('lvchart');const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;if(!W)return;cv.width=W*dpr;cv.height=H*dpr;const x=cv.getContext('2d');x.scale(dpr,dpr);
+ if(S.length<2){x.fillStyle='#8d8ca3';x.font='12px Barlow';x.fillText('The chart fills in as readings come in.',4,H/2);return}
+ const t0=S[0][0],t1=S[S.length-1][0],vs=S.map(r=>r[1]),mn=Math.min(...vs)*.9,mx=Math.max(...vs)*1.05,pr=46,pb=18,X=t=>(W-pr)*(t-t0)/((t1-t0)||1),Y=v=>6+(H-6-pb)*(1-(v-mn)/((mx-mn)||1));
+ x.font='11px "Barlow Condensed",sans-serif';x.strokeStyle='#262636';x.fillStyle='#8d8ca3';
+ for(let i=0;i<=3;i++){const v=mn+(mx-mn)*i/3,y=Y(v);x.beginPath();x.moveTo(0,y);x.lineTo(W-pr,y);x.stroke();x.fillText(fmt(v),W-pr+4,y+4)}
+ [t0,(t0+t1)/2,t1].forEach((t,i)=>{x.textAlign=['left','center','right'][i];x.fillText(ist(t,{hour:'numeric',minute:'2-digit'}),X(t),H-4)});x.textAlign='left';
+ const g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,'rgba(182,242,58,.25)');g.addColorStop(1,'rgba(182,242,58,0)');
+ x.beginPath();S.forEach((r,i)=>{const px=X(r[0]),py=Y(r[1]);i?x.lineTo(px,py):x.moveTo(px,py)});x.lineTo(X(t1),H-pb);x.lineTo(X(t0),H-pb);x.closePath();x.fillStyle=g;x.fill();
+ x.beginPath();S.forEach((r,i)=>{const px=X(r[0]),py=Y(r[1]);i?x.lineTo(px,py):x.moveTo(px,py)});x.strokeStyle='#b6f23a';x.lineWidth=2;x.stroke();
+ const l=S[S.length-1];x.beginPath();x.arc(X(l[0]),Y(l[1]),4,0,7);x.fillStyle='#b6f23a';x.fill()}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&LV.on)liveTick()});
 const SITE=__SITEURL__;
 async function badges(){try{const O=await (await fetch('/api/badges?sid='+encodeURIComponent(SID))).json();if(!O.length)return;
  document.getElementById('bcard').style.display='';let k=0,f='html';
@@ -279,7 +310,7 @@ async function badges(){try{const O=await (await fetch('/api/badges?sid='+encode
  document.getElementById('bpng').onclick=()=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),s=3;c.width=im.naturalWidth*s;c.height=im.naturalHeight*s;const x=c.getContext('2d');x.scale(s,s);x.drawImage(im,0,0);
   c.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(CDATA&&CDATA.name||'badge').replace(/[^\w-]+/g,'_')+'_rank.png';a.click()},'image/png')};im.src=document.getElementById('bimg').src};
  draw()}catch(e){}}
-load();past();moms();videos();badges();setInterval(()=>{if(!document.hidden)load()},15000);
+load();past();moms();videos();badges();liveTick();setInterval(()=>{if(!document.hidden){load();if(!LV.on)liveTick()}},15000);
 </script></body></html>"""
 
 

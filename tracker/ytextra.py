@@ -455,13 +455,13 @@ def _sane(got: dict) -> dict:
     return out
 
 
-INTRA_PER_RUN = int(os.getenv("CHANNEL_INTRA_PER_RUN", "1250"))     # 25 API units per 15 min = 2,400 a day
+INTRA_PER_RUN = int(os.getenv("CHANNEL_INTRA_PER_RUN", "600"))      # 12 API units per 15 min, ~1,150 a day
 
 
 def intra_once(limit: int = INTRA_PER_RUN) -> int:
     """Hourly readings of the biggest followed channels (50 per API unit), so "views in the last hours" shows for
     them all day, not only after tomorrow's daily snapshot."""
-    if not os.getenv("YOUTUBE_API_KEY"):
+    if not os.getenv("YOUTUBE_API_KEY") or not events.yt_quota_left(.6):
         return 0
     with store._lock:
         c = _db()
@@ -491,7 +491,7 @@ def run_stats():
         try:
             stats_once(2000 if os.getenv("YOUTUBE_API_KEY") else 120)
             discover_once()
-            prefetch_once(8 if os.getenv("YOUTUBE_API_KEY") else 2)
+            prefetch_once(16 if os.getenv("YOUTUBE_API_KEY") else 2)
             followers_once(100)
             intra_once()
         except Exception as e:
@@ -1149,12 +1149,7 @@ def _api_videos(cid: str, since: float, key: str, pages: int = 20) -> list:
     comments and length. What kind each video is comes from YouTube's own per-channel playlists: UULV<id> holds the
     channel's live streams and UUSH<id> its Shorts. A premiere is a normal video (it's in neither), even though the
     API gives it live-stream details too. About 1 quota unit per 50 videos."""
-    j = events._http.get("https://www.googleapis.com/youtube/v3/channels",
-                         params={"part": "contentDetails", "id": cid, "key": key}, timeout=15).json()
-    up = (((j.get("items") or [{}])[0].get("contentDetails") or {}).get("relatedPlaylists") or {}).get("uploads")
-    if not up:
-        return []
-    ids = _playlist_ids(up, since, key, pages)
+    ids = _playlist_ids("UU" + cid[2:], since, key, pages)       # a channel's uploads playlist is UU + its id
     lives, shorts = set(_playlist_ids("UULV" + cid[2:], since, key, pages)), set(_playlist_ids("UUSH" + cid[2:], since, key, pages))
     out = []
     for i in range(0, len(ids), 50):
@@ -1319,8 +1314,8 @@ def history_loading(sid: str) -> bool:
 
 
 def prefetch_once(n: int = 5) -> int:
-    """Pull the full video history of a few channels that don't have it yet (followed ones first, then the biggest),
-    so their pages are complete before anyone opens them."""
+    """Read the last 60 days of videos of channels that have none yet (followed ones first, then the biggest), so
+    every channel page shows its performance before anyone opens it. About 4 API units a channel."""
     with store._lock:
         cand = [r[0] for r in _db().execute(
             """SELECT c.sid FROM sc_channels c LEFT JOIN (SELECT s.sid, s.subs FROM sc_chstats s JOIN
@@ -1330,9 +1325,12 @@ def prefetch_once(n: int = 5) -> int:
     for sid in cand:
         if done >= n:
             break
-        if (store.kv_get(f"vids:{sid}") or {}).get("full") or sid in _VBUSY:
+        m = store.kv_get(f"vids:{sid}") or {}
+        if m.get("recent") or m.get("full") or sid in _VBUSY:
             continue
-        _refresh_videos(sid, full=True)
+        if not events.yt_quota_left(.7):
+            break
+        _refresh_videos(sid, full=False)      # the last 60 days (a few API units); the whole history when the page is opened
         done += 1
     return done
 

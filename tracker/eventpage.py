@@ -145,7 +145,8 @@ def _roster(out: dict) -> list:
         lv = [x for x in live if token in n(x["channel"])]
         pk = [x for x in done if token in n(x["channel"])]
         logo = card.get("logo") or next((x.get("logo") for x in lv + pk if x.get("logo")), "")
-        url = (lv or pk)[0]["url"] if (lv or pk) else (f"https://www.youtube.com/{handle}" if handle else "")
+        url = (lv or pk)[0]["url"] if (lv or pk) else (f"https://www.youtube.com/channel/{handle}" if handle and handle.startswith("UC")
+                                                        else f"https://www.youtube.com/{handle}" if handle else "")
         r = {"name": name, "logo": logo, "url": url, "vid": (lv or pk or [{}])[0].get("vid", "")}
         if lv:
             r.update(status="live", viewers=sum(x["viewers"] for x in lv), peak=max(x["viewers"] for x in pk) if pk else 0)
@@ -169,15 +170,17 @@ def _social() -> str:
                    f'<b>{html.escape(n.upper())}</b><span>{html.escape(h)}</span></a>' for n, u, h in SOCIAL)
 
 
-def build_demo_html(style: str = "v1", logos: dict = None) -> str:
+def build_demo_html(style: str = "v1", logos: dict = None, key: str = "bmsd") -> str:
     """Self-contained page with generated data (no server), for testing the layout and graphs.
     logos: {channel handle: base64 webp} embedded so the demo shows real channel logos offline."""
-    names = {h: n for _, n, h in events.ROSTER if h}
+    R = events.roster(key) or events.ROSTER
+    names = {h: n for _, n, h in R if h}
     dl = {names[h]: "data:image/webp;base64," + b for h, b in (logos or {}).items() if h in names}
     if (logos or {}).get("@KRAFTON"):
         dl["KRAFTON INDIA ESPORTS"] = "data:image/jpeg;base64," + logos["@KRAFTON"]
-    html_ = build_html("bmsd", live=False, style=style).replace("const DEMO=false, DLOGO={}", "const DEMO=true, DLOGO=" + json.dumps(dl))
-    return re.sub(r"TITLE='[^']*'", "TITLE='BMSD 2026'", html_, count=1).replace("No event", "BMSD 2026")
+    name = events.PRESETS.get(key, {}).get("name", "BMSD 2026")
+    html_ = build_html(key, live=False, style=style).replace("const DEMO=false, DLOGO={}", "const DEMO=true, DLOGO=" + json.dumps(dl))
+    return re.sub(r"TITLE='[^']*'", f"TITLE='{name}'", html_, count=1).replace("No event", name)
 
 
 ELOGO_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "eventlogos")
@@ -222,7 +225,7 @@ def build_html(key: str = None, live: bool = False, style: str = None) -> str:
                 .replace("__NEEDOFF__", "false" if _preset(key).get("need_official") is False else "true")
                 .replace("__ENDED__", "true" if _ended(key) else "false")
                 .replace("__V2__", "true" if (style or os.getenv("EVENT_STYLE", "v1")) == "v2" else "false")
-                .replace("__ROSTERN__", json.dumps([n for _, n, _ in events.ROSTER]))
+                .replace("__ROSTERN__", json.dumps([n for _, n, _ in (events.roster(key or "") or events.ROSTER)])).replace("__DNAME__", json.dumps(d.get("name") or "Event"))
                 .replace("__REFRESH__", str(REFRESH_SEC))
                 .replace("__SOCIAL__", _social())
                 .replace("__PWB__", "" if (_ended(key) or not _preset(key).get("predict")) else PWB if os.getenv("PREDICT_OPEN", "0") == "1" else (PWR if os.getenv("PREDICT_SPLIT", "1") == "1" else ""))
@@ -437,7 +440,7 @@ const ENDED=__ENDED__, CUR=__CUR__, GAME=__GAME__, NEEDOFF=__NEEDOFF__;
 const PLATS=()=>((typeof D!=='undefined'&&D&&D.platform_names)||['YouTube']).join(' + ');
 const DISC=()=>GAME==='BGMI'?'Not affiliated with or endorsed by KRAFTON.':'Not affiliated with or endorsed by the organisers or the platforms.';
 const PB=s=>s&&s.platform&&s.platform!=='youtube'?`<span class="pf ${esc(s.platform)}">${esc(s.platform.toUpperCase())}</span>`:'';
-const DEMO=false, DLOGO={}, ELOGO=__ELOGO__, V2=__V2__, ROSTERN=__ROSTERN__;
+const DEMO=false, DLOGO={}, ELOGO=__ELOGO__, V2=__V2__, ROSTERN=__ROSTERN__, DNAME=__DNAME__;
 const LIVE=__LIVE__||DEMO, EVERY=__REFRESH__*1000, URLX='__SITEURL__', BRAND='__BRAND__', TITLE='__TITLE__';
 let D=__DATA__, prev={}, prevTotal=null, view='total', range='full', wpAll=false, kind='all', q='', skew=0, lastFetch=Date.now(), failing=false, mode=null, showAll=false, hover=null, hidden={};
 const PAL=['#b6f23a','#4cc9f0','#ff8a3d','#ff5fa2','#a78bfa','#ffd23f','#2dd4bf','#ff6b6b'];
@@ -905,8 +908,8 @@ function merge(a,tail){a=a||[];const last=a.length?a[a.length-1][0]:0;for(const 
 let lastSeries=Date.now();
 let DM=null;
 function demoInit(m){const now=Date.now()/1000;DM={mode:m,t0:now-2.5*3600,hist:{},tot:[],last:0};
- DM.off=[{vid:'o1',channel:'KRAFTON INDIA ESPORTS',title:'[HINDI] BMSD 2026 | Grand Finals #BGMILIVE',base:190000,ph:0,logo:DLOGO['KRAFTON INDIA ESPORTS']||''},{vid:'o2',channel:'KRAFTON INDIA ESPORTS',title:'[ENGLISH] BMSD 2026 | Grand Finals',base:14000,ph:1,logo:DLOGO['KRAFTON INDIA ESPORTS']||''},{vid:'o3',channel:'KRAFTON INDIA ESPORTS',title:'[MAP STREAM] BMSD 2026 | Grand Finals',base:3500,ph:2,logo:DLOGO['KRAFTON INDIA ESPORTS']||''}];
- DM.st=ROSTERN.map((n,i)=>({vid:'w'+i,channel:n,title:`BMSD 2026 Grand Finals watch party with ${n}`,base:i%5===4?0:Math.round(70000/Math.pow(i+1,.75)),ph:Math.random()*6,logo:DLOGO[n]||''}));
+ DM.off=[{vid:'o1',channel:'KRAFTON INDIA ESPORTS',title:'[HINDI] '+DNAME+' | Grand Finals #BGMILIVE',base:190000,ph:0,logo:DLOGO['KRAFTON INDIA ESPORTS']||''},{vid:'o2',channel:'KRAFTON INDIA ESPORTS',title:'[ENGLISH] '+DNAME+' | Grand Finals',base:14000,ph:1,logo:DLOGO['KRAFTON INDIA ESPORTS']||''},{vid:'o3',channel:'KRAFTON INDIA ESPORTS',title:'[MAP STREAM] '+DNAME+' | Grand Finals',base:3500,ph:2,logo:DLOGO['KRAFTON INDIA ESPORTS']||''}];
+ DM.st=ROSTERN.map((n,i)=>({vid:'w'+i,channel:n,title:`${DNAME} Grand Finals watch party with ${n}`,base:i%5===4?0:Math.round(70000/Math.pow(i+1,.75)),ph:Math.random()*6,logo:DLOGO[n]||''}));
  for(let t=DM.t0;t<=now-200;t+=30)demoStep(t);for(let t=now-200;t<=now;t+=2)demoStep(t)}
 function demoVal(s,t){const p=(t-DM.t0)/3600;return Math.max(0,Math.round(s.base*(.62+.38*Math.sin(p*2.4+s.ph))*(1+.06*Math.sin(t/7+s.ph))*(.97+.06*Math.random())))}
 function demoStep(t){let o=0,w=0;DM.off.concat(DM.st).forEach(s=>{if(!s.base)return;const v=demoVal(s,t);(DM.hist[s.vid]=DM.hist[s.vid]||[]).push([Math.round(t),v]);s.cur=v;s.peak=Math.max(s.peak||0,v);if(s.vid[0]==='o')o+=v;else w+=v});DM.tot.push([Math.round(t),o+w,o,w,0]);DM.last=t}
@@ -917,7 +920,7 @@ function demoData(){const now=Date.now()/1000;if(!DM)demoInit('live');while(DM.l
  const ws={};wp.forEach(w=>ws[w.vid]=DM.hist[w.vid]);
  const roster=DM.st.map(s=>({name:s.channel,logo:s.logo||'',url:'#',vid:s.base?s.vid:'',status:!s.base?'upcoming':liveM?'live':endM?'ended':'upcoming',viewers:liveM&&s.base?s.cur:0,peak:liveM||endM?s.peak||0:0})).sort((a,b)=>({live:0,ended:1,upcoming:2}[a.status]-{live:0,ended:1,upcoming:2}[b.status])||b.viewers-a.viewers||b.peak-a.peak||a.name.localeCompare(b.name));
  const LBs=all.map(s=>({vid:s.vid,channel:s.channel,title:s.title,kind:s.vid[0]==='o'?'official':'watch party',viewers:s.peak,avg:Math.round((DM.hist[s.vid]||[]).reduce((a,r)=>a+r[1],0)/Math.max(1,(DM.hist[s.vid]||[]).length)),at:tf(DM.t0+3600).replace(' IST',''),url:'#',logo:s.logo||''})).sort((a,b)=>b.viewers-a.viewers);
- return{name:'BMSD 2026',ticks:DM.tot.length,now,every:2,method:'demo data',updated:DM.last,official_live:liveM,next_start:liveM||endM?null:(Date.UTC(2026,9,16,9,0)/1000>now?Date.UTC(2026,9,16,9,0)/1000:now+5*3600),live,wp,wp_series:ws,roster,
+ return{name:DNAME,ticks:DM.tot.length,now,every:2,method:'demo data',updated:DM.last,official_live:liveM,next_start:liveM||endM?null:(Date.UTC(2026,9,16,9,0)/1000>now?Date.UTC(2026,9,16,9,0)/1000:now+5*3600),live,wp,wp_series:ws,roster,
   peak:pk[1],peak_when:tf(pk[0]),avg:Math.round(DM.tot.reduce((a,r)=>a+r[1],0)/DM.tot.length),peak_official:Math.max(...DM.tot.map(r=>r[2])),peak_watch:Math.max(...DM.tot.map(r=>r[3])),
   days:[{day:'Fri 16 Oct',peak:pk[1],at:tf(pk[0]).replace(' IST',''),avg:Math.round(pk[1]*.6)}],series_all:DM.tot.slice(),series_recent:DM.tot.slice(),
   last_broadcast:{start:DM.t0,end:DM.last,peak:pk[1],peak_at:pk[0],peak_when:tf(pk[0]),split:{official:pk[2],watch:pk[3],community:0},streams:LBs,when:'Today, demo',day:'Today',date:'FRI 16 OCT',avg:Math.round(DM.tot.reduce((q,r)=>q+r[1],0)/Math.max(1,DM.tot.length)),peak_official:Math.max(0,...DM.tot.map(r=>r[2])),peak_watch:Math.max(0,...DM.tot.map(r=>r[3]))}}}
