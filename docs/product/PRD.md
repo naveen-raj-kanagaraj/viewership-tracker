@@ -73,4 +73,4 @@ Supporting: weekly returning visitors, share cards and badges created, visitors 
 
 ## 8. Release history
 
-55 pull requests merged between 19 and 29 October 2026, each with tests. Highlights: tournament tracker for BMSD 2026 (7 days, 92 streams), worldwide live dashboard and world map, channel pages and rankings, moments, compare, creator badges, accuracy and quota work, privacy and terms for the YouTube API audit. Detail: [DECISIONS.md](DECISIONS.md) and [../HANDOFF.md](../HANDOFF.md).
+58 pull requests merged between 19 and 29 October 2026, each with tests. Highlights: tournament tracker for BMSD 2026 (7 days, 92 streams), worldwide live dashboard and world map, channel pages and rankings, moments, compare, creator badges, accuracy and quota work, privacy and terms for the YouTube API audit. Detail: [DECISIONS.md](DECISIONS.md) and [../HANDOFF.md](../HANDOFF.md).
