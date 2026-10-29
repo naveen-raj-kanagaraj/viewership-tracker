@@ -83,7 +83,8 @@ def yt_countries(cids: list) -> dict:
         for i in range(0, len(cids), 50):
             r = events._http.get("https://www.googleapis.com/youtube/v3/channels",
                                  params={"part": "snippet", "id": ",".join(cids[i:i + 50]), "key": key}, timeout=15)
-            r.raise_for_status()
+            if r.status_code >= 400:          # keep YouTube's reason (quotaExceeded, keyInvalid ...) in the error
+                raise RuntimeError(f"YouTube API {r.status_code}: {(r.json().get('error') or {}).get('errors', [{}])[0].get('reason', '') if r.headers.get('content-type', '').startswith('application/json') else r.text[:80]}")
             got = {it["id"]: _norm_country((it.get("snippet") or {}).get("country")) for it in r.json().get("items", [])}
             for cid in cids[i:i + 50]:
                 out[cid] = got.get(cid, "-")
@@ -612,7 +613,8 @@ def yt_live_page(gl: str = "IN") -> list:
                                   json={"context": {"client": _itv(gl)}, "continuation": tok},
                                   headers={"User-Agent": events._UA, "Content-Type": "application/json",
                                            "Origin": "https://www.youtube.com"}, timeout=10)
-            r.raise_for_status()
+            if r.status_code >= 400:          # keep YouTube's reason (quotaExceeded, keyInvalid ...) in the error
+                raise RuntimeError(f"YouTube API {r.status_code}: {(r.json().get('error') or {}).get('errors', [{}])[0].get('reason', '') if r.headers.get('content-type', '').startswith('application/json') else r.text[:80]}")
             j = r.json()
         except Exception:
             break

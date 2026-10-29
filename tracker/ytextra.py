@@ -380,7 +380,8 @@ def channel_stats(cids: list) -> dict:
         for i in range(0, len(cids), 50):
             r = events._http.get("https://www.googleapis.com/youtube/v3/channels",
                                  params={"part": "statistics,topicDetails,snippet", "id": ",".join(cids[i:i + 50]), "key": key}, timeout=15)
-            r.raise_for_status()
+            if r.status_code >= 400:          # keep YouTube's reason (quotaExceeded, keyInvalid ...) in the error
+                raise RuntimeError(f"YouTube API {r.status_code}: {(r.json().get('error') or {}).get('errors', [{}])[0].get('reason', '') if r.headers.get('content-type', '').startswith('application/json') else r.text[:80]}")
             for it in r.json().get("items", []):
                 s = it.get("statistics") or {}
                 _META[it["id"]] = {"topic": topic_of((it.get("topicDetails") or {}).get("topicCategories") or []),
