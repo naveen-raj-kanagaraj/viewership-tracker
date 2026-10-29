@@ -64,14 +64,16 @@ h1{font:700 40px/1.05 "Barlow Condensed",sans-serif;margin:0;text-transform:uppe
 .lvtag{color:var(--red);font:600 10px "Barlow Condensed",sans-serif;margin-right:4px;letter-spacing:.04em}
 .vm{padding:8px 16px 16px;display:flex;flex-wrap:wrap;gap:6px}.vm span{background:var(--card2);padding:5px 9px;font-size:12px;color:var(--muted)}.vm b{color:var(--ink);font-weight:600}
 __PANEL_CSS__
-@media(max-width:640px){.ins{grid-template-columns:1fr;padding:10px 12px 0}.vhead{padding-right:12px}.vk.life b{font-size:22px}
+@media(max-width:640px){#vidchart{height:210px}.vtools{gap:0}.vseg button{padding:6px 8px;font-size:11px}.vk b{font-size:20px}.vk div{padding:8px 10px}
+.ins{grid-template-columns:1fr;padding:10px 12px 0}.vhead{padding-right:12px}.vk.life b{font-size:22px}
 #vidchart{width:calc(100% - 24px);margin:10px 12px 0;height:180px}.vtools{padding:0}
 .vl a,.vl .hdr{grid-template-columns:52px minmax(0,1fr) 58px 44px!important}.vl a>:nth-child(n+4):not(:last-child),.vl .hdr>:nth-child(n+4):not(:last-child){display:none}
 .vk{grid-template-columns:repeat(2,1fr);padding:10px 12px 0}.vk div:last-child{grid-column:1/-1}#vchart{width:calc(100% - 24px);margin:10px 12px 0;height:170px}.vseg{margin:10px 12px 0}.vm{padding:8px 12px 12px}
 .wrap{padding:0 12px 20px}.top .in{padding:9px 12px}.brand{font-size:15px}.nav{gap:8px}
-.hd{grid-template-columns:60px minmax(0,1fr);gap:12px}.hd img,.hd .ph{width:60px;height:60px}h1{font-size:28px}.hd .act{grid-column:1/-1}.hd .act .btn{width:100%;text-align:center}
+.hd .act{display:flex;gap:8px}.hd .act .btn{flex:1}.hd{grid-template-columns:60px minmax(0,1fr);gap:12px}.hd img,.hd .ph{width:60px;height:60px}h1{font-size:28px}.hd .act{grid-column:1/-1}.hd .act .btn{width:100%;text-align:center}
 .cx{padding:4px 12px 12px}.cxc{grid-template-columns:1fr}.cxt td{font-size:14px;padding:4px 3px}.cxt th{padding:4px 3px;font-size:10px}.cxd div{grid-template-columns:52px minmax(0,1fr) 64px 50px}.cxd div span:nth-child(5){display:none}
 .ps{padding:4px 12px 12px}.ps a,.ps .hdr{grid-template-columns:62px minmax(0,1fr) 64px}.ps a>:nth-child(3),.ps .hdr>:nth-child(3),.ps a>:nth-child(5),.ps .hdr>:nth-child(5){display:none}}
+.plats{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.plats>*{font:600 12px "Barlow Condensed",sans-serif;letter-spacing:.05em;text-transform:uppercase;padding:5px 12px;border:1px solid;border-left-width:3px;text-decoration:none;color:var(--muted)}.plats .on{color:var(--ink);background:var(--card2)}.act{display:flex;gap:8px;flex-wrap:wrap}.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
 </style></head><body>
 <div class="top"><div class="in"><a class="brand" href="__HOME__">__BRAND__</a><span class="beta">BETA</span><span class="nav"><a href="__HOME__">DASHBOARD</a><a href="__RP__/rankings">RANKINGS</a><a href="/map">MAP</a></span></div></div>
 <div class="wrap">
@@ -102,12 +104,12 @@ const ini=s=>esc(String(s||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCa
 const av=x=>x.logo?`<img src="${esc(x.logo)}" alt="" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=ph>${ini(x.name)}</span>'">`:`<span class="ph">${ini(x.name)}</span>`;
 const liveMap=()=>({});let OPEN=null;function render(){}
 __PANEL_JS__
-let VR=30,VRANGE='3m',VKIND='all',VMET='views',VID=null,CDATA=null;
-const RANGES=[['1w','1W'],['1m','1M'],['3m','3M'],['6m','6M'],['ytd','YTD'],['1y','1Y'],['all','ALL TIME']];
+let VR=30,VRANGE='30d',VKIND='all',VMET='views',VID=null,CDATA=null;
+const RANGES=[['7d','7D'],['30d','30D'],['90d','90D'],['6m','6M'],['ytd','YTD'],['1y','1Y'],['all','ALL TIME']];
 const KINDC={uploads:'#a58bff',shorts:'#4cc9f0',live:'#ff4d5e'},kindOf=v=>v.live?'live':v.short?'shorts':'uploads',KINDN={uploads:'Videos',shorts:'Shorts',live:'Live'};
 const engOf=v=>v.likes!=null&&v.views?100*((v.likes||0)+(v.comments||0))/v.views:null;
 const MET={views:['Views',v=>v.views||0,fmt],likes:['Likes',v=>v.likes||0,fmt],comments:['Comments',v=>v.comments||0,fmt],eng:['Engagement',v=>engOf(v)||0,v=>v.toFixed(1)+'%']};
-const RNAME={'1w':'last week','1m':'last month','3m':'last 3 months','6m':'last 6 months','ytd':'this year','1y':'last 12 months','all':'all time'};
+const RNAME={'7d':'last 7 days','30d':'last 30 days','90d':'last 90 days','1w':'last week','1m':'last month','3m':'last 3 months','6m':'last 6 months','ytd':'this year','1y':'last 12 months','all':'all time'};
 function renderLife(){const c=CDATA,j=VID;if(!c||!j)return;const S=c.stats||{},V=c.views||{},G=V.gains||[],sum=n=>G.filter(g=>g.day>=new Date(Date.now()-n*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})).reduce((a,g)=>a+g.views,0);
  if(c.platform!=='youtube'){const sn=V.snapshots||[],f=(sn[sn.length-1]||{}).subs,fg=n=>G.filter(g=>g.subs!=null&&g.day>=new Date(Date.now()-n*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})).reduce((a,g)=>a+g.subs,0),P=c.periods||{};
   document.getElementById('lifek').innerHTML=`<div><b>${f!=null?fmt(f):'-'}</b>followers</div><div><b class="up">${G.length?(fg(30)>=0?'+':'')+fmt(fg(30)):'-'}</b>followers, 30 days</div><div><b>${P.all&&P.all.peak?fmt(P.all.peak):'-'}</b>peak live viewers (this site)</div><div><b>${P['30d']?fmt(P['30d'].hw)+'h':'-'}</b>hours watched, 30 days</div><div><b>${full(j.count)}</b>broadcasts listed</div>`;return}
@@ -122,45 +124,49 @@ async function videos(){try{const j=await (await fetch(`/api/videos?sid=${encode
  sg('vkind',YT?[['all','ALL'],['uploads','VIDEOS'],['shorts','SHORTS'],['live','LIVE']]:[['all','ALL'],['live','PAST BROADCASTS'],['uploads','HIGHLIGHTS & UPLOADS']],VKIND,v=>{VKIND=v;videos()});
  if(YT)sg('vmetric',[['views','VIEWS'],['likes','LIKES'],['comments','COMMENTS'],['eng','ENGAGEMENT']],VMET,v=>{VMET=v;drawVids();topList()});else{VMET='views';document.getElementById('vmetric').style.display='none'}
  document.getElementById('vidk').innerHTML=`<div><b>${full(j.count)}</b>posted, ${RNAME[VRANGE]} · ${j.per_week}/week</div><div><b class="up">${fmt(j.views)}</b>views on them</div><div><b>${fmt(j.avg)}</b>average per post</div><div><b>${fmt(j.median)}</b>median per post</div><div><b>${j.engagement!=null?j.engagement+'%':'-'}</b>engagement${j.likes!=null?` · ${fmt(j.likes)} likes · ${fmt(j.comments)} comments`:''}</div>`;
- drawVids();insights();topList()}catch(e){}}
+ document.getElementById('vidk').insertAdjacentHTML('beforeend',`<div style="grid-column:1/-1;background:none;padding:0 2px">${j.bucket&&j.bucket!=='post'?`Chart: average per post, by ${j.bucket}; purple bars = posts that ${j.bucket}.`:'Chart: one point per post.'}${j.loading?' <span style="color:var(--lime)">Pulling the full history from '+(YT?'YouTube':NAMES[CDATA?CDATA.platform:'twitch'])+'... updates by itself.</span>':''}</div>`);
+ drawVids();insights();topList();
+ clearTimeout(window._vpoll);if(j.loading)window._vpoll=setTimeout(videos,6000)}catch(e){}}
 function topList(){const j=VID;if(!j)return;const m=MET[VMET],med=j.median||1;
  const L=(j.videos||[]).slice().sort((a,b)=>m[1](b)-m[1](a)).slice(0,15);
  document.getElementById('vidlist').className='ps vl';
  document.getElementById('vidlist').innerHTML=L.length?`<div class="hdr"><span>POSTED</span><span>TOP BY ${m[0].toUpperCase()}</span><span>VIEWS</span><span>LIKES</span><span>COMMENTS</span><span>ENGAGE</span><span>VS MEDIAN</span></div>${L.map(v=>`<a href="${esc(VURL(v))}" target="_blank" rel="noopener"><span class="d">${v.ts?(v.approx?'~':'')+ist(v.ts,{day:'numeric',month:'short'}):''}</span><span class="t"><span class="lvtag" style="color:${KINDC[kindOf(v)]}">${KINDN[kindOf(v)].toUpperCase()}</span>${esc(v.title)}</span><span class="n">${fmt(v.views)}</span><span class="n">${v.likes!=null?fmt(v.likes):'-'}</span><span class="n">${v.comments!=null?fmt(v.comments):'-'}</span><span class="n">${engOf(v)!=null?engOf(v).toFixed(1)+'%':'-'}</span><span class="n ${(v.views||0)>=2*med?'xm':''}">${((v.views||0)/med).toFixed(1)}x</span></a>`).join('')}`:'<div class="empty">Nothing posted in this range.</div>'}
-function insights(){const j=VID,L=(j.videos||[]).filter(v=>v.ts&&!v.approx),el=document.getElementById('vins');
- if(L.length<5){el.innerHTML='';return}
- const avgBy=f=>{const m={};L.forEach(v=>{const k=f(v);(m[k]=m[k]||[]).push(v.views||0)});return Object.fromEntries(Object.entries(m).map(([k,a])=>[k,{avg:a.reduce((x,y)=>x+y,0)/a.length,n:a.length}]))};
- const wd=avgBy(v=>new Date(v.ts*1000).toLocaleDateString('en-US',{timeZone:'Asia/Kolkata',weekday:'short'})),DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
- const mxw=Math.max(1,...DAYS.map(d=>(wd[d]||{}).avg||0)),bestD=DAYS.reduce((a,d)=>((wd[d]||{}).avg||0)>((wd[a]||{}).avg||0)?d:a,'Mon');
- const hr=avgBy(v=>{const h=+new Date(v.ts*1000).toLocaleString('en-US',{timeZone:'Asia/Kolkata',hour:'numeric',hour12:false})%24;return h<6?'Late night (0-6)':h<12?'Morning (6-12)':h<17?'Afternoon (12-17)':h<21?'Evening (17-21)':'Night (21-24)'});
- const hs=Object.entries(hr).sort((a,b)=>b[1].avg-a[1].avg);
- const fm=avgBy(kindOf);
+function insights(){const I=(VID&&VID.insights)||{},el=document.getElementById('vins');if(!I.weekday){el.innerHTML='';return}
+ const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],wd=I.weekday,mxw=Math.max(1,...DAYS.map(d=>(wd[d]||{}).avg||0)),bestD=DAYS.reduce((a,d)=>((wd[d]||{}).avg||0)>((wd[a]||{}).avg||0)?d:a,'Mon');
+ const hs=Object.entries(I.time||{}).sort((a,b)=>b[1].avg-a[1].avg),fm=I.format||{};
  el.innerHTML=`<div><h4>Best day to post</h4><div class="wk">${DAYS.map(d=>`<span class="${d===bestD?'best':''}" title="${(wd[d]||{}).n||0} posts"><i style="height:${Math.max(3,58*(((wd[d]||{}).avg||0)/mxw))}px"></i>${d[0]}${d[1]}</span>`).join('')}</div><div style="margin-top:6px">${bestD}: <b style="color:var(--ink)">${fmt((wd[bestD]||{}).avg)}</b> average views (IST)</div></div>
-  <div><h4>Best time to post (IST)</h4>${hs.slice(0,4).map(([k,o],i)=>`<div class="fr"><span${i?'':' style="color:var(--lime)"'}>${k}</span><b>${fmt(o.avg)}</b></div>`).join('')}</div>
+  <div><h4>Best time to post (IST)</h4>${hs.slice(0,4).map(([k,o],i)=>`<div class="fr"><span${i?'':' style="color:var(--lime)"'}>${k} · ${o.n}</span><b>${fmt(o.avg)}</b></div>`).join('')}</div>
   <div><h4>Average views by format</h4>${['uploads','shorts','live'].filter(k=>fm[k]).map(k=>`<div class="fr"><span style="color:${KINDC[k]}">${KINDN[k]} (${fm[k].n})</span><b>${fmt(fm[k].avg)}</b></div>`).join('')}</div>`}
+const dlab=(t,span)=>new Date(t*1000).toLocaleDateString('en-IN',span>300*86400?{month:'short',year:'2-digit'}:{day:'numeric',month:'short'});
 function drawVids(){const cv=document.getElementById('vidchart'),j=VID;if(!cv||!j)return;const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;const x=cv.getContext('2d');x.scale(dpr,dpr);
- const m=MET[VMET],L=(j.videos||[]).filter(v=>v.ts).slice().sort((a,b)=>a.ts-b.ts),t0=j.since,t1=Date.now()/1000,pt=12,pb=24,pr=54;
- const vals=L.map(m[1]),mx=Math.max(1e-9,...vals)*1.15,X=t=>(W-pr)*(t-t0)/(t1-t0),Y=v=>pt+(H-pt-pb)*(1-v/mx);
- x.font='11px "Barlow Condensed",sans-serif';x.strokeStyle='#262636';x.fillStyle='#8d8ca3';x.lineWidth=1;
- for(let i=0;i<=4;i++){const y=pt+(H-pt-pb)*i/4;x.beginPath();x.moveTo(0,y);x.lineTo(W-pr,y);x.stroke();x.fillText(m[2](mx*(1-i/4)),W-pr+5,y+4)}
- const nt=W<500?3:6;for(let i=0;i<=nt;i++){const t=t0+(t1-t0)*i/nt;x.textAlign=i===0?'left':i===nt?'right':'center';x.fillText(new Date(t*1000).toLocaleDateString('en-IN',{day:'numeric',month:'short'}),X(t),H-6)}x.textAlign='left';
+ const m=MET[VMET],B=j.bucket&&j.bucket!=='post',PH=W<520,t0=j.since,t1=Date.now()/1000,span=t1-t0,pt=14,pb=PH?20:24,pr=PH?44:54;
+ // per post, or per week/month: average per post in that bucket
+ const pv=B?{views:z=>z.avg,likes:z=>z.likes/z.posts,comments:z=>z.comments/z.posts,eng:z=>z.eng||0}[VMET]:m[1];
+ const L=B?(j.series||[]):(j.videos||[]).filter(v=>v.ts).slice().sort((a,b)=>a.ts-b.ts);
+ const vals=L.map(pv),mx=Math.max(1e-9,...vals)*1.15,X=t=>(W-pr)*(t-t0)/(t1-t0||1),Y=v=>pt+(H-pt-pb)*(1-v/mx);
+ x.font=`${PH?10:11}px "Barlow Condensed",sans-serif`;x.strokeStyle='#262636';x.fillStyle='#8d8ca3';x.lineWidth=1;
+ for(let i=0;i<=3;i++){const y=pt+(H-pt-pb)*i/3;x.beginPath();x.moveTo(0,y);x.lineTo(W-pr,y);x.stroke();x.fillText(m[2](mx*(1-i/3)),W-pr+4,y+4)}
+ const nt=PH?3:6;for(let i=0;i<=nt;i++){const t=t0+span*i/nt;x.textAlign=i===0?'left':i===nt?'right':'center';x.fillText(dlab(t,span),X(t),H-5)}x.textAlign='left';
  if(!L.length){x.fillText('Nothing posted in this range.',10,H/2);cv._pts=[];return}
- const P=L.map(v=>[X(v.ts),Y(m[1](v)),v]);
- // smooth line through the posts, filled underneath
+ if(B){const mp=Math.max(1,...L.map(z=>z.posts)),bw=Math.max(1.5,(W-pr)/L.length*.6);x.fillStyle='rgba(165,139,255,.18)';L.forEach(z=>{const h=(H-pt-pb)*.22*z.posts/mp;x.fillRect(X(z.ts)-bw/2,H-pb-h,bw,h)})}
+ const P=L.map(v=>[X(v.ts),Y(pv(v)),v]);
  const path=()=>{x.beginPath();x.moveTo(P[0][0],P[0][1]);for(let i=1;i<P.length;i++){const a=P[i-1],b=P[i],cx=(a[0]+b[0])/2;x.bezierCurveTo(cx,a[1],cx,b[1],b[0],b[1])}};
- const g=x.createLinearGradient(0,pt,0,H-pb);g.addColorStop(0,'rgba(182,242,58,.30)');g.addColorStop(1,'rgba(182,242,58,0)');
+ const g=x.createLinearGradient(0,pt,0,H-pb);g.addColorStop(0,'rgba(182,242,58,.28)');g.addColorStop(1,'rgba(182,242,58,0)');
  path();x.lineTo(P[P.length-1][0],H-pb);x.lineTo(P[0][0],H-pb);x.closePath();x.fillStyle=g;x.fill();
- path();x.strokeStyle='#b6f23a';x.lineWidth=2.2;x.shadowColor='rgba(182,242,58,.55)';x.shadowBlur=8;x.stroke();x.shadowBlur=0;
- // median line
- const sv=vals.slice().sort((a,b)=>a-b),md=sv[Math.floor(sv.length/2)];x.setLineDash([4,4]);x.strokeStyle='rgba(165,139,255,.6)';x.lineWidth=1;x.beginPath();x.moveTo(0,Y(md));x.lineTo(W-pr,Y(md));x.stroke();x.setLineDash([]);
+ path();x.strokeStyle='#b6f23a';x.lineWidth=PH?1.8:2.2;x.stroke();
+ const sv=vals.slice().sort((a,b)=>a-b),md=sv[Math.floor(sv.length/2)];x.setLineDash([4,4]);x.strokeStyle='rgba(165,139,255,.6)';x.beginPath();x.moveTo(0,Y(md));x.lineTo(W-pr,Y(md));x.stroke();x.setLineDash([]);
  x.fillStyle='#a58bff';x.fillText('median '+m[2](md),4,Y(md)-4);
- const bi=vals.indexOf(Math.max(...vals));
- P.forEach((p,i)=>{x.beginPath();x.arc(p[0],p[1],i===bi?5:3,0,7);x.fillStyle=i===bi?'#b6f23a':KINDC[kindOf(p[2])];x.fill();x.strokeStyle='#0b0b12';x.lineWidth=1.5;x.stroke()});
- const b=P[bi],right=b[0]>W-pr-120;x.font='700 12px "Barlow Condensed",sans-serif';x.fillStyle='#b6f23a';x.textAlign=right?'right':'left';x.fillText('BEST '+m[2](vals[bi]),b[0]+(right?-8:8),Math.max(12,b[1]-8));x.textAlign='left';
+ const bi=vals.indexOf(Math.max(...vals)),dots=P.length<=(PH?40:70);
+ P.forEach((p,i)=>{if(!dots&&i!==bi)return;x.beginPath();x.arc(p[0],p[1],i===bi?5:3,0,7);x.fillStyle=i===bi?'#b6f23a':B?'#a58bff':KINDC[kindOf(p[2])];x.fill();x.strokeStyle='#0b0b12';x.lineWidth=1.5;x.stroke()});
+ const b=P[bi],right=b[0]>W-pr-110;x.font='700 12px "Barlow Condensed",sans-serif';x.fillStyle='#b6f23a';x.textAlign=right?'right':'left';x.fillText('BEST '+m[2](vals[bi]),b[0]+(right?-8:8),Math.max(12,b[1]-8));x.textAlign='left';
  cv._pts=P;const tip=document.getElementById('vtip');
- const near=e=>{const r=cv.getBoundingClientRect(),mx_=e.clientX-r.left,my=e.clientY-r.top;let best=null,d=1e9;for(const p of cv._pts){const dd=Math.hypot(p[0]-mx_,(p[1]-my)*.3);if(dd<d){d=dd;best=p}}return d<30?best:null};
- cv.onmousemove=e=>{const p=near(e);if(!p){tip.style.display='none';return}const v=p[2];tip.innerHTML=`<span class="lvtag" style="color:${KINDC[kindOf(v)]}">${KINDN[kindOf(v)].toUpperCase()}</span>${esc(v.title)}<br><b>${fmt(v.views)}</b> views${v.likes!=null?' · '+fmt(v.likes)+' likes · '+fmt(v.comments)+' comments':''}${engOf(v)!=null?' · '+engOf(v).toFixed(1)+'%':''}<br>${v.approx?'~':''}${ist(v.ts,{day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'})} IST`;tip.style.display='block';tip.style.left=Math.min(e.clientX+12,innerWidth-290)+'px';tip.style.top=(e.clientY+12)+'px'};
- cv.onmouseleave=()=>{tip.style.display='none'};cv.onclick=e=>{const p=near(e);if(p)window.open(VURL(p[2]),'_blank','noopener')}}
+ const near=e=>{const r=cv.getBoundingClientRect(),mx_=e.clientX-r.left;let best=null,d=1e9;for(const p of cv._pts){const dd=Math.abs(p[0]-mx_);if(dd<d){d=dd;best=p}}return d<30?best:null};
+ const show=(e,p)=>{if(!p){tip.style.display='none';return}const v=p[2];
+  tip.innerHTML=B?`${j.bucket==='month'?'Month of':'Week of'} ${new Date(v.ts*1000).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}<br><b>${v.posts}</b> posts · <b>${fmt(v.views)}</b> views · ${fmt(v.avg)} per post${v.eng!=null?' · '+v.eng+'%':''}`
+   :`<span class="lvtag" style="color:${KINDC[kindOf(v)]}">${KINDN[kindOf(v)].toUpperCase()}</span>${esc(v.title)}<br><b>${fmt(v.views)}</b> views${v.likes!=null?' · '+fmt(v.likes)+' likes · '+fmt(v.comments)+' comments':''}${engOf(v)!=null?' · '+engOf(v).toFixed(1)+'%':''}<br>${v.approx?'~':''}${ist(v.ts,{day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'})} IST`;
+  tip.style.display='block';tip.style.left=Math.min(e.clientX+12,innerWidth-290)+'px';tip.style.top=(e.clientY+12)+'px'};
+ cv.onmousemove=e=>show(e,near(e));cv.onmouseleave=()=>{tip.style.display='none'};
+ cv.onclick=e=>{const p=near(e);if(!p)return;if(B||matchMedia('(hover:none)').matches&&tip.style.display!=='block'){show(e,p);return}window.open(VURL(p[2]),'_blank','noopener')}}
 window.addEventListener('resize',()=>{drawVids();if(CDATA)viewsCard(CDATA)});
 // ---- share card: the channel's performance as an image
 function loadImg(u){return new Promise(r=>{if(!u)return r(null);const i=new Image();i.crossOrigin='anonymous';i.onload=()=>r(i);i.onerror=()=>r(null);i.src=u})}
@@ -231,7 +237,8 @@ async function load(){try{const c=await (await fetch('/api/channel?sid='+encodeU
  document.getElementById('hd').className='hd'+(now?' live':'');
  document.getElementById('hd').innerHTML=`${av(c)}<div style="min-width:0"><h1>${esc(c.name)}</h1><div class="meta"><b style="color:${COL[c.platform]}">${NAMES[c.platform]||''}</b>${c.country?' · '+esc(c.country):''}${S&&S.subs!=null?' · <b>'+fmt(S.subs)+'</b> subscribers':''}${now||c.last_live?' · ':''}${now?`<span class="lv">LIVE</span><b>${full(now)}</b> watching${c.game?' · '+esc(c.game):''}`:c.last_live?'last live '+ago(c.last_live):''}</div>${now&&c.title?`<div class="meta" style="margin-top:6px">${esc(c.title)}</div>`:''}</div>
   ${rankBadges(c)}
-  <div class="act"><a class="btn${now?' red':''}" href="${esc(c.url)}" target="_blank" rel="noopener">${now?'WATCH LIVE':'OPEN'} ON ${(NAMES[c.platform]||'').toUpperCase()}</a></div>`;
+  ${(c.linked||[]).length?`<div class="plats" style="grid-column:1/-1"><span class="on" style="border-color:${COL[c.platform]}">${NAMES[c.platform]}</span>${c.linked.map(l=>`<a href="${RP}/ch/${encodeURIComponent(l.sid)}" style="border-color:${COL[l.platform]||'#262636'}">${NAMES[l.platform]||l.platform}</a>`).join('')}</div>`:''}
+  <div class="act"><a class="btn${now?' red':''}" href="${esc(c.url)}" target="_blank" rel="noopener">${now?'WATCH LIVE':'OPEN'} ON ${(NAMES[c.platform]||'').toUpperCase()}</a><a class="btn ghost" href="${RP}/compare?c=${encodeURIComponent([SID,...(c.linked||[]).map(l=>l.sid)].join(','))}">COMPARE</a></div>`;
  CDATA=c;viewsCard(c);renderLife();
  const seen=c.periods&&c.periods.all&&c.periods.all.days;
  document.getElementById('stats').innerHTML=seen?panel(SID):`<div class="empty">This site hasn't seen ${esc(c.name)} live yet. Live numbers (watching now, peak, hours watched) start the first time they stream; their YouTube channel views above are recorded every day.</div>`}catch(e){}}

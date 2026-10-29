@@ -23,7 +23,7 @@ PORT = int(os.getenv("EVENT_WEB_PORT", "8092"))
 app = Flask(__name__)
 
 
-CACHE = {"/api/topch": 120, "/api/videos": 300, "/api/lookup": 600, "/api/moments": 20, "/moments": 300, "/india/moments": 300, "/api/ytsearch": 600, "/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
+CACHE = {"/api/home": 120, "/api/compare": 30, "/compare": 300, "/india/compare": 300, "/api/topch": 120, "/api/videos": 300, "/api/lookup": 600, "/api/moments": 20, "/moments": 300, "/india/moments": 300, "/api/ytsearch": 600, "/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
 
 
 
@@ -435,8 +435,9 @@ def api_moments():
     region = g("region", "global") if g("region") in scene.REGIONS else "global"
     period = g("period", "7d") if g("period") in ("today", "7d", "30d") else "7d"
     game, sid = (g("game") or "")[:60], (g("sid") or "")[:120]
-    return _memo(f"/api/moments:{region}:{period}:{game}:{sid}", 10,
-                 _jdump(lambda: moments.recent(region, period, game, sid)), "application/json")
+    sort = g("sort", "views") if g("sort") in ("views", "jump", "hype", "new") else "views"
+    return _memo(f"/api/moments:{region}:{period}:{game}:{sid}:{sort}", 10,
+                 _jdump(lambda: moments.recent(region, period, game, sid, sort=sort)), "application/json")
 
 
 @app.route("/moments")
@@ -456,11 +457,11 @@ def api_videos():
     """A YouTube channel's uploads and past live streams in a range: /api/videos?sid=yt:UC...&range=1w|1m|3m|6m|ytd|1y&kind=all|uploads|live"""
     from tracker import ytextra
     sid = (request.args.get("sid") or "")[:60]
-    rng = request.args.get("range", "3m") if request.args.get("range") in ytextra.RANGES else "3m"
+    rng = request.args.get("range", "30d") if request.args.get("range") in ytextra.RANGES else "30d"
     kind = request.args.get("kind", "all") if request.args.get("kind") in ("all", "uploads", "shorts", "live") else "all"
     if not __import__("re").fullmatch(r"(yt:UC[\w-]{22}|(twitch|kick):[a-z0-9_-]{2,40})", sid):
         return Response("{}", status=404, mimetype="application/json")
-    return _memo(f"/api/videos:{sid}:{rng}:{kind}", 120, _jdump(lambda: ytextra.videos_summary(sid, rng, kind)), "application/json")
+    return _memo(f"/api/videos:{sid}:{rng}:{kind}", 8, _jdump(lambda: ytextra.videos_summary(sid, rng, kind)), "application/json")
 
 
 @app.route("/api/topch")
@@ -474,6 +475,38 @@ def api_topch():
     category = (g("category") or "")[:40]
     return _memo(f"/api/topch:{plat}:{metric}:{country}:{category}", 120,
                  _jdump(lambda: ranks.top(plat, metric, country, category)), "application/json")
+
+
+SID_RX = r"(yt:UC[\w-]{22}|(twitch|kick):[a-z0-9_-]{2,40})"
+
+
+@app.route("/api/home")
+def api_home():
+    """Top channels today (views gained, YouTube) and trending videos (last 3 days): /api/home?region=&game="""
+    from tracker import scene, ytextra
+    region = request.args.get("region", "global") if request.args.get("region") in scene.REGIONS else "global"
+    cat = request.args.get("cat", "")
+    game = scene.category_name(cat) if __import__("re").fullmatch(r"[a-z0-9-]{1,40}", cat or "") else None
+    return _memo(f"/api/home:{region}:{game}", 120, _jdump(lambda: {**ytextra.home_lists(region, game or "", 50),
+                 "channels": ytextra.category_channels(game, region) if game else []}), "application/json")
+
+
+@app.route("/api/compare")
+def api_compare():
+    """Channels side by side: /api/compare?c=yt:UC...,kick:slug&range=90d"""
+    from tracker import ytextra
+    re_ = __import__("re")
+    sids = [x for x in (request.args.get("c") or "").split(",") if re_.fullmatch(SID_RX, x)][:4]
+    rng = request.args.get("range", "90d") if request.args.get("range") in ytextra.RANGES else "90d"
+    return _memo(f"/api/compare:{','.join(sids)}:{rng}", 30, _jdump(lambda: ytextra.compare(sids, rng)), "application/json")
+
+
+@app.route("/compare")
+@app.route("/india/compare")
+def compare_page():
+    from tracker import comparepage
+    region = "in" if request.path.startswith("/india") else "global"
+    return _memo(f"/compare:{region}", 300, lambda: comparepage.build_html(region), "text/html")
 
 
 @app.route("/api/past")
@@ -745,7 +778,7 @@ def robots():
     return Response("User-agent: *\nDisallow: /\n", mimetype="text/plain")
 
 
-WARM = ["/", "/india", "/api/scene?region=global&period=today", "/api/scene?region=in&period=today",
+WARM = ["/", "/india", "/api/home?region=global", "/api/home?region=in", "/api/scene?region=global&period=today", "/api/scene?region=in&period=today",
         "/api/scene/live?region=global", "/api/scene/live?region=in", "/rankings", "/api/rank?region=global&period=day&metric=hw",
         "/api/rank?region=in&period=day&metric=hw", "/map", "/api/geo", "/moments", "/api/moments?region=global&period=7d"]
 

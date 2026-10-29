@@ -292,6 +292,20 @@ As of 26 Oct 2026:
 - Discovery: ytextra.discover_once adds channels from YouTube channel search (games/topics x countries), 2 searches
   every 15 min; daily stats now up to 2,000 channels per run with the API key (CHANNEL_STATS_MAX 50,000/day).
 - Kick seeds always include `skyesports` and `cegc` (`scene.ALWAYS`); "CEGC" is also a tournament name.
+- v16 (29 Oct): Home = KPIs, then "Top today" cards of 5 (live now, streamers today, YouTube channels by views
+  gained in the last day, trending videos of the last 3 days, top moments) with a category dropdown that filters all
+  of them (`/api/home?region=&cat=`), then games live, tournaments, chart. On phones the globe moves below the cards.
+  Nav: Overview, Rankings, Moments, World map, Compare, sections. Category pages add Biggest channels (main game =
+  this one, uploaders and streamers), channels today, trending videos, moments. yt_videos.game is tagged by
+  scene.classify; a channel's game = most common game of its last 40 posts.
+- Same creator on several platforms: `ytextra.linked` (hand links in kv chan_links via `track.py scene link A B` /
+  `unlink`, else exact normalized-name match of 5+ chars). Channel page shows platform pills and COMPARE.
+- `/compare?c=sid,sid` (up to 4, any platform): lifetime, posts in range, live, ranks, avg views per post chart,
+  per-day growth chart (`/api/compare`). Channel range default is 30D (7D/30D/90D/6M/YTD/1Y/ALL).
+- Moments: sort by peak viewers by default (MOST WATCHED / BIGGEST JUMP / HYPE / NEWEST); a YouTube moment only
+  embeds when its start offset is known and the stream has ended (else "replay when it ends"), never from 0:00.
+- Daily channel views: no public source gives past days. Every tracked channel is snapshotted daily from now on;
+  "views per day" fills in after two snapshots. Gains are divided by the day gap and >25%-of-total jumps ignored.
 
 ## Ideas not built yet
 

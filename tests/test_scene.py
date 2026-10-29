@@ -334,7 +334,7 @@ assert de["history"] and de["history_game"] == "BGMI" and not sc.data("today", r
 print("YT CHANNELS / CEGC OK")
 # Moments: a sudden jump on a big stream becomes a moment with a link at that second
 from tracker import moments as mo
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import threading as _th
 _runs = []
 _th_orig = _th.Thread
@@ -511,3 +511,34 @@ yx.yt_channel_search = _yxs
 assert yx.topic_of(["https://en.wikipedia.org/wiki/Action_game", "https://en.wikipedia.org/wiki/Video_game_culture"]) == "Gaming"
 assert yx.topic_of(["https://en.wikipedia.org/wiki/Hip_hop_music"]) == "Music" and yx.topic_of([]) == ""
 print("RANKS OK")
+# same creator across platforms; home lists; compare; new pages render
+with store._lock:
+    cc = sc._db()
+    cc.execute("INSERT OR IGNORE INTO sc_channels (sid, platform, name) VALUES ('kick:soulaman','kick','soulaman')")
+    yd = (datetime.now(events.REPORT_TZ).date() - timedelta(days=1)).strftime("%Y-%m-%d")
+    cc.execute("INSERT OR REPLACE INTO sc_chstats VALUES (?,?,?,?,?,?)", (yd, "yt:UCaman", 8990000, 10**9 - 50000, 100, 0))
+    cc.commit()
+yx._NN["at"] = 0
+assert [l["sid"] for l in yx.linked("yt:UCaman")] == ["kick:soulaman"], yx.linked("yt:UCaman")
+assert [l["sid"] for l in yx.linked("kick:soulaman")] == ["yt:UCaman"]
+yx.link("yt:UCtg", "kick:soulaman", True)
+assert [l["sid"] for l in yx.linked("kick:soulaman")] == ["yt:UCtg"]
+yx.link("yt:UCtg", "kick:soulaman", False)
+hl = yx.home_lists("global")
+assert {x["sid"]: x["views_day"] for x in hl["channels_today"]}.get("yt:UCaman") == 50000, hl["channels_today"]
+assert c.get("/api/home?region=global").get_json()["channels_today"]
+cp = c.get("/api/compare?c=yt:UCffindia000000000000000,twitch:newguy,bad id&range=1y").get_json()
+assert [x["sid"] for x in cp["channels"]] == ["yt:UCffindia000000000000000", "twitch:newguy"] and cp["channels"][0]["posts"]["count"] == 4, cp["channels"][0]["posts"]
+for u in ("/compare?c=yt:UCaman", "/india/compare", "/", "/india", "/moments?id=1"):
+    r_ = c.get(u); assert r_.status_code == 200 and b"__" not in r_.data.replace(b"__F", b"").replace(b"__name__", b""), u
+from tracker import moments as mo
+with store._lock:
+    mc = mo._db()
+    now_ = int(time.time())
+    for i_, (pk, bs) in enumerate([(5000, 4000), (9000, 2000), (3000, 500)]):
+        mc.execute("INSERT INTO moments (sid, platform, name, game, title, vid, ts, base, peak, peak_ts, embed, embed_t) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                   (f"kick:m{i_}", "kick", f"m{i_}", "Free Fire", "t", f"x{i_}", now_ - 100 + i_, bs, pk, now_, "", 0))
+    mc.commit()
+assert [m["peak"] for m in mo.recent("global", "today", "Free Fire", sort="views")["moments"] if m["sid"].startswith("kick:m")] == [9000, 5000, 3000]
+assert [m["peak"] - m["base"] for m in mo.recent("global", "today", "Free Fire", sort="jump")["moments"] if m["sid"].startswith("kick:m")] == [7000, 2500, 1000]
+print("HOME OK")

@@ -53,7 +53,7 @@ select{background:var(--card);border:1px solid var(--line);color:var(--ink);font
 <div class="crumb"><a href="__HOME__">__WHERECAP__</a> / MOMENTS</div>
 <h1>Moments <em>__WHERE__</em></h1>
 <p class="intro">When a live stream suddenly jumps in viewers, something happened. Tap one to watch from just before the jump.</p>
-<div class="filters"><div class="seg" id="per"></div><select id="game"><option value="">All games & categories</option></select></div>
+<div class="filters"><div class="seg" id="per"></div><div class="seg" id="sort"></div><select id="game"><option value="">All games & categories</option></select></div>
 <div class="grid" id="grid"></div>
 <div class="note" id="note"></div>
 </div>
@@ -66,19 +66,22 @@ const ago=ts=>{const s=Date.now()/1000-ts;return s<120?'just now':s<3600?Math.ro
 const ist=ts=>new Date(ts*1000).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})+' IST';
 const ini=s=>esc(String(s||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase()||'?');
 const hms=s=>`${Math.floor(s/3600)}h${Math.floor(s%3600/60)}m${s%60}s`;
-const Q=new URLSearchParams(location.search);let per=['today','7d','30d'].includes(Q.get('period'))?Q.get('period'):'7d',game=Q.get('game')||'',M=[];
-function player(m){if(m.embed==='yt')return `https://www.youtube.com/embed/${encodeURIComponent(m.embed_id)}?start=${m.embed_t||0}&autoplay=1`;
+const Q=new URLSearchParams(location.search);let FOCUS=Q.get('id')||'';let per=['today','7d','30d'].includes(Q.get('period'))?Q.get('period'):'7d',game=Q.get('game')||'',M=[];
+function player(m){if(m.embed==='yt'&&(m.live_now||!m.embed_t))return '';if(m.embed==='tw_vod'&&!m.embed_t)return '';if(m.embed==='yt')return `https://www.youtube.com/embed/${encodeURIComponent(m.embed_id)}?start=${m.embed_t||0}&autoplay=1`;
  if(m.embed==='tw_clip')return `https://clips.twitch.tv/embed?clip=${encodeURIComponent(m.embed_id)}&parent=${HOST}&autoplay=true`;
  if(m.embed==='tw_vod')return `https://player.twitch.tv/?video=${encodeURIComponent(m.embed_id)}&time=${hms(m.embed_t||0)}&parent=${HOST}&autoplay=true`;return ''}
-function card(m,i){const p=player(m),tag=m.embed==='tw_clip'?['CLIP','#a970ff']:m.embed?['REPLAY AT THE MOMENT','#b6f23a']:['CHANNEL','#8d8ca3'];
+function card(m,i){const p=player(m),tag=m.embed==='tw_clip'?['CLIP','#a970ff']:p?['PLAYS AT THE MOMENT','#b6f23a']:m.live_now?['STILL LIVE: REPLAY WHEN IT ENDS','#ff4d5e']:['OPENS THE STREAM','#8d8ca3'];
  return `<div class="m"><div class="th" data-i="${i}">${m.thumb?`<img class="bg" src="${esc(m.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`:`<div class="av">${m.logo?`<img src="${esc(m.logo)}" alt="" referrerpolicy="no-referrer">`:`<span>${ini(m.name)}</span>`}</div>`}
   <span class="tag" style="background:${tag[1]}">${tag[0]}</span><span class="jmp">${m.kind==='chat'||m.kind==='both'?`${m.chat_base?Math.max(2,Math.round(m.chat_peak/Math.max(m.chat_base,.1))):''}x chat`:'+'+fmt(m.jump)}<small>${m.kind==='both'?'+'+fmt(m.jump)+' viewers · ':m.kind==='chat'?'':`in ${m.secs<120?m.secs+'s':Math.round(m.secs/60)+' min'} · ${m.pct}% · `}hype ${Math.round(m.score||0)}</small></span>${p||m.link?'<span class="pl"></span>':''}</div>
   <div class="bd"><div class="n"><a href="${RP}/ch/${encodeURIComponent(m.sid)}">${esc(m.name)}</a></div><div class="t">${esc(m.title)}</div>
   <div class="s"><b style="color:${COL[m.platform]}">${NAMES[m.platform]||''}</b> · ${esc(m.game)} · ${fmt(m.base)} to ${fmt(m.peak)} watching · ${ago(m.ts)}${m.link?` · <a href="${esc(m.link)}" target="_blank" rel="noopener">open</a>`:''}</div></div></div>`}
-async function load(){const p=new URLSearchParams({region:REGION,period:per});if(game)p.set('game',game);history.replaceState(null,'',location.pathname+'?'+new URLSearchParams({period:per,...(game?{game}:{})}));
+let sort=['views','jump','hype','new'].includes(Q.get('sort'))?Q.get('sort'):'views';
+async function load(){const p=new URLSearchParams({region:REGION,period:per,sort});if(game)p.set('game',game);
+ const so=document.getElementById('sort');so.innerHTML=[['views','MOST WATCHED'],['jump','BIGGEST JUMP'],['hype','HYPE'],['new','NEWEST']].map(([v,l])=>`<button data-v="${v}" class="${v===sort?'on':''}">${l}</button>`).join('');so.onclick=e=>{const b=e.target.closest('button');if(b){sort=b.dataset.v;load()}};history.replaceState(null,'',location.pathname+'?'+new URLSearchParams({period:per,sort,...(game?{game}:{})}));
  try{const j=await (await fetch('/api/moments?'+p)).json();M=j.moments||[];
   document.getElementById('per').innerHTML=[['today','TODAY'],['7d','7 DAYS'],['30d','30 DAYS']].map(([v,l])=>`<button data-v="${v}" class="${v===per?'on':''}">${l}</button>`).join('');
   const gs=document.getElementById('game');gs.innerHTML='<option value="">All games & categories</option>'+(j.games||[]).map(g=>`<option${g===game?' selected':''}>${esc(g)}</option>`).join('');
+  setTimeout(()=>{if(!FOCUS)return;const i=M.findIndex(m=>String(m.id)===FOCUS);FOCUS='';const t=document.querySelector(`#grid .th[data-i="${i}"]`);if(i<0||!t)return;const cd=t.parentElement;cd.scrollIntoView({block:'center'});cd.style.outline='2px solid var(--lime)';if(player(M[i]))t.click()},0);
   document.getElementById('grid').innerHTML=M.map(card).join('')||'<div class="empty">No moments yet in this period. They appear when a stream with 1,000+ watching suddenly jumps.</div>';
   document.getElementById('note').innerHTML=`How it works: for the biggest Kick, Twitch and YouTube streams, chat speed and viewers are read every few seconds. A moment is a chat explosion (far above that stream's usual chat speed) and/or a jump in viewers far beyond that stream's usual swings. Raids, stream starts and people returning after a break don't count. Chat pins the time within seconds; viewer counts lag, so viewers-only moments start earlier. Hype = how far above normal it was. Players start 30 seconds before. ${j.clips?'Big Twitch jumps are clipped automatically.':''} Kick has no way to link to a time, so Kick moments open the channel. Replays can be missing if the streamer turned them off or deleted them.`}catch(e){}}
 document.getElementById('per').onclick=e=>{const b=e.target.closest('button');if(b){per=b.dataset.v;load()}};

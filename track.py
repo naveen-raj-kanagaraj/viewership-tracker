@@ -277,6 +277,10 @@ def cmd_scene(args) -> int:
             j = ytextra.kick_info(x["sid"].split(":", 1)[1])
             print(f"kick {x['sid']}: followers {j.get('followers_count', '?')}, chatroom {(j.get('chatroom') or {}).get('id', 'blocked')}")
         return 0
+    if a[0] in ("link", "unlink") and len(a) == 3:  # same creator on two platforms: track.py scene link yt:UC... kick:slug
+        from tracker import ytextra
+        print(ytextra.link(a[1], a[2], a[0] == "link"))
+        return 0
     if a[0] == "chat":                                # chat readers' status: track.py scene chat
         from tracker import chat
         err = {}
