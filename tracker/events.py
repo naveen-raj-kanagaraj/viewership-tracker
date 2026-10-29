@@ -81,10 +81,13 @@ PRESETS = {
         "hist": ["BMIC", "26"],                 # its place in the BGMI history chart (series key, 2-digit year)
         "roster": True,                         # show the watch-party roster (ROSTERS["bmic"]) and send the NOT LIVE alert
         # Watch-party streamers for BMIC: none yet. Until the list is added only the official broadcast counts.
-        "allowed": [],
-        "official_only": True,                  # remove once "allowed" has the BMIC watch parties
+        # permitted watch parties (owner's list, 29 Oct): channel-name tokens; their channels are also checked
+        # directly every minute (events.roster, handles found by search when not given)
+        "allowed": ["snax", "mrspike", "soulaman", "bixi", "hrishav", "8bitbeg", "ipreeet", "ladypredator", "cyanide",
+                    "manfster", "warriorislive", "ravensharp", "iflicks", "aaru", "mafianinja", "gamezo", "stone",
+                    "juniorgaming", "engineer", "sriop", "lolzz", "shreeman"],
         "official_channels": ["UCugG6-k5QGbq_iDEPAnG4NQ"],   # KRAFTON INDIA ESPORTS: every live stream is tracked
-        "always_check": [],                     # BMIC watch-party @handles, checked directly every minute
+        "always_check": ["@ShreemanLegend", "@LadyPredator"],   # second channels; the rest come from the roster
         "ended": False,
         "next_start": "2026-10-30 13:00",       # IST; countdown until the official stream goes live
         "match": ["bmic", "bgmi international cup", "battlegrounds mobile india international cup",
@@ -379,6 +382,37 @@ _ITV = {"clientName": "WEB", "clientVersion": "2.20251001.00.00", "hl": "en", "g
 _UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) "
        "Version/17.0 Safari/605.1.15")
 _http = requests.Session()
+
+# YouTube Data API quota: every call this site makes is 1 unit (channels, videos, playlistItems lists). The daily
+# allowance (10,000 by default, resets at midnight Pacific) is metered here so optional work (hourly readings,
+# prefetching channel histories, the watch list) stops before the essential daily stats run out.
+YT_QUOTA = int(os.getenv("YOUTUBE_QUOTA", "10000"))
+_YTQ = {"day": "", "n": 0}
+_http_get = _http.get
+
+
+def _metered_get(url, *a, **k):
+    if "googleapis.com/youtube/" in str(url):
+        d = datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%Y-%m-%d")
+        if _YTQ["day"] != d:
+            _YTQ.update(day=d, n=(store.kv_get("ytq") or {}).get(d, 0))
+        _YTQ["n"] += 1
+        if _YTQ["n"] % 25 == 0:
+            try:
+                store.kv_set("ytq", {d: _YTQ["n"]})
+            except Exception:
+                pass
+    return _http_get(url, *a, **k)
+
+
+_http.get = _metered_get
+
+
+def yt_quota_left(share: float = 1.0) -> bool:
+    """True while today's YouTube API use is below `share` of the daily allowance."""
+    d = datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%Y-%m-%d")
+    used = _YTQ["n"] if _YTQ["day"] == d else (store.kv_get("ytq") or {}).get(d, 0)
+    return used < share * YT_QUOTA
 
 
 def count_live(vid: str):
@@ -789,7 +823,8 @@ def poll(ev: dict, now: int = None) -> dict:
             if relevant(ev, s):
                 found[s["vid"]] = s
                 _ENDED.pop(s["vid"], None)       # the platform API says it's live now (no search lag to guard against)
-    chans = list(dict.fromkeys(ev.get("channels", []) + PRESETS.get(ev["key"], {}).get("always_check", [])))[:40]
+    chans = list(dict.fromkeys(ev.get("channels", []) + PRESETS.get(ev["key"], {}).get("always_check", [])
+                               + [h for _, _, h in roster(ev["key"]) if h]))[:48]
     with ThreadPoolExecutor(max_workers=8) as pool:
         for s in pool.map(check_channel, chans):
             if s and s["vid"] not in found and relevant(ev, s):
@@ -1162,11 +1197,45 @@ ROSTER = [  # BMSD 2026: (match token, display name, channel handle) of the perm
     ("regaltos", "Soul Regaltos", "@soulregaltos9810"), ("snax", "Snax Gaming", "@SnaxGaming"), ("sriop", "SRI OP", "@sriop-sr70"),
     ("neonxpawan", "Neon X Pawan", "@NEONXPAWANOP"),
     ("ladypredator", "Lady Predator", "@LadyPredatorGaming"), ("soulaman", "Soul Aman", "@SoulAman")]
-ROSTERS = {"bmsd": ROSTER, "bmic": []}   # per event; BMIC's list is added before it starts
+ROSTER_BMIC = [  # BMIC 2026 permitted watch parties (owner's list, 29 Oct). None = handle found by YouTube search on startup
+    ("snax", "Snax Gaming", "@SnaxGaming"), ("mrspike", "Mr Spike", "@MrSpike"), ("soulaman", "Soulaman", "@SoulAman"),
+    ("bixi", "Bixi Op", "@TheBixiOP"), ("hrishav", "HYDRA HRISHAV", None), ("8bitbeg", "8bitBEG4MERCY", None),
+    ("ipreeet", "ipreeet", "@IPREEET.69"), ("ladypredator", "Lady Predator", "@LadyPredatorGaming"),
+    ("cyanide", "CYANIDE GAMING", None), ("manfster", "MANFSTER", None), ("warriorislive", "WarriorislivE", None),
+    ("ravensharp", "RavenSharp", None), ("iflicks", "iFlicks", None), ("aaru", "Aaru", None), ("mafianinja", "Mafianinja", "@MafiaNinja"),
+    ("gamezo", "GAMEZO TECH", None), ("stone", "STONE BGMI", None), ("juniorgaming", "Junior Gaming", None),
+    ("engineer", "Engineer YT", None), ("sriop", "SRI OP", "@sriop-sr70"), ("lolzz", "Lolzzz Gaming", "@LoLzZzGaming"),
+    ("shreeman", "Shreeman Legend", "@shreemanlegendliveofficial")]
+ROSTERS = {"bmsd": ROSTER, "bmic": ROSTER_BMIC}   # per event
+_RRES = {"at": 0.0}
+
+
+def _resolve_roster(key: str):
+    """Find the YouTube channel of every roster streamer listed without a handle (YouTube's own channel search, no
+    API quota). Kept in kv roster_ids:<key>; a name that isn't found is retried every hour."""
+    from tracker import ytextra
+    ids = store.kv_get(f"roster_ids:{key}") or {}
+    for token, name, handle in ROSTERS.get(key, []):
+        if handle or ids.get(token):
+            continue
+        try:
+            for x in ytextra.yt_channel_search(name, gl="IN")[:6]:
+                if token in _norm(x.get("name", "")) or token in _norm(x.get("handle", "")):
+                    ids[token] = x["sid"][3:]
+                    break
+        except Exception as e:
+            print(f"Roster {name}: {str(e)[:80]}")
+    store.kv_set(f"roster_ids:{key}", ids)
 
 
 def roster(key: str) -> list:
-    return ROSTERS.get(key, [])
+    """[(token, name, handle or channel id)] of an event's permitted watch-party streamers."""
+    L = ROSTERS.get(key, [])
+    ids = store.kv_get(f"roster_ids:{key}") or {}
+    if any(h is None and not ids.get(t) for t, _, h in L) and time.time() - _RRES["at"] > 3600:
+        _RRES["at"] = time.time()
+        threading.Thread(target=_resolve_roster, args=(key,), daemon=True).start()
+    return [(t, n, h or ids.get(t)) for t, n, h in L]
 
 
 _RBUSY = set()
@@ -1182,7 +1251,7 @@ def channel_card(handle: str) -> dict:
 
         def fetch():
             try:
-                r = _http.get(f"https://www.youtube.com/{handle}", headers={"User-Agent": _UA, "Accept-Language": "en"}, timeout=10)
+                r = _http.get(f"https://www.youtube.com/channel/{handle}" if handle.startswith("UC") else f"https://www.youtube.com/{handle}", headers={"User-Agent": _UA, "Accept-Language": "en"}, timeout=10)
                 img = re.search(r'<meta property="og:image" content="([^"]+)"', r.text)
                 name = re.search(r'<meta property="og:title" content="([^"]+)"', r.text)
                 store.kv_set(f"ev_rcard:{handle}", {

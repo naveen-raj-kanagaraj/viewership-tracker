@@ -23,7 +23,7 @@ PORT = int(os.getenv("EVENT_WEB_PORT", "8092"))
 app = Flask(__name__)
 
 
-CACHE = {"/badge": 1800, "/api/badges": 600, "/api/home": 120, "/api/compare": 30, "/compare": 300, "/india/compare": 300, "/api/topch": 120, "/api/videos": 300, "/api/lookup": 600, "/api/moments": 20, "/moments": 300, "/india/moments": 300, "/api/ytsearch": 600, "/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
+CACHE = {"/api/chlive": 2, "/badge": 1800, "/api/badges": 600, "/api/home": 120, "/api/compare": 30, "/compare": 300, "/india/compare": 300, "/api/topch": 120, "/api/videos": 300, "/api/lookup": 600, "/api/moments": 20, "/moments": 300, "/india/moments": 300, "/api/ytsearch": 600, "/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
 
 
 
@@ -119,6 +119,9 @@ var r=document.referrer&&document.referrer.indexOf(location.origin)!==0?document
 function ping(){if(document.hidden)return;try{fetch('/hit',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({sid:k,ref:r,w:innerWidth})}).catch(function(){})}catch(e){}}
 ping();setInterval(ping,30000);document.addEventListener('visibilitychange',ping);
 document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('.rg a');if(!a)return;var h=a.getAttribute('href')||'';try{localStorage.setItem('lge_region',h.indexOf('/india')===0?'in':'global')}catch(x){}},true)})()</script>"""
+# Site-wide notice while the data is still being built up (owner, 29 Oct). Hidden in embeds.
+WIP = """<div id="wip" style="background:#ffd23f;color:#0b0b12;font:600 12px/1.35 'Barlow',system-ui,sans-serif;text-align:center;padding:6px 12px;position:relative;z-index:80"><b style="font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em">UNDER CONSTRUCTION</b> &middot; Data is still being collected and filled in, so numbers are not final yet.</div><script>if(/[?&]embed=/.test(location.search)){var w=document.getElementById('wip');w&&w.remove()}</script>"""
+
 # India visitors land on /india (device time zone = India, unless they chose Global on the site). Runs before the page
 # draws, and works with the CDN cache (the same cached page for everyone; the choice is made in the browser).
 REGIONJS = """<script>(function(){try{if(location.pathname!=='/'||location.search||localStorage.getItem('lge_region'))return;
@@ -132,6 +135,7 @@ def _html(build):
             h = h.decode()
         if "<head>" in h:
             h = h.replace("<head>", "<head>" + REGIONJS, 1)
+        h = __import__("re").sub(r"(<body[^>]*>)", lambda m: m.group(1) + WIP, h, count=1)
         return h.replace("</body>", FASTNAV + "</body>", 1) if "</body>" in h else h
     return b
 
@@ -378,7 +382,25 @@ def scene_channel():
     sid = (request.args.get("sid") or "")[:120]
     if not __import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid):
         return Response("{}", status=404, mimetype="application/json")
-    return _memo(f"/api/channel:{sid}", 15, _jdump(lambda: scene.channel(sid)), "application/json")
+    def build():
+        try:
+            return scene.channel(sid)
+        except Exception as e:                # never leave the page on "Loading...": send what the database has
+            print(f"Channel {sid}: {str(e)[:150]}")
+            with __import__("tracker").store._lock:
+                r = scene._db().execute("SELECT sid, platform, name, url, logo, title, game FROM sc_channels WHERE sid=?", (sid,)).fetchone()
+            return {**dict(r), "now": 0, "periods": {}, "days": [], "recent": [], "ranks": [], "linked": []} if r else {}
+    return _memo(f"/api/channel:{sid}", 15, _jdump(build), "application/json")
+
+
+@app.route("/api/chlive")
+def scene_chlive():
+    """A live channel's viewers for its page, every 2 seconds: /api/chlive?sid="""
+    from tracker import scene
+    sid = (request.args.get("sid") or "")[:120]
+    if not __import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid):
+        return Response("{}", status=404, mimetype="application/json")
+    return _memo(f"/api/chlive:{sid}", 1.5, _jdump(lambda: scene.live_now(sid)), "application/json")
 
 
 @app.route("/api/rank")
@@ -658,7 +680,9 @@ def admin_visitors():
     if len(want) < 16 or not hmac.compare_digest(want, request.args.get("key", "")):
         return Response("Not found", status=404, mimetype="text/plain")
     from tracker import visitorspage
-    r = Response(visitorspage.build_html(visitors.stats()), mimetype="text/html")
+    from tracker import events as ev_
+    used = ev_._YTQ["n"] if ev_._YTQ["day"] else 0
+    r = Response(visitorspage.build_html({**visitors.stats(), "ytq": (used, ev_.YT_QUOTA)}), mimetype="text/html")
     r.headers["X-Robots-Tag"] = "noindex"
     return r
 

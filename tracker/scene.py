@@ -14,6 +14,7 @@ same channel are added together. Streams under SCENE_MIN_VIEWERS are ignored.
 Discovery is not a census: a YouTube stream that never appears in these searches and isn't added by hand is missed,
 and Kick/Twitch are filtered by stream language. The page says so.
 """
+import html
 import json
 import os
 import re
@@ -649,6 +650,93 @@ def _yt_add(found: dict, s: dict, logo: str = ""):
         x["logo"] = logo or s.get("logo")
 
 
+# Known channels' own feeds: YouTube search and the Live page miss many streams (a BGMI streamer live with 2,000
+# watching often isn't in any search). Every 4 minutes the RSS feed of each watched channel is read (free, ~10 KB)
+# and new videos are checked once with the API (videos.list, 1 unit per 50): live ones join the scan, the rest are
+# remembered as done. Watched: Indian channels live in the last 14 days, followed channels and tournament rosters.
+WATCH_N = int(os.getenv("SCENE_WATCH_N", "400"))
+WATCH_SEC = int(os.getenv("SCENE_WATCH_SEC", "240"))
+_WSEEN = {}           # vid -> (state "live"/"done", ts)
+
+
+def _rss(cid: str) -> list:
+    try:
+        r = events._http.get(f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}", timeout=8,
+                             headers={"User-Agent": events._UA})
+        if r.status_code != 200:
+            return []
+        out = []
+        for e in re.findall(r"<entry>(.*?)</entry>", r.text, re.S)[:4]:
+            v = re.search(r"<yt:videoId>([\w-]{11})</yt:videoId>", e)
+            pub = re.search(r"<published>([^<]+)</published>", e)
+            name = re.search(r"<name>([^<]+)</name>", e)
+            if v and pub:
+                ts = datetime.fromisoformat(pub.group(1).replace("Z", "+00:00")).timestamp()
+                out.append((v.group(1), ts, html.unescape(name.group(1)) if name else ""))
+        return out
+    except Exception:
+        return []
+
+
+def watch_list() -> list:
+    """Channel ids whose feeds are read: tournament rosters, followed channels, Indian channels live lately."""
+    ids = []
+    for key in events.ROSTERS:
+        ids += [h for _, _, h in events.roster(key) if h and h.startswith("UC")]
+    with store._lock:
+        c = _db()
+        ids += [r[0][3:] for r in c.execute(
+            """SELECT c.sid FROM sc_channels c LEFT JOIN (SELECT sid, SUM(hw) hw FROM sc_daily WHERE day>=? GROUP BY sid) d ON d.sid=c.sid
+               WHERE c.platform='youtube' AND (COALESCE(c.india,0)=1 OR COALESCE(c.tracked,0)=1) AND (c.last_live>? OR COALESCE(c.tracked,0)=1)
+               ORDER BY COALESCE(d.hw,0) DESC LIMIT ?""",
+            ((datetime.now(events.REPORT_TZ).date() - timedelta(days=14)).strftime("%Y-%m-%d"), time.time() - 14 * 86400, WATCH_N))]
+    return list(dict.fromkeys(ids))[:WATCH_N + 60]
+
+
+def yt_watch_once(found: dict, errors: dict) -> int:
+    now = time.time()
+    for v in [v for v, (st, t) in _WSEEN.items() if now - t > 3 * 86400]:
+        _WSEEN.pop(v, None)
+    cand = {}
+    ids = watch_list()
+    for cid, items in zip(ids, _pool.map(_rss, ids)):
+        for vid, ts, name in items:
+            if now - ts < 2 * 86400 and _WSEEN.get(vid, ("", 0))[0] != "done":
+                cand[vid] = (cid, name)
+    if not cand:
+        return 0
+    key, n = (os.getenv("YOUTUBE_API_KEY") if events.yt_quota_left(.9) else None), 0
+    vids = list(cand)
+    if key:
+        for i in range(0, len(vids), 50):
+            try:
+                j = events._http.get("https://www.googleapis.com/youtube/v3/videos", timeout=10,
+                                     params={"part": "snippet,liveStreamingDetails", "id": ",".join(vids[i:i + 50]), "key": key}).json()
+            except Exception as e:
+                errors["youtube watch list"] = str(e)[:100]
+                continue
+            got = {it["id"]: it for it in j.get("items") or []}
+            for vid in vids[i:i + 50]:
+                it = got.get(vid) or {}
+                ls, sn = it.get("liveStreamingDetails") or {}, it.get("snippet") or {}
+                if ls.get("actualStartTime") and not ls.get("actualEndTime"):
+                    _WSEEN[vid] = ("live", now)
+                    _yt_add(found, {"vid": vid, "channel": sn.get("channelTitle") or cand[vid][1], "channel_id": cand[vid][0],
+                                    "title": sn.get("title") or "", "viewers": int(ls.get("concurrentViewers") or 0)})
+                    n += 1
+                elif not ls or ls.get("actualEndTime"):
+                    _WSEEN[vid] = ("done", now)        # an upload or a finished stream: never checked again
+    else:
+        for vid in vids[:30]:
+            c_ = _safe_count(vid)
+            if c_ and c_ != "err":
+                _yt_add(found, {"vid": vid, "channel": cand[vid][1], "channel_id": cand[vid][0], "title": "", "viewers": c_})
+                n += 1
+            elif c_ is None or c_ == 0:
+                _WSEEN[vid] = ("done", now)
+    return n
+
+
 def _event_on_air() -> bool:
     return any(s.get("kind") == "official" for d in events._LIVE.values() for s in d.values())
 
@@ -719,6 +807,12 @@ def cycle(now: float = None) -> dict:
             for s in res:
                 if f"yt:{s['channel_id']}" not in found or s["vid"] not in found[f"yt:{s['channel_id']}"]["streams"]:
                     _yt_add(found, s)
+    if now - _STATE.get("watch", 0) >= WATCH_SEC:
+        _STATE["watch"] = now
+        try:
+            _STATE["watch_found"] = yt_watch_once(found, errors)
+        except Exception as e:
+            errors["youtube watch list"] = str(e)[:120]
     if sd["youtube"] and now - _STATE["seeds"] >= yt_every * 2:
         _STATE["seeds"] = now
         for s in _pool.map(lambda h: events._safe(events.check_channel, h), sd["youtube"]):
@@ -850,6 +944,47 @@ YT_FAST_N = int(os.getenv("SCENE_YT_FAST_N", "25"))   # biggest YouTube channels
 _YTF = {"next": 0.0, "slow": 0}
 
 
+HOT = {}              # sid -> until: channels whose page someone has open; their YouTube count is read every 2 s too
+
+
+def live_now(sid: str) -> dict:
+    """A live channel's numbers for its page, every 2 seconds: watching now, this stream's readings so far."""
+    from tracker import moments
+    t = time.time()
+    HOT[sid] = t + 30
+    for k in [k for k, v in HOT.items() if v < t]:
+        HOT.pop(k, None)
+    with _lock:
+        x = dict(_LIVE.get(sid) or {})
+    f = _FASTV.get(sid)
+    now_v = f[1] if f and f[1] is not None and t - f[0] < 30 else (x.get("viewers") or 0)
+    if not x:
+        now_v = 0
+    with store._lock:
+        S = _db().execute("SELECT ts, MAX(viewers) FROM sc_samples WHERE sid=? AND ts>=? GROUP BY ts ORDER BY ts",
+                          (sid, t - 12 * 3600)).fetchall()
+    S = [[a, b] for a, b in S]
+    start = None                              # this stream: back from now to the last gap of over 15 minutes
+    for i in range(len(S) - 1, 0, -1):
+        if S[i][0] - S[i - 1][0] > 900:
+            start = S[i][0]
+            break
+    if S and start is None:
+        start = S[0][0]
+    S = [r for r in S if start is None or r[0] >= start]
+    fast = [[int(a), b] for a, b in list(moments._HIST.get(sid) or []) if not S or a > S[-1][0] - 1]
+    ser = S + fast
+    if start is None and ser:
+        start = ser[0][0]
+    if now_v and (not ser or t - ser[-1][0] > 1):
+        ser.append([int(t), now_v])
+    vals = [v for _, v in ser if v]
+    return {"sid": sid, "live": bool(now_v), "now": now_v, "ts": int(f[0]) if f else int(t), "title": x.get("title", ""),
+            "url": x.get("url", ""), "game": x.get("game", ""), "start": start, "series": ser[-1500:],
+            "peak": max(vals, default=0), "avg": round(sum(vals) / len(vals)) if vals else 0,
+            "every": 2 if f and t - f[0] < 15 else SCENE_SEC}
+
+
 def yt_fast_once(now: float = None) -> int:
     """Re-count the biggest live YouTube channels from YouTube's live counter (the method the tournament tracker uses
     every 2s). They hold most of the viewers, so totals move every 2 seconds; the rest are re-counted each scan.
@@ -860,6 +995,9 @@ def yt_fast_once(now: float = None) -> int:
     with _lock:
         top = [(sid, list(x["streams"])) for sid, x in sorted(_LIVE.items(), key=lambda kv: -kv[1]["viewers"])
                if x["platform"] == "youtube"][:YT_FAST_N]
+        have = {sid for sid, _ in top}
+        top += [(sid, list(_LIVE[sid]["streams"])) for sid, exp in list(HOT.items())   # channel pages open right now
+                if exp > t and sid in _LIVE and sid not in have and sid.startswith("yt:")][:20]
     jobs = [(sid, vid, _pool.submit(_safe_count, vid)) for sid, vids in top for vid in vids]
     got, errs = {}, 0
     for sid, vid, fu in jobs:

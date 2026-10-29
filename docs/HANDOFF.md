@@ -192,9 +192,9 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 As of 26 Oct 2026:
 - BMSD 2026: finished, peak 653K. Results and Predict & Win winners published.
-- BMIC 2026: preset ready, countdown to 30 Oct 2026 13:00 IST, official KRAFTON INDIA ESPORTS channel only.
-  Its watch-party list is empty (`allowed: []`, `official_only: True`, `ROSTERS["bmic"] = []`) until the owner
-  sends it; when it arrives fill `allowed`, `always_check`, `ROSTERS["bmic"]` and remove `official_only`.
+- BMIC 2026: countdown to 30 Oct 2026 13:00 IST. 22 permitted watch parties (owner's list, 29 Oct): events.ROSTER_BMIC,
+  preset "allowed" tokens. Streamers listed without a handle are found by YouTube search on startup (kv
+  roster_ids:bmic) and their channels are checked directly every minute. Demo: eventpage.build_demo_html(key="bmic").
 - Hosting: Oracle Cloud (us-chicago-1, A1.Flex, Ubuntu 24.04), systemd service `tracker`; the Mac copy stays
   stopped. Code reaches the server by itself: tracker/autoupdate.py pulls merged commits every 10 min.
 - Site: worldwide dashboard at `/`, India at `/india`, sections `/s/<sec>`, games `/c/<slug>` (India: `/india/...`).
@@ -338,6 +338,18 @@ As of 26 Oct 2026:
   hourly readings of up to 1,250 channels per 15-minute run (25 API units), so channels show "views, last N hours"
   the same day. Twitch full count (scene.twitch_full_once, every 5 min, all live streams) replaces the tracked Twitch
   number on the worldwide overview (_with_full); peak today takes the full total into account (kv allpeak).
+- v21 (29 Oct): YouTube API quota is metered (events._metered_get, kv ytq, YOUTUBE_QUOTA default 10,000, shown on
+  /admin/visitors). Optional work stops early: watch list at 90%, prefetch at 70%, hourly readings at 60%.
+  The old prefetch pulled whole histories (8 channels x ~50 units every 15 min) and used up the day's quota;
+  prefetch now reads the last 60 days only (~4 units, uploads playlist = "UU" + channel id, no channels call);
+  the whole history is read when a page is opened.
+- scene watch list (yt_watch_once): RSS feeds of ~400 Indian / followed / roster channels every 4 min, new videos
+  checked with videos.list; live ones join the scan (fixes known streamers missing from search, e.g. LoLzZz).
+- Moments: at least 8% and 1,000 viewers (chat bursts too, judged when the 3-minute follow ends); news and
+  devotional streams skipped.
+- Channel page "Live now" card: /api/chlive (scene.live_now), re-read every 2 s; opening a page puts the channel on
+  the 2-second YouTube count (scene.HOT). /api/channel never fails silently (falls back to the stored row; the page
+  retries). Site-wide "UNDER CONSTRUCTION" strip (web.WIP).
 
 ## Ideas not built yet
 

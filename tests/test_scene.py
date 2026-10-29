@@ -375,15 +375,18 @@ for i in range(650):                                      # 1300 s of readings e
     mo.observe(now=t)
 events._http.get = _og
 mo.threading.Thread = _th_orig
-ms = {m["sid"]: m for m in mo.recent("global", "today")["moments"]}
-assert set(ms) == {"yt:UCmom", "twitch:spiker"}, {k: (v["kind"], v["base"], v["peak"]) for k, v in ms.items()}
+ms = {m["sid"]: m for m in mo.recent("global", "7d")["moments"] if m["sid"] in ("yt:UCmom", "twitch:spiker", "kick:breaky")}
+# chat exploded on Twitch but the audience stayed flat (4,000): not shown as a moment (too small to matter)
+assert set(ms) == {"yt:UCmom"}, {k: (v["kind"], v["base"], v["peak"]) for k, v in ms.items()}
+assert mo.big_enough(130000, 145000) and not mo.big_enough(130000, 134000) and not mo.big_enough(5000, 5600)
 y = ms["yt:UCmom"]
 assert y["kind"] == "viewers" and 4900 < y["base"] < 5100 and y["peak"] > 8900 and y["embed"] == "yt" and y["link"].startswith("https://youtu.be/vmom?t="), y
 assert 3500 - 120 < y["embed_t"] < 3600 - 60, y["embed_t"]          # starts ~90 s before the visible rise
-tw = ms["twitch:spiker"]
+with store._lock:
+    tw = dict(mo._db().execute("SELECT * FROM moments WHERE sid='twitch:spiker'").fetchone())
 assert tw["kind"] == "chat" and tw["chat_peak"] > 5 * tw["chat_base"] and tw["embed"] == "tw_vod" and "?t=" in tw["link"], tw
 
-assert c.get("/api/moments?region=global&period=today").get_json()["moments"] and c.get("/moments").status_code == 200 and c.get("/india/moments").status_code == 200
+assert c.get("/api/moments?region=global&period=7d").get_json()["moments"] and c.get("/moments").status_code == 200 and c.get("/india/moments").status_code == 200
 # compaction keeps the highest reading per 10 minutes for old days
 with store._lock:
     cc = sc._db(); old = int(time.time()) - 40 * 86400
@@ -469,7 +472,7 @@ def _api_get(url, params=None, **k):
     if url.endswith("/channels"): return RJ({"items": [{"contentDetails": {"relatedPlaylists": {"uploads": "UUabc"}}}]})
     if url.endswith("/playlistItems"):
         now_ = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-        ids = {"UUabc": ["vid1", "prem1", "live1", "short1"], "UULVabcdefghijklmnopqrstuv": ["live1"], "UUSHabcdefghijklmnopqrstuv": ["short1"]}.get(pl, [])
+        ids = {"UUabcdefghijklmnopqrstuv": ["vid1", "prem1", "live1", "short1"], "UULVabcdefghijklmnopqrstuv": ["live1"], "UUSHabcdefghijklmnopqrstuv": ["short1"]}.get(pl, [])
         return RJ({"items": [{"contentDetails": {"videoId": i, "videoPublishedAt": now_}} for i in ids]})
     if url.endswith("/videos"):
         now_ = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -539,8 +542,8 @@ with store._lock:
         mc.execute("INSERT INTO moments (sid, platform, name, game, title, vid, ts, base, peak, peak_ts, embed, embed_t) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                    (f"kick:m{i_}", "kick", f"m{i_}", "Free Fire", "t", f"x{i_}", now_ - 100 + i_, bs, pk, now_, "", 0))
     mc.commit()
-assert [m["peak"] for m in mo.recent("global", "today", "Free Fire", sort="views")["moments"] if m["sid"].startswith("kick:m")] == [9000, 5000, 3000]
-assert [m["peak"] - m["base"] for m in mo.recent("global", "today", "Free Fire", sort="jump")["moments"] if m["sid"].startswith("kick:m")] == [7000, 2500, 1000]
+assert [m["peak"] for m in mo.recent("global", "7d", "Free Fire", sort="views")["moments"] if m["sid"].startswith("kick:m")] == [9000, 5000, 3000]
+assert [m["peak"] - m["base"] for m in mo.recent("global", "7d", "Free Fire", sort="jump")["moments"] if m["sid"].startswith("kick:m")] == [7000, 2500, 1000]
 print("HOME OK")
 # YouTube categories, channel ranks by views, badges, events order
 assert yx.topic_of(["https://en.wikipedia.org/wiki/Lifestyle_(sociology)"]) == "People & Blogs" and yx.topic_of(["https://en.wikipedia.org/wiki/Humour"]) == "Comedy"
@@ -606,3 +609,31 @@ gd = sc.live_data(region="global")
 assert any(p_["platform"] == "twitch" and p_["viewers"] == 1200000 for p_ in gd["platforms"]) and gd["twitch_full"]["streams"] == 90000, gd["platforms"]
 assert sc.live_data(region="in").get("twitch_full") is None and sc.data(region="global")["twitch_full"]
 print("ACCURACY OK")
+# a known channel's live stream is found from its feed even when no search shows it
+_feed = '<feed><entry><yt:videoId>LIVEvid0001</yt:videoId><published>%s</published><author><name>LoLzZz Gaming</name></author></entry><entry><yt:videoId>OLDupload01</yt:videoId><published>%s</published></entry></feed>'
+_now_iso = datetime.now(timezone.utc).isoformat()
+def _wget(url, params=None, **k):
+    if "feeds/videos.xml" in url: return RJ(t=_feed % (_now_iso, _now_iso))
+    if url.endswith("/videos") and "googleapis" in url:
+        return RJ({"items": [{"id": "LIVEvid0001", "snippet": {"title": "BMIC watch party", "channelTitle": "LoLzZz Gaming"},
+                              "liveStreamingDetails": {"actualStartTime": _now_iso, "concurrentViewers": "4321"}},
+                             {"id": "OLDupload01", "snippet": {"title": "x"}}]})
+    return _og(url, params=params, **k)
+sc.watch_list = lambda: ["UClolzz00000000000000000"]
+os.environ["YOUTUBE_API_KEY"] = "k"
+events._http.get = _wget
+fd = {}
+assert sc.yt_watch_once(fd, {}) == 1 and fd["yt:UClolzz00000000000000000"]["streams"] == {"LIVEvid0001": 4321}, fd
+assert sc._WSEEN["OLDupload01"][0] == "done"
+events._http.get = _og
+os.environ.pop("YOUTUBE_API_KEY", None)
+print("WATCH OK")
+# live card numbers for a channel page
+sc._LIVE["kick:livey"] = {"sid": "kick:livey", "platform": "kick", "name": "Livey", "url": "https://kick.com/livey", "viewers": 5000, "streams": {"kick:livey": 5000}, "title": "t", "game": "BGMI"}
+sc._FASTV["kick:livey"] = [time.time(), 5200, 0]
+_r = c.get("/api/chlive?sid=kick:livey"); lv_ = sc.live_now("kick:livey")
+assert lv_["live"] and lv_["now"] == 5200 and lv_["series"][-1][1] == 5200 and "kick:livey" in sc.HOT, lv_
+assert not c.get("/api/chlive?sid=kick:nobodyhere").get_json()["live"]
+_h = c.get("/india").data; assert b"UNDER CONSTRUCTION" in _h, _h[:300]
+assert b"liveTick" in c.get("/ch/kick:soulaman").data
+print("LIVE CARD OK")

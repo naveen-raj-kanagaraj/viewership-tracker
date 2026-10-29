@@ -6,7 +6,7 @@ Two signals, judged against each stream's own normal (not a flat percentage):
              15 seconds well above the stream's median of the previous 10 minutes (robust z-score >= CHAT_Z and at
              least 2.5x the median). Chat reacts within seconds, so it pins the time.
     viewers  the 2-second readings (scene._FASTV). A spike is the rise over the last ~1-2 minutes well beyond the
-             stream's usual one-minute swings over the last 30 minutes (z >= VIEW_Z), and at least 3% / 500 viewers.
+             stream's usual one-minute swings over the last 30 minutes (z >= VIEW_Z), and at least 8% / 1,000 viewers.
              Viewer counts lag the moment (platforms update them late, people arrive late), so a viewers-only
              moment starts 60 seconds earlier.
 Not moments: the first 10 minutes of a stream, Twitch raids (seen in chat), and viewers coming back to a level the
@@ -31,8 +31,15 @@ from datetime import datetime, timedelta
 from tracker import events, platforms, store
 
 MIN_BASE = int(os.getenv("MOMENT_MIN_BASE", "1000"))       # ignore streams smaller than this
-MIN_JUMP = int(os.getenv("MOMENT_MIN_JUMP", "500"))        # viewer spikes smaller than this are ignored
-JUMP_PCT = float(os.getenv("MOMENT_JUMP_PCT", "0.03"))     # ... or smaller than this share of the base
+MIN_JUMP = int(os.getenv("MOMENT_MIN_JUMP", "1000"))       # viewer spikes smaller than this are ignored
+JUMP_PCT = float(os.getenv("MOMENT_JUMP_PCT", "0.08"))     # ... or smaller than this share of the base
+SKIP_SECTIONS = ("news", "devotional")                     # rolling news / prayer streams: viewer swings aren't moments
+
+
+def big_enough(base: int, peak: int) -> bool:
+    """A moment must move the audience: at least MIN_JUMP viewers and JUMP_PCT of where it started (130K -> 134K is
+    not a moment; 130K -> 145K is). Applies to chat bursts too, once their peak is known."""
+    return (peak or 0) - (base or 0) >= max(MIN_JUMP, JUMP_PCT * (base or 0))
 CHAT_Z = float(os.getenv("MOMENT_CHAT_Z", "5"))
 VIEW_Z = float(os.getenv("MOMENT_VIEW_Z", "5"))
 COOLDOWN = int(os.getenv("MOMENT_COOLDOWN", "600"))        # seconds between two moments of one channel
@@ -154,6 +161,11 @@ def observe(now: float = None):
         if op:
             if now > op["until"]:
                 _OPEN.pop(sid, None)
+                if not big_enough(op["base"], op["peak"]):          # the audience never really moved: drop it
+                    with store._lock:
+                        c = _db()
+                        c.execute("DELETE FROM moments WHERE id=?", (op["id"],))
+                        c.commit()
             elif v > op["peak"]:
                 op["peak"] = v
                 with store._lock:
@@ -162,6 +174,8 @@ def observe(now: float = None):
                     c.commit()
             continue
         if now - _LAST.get(sid, 0) < COOLDOWN:
+            continue
+        if scene.section_of(live[sid].get("game") or "") in SKIP_SECTIONS:
             continue
         cb = chat_burst(sid, now, lag=15 if sid.startswith("yt:") else 0)
         vs = viewer_spike(sid, h, now)
@@ -194,7 +208,7 @@ def _new(sid, x, start, base, cur, now, kind="viewers", score=0.0, chat_base=Non
                           int(cur), int(now), x.get("url") or "", "", "", 0, "", "", india, kind, round(score, 1), chat_base, chat_peak))
         mid = cur_.lastrowid
         c.commit()
-    _OPEN[sid] = {"id": mid, "until": now + FOLLOW, "peak": cur}
+    _OPEN[sid] = {"id": mid, "until": now + FOLLOW, "peak": cur, "base": int(base)}
     print(f"Moment ({kind}, hype {score:.0f}): {x.get('name')} {base:,} -> {cur:,} ({plat})", flush=True)
     threading.Thread(target=_links, args=(mid, sid, plat, vid, int(start)), daemon=True).start()
 
@@ -372,8 +386,10 @@ def recent(region: str = "global", period: str = "today", game: str = "", sid: s
         a = [sid]
     with store._lock:
         order = {"views": "peak DESC", "jump": "(peak - base) DESC", "hype": "COALESCE(score, 0) DESC", "new": "ts DESC"}.get(sort, "peak DESC")
-        rows = [dict(r) for r in _db().execute(q + f" ORDER BY {order}, ts DESC LIMIT ?", (*a, limit))]
+        rows = [dict(r) for r in _db().execute(q + f" ORDER BY {order}, ts DESC LIMIT ?", (*a, limit * 3))]
         games = [g for (g,) in _db().execute("SELECT game FROM moments WHERE ts>=? GROUP BY game ORDER BY COUNT(*) DESC LIMIT 30", (t0,))]
+    from tracker import scene as _sc
+    rows = [r for r in rows if big_enough(r["base"], r["peak"]) and _sc.section_of(r.get("game") or "") not in SKIP_SECTIONS][:limit]
     for r in rows:
         r["jump"] = r["peak"] - r["base"]
         r["pct"] = round(100 * r["jump"] / r["base"]) if r["base"] else 0
