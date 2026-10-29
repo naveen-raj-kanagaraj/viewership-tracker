@@ -68,11 +68,12 @@ def _db():
             c.execute("CREATE INDEX IF NOT EXISTS yt_videos_game ON yt_videos(game, ts)")
         if "cat" not in cols:
             c.execute("ALTER TABLE yt_videos ADD COLUMN cat INTEGER")
-        if not store.kv_get("topics_v2"):                       # old coarse names -> YouTube's own category names
+        if not store.kv_get("topics_v3"):                       # old coarse names -> YouTube's own category names
+            c.execute("UPDATE sc_channels SET ytcat='' WHERE ytcat='Other'")
             for a, b in (("News & politics", "News & Politics"), ("Lifestyle", "People & Blogs"), ("Religion", "People & Blogs"), ("Other", "")):
                 c.execute("UPDATE sc_channels SET topic=? WHERE topic=?", (b, a))
             c.commit()
-            store.kv_set("topics_v2", True)
+            store.kv_set("topics_v3", True)
         if not store.kv_get("chstats_fix_below_video"):        # lifetime views below the channel's own biggest video
             c.execute("""DELETE FROM sc_chstats WHERE sid LIKE 'yt:%' AND views IS NOT NULL AND views <
                          (SELECT MAX(v.views) FROM yt_videos v WHERE v.sid=sc_chstats.sid AND v.approx=0)""")

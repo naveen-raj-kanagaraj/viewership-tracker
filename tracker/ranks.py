@@ -69,9 +69,9 @@ def _rows():
         g = (top_game.get(sid) or (ch["game"], 0))[0] or ""
         sec = scene.section_of(g) if g else ""
         if ch["platform"] == "youtube":          # YouTube's own categories only (until known: nearest one to what they stream)
-            cat = ch["ytcat"] or ch["topic"] or _YT_FROM_SEC.get(sec, "")
+            cat = next((x for x in (ch["ytcat"], ch["topic"]) if x and x != "Other"), "") or _YT_FROM_SEC.get(sec, "")
         else:
-            cat = scene.SECTION_NAMES.get(sec, "")
+            cat = scene.SECTION_NAMES.get(sec, "") if sec != "other" else ""
         rows.append({"sid": sid, "platform": ch["platform"], "name": ch["name"], "logo": ch["logo"], "url": ch["url"],
                      "country": ct[0] if ct else "", "country_name": ct[2] if ct else "", "category": cat or "", "game": g,
                      "size": size, "views": views, "vday": vday, "v7": v7, "growth": growth, "live": round(live)})
