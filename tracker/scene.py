@@ -1714,6 +1714,94 @@ def _daily(c, tbl, w, a, key, days: int = 30) -> list:
     return [{**z, "hw": round(z["hw"])} for _, z in sorted(out.items())]
 
 
+def categories(region: str = "global", limit: int = 60) -> dict:
+    """Games and categories like a player-count chart: watching now, change against 24 hours earlier, the last 48
+    hours, daily peaks for 30 days, 30-day peak and hours watched. Trending = biggest rise in 24 hours among
+    categories big enough to matter."""
+    region = _region(region)
+    lv = _live_part(None, region)
+    cur = {g: dict(x) for g, x in lv["_by_game"].items() if g and g != ALL}
+    top = sorted(cur.values(), key=lambda x: -x["viewers"])[:limit]
+    names = [x["game"] for x in top]
+    tbl, w, a = _totals_sql(region)
+    now = time.time()
+    t30 = now - 30 * 86400
+    d30 = (datetime.now(events.REPORT_TZ).date() - timedelta(days=29)).strftime("%Y-%m-%d")
+    q = ",".join("?" * len(names)) or "NULL"
+    with store._lock:
+        c = _db()
+        ago = dict(c.execute(f"SELECT game, MAX(viewers) FROM {tbl} WHERE ts BETWEEN ? AND ?{w} AND game IN ({q}) GROUP BY game",
+                             (now - 86400 - 900, now - 86400 + 900, *a, *names)).fetchall())
+        h48 = c.execute(f"SELECT game, CAST(ts/3600 AS INT) h, MAX(viewers) FROM {tbl} WHERE ts>=?{w} AND game IN ({q}) GROUP BY game, h",
+                        (now - 48 * 3600, *a, *names)).fetchall()
+        d = c.execute(f"SELECT game, CAST((ts+19800)/86400 AS INT) dd, MAX(viewers) FROM {tbl} WHERE ts>=?{w} AND game IN ({q}) GROUP BY game, dd",
+                      (t30, *a, *names)).fetchall()
+        hwq = """SELECT d.game, SUM(d.hw) FROM sc_daily d""" + (" JOIN sc_channels c ON c.sid=d.sid AND COALESCE(c.india,0)=1" if region == "in" else "")
+        hw = dict(c.execute(hwq + f" WHERE d.day>=? AND d.game IN ({q}) GROUP BY d.game", (d30, *names)).fetchall())
+        first = c.execute(f"SELECT MIN(ts) FROM {tbl} WHERE 1=1{w}", a).fetchone()[0] or now
+    s48, s30 = {}, {}
+    for g, h, v in h48:
+        s48.setdefault(g, {})[h] = v
+    for g, dd, v in d:
+        s30.setdefault(g, {})[dd] = v
+    h0, dd0 = int((now - 48 * 3600) / 3600), int((t30 + 19800) / 86400)
+    rows = []
+    for x in top:
+        g = x["game"]
+        b = ago.get(g)
+        rows.append({"game": g, "slug": x["slug"], "art": x.get("art", ""), "section": x.get("section", ""),
+                     "viewers": x["viewers"], "streams": x["streams"], "ago": b,
+                     "change": round(100 * (x["viewers"] - b) / b, 1) if b else None,
+                     "h48": [s48.get(g, {}).get(h, 0) for h in range(h0, h0 + 49)],
+                     "d30": [s30.get(g, {}).get(k, 0) for k in range(dd0, dd0 + 31)],
+                     "peak30": max(s30.get(g, {}).values(), default=x["viewers"]), "hw30": round(hw.get(g) or 0)})
+    big = 300 if region == "in" else 2000
+    trend = sorted([r for r in rows if r["change"] is not None and r["viewers"] >= big and (r["ago"] or 0) >= big / 4],
+                   key=lambda r: -r["change"])[:5]
+    return {"region": region, "updated": lv.get("updated"), "since": first, "rows": rows,
+            "trending": [r["game"] for r in trend if r["change"] > 0]}
+
+
+def category_months(game: str, region: str = "global") -> dict:
+    """One category month by month: average watching (hours watched / hours tracked), gain on the month before,
+    peak, hours watched; plus a last-30-days row and the all-time peak."""
+    region = _region(region)
+    tbl, w, a = _totals_sql(region)
+    now = time.time()
+    with store._lock:
+        c = _db()
+        first = c.execute(f"SELECT MIN(ts) FROM {tbl} WHERE game=?{w}", (game, *a)).fetchone()[0]
+        if not first:
+            return {"game": game, "months": [], "peak_all": None}
+        pk = c.execute(f"SELECT ts, viewers FROM {tbl} WHERE game=?{w} ORDER BY viewers DESC LIMIT 1", (game, *a)).fetchone()
+        mm = c.execute(f"SELECT strftime('%Y-%m', ts+19800, 'unixepoch') m, MAX(viewers), AVG(viewers) FROM {tbl} WHERE game=?{w} GROUP BY m",
+                       (game, *a)).fetchall()
+        mp, ma = {r[0]: r[1] for r in mm}, {r[0]: r[2] for r in mm}
+        hwq = "SELECT substr(d.day,1,7) m, SUM(d.hw) FROM sc_daily d" + (" JOIN sc_channels c ON c.sid=d.sid AND COALESCE(c.india,0)=1" if region == "in" else "")
+        mh = dict(c.execute(hwq + " WHERE d.game=? GROUP BY m", (game,)).fetchall())
+        d30 = (datetime.now(events.REPORT_TZ).date() - timedelta(days=29)).strftime("%Y-%m-%d")
+        h30 = c.execute(hwq.replace("substr(d.day,1,7) m, ", "") + " WHERE d.game=? AND d.day>=?", (game, d30)).fetchone()[0] or 0
+        p30 = c.execute(f"SELECT MAX(viewers) FROM {tbl} WHERE game=? AND ts>=?{w}", (game, now - 30 * 86400, *a)).fetchone()[0] or 0
+    out = []
+    for m in sorted(set(mp) | set(mh)):
+        y, mo = int(m[:4]), int(m[5:])
+        start = datetime(y, mo, 1, tzinfo=events.REPORT_TZ).timestamp()
+        end = datetime(y + (mo == 12), mo % 12 + 1, 1, tzinfo=events.REPORT_TZ).timestamp()
+        hours = max(1.0, (min(end, now) - max(start, first)) / 3600)
+        hw_ = mh.get(m) or 0
+        out.append({"month": m, "avg": round(hw_ / hours) if hw_ else round(ma.get(m) or 0), "peak": mp.get(m) or 0, "hw": round(hw_),
+                    "partial": start < first or end > now})
+    out.reverse()                                  # newest first
+    for i, r in enumerate(out):
+        prev = out[i + 1]["avg"] if i + 1 < len(out) else None
+        r["gain"] = r["avg"] - prev if prev else None
+        r["pct"] = round(100 * (r["avg"] - prev) / prev, 2) if prev else None
+    hrs30 = max(1.0, (now - max(now - 30 * 86400, first)) / 3600)
+    last30 = {"avg": round(h30 / hrs30), "peak": p30, "hw": round(h30)}
+    return {"game": game, "months": out, "last30": last30, "since": first,
+            "peak_all": {"viewers": pk[1], "ts": pk[0]} if pk else None}
+
+
 def _series_any(c, tbl, w, a, key, period) -> list:
     t0 = time.time() - SERIES_SEC[period]
     rows = c.execute(f"SELECT ts, viewers FROM {tbl} WHERE game=? AND ts>=?{w} ORDER BY ts", (key, t0, *a)).fetchall()

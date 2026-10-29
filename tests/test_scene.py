@@ -648,3 +648,12 @@ with store._lock:
 rk.compute()
 assert not any(r["where"] == "Other" for r in rk.for_channel("yt:UCtg")), rk.for_channel("yt:UCtg")
 print("NO OTHER OK")
+# categories page data (player-chart style) and month by month
+cj = c.get("/api/cats?region=global").get_json()
+assert cj["rows"] and all(len(r["h48"]) == 49 and len(r["d30"]) == 31 for r in cj["rows"]) and "trending" in cj, cj["rows"][:1]
+assert c.get("/categories").status_code == 200 and c.get("/india/categories").status_code == 200
+slug0 = cj["rows"][0]["slug"]
+cm = c.get(f"/api/catmonths?cat={slug0}&region=global").get_json()
+assert cm["months"] and cm["last30"] and cm["peak_all"], cm
+assert c.get("/api/catmonths?cat=nope-nothing").status_code == 404
+print("CATEGORIES OK")
