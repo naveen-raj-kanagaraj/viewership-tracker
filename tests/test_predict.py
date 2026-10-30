@@ -45,3 +45,9 @@ r = cl.post("/admin/predict/act", data={"key": "k"*20, "action": "lock_at", "val
 assert cl.get("/predict").status_code == 200 and cl.get("/predict/bmsd").status_code == 200
 assert cl.get("/predict/api/board").status_code == 200
 print("PREDICT OK")
+# visitor pings are counted (a broken /hit once dropped every visit silently)
+from tracker import visitors
+cl.post("/hit", json={"sid": "t1", "w": 390, "p": "/e/bmic/"}, headers={"User-Agent": "Mozilla Mobile", "CF-Connecting-IP": "9.9.9.9"})
+time.sleep(1)
+assert any(x["ip"] == "9.9.9.9" for x in visitors.stats()["recent"]), visitors.stats()["recent"]
+print("VISITORS OK")
