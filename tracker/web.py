@@ -116,7 +116,7 @@ FASTNAV = """<script type="speculationrules">{"prerender":[{"where":{"and":[{"hr
 document.addEventListener('touchstart',pf,{passive:true});document.addEventListener('mouseover',pf,{passive:true})})()</script>
 <script>(function(){var p=location.pathname.replace(/\\/+$/,'')||'/',bar=document.querySelector('.top .in')||document.querySelector('.bar .in');
 if(p==='/'||p==='/india'||/[?&]embed=/.test(location.search)||!bar)return;
-var home=(p.indexOf('/india')===0||p.indexOf('/e/')===0)?'/india':'/',st=document.createElement('style');
+var home=p.indexOf('/predict')===0?'/e/bmic/':(p.indexOf('/india')===0||p.indexOf('/e/')===0)?'/india':'/',st=document.createElement('style');
 st.textContent='.bk{display:inline-flex;align-items:center;gap:6px;flex:none;height:32px;padding:0 10px 0 6px;margin-right:2px;border:1px solid #262636;background:#13131c;color:#eeeef5;text-decoration:none;font:600 12px "Barlow Condensed",sans-serif;letter-spacing:.06em}.bk:hover{border-color:#b6f23a;color:#b6f23a}.bk svg{flex:none}@media(max-width:640px){.bk{padding:0 7px}.bk span{display:none}}@media(max-width:420px){.top .beta{display:none}.top .in{gap:8px!important}.top .rg a{padding-left:7px!important;padding-right:7px!important}.top .upd{display:none!important}}';
 document.head.appendChild(st);var a=document.createElement('a');a.className='bk';a.href=home;a.setAttribute('aria-label','Back');
 a.innerHTML='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg><span>BACK</span>';

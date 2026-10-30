@@ -100,9 +100,10 @@ PRESETS = {
     },
     "cegc": {
         "name": "CEGC",
-        "auto": True,                           # created on startup if missing (no command needed)
+        "auto": False,                          # off the site for now (owner, 30 Oct): BMIC only
+        "hidden": True,
         "kick": {"official": ["cegc"]},         # kick.com/cegc (Sky Esports) is the official broadcast
-        "ended": False,
+        "ended": True,
         "next_start": "2026-11-03 13:30",       # IST; countdown until the broadcast goes live
         "match": ["cegc"],
         "queries": ["CEGC", "CEGC live"],

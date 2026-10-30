@@ -192,7 +192,7 @@ PAGE = r"""<!doctype html>
 <div class="pwin" id="pwin"><b>PREDICT &amp; WIN</b></div>
 <div class="bar"><div class="in">
  <div class="title"><a class="brand" href="https://www.instagram.com/letsgrowesports.igc/" target="_blank" rel="noopener">letsgrowesports</a><h1>Predict & Win <span>// BMIC 2026</span></h1></div>
- <a class="btn ghost sm" href="/">&larr; Live viewers</a>
+ <a class="btn ghost sm" href="/e/bmic/" onclick="var r=document.referrer;if(r&&r.indexOf(location.origin+'/')===0&&history.length>1){history.back();return false}">&larr; BMIC viewership</a>
 </div></div>
 <div class="wrap">
  <div class="card hero">
@@ -313,7 +313,7 @@ function qBody(q,shut){const my=myOf(q),done=shut||my!==undefined,dv=draft[q.id]
  if(q.kind==='text'){if(shut)return crowdBars(q,5);return `<div class="tx"><input class="inp" data-tq="${q.id}" maxlength="40" placeholder="Type a player name" value="${esc(dv??my??'')}" ${my!==undefined?'disabled':''}></div>`}
  if(q.style==='dropdown')return crowdBars(q,5);
  const cur=my!==undefined?my:dv;
- return `<div class="opts ${q.options.length>4||q.options.some(o=>o.length>14)?'one':''}">${q.options.map(o=>`<button class="opt ${o===cur?'mine':''} ${isAns(q,o)?'ok':''}" data-q="${q.id}" data-o="${esc(o)}" ${done?'disabled':''}><div class="fill" style="width:${done&&q.picked?pct(q,o):0}%"></div><span>${esc(o)}</span><span class="pc">${done&&q.picked?pct(q,o)+'%':''}</span></button>`).join('')}</div>`}
+ return `<div class="opts ${q.options.length>6?'':q.options.length>4||q.options.some(o=>o.length>14)?'one':''}">${q.options.map(o=>`<button class="opt ${o===cur?'mine':''} ${isAns(q,o)?'ok':''}" data-q="${q.id}" data-o="${esc(o)}" ${done?'disabled':''}><div class="fill" style="width:${done&&q.picked?pct(q,o):0}%"></div><span>${esc(o)}</span><span class="pc">${done&&q.picked?pct(q,o)+'%':''}</span></button>`).join('')}</div>`}
 const HOW={countries:()=>'Tap a country for one slot. Tap it again for both slots (x2). Tap again to clear.',feedback:()=>'A line or two. Only proper responses count; empty or unclear answers are void.',text:()=>'Type a player name.',multi:q=>q.ranked?`Tap ${q.pick} teams in order: first tap is #1, then #2, then #3. Tap a team again to remove it.`:`Tap ${q.pick} teams. Tap a team again to remove it.`,grid:()=>'Tap a team.',buttons:()=>'Tap one.'};
 function qCard(q){const [ct,cc]=closeTxt(q),my=myOf(q),shut=shutQ(q),has=my!==undefined;
  let foot='';const got=ME&&ME.pts?ME.pts[q.id]:undefined;const ans=Array.isArray(q.answer)?q.answer.join(', '):q.answer;

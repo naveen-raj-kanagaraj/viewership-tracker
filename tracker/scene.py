@@ -1260,6 +1260,8 @@ def _events() -> list:
         c = events._db()
         for ev in sorted(events.events().values(), key=lambda e: -(e.get("created") or 0)):
             pr = events.preset(ev["key"])
+            if pr.get("hidden"):
+                continue
             peak = c.execute("SELECT MAX(total) FROM ev_ticks WHERE event=?", (ev["key"],)).fetchone()[0] or 0
             last = c.execute("SELECT ts, total, official FROM ev_ticks WHERE event=? ORDER BY ts DESC LIMIT 1",
                              (ev["key"],)).fetchone()
