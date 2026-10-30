@@ -355,6 +355,11 @@ As of 26 Oct 2026:
   Policy). Built for the YouTube API quota extension request. Scale: CHANNEL_STATS_MAX 300,000/day, up to 5,000
   channels per 15-min run while under 85% of quota; prefetch scales with YOUTUBE_QUOTA (quota/600 channels per run);
   discovery 6 searches per run. Raise YOUTUBE_QUOTA in .env when Google grants more.
+- v33 (29 Oct): /categories and /india/categories (tracker/catpage.py, /api/cats -> scene.categories): every game and
+  category by watching now, 24-hour change (against the same time yesterday), last 48 hours, daily peaks for 30 days,
+  30-day peak and hours watched; Trending = biggest 24-hour rise among categories with 2,000+ watching (300+ India).
+  Category pages add "month by month" (/api/catmonths -> scene.category_months): average watching = hours watched /
+  hours tracked in the month, gain on the month before, peak, hours watched, all-time peak. Nav: Categories link.
 
 ## Ideas not built yet
 

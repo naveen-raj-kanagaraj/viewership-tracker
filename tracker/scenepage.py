@@ -134,6 +134,8 @@ __PANEL_CSS__
 .hcs .lh .cap{width:100%;font-size:11.5px;color:var(--muted);margin-top:-4px}
 .row.v{grid-template-columns:22px 64px minmax(0,1fr) auto}.row.v .th{width:64px;height:36px;object-fit:cover;background:var(--card2);display:block}
 @media(max-width:640px){.hcs .lh .r{width:auto!important;margin-left:auto!important}.hcs{grid-template-columns:1fr}.hsel{margin-left:0;width:100%}.hsel select{flex:1;max-width:none}}
+.mtw{overflow-x:auto;padding:0 16px 14px}.mtab{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}.mtab th{font:600 12px "Barlow Condensed",sans-serif;letter-spacing:.06em;color:var(--muted);text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}.mtab td{padding:8px;border-bottom:1px solid #1c1c29;text-align:right;white-space:nowrap}.mtab .l{text-align:left}.mtab .up{color:var(--lime)}.mtab .dn{color:#ff4d5e}.mtab .mu{color:var(--muted)}
+@media(max-width:640px){.mtab .hide{display:none}.mtab td,.mtab th{padding:7px 4px}.mtw{padding:0 12px 12px}}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .list{background:var(--card);border:1px solid var(--line);margin-top:12px;display:flex;flex-direction:column;min-width:0}
 .lh{display:flex;align-items:center;gap:8px;padding:13px 14px;flex-wrap:wrap}.lh h2{font-size:17px;margin:0}.lh .r{margin-left:auto;display:flex;gap:6px;align-items:center}
@@ -240,6 +242,7 @@ body{font-size:14px}.wrap{padding:0 12px 20px}
 </div>
 <div class="card" id="tourcard"><div class="head"><div><div class="lbl">Esports</div><h2 id="th">Tournaments live now</h2><div class="sub">Official broadcasts and co-streams added together per tournament.</div></div><button class="btn" data-share="tours">SHARE</button></div><div class="tours" id="tours"></div></div>
 <div class="card"><div class="head"><div><div class="lbl">Over time</div><h2 id="ch">Day by day</h2><div class="sub" id="chs"></div></div><div style="display:flex;gap:6px"><div class="seg" id="cmode"></div><button class="btn" data-share="chart">SHARE</button></div></div><canvas id="cv"></canvas></div>
+<div class="card" id="monthcard" style="display:none"><div class="head"><div><div class="lbl">By month</div><h2 id="monh">Month by month</h2><div class="sub" id="mons"></div></div></div><div class="mtw"><table class="mtab"><thead><tr><th class="l">Month</th><th>Avg. watching</th><th>Gain</th><th>% gain</th><th>Peak</th><th class="hide">Hours watched</th></tr></thead><tbody id="monb"></tbody></table></div></div>
 <details class="how"><summary>How these numbers are counted</summary><div id="note"></div></details>
 <div class="foot"><span>Unofficial live streaming rankings by __BRAND__. Not affiliated with YouTube, Kick, Twitch or any publisher.</span><span>__SOCIAL__</span></div>
 </div>
@@ -360,6 +363,15 @@ function renderHome(){const box=document.getElementById('hcs');if(!box)return;if
  box.onclick=e=>{const b=e.target.closest('[data-hm]');if(b){HM.open[b.dataset.hm]=!HM.open[b.dataset.hm];renderHome()}};
  if(!HM.j&&!HM._busy){HM._busy=1;homeLoad().finally(()=>{HM._busy=0})}}
 setInterval(()=>{if(!document.hidden&&!SEC)homeLoad()},120000);
+// category pages: month by month, like a player-count chart
+async function months(){if(!CAT)return;try{const j=await (await fetch('/api/catmonths?cat='+encodeURIComponent(CAT)+'&region='+REGION)).json();const M=j.months||[];if(!M.length)return;
+ document.getElementById('monthcard').style.display='';
+ setT('monh',`${CATNAME} month by month`);
+ setT('mons',`Average watching = hours watched / hours tracked in the month. All-time peak ${j.peak_all?full(j.peak_all.viewers)+' on '+ist(j.peak_all.ts,{day:'numeric',month:'short',year:'numeric'}):'-'}. Recorded since ${ist(j.since,{day:'numeric',month:'short',year:'numeric'})}.`);
+ const mn=m=>new Date(m+'-15T12:00:00+05:30').toLocaleDateString('en-IN',{month:'long',year:'numeric'}),g=v=>v==null?'<td class="mu">-</td>':`<td class="${v>=0?'up':'dn'}">${v>=0?'+':''}${full(v)}</td>`,pc=v=>v==null?'<td class="mu">-</td>':`<td class="${v>=0?'up':'dn'}">${v>=0?'+':''}${v.toFixed(2)}%</td>`;
+ const L=j.last30;document.getElementById('monb').innerHTML=(L?`<tr><td class="l mu" style="font-style:italic">Last 30 days</td><td>${full(L.avg)}</td><td class="mu">-</td><td class="mu">-</td><td>${full(L.peak)}</td><td class="hide mu">${fmt(L.hw)}h</td></tr>`:'')+
+  M.map(r=>`<tr><td class="l">${mn(r.month)}${r.partial?' <span class="mu" style="font-size:12px">(partial)</span>':''}</td><td>${full(r.avg)}</td>${g(r.gain)}${pc(r.pct)}<td>${full(r.peak)}</td><td class="hide mu">${r.hw?fmt(r.hw)+'h':'-'}</td></tr>`).join('')}catch(e){}}
+months();
 const liveMap=()=>{const m={};(D.live||[]).forEach(x=>m[x.sid]=x.viewers);return m};
 const liveList=()=>(D.live||[]).filter(x=>(plat==='all'||x.platform===plat)&&(!q||(x.name+' '+x.title+' '+x.game).toLowerCase().includes(q)));
 const dl=d=>d===undefined?'':d===null?'<span class="dl nw">NEW</span>':d>0?`<span class="dl up">&#9650;${d}</span>`:d<0?`<span class="dl dn">&#9660;${-d}</span>`:'';
@@ -367,7 +379,7 @@ const boardList=()=>{const lm=liveMap();return (D.board||[]).filter(x=>bplat==='
 function render(){if(!D)return;const K=D.kpis||{};
  updLabel();
  const S=D.sections||[];
- setH('secnav',`<a href="${HOME}" class="${!SEC&&!CAT?'on':''}"><i>${svg('overview',14)}</i>Overview<b>${D.fresh?fmt(D.india_total):''}</b></a><a href="${RP}/rankings" class="mapl"><i>${svg('rank',14)}</i>Rankings</a><a href="${RP}/moments" class="mapl"><i>${svg('bolt',14)}</i>Moments</a><a href="/map" class="mapl"><i>${svg('globe',14)}</i>World map</a><a href="${RP}/compare" class="mapl"><i>${svg('overview',14)}</i>Compare</a>`+S.slice().sort((a,b)=>b.viewers-a.viewers).map(s=>`<a href="${SU(s.key)}" class="${SEC===s.key?'on':''}${s.viewers?'':' z'}"><i>${svg(s.key,14)}</i>${esc(s.name)}<b>${s.viewers?fmt(s.viewers):''}</b></a>`).join(''));
+ setH('secnav',`<a href="${HOME}" class="${!SEC&&!CAT?'on':''}"><i>${svg('overview',14)}</i>Overview<b>${D.fresh?fmt(D.india_total):''}</b></a><a href="${RP}/rankings" class="mapl"><i>${svg('rank',14)}</i>Rankings</a><a href="${RP}/categories" class="mapl"><i>${svg('overview',14)}</i>Categories</a><a href="${RP}/moments" class="mapl"><i>${svg('bolt',14)}</i>Moments</a><a href="/map" class="mapl"><i>${svg('globe',14)}</i>World map</a><a href="${RP}/compare" class="mapl"><i>${svg('overview',14)}</i>Compare</a>`+S.slice().sort((a,b)=>b.viewers-a.viewers).map(s=>`<a href="${SU(s.key)}" class="${SEC===s.key?'on':''}${s.viewers?'':' z'}"><i>${svg(s.key,14)}</i>${esc(s.name)}<b>${s.viewers?fmt(s.viewers):''}</b></a>`).join(''));
  if(!window._navScrolled){const on=document.querySelector('.secnav a.on');if(on&&on.scrollIntoView){on.scrollIntoView({inline:'center',block:'nearest'});window._navScrolled=1}}
  setT('k1l','Watching now'+(CAT||SEC?' · '+(CAT?CATNAME:SECNAME[SEC]):''));if(D.fresh)tw('k1',K.watching,full);else setT('k1','-');
  const tot=K.watching||1;setH('pbar',(D.platforms||[]).map(p=>`<div style="width:${100*p.viewers/tot}%;background:${COL[p.platform]}"></div>`).join(''));

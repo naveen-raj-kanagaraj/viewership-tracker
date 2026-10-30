@@ -23,7 +23,7 @@ PORT = int(os.getenv("EVENT_WEB_PORT", "8092"))
 app = Flask(__name__)
 
 
-CACHE = {"/privacy": 3600, "/terms": 3600, "/api/chlive": 2, "/badge": 1800, "/api/badges": 600, "/api/home": 120, "/api/compare": 30, "/compare": 300, "/india/compare": 300, "/api/topch": 120, "/api/videos": 300, "/api/lookup": 600, "/api/moments": 20, "/moments": 300, "/india/moments": 300, "/api/ytsearch": 600, "/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
+CACHE = {"/api/cats": 60, "/api/catmonths": 600, "/categories": 300, "/india/categories": 300, "/privacy": 3600, "/terms": 3600, "/api/chlive": 2, "/badge": 1800, "/api/badges": 600, "/api/home": 120, "/api/compare": 30, "/compare": 300, "/india/compare": 300, "/api/topch": 120, "/api/videos": 300, "/api/lookup": 600, "/api/moments": 20, "/moments": 300, "/india/moments": 300, "/api/ytsearch": 600, "/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
 
 
 
@@ -403,6 +403,35 @@ def scene_chlive():
     if not __import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid):
         return Response("{}", status=404, mimetype="application/json")
     return _memo(f"/api/chlive:{sid}", 1.5, _jdump(lambda: scene.live_now(sid)), "application/json")
+
+
+@app.route("/api/cats")
+def scene_cats():
+    """Games and categories, player-chart style: /api/cats?region=global|in"""
+    from tracker import scene
+    region = request.args.get("region", "global") if request.args.get("region") in scene.REGIONS else "global"
+    rng = request.args.get("range", "1m") if request.args.get("range") in scene.CAT_RANGES else "1m"
+    return _memo(f"/api/cats:{region}:{rng}", 60, _jdump(lambda: scene.categories(region, rng=rng)), "application/json")
+
+
+@app.route("/api/catmonths")
+def scene_catmonths():
+    """One category by month: /api/catmonths?cat=<slug>&region="""
+    from tracker import scene
+    region = request.args.get("region", "global") if request.args.get("region") in scene.REGIONS else "global"
+    cat = request.args.get("cat", "")
+    game = scene.category_name(cat) if __import__("re").fullmatch(r"[a-z0-9-]{1,60}", cat or "") else None
+    if not game:
+        return Response("{}", status=404, mimetype="application/json")
+    return _memo(f"/api/catmonths:{region}:{game}", 600, _jdump(lambda: scene.category_months(game, region)), "application/json")
+
+
+@app.route("/categories")
+@app.route("/india/categories")
+def categories_page():
+    from tracker import catpage
+    region = "in" if request.path.startswith("/india") else "global"
+    return _memo(f"/categories:{region}", 300, lambda: catpage.build_html(region), "text/html")
 
 
 @app.route("/api/rank")
@@ -893,7 +922,7 @@ def robots():
     return Response("User-agent: *\nDisallow: /\n", mimetype="text/plain")
 
 
-WARM = ["/", "/india", "/api/home?region=global", "/api/home?region=in", "/api/scene?region=global&period=today", "/api/scene?region=in&period=today",
+WARM = ["/", "/india", "/api/cats?region=global", "/api/cats?region=in", "/api/home?region=global", "/api/home?region=in", "/api/scene?region=global&period=today", "/api/scene?region=in&period=today",
         "/api/scene/live?region=global", "/api/scene/live?region=in", "/rankings", "/api/rank?region=global&period=day&metric=hw",
         "/api/rank?region=in&period=day&metric=hw", "/map", "/api/geo", "/moments", "/api/moments?region=global&period=7d"]
 
