@@ -328,7 +328,7 @@ events._http.post, events._http.get = _op, _og
 vs = yx.views_series("yt:UCtg")
 assert vs["gains"][-1]["views"] == 1100 and vs["months"] and sc.channel("yt:UCtg")["views"]["first"]
 # CEGC countdown preset, BGMI history on India's esports page
-assert events.PRESETS["cegc"]["next_start"] == "2026-11-03 13:30" and events.PRESETS["cegc"]["auto"]
+assert events.PRESETS["cegc"]["hidden"] and not events.PRESETS["cegc"]["auto"]   # off the site for now
 de = sc.data("today", region="in", sec="esports")
 assert de["history"] and de["history_game"] == "BGMI" and not sc.data("today", region="global", sec="esports")["history"]
 print("YT CHANNELS / CEGC OK")
