@@ -34,10 +34,10 @@ DEFAULTS = {
                   "Korea": ["DRX", "Dplus KIA", "NS RedForce", "FOCUS", "GAME PT"],
                   "Japan": ["VALOR", "REIGNITE", "Making The Road", "Versus", "KINOTROPE"]},
     "mvp": [],
-    "buckets": [200, 300, 400, 500, 600, 700, 800],                         # thousands; labels are built from these
+    "buckets": [250, 300, 350, 400, 450, 500, 550, 600, 650, 700],                         # thousands; labels are built from these
     "days": {"1": "2026-10-30", "2": "2026-10-31", "3": "2026-11-01"},
-    "close": "12:00",                                             # IST: picks lock at this time on lock_day
-    "lock_day": "2",                                              # before Day 2 starts (owner can change it)
+    "close": "14:00",                                             # IST: picks lock at this time on lock_day
+    "lock_day": "1",                                              # before Day 2 starts (owner can change it)
     "matches": 6,
     "maps": {"1": ["Rondo", "Erangel", "Erangel", "Erangel", "Miramar", "Miramar"]},   # per day; other days reuse Day 1
     "match_questions": False,                                     # per-match chicken dinner questions (off)
@@ -85,11 +85,9 @@ def _db():
 
 def _archive_bmsd(c):
     """Once: keep BMSD 2026's questions, picks and results page, then empty the game for BMIC 2026."""
-    if store.kv_get("pw_bmsd_archived"):
-        return
     with store._lock:
         old = c.execute("SELECT COUNT(*) FROM pw_questions WHERE title LIKE '%BMSD%'").fetchone()[0]
-    if old:
+    if old and not store.kv_get("pw_bmsd_archived"):
         try:
             from tracker import crowd
             store.kv_set("pw_bmsd_crowd", crowd.split(top=6, all_teams=True))   # the BMSD results page, frozen
@@ -101,9 +99,19 @@ def _archive_bmsd(c):
             c.execute("DELETE FROM pw_picks")
             c.execute("DELETE FROM pw_questions")
             c.commit()
-    store.kv_set("pw_bmsd_archived", int(time.time()))
+    if not store.kv_get("pw_bmsd_archived"):
+        store.kv_set("pw_bmsd_archived", int(time.time()))
+    if store.kv_get("pw_bmic_created") and not store.kv_get("pw_bmic_v2"):   # 30 Oct: lock 2 PM IST Day 1, new peak options
+        store.kv_set("pw_bmic_v2", 1)
+        s = settings()
+        with store._lock:
+            c.execute("UPDATE pw_questions SET close_ts=?", (ist_ts(s["days"]["1"], s["close"]),))
+            c.execute("UPDATE pw_questions SET options=?, meta=json_set(meta, '$.buckets', json(?)) WHERE kind='peak'",
+                      (json.dumps(bucket_labels()[1:]), json.dumps(s["buckets"])))
+            c.commit()
     if not store.kv_get("pw_bmic_created"):          # the BMIC question set, once
         store.kv_set("pw_bmic_created", int(time.time()))
+        store.kv_set("pw_bmic_v2", 1)
         try:
             create_event_set()
         except Exception as e:
@@ -359,7 +367,7 @@ def event_spec(close_ts: float = None) -> list:
             ("text", "MVP of the Tournament", [], "TOURNAMENT MVP", "text", {}, 5),
             ("text", "Best IGL", [], "BEST IGL", "text", {}, 6),
             ("text", "Best Clutch", [], "BEST CLUTCH", "text", {}, 7),
-            ("peak", "What will the tournament's peak viewership be?", bucket_labels(), "PEAK VIEWERS", "buttons",
+            ("peak", "What will the tournament's peak viewership be?", bucket_labels()[1:], "PEAK VIEWERS", "buttons",
              {"scope": "event", "date": s["days"]["3"], "auto": True, "buckets": s["buckets"]}, 8),
             ("feedback", "Your feedback on the site", [], "FEEDBACK", "feedback", {}, 9)], close
 
