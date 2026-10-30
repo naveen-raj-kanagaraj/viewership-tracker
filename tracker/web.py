@@ -797,7 +797,7 @@ def hit():
         _HITS.put_nowait((str(j.get("sid", "")), request.headers.get("CF-IPCountry", ""), str(j.get("ref", "")),
                           request.headers.get("User-Agent", ""), int(j.get("w") or 0),
                           unquote(request.headers.get("cf-ipcity", "")), unquote(request.headers.get("cf-region", "")),
-                          request.headers.get("CF-Connecting-IP") or request.remote_addr or "", request.path_info,
+                          request.headers.get("CF-Connecting-IP") or request.remote_addr or "", request.path,
                           str(j.get("p", ""))[:80]))
     except Exception:
         pass                                  # queue full: drop the visit count, never slow the page
