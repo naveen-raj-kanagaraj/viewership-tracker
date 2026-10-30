@@ -76,11 +76,16 @@ const ist=ts=>new Date(ts*1000).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',
 const ini=s=>esc(String(s||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase()||'?');
 const hms=s=>`${Math.floor(s/3600)}h${Math.floor(s%3600/60)}m${s%60}s`;
 const Q=new URLSearchParams(location.search);let FOCUS=Q.get('id')||'';let per=['today','7d','30d'].includes(Q.get('period'))?Q.get('period'):'7d',game=Q.get('game')||'',M=[];
-function player(m){if(m.embed==='yt'&&(m.live_now||!m.embed_t))return '';if(m.embed==='tw_vod'&&!m.embed_t)return '';if(m.embed==='yt')return `https://www.youtube.com/embed/${encodeURIComponent(m.embed_id)}?start=${m.embed_t||0}&autoplay=1`;
+function livePlayer(m){const id=String(m.sid||'').split(':').slice(1).join(':'),yv=m.embed_id||m.vid;
+ if(m.platform==='youtube'&&yv&&!/:/.test(yv))return `https://www.youtube.com/embed/${encodeURIComponent(yv)}?autoplay=1&playsinline=1`;
+ if(m.platform==='kick'&&id)return `https://player.kick.com/${encodeURIComponent(id)}?autoplay=true`;
+ if(m.platform==='twitch'&&id)return `https://player.twitch.tv/?channel=${encodeURIComponent(id)}&parent=${HOST}&autoplay=true`;return ''}
+function player(m){return exactPlayer(m)||livePlayer(m)}
+function exactPlayer(m){if(m.embed==='yt'&&(m.live_now||!m.embed_t))return '';if(m.embed==='tw_vod'&&!m.embed_t)return '';if(m.embed==='yt')return `https://www.youtube.com/embed/${encodeURIComponent(m.embed_id)}?start=${m.embed_t||0}&autoplay=1`;
  if(m.embed==='tw_clip')return `https://clips.twitch.tv/embed?clip=${encodeURIComponent(m.embed_id)}&parent=${HOST}&autoplay=true`;
  if(m.embed==='tw_vod')return `https://player.twitch.tv/?video=${encodeURIComponent(m.embed_id)}&time=${hms(m.embed_t||0)}&parent=${HOST}&autoplay=true`;return ''}
 const thumb=m=>m.thumb||(m.platform==='youtube'&&(m.embed_id||m.vid)&&!/:/.test(m.embed_id||m.vid)?`https://i.ytimg.com/vi/${encodeURIComponent(m.embed_id||m.vid)}/hqdefault.jpg`:'');
-function card(m,i){m.thumb=thumb(m);const p=player(m),tag=m.embed==='tw_clip'?['CLIP','#a970ff']:p?['PLAYS AT THE MOMENT','#b6f23a']:m.live_now?['STILL LIVE: REPLAY WHEN IT ENDS','#ff4d5e']:['OPENS THE STREAM','#8d8ca3'];
+function card(m,i){m.thumb=thumb(m);const p=player(m),x=exactPlayer(m),tag=m.embed==='tw_clip'?['CLIP','#a970ff']:x?['PLAYS AT THE MOMENT','#b6f23a']:p&&m.platform==='youtube'&&!m.live_now?['PLAYS THE STREAM','#4cc9f0']:p?['WATCH LIVE','#ff4d5e']:['OPENS THE STREAM','#8d8ca3'];
  return `<div class="m"><div class="th" data-i="${i}">${m.thumb?`<img class="bg" src="${esc(m.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`:`<div class="av">${m.logo?`<img src="${esc(m.logo)}" alt="" referrerpolicy="no-referrer">`:`<span>${ini(m.name)}</span>`}</div>`}
   <span class="tag" style="background:${tag[1]}">${tag[0]}</span><span class="jmp">${m.kind==='chat'||m.kind==='both'?`${m.chat_base?Math.max(2,Math.round(m.chat_peak/Math.max(m.chat_base,.1))):''}x chat`:'+'+fmt(m.jump)}<small>${m.kind==='both'?'+'+fmt(m.jump)+' viewers · ':m.kind==='chat'?'':`in ${m.secs<120?m.secs+'s':Math.round(m.secs/60)+' min'} · ${m.pct}% · `}hype ${Math.round(m.score||0)}</small></span>${p||m.link?'<span class="pl"></span>':''}<span class="dur">${fmt(m.peak)} watching</span></div>
 
