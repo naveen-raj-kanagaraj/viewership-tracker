@@ -369,6 +369,7 @@ As of 26 Oct 2026:
   a failed read sets _VFAIL so the page stops "loading" (history_loading). First visit to a channel with no daily stats
   reads them on the spot (channel_extra). Channel page: no "hasn't seen live" text (live card hidden), loading shows a
   skeleton, empty past-streams card hidden.
+- v36: category search box on /categories (filters as you type, keeps overall rank); /api/cats returns up to 200 live categories.
 
 ## Ideas not built yet
 

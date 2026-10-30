@@ -411,7 +411,7 @@ def scene_cats():
     from tracker import scene
     region = request.args.get("region", "global") if request.args.get("region") in scene.REGIONS else "global"
     rng = request.args.get("range", "1m") if request.args.get("range") in scene.CAT_RANGES else "1m"
-    return _memo(f"/api/cats:{region}:{rng}", 60, _jdump(lambda: scene.categories(region, rng=rng)), "application/json")
+    return _memo(f"/api/cats:{region}:{rng}", 60, _jdump(lambda: scene.categories(region, limit=200, rng=rng)), "application/json")
 
 
 @app.route("/api/catmonths")
