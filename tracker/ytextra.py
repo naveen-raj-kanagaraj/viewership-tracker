@@ -17,6 +17,7 @@ Channel stats
   Once a day (IST) per channel: YouTube Data API channels.list (statistics) when YOUTUBE_API_KEY is set, else the
   channel's About page. Stored in sc_chstats (day, sid, subs, views, videos); views gained = difference between days.
 """
+import html
 import json
 import os
 import re
@@ -497,6 +498,7 @@ def run_stats():
             discover_once(DISCOVER_PER_RUN)
             prefetch_once(max(16, events.YT_QUOTA // 600) if key else 2)    # scales with the quota Google allows
             followers_once(100)
+            rss_once(400)                         # free: every channel's latest posts, ~38,000 channels a day
             intra_once()
         except Exception as e:
             print(f"Channel stats: {str(e)[:150]}")
@@ -528,6 +530,19 @@ def channel_extra(sid: str) -> dict:
                                              WHERE sid=? AND day>=? AND kind IN ('superchat','sticker') ORDER BY usd DESC LIMIT 5""",
                                           (sid, _since(30)))]
         st = [dict(r) for r in c.execute("SELECT day, subs, views, videos FROM sc_chstats WHERE sid=? ORDER BY day DESC LIMIT 31", (sid,))]
+    if not st and sid.startswith("yt:"):     # never read yet: read it now (1 API unit, or the free about page)
+        try:
+            got = _sane(channel_stats([sid[3:]]))
+            if got:
+                (s_, v_, n_), now = next(iter(got.values())), int(time.time())
+                with store._lock:
+                    c = _db()
+                    c.execute("INSERT OR REPLACE INTO sc_chstats VALUES (?,?,?,?,?,?)", (_day(), sid, s_, v_, n_, now))
+                    c.execute("INSERT OR IGNORE INTO sc_intra VALUES (?,?,?,?)", (sid, now, s_, v_))
+                    c.commit()
+                st = [{"day": _day(), "subs": s_, "views": v_, "videos": n_}]
+        except Exception as e:
+            print(f"Stats of {sid}: {str(e)[:100]}")
     stats = None
     if st:
         last = st[0]
@@ -1133,7 +1148,12 @@ def _playlist_ids(pid: str, since: float, key: str, pages: int = 20) -> list:
     ids, tok = [], None
     for _ in range(pages):
         p = {"part": "contentDetails", "playlistId": pid, "maxResults": 50, "key": key, **({"pageToken": tok} if tok else {})}
-        j = events._http.get("https://www.googleapis.com/youtube/v3/playlistItems", params=p, timeout=15).json()
+        r = events._http.get("https://www.googleapis.com/youtube/v3/playlistItems", params=p, timeout=15)
+        j = r.json()
+        if r.status_code == 404:                 # the channel has no such playlist (no Shorts, no live streams)
+            break
+        if r.status_code >= 400:
+            raise RuntimeError(((j.get("error") or {}).get("errors") or [{}])[0].get("reason") or f"HTTP {r.status_code}")
         old = False
         for it in j.get("items") or []:
             pub = (it.get("contentDetails") or {}).get("videoPublishedAt")
@@ -1221,6 +1241,7 @@ def _kick_videos(slug: str, since: float) -> list:
 
 
 _VBUSY = set()
+_VFAIL = {}      # sid -> when reading its videos last came back empty
 
 
 def _refresh_videos(sid: str, full: bool):
@@ -1230,12 +1251,18 @@ def _refresh_videos(sid: str, full: bool):
     _VBUSY.add(sid)
     try:
         plat, _, ident = sid.partition(":")
+        failed = False
         since = 0 if full else time.time() - 60 * 86400
         key = os.getenv("YOUTUBE_API_KEY")
         if plat == "yt":
-            if key:
-                vids = _api_videos(ident, since, key, pages=60 if full else 3)
-            else:
+            vids = None
+            if key and events.yt_quota_left(.9):
+                try:
+                    vids = _api_videos(ident, since, key, pages=60 if full else 3)
+                except Exception as e:           # quota used up or YouTube refused: read the channel's pages instead (free)
+                    print(f"Videos of {sid} via API: {str(e)[:80]}; reading the channel pages")
+            failed = vids is None
+            if vids is None:
                 vids = [{**x, "live": 0, "approx": 1} for x in _yt_tab_all(ident, "videos", since, pages=30 if full else 3)]
                 vids += [{**x, "live": 1, "approx": 1} for x in _yt_tab_all(ident, "streams", since, pages=15 if full else 2)]
         elif plat == "twitch":
@@ -1276,6 +1303,9 @@ def _refresh_videos(sid: str, full: bool):
                 c.execute("UPDATE sc_channels SET ytcat=? WHERE sid=?", (YT_CATS.get(max(set(cs), key=cs.count), ""), sid))
             c.commit()
         m = store.kv_get(f"vids:{sid}") or {}
+        if not rows and plat == "yt" and failed:            # nothing came back: try again later instead of showing an empty page for days
+            _VFAIL[sid] = time.time()
+            return
         m["recent"] = now
         if full:
             m["full"] = now
@@ -1314,7 +1344,10 @@ RANGES = {"7d": 7, "30d": 30, "90d": 90, "6m": 182, "ytd": None, "1y": 365, "all
 
 
 def history_loading(sid: str) -> bool:
-    return sid in _VBUSY or not (store.kv_get(f"vids:{sid}") or {}).get("full")
+    """True while the history is being read; false once read, or if the last try failed in the past 30 minutes."""
+    if sid in _VBUSY:
+        return True
+    return not (store.kv_get(f"vids:{sid}") or {}).get("full") and time.time() - _VFAIL.get(sid, 0) > 1800
 
 
 def prefetch_once(n: int = 5) -> int:
@@ -1325,18 +1358,81 @@ def prefetch_once(n: int = 5) -> int:
             """SELECT c.sid FROM sc_channels c LEFT JOIN (SELECT s.sid, s.subs FROM sc_chstats s JOIN
                (SELECT sid, MAX(day) d FROM sc_chstats GROUP BY sid) m ON m.sid=s.sid AND m.d=s.day) t ON t.sid=c.sid
                WHERE c.platform IN ('youtube','twitch','kick') ORDER BY COALESCE(c.tracked,0) DESC, COALESCE(t.subs,0) DESC LIMIT 2000""")]
-    done = 0
+    done = other = 0
     for sid in cand:
-        if done >= n:
+        if done >= n and other >= 30:
             break
         m = store.kv_get(f"vids:{sid}") or {}
-        if m.get("recent") or m.get("full") or sid in _VBUSY:
+        if m.get("recent") or m.get("full") or sid in _VBUSY or time.time() - _VFAIL.get(sid, 0) < 6 * 3600:
             continue
-        if not events.yt_quota_left(.7):
-            break
+        if sid.startswith("yt:"):              # YouTube API units; Twitch and Kick cost none
+            if done >= n or not events.yt_quota_left(.6):
+                continue
+            done += 1
+        else:
+            if other >= 30:
+                continue
+            other += 1
         _refresh_videos(sid, full=False)      # the last 60 days (a few API units); the whole history when the page is opened
-        done += 1
-    return done
+    return done + other
+
+
+def _rss_videos(cid: str) -> list:
+    """A channel's latest 15 posts from its public feed, with views and likes. Free: no API units."""
+    r = events._http.get(f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}", timeout=10,
+                         headers={"User-Agent": events._UA})
+    if r.status_code != 200:
+        return []
+    out = []
+    for e in re.findall(r"<entry>(.*?)</entry>", r.text, re.S):
+        v, pub = re.search(r"<yt:videoId>([\w-]{11})</yt:videoId>", e), re.search(r"<published>([^<]+)</published>", e)
+        if not (v and pub):
+            continue
+        t, vw = re.search(r"<title>([^<]*)</title>", e), re.search(r'<media:statistics views="(\d+)"', e)
+        lk, ln = re.search(r'<media:starRating count="(\d+)"', e), re.search(r'<link rel="alternate" href="([^"]+)"', e)
+        out.append({"id": v.group(1), "title": html.unescape(t.group(1)) if t else "",
+                    "ts": int(datetime.fromisoformat(pub.group(1).replace("Z", "+00:00")).timestamp()),
+                    "views": int(vw.group(1)) if vw else None, "likes": int(lk.group(1)) if lk else None,
+                    "short": 1 if ln and "/shorts/" in ln.group(1) else 0, "url": ln.group(1) if ln else "", "approx": 1})
+    return out
+
+
+_RSSTRIED = {}
+
+
+def rss_once(n: int = 400) -> int:
+    """Every YouTube channel gets its latest posts without anyone opening its page: channels with nothing stored yet
+    are read from their public feeds (free), biggest first. Opening the page then fills in the full history."""
+    with store._lock:
+        cand = [r[0] for r in _db().execute(
+            """SELECT c.sid FROM sc_channels c LEFT JOIN (SELECT s.sid, s.subs FROM sc_chstats s JOIN
+               (SELECT sid, MAX(day) d FROM sc_chstats GROUP BY sid) m ON m.sid=s.sid AND m.d=s.day) t ON t.sid=c.sid
+               WHERE c.platform='youtube' AND c.sid NOT IN (SELECT DISTINCT sid FROM yt_videos)
+               ORDER BY COALESCE(c.tracked,0) DESC, COALESCE(t.subs,0) DESC LIMIT ?""", (n * 4,))]
+    cand = [x for x in cand if time.time() - _RSSTRIED.get(x, 0) > 86400][:n]    # empty feeds: once a day
+    for x in cand:
+        _RSSTRIED[x] = time.time()
+    if not cand:
+        return 0
+    from tracker import scene
+    got = list(_pool.map(lambda sid: (sid, _safe(_rss_videos, sid[3:])), cand))
+    now, rows = int(time.time()), []
+    for sid, vids in got:
+        rows += [(v["id"], sid, v["ts"], v["title"], v["views"], v["likes"], None, 0, 0, 1, now, v["short"], v["url"],
+                  scene.classify("", v["title"]), None) for v in vids or []]
+    with store._lock:
+        c = _db()
+        c.executemany("""INSERT OR IGNORE INTO yt_videos (vid, sid, ts, title, views, likes, comments, secs, live, approx, updated, short, url, game, cat)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", rows)
+        c.commit()
+    return sum(1 for _, v in got if v)
+
+
+def _safe(f, *a):
+    try:
+        return f(*a)
+    except Exception:
+        return []
 
 
 def videos_summary(sid: str, rng: str = "3m", kind: str = "all") -> dict:

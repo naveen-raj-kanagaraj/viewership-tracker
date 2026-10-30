@@ -1714,7 +1714,7 @@ def _daily(c, tbl, w, a, key, days: int = 30) -> list:
     return [{**z, "hw": round(z["hw"])} for _, z in sorted(out.items())]
 
 
-CAT_RANGES = {"7d": 7, "1m": 30, "3m": 91, "6m": 182, "ytd": None, "1y": 365, "all": 0}
+CAT_RANGES = {"24h": -1, "7d": 7, "1m": 30, "3m": 91, "6m": 182, "ytd": None, "1y": 365, "all": 0}
 
 
 def categories(region: str = "global", limit: int = 60, rng: str = "1m") -> dict:
@@ -1741,20 +1741,28 @@ def categories(region: str = "global", limit: int = 60, rng: str = "1m") -> dict
         d30 = start_day.strftime("%Y-%m-%d")
         ndays = (today - start_day).days + 1
         bd = max(1, -(-ndays // 30))                 # days per bar: at most 30 bars whatever the range
+        span = bd * 86400
+        if n == -1:                                  # last 24 hours: one bar per hour
+            t30, span, ndays, bd = (int(now // 3600) - 23) * 3600, 3600, 1, 0
+            d30 = datetime.fromtimestamp(t30, events.REPORT_TZ).strftime("%Y-%m-%d")
         ago = dict(c.execute(f"SELECT game, MAX(viewers) FROM {tbl} WHERE ts BETWEEN ? AND ?{w} AND game IN ({q}) GROUP BY game",
                              (now - 86400 - 900, now - 86400 + 900, *a, *names)).fetchall())
         h48 = c.execute(f"SELECT game, CAST(ts/3600 AS INT) h, MAX(viewers) FROM {tbl} WHERE ts>=?{w} AND game IN ({q}) GROUP BY game, h",
                         (now - 48 * 3600, *a, *names)).fetchall()
         d = c.execute(f"SELECT game, CAST((ts-?)/? AS INT) dd, MAX(viewers) FROM {tbl} WHERE ts>=?{w} AND game IN ({q}) GROUP BY game, dd",
-                      (t30, bd * 86400, t30, *a, *names)).fetchall()
+                      (t30, span, t30, *a, *names)).fetchall()
         hwq = """SELECT d.game, SUM(d.hw) FROM sc_daily d""" + (" JOIN sc_channels c ON c.sid=d.sid AND COALESCE(c.india,0)=1" if region == "in" else "")
-        hw = dict(c.execute(hwq + f" WHERE d.day>=? AND d.game IN ({q}) GROUP BY d.game", (d30, *names)).fetchall())
+        if n == -1:                                  # hours watched in 24 h: each reading stands for one scan interval
+            hw = dict(c.execute(f"SELECT game, SUM(viewers) * {SCENE_SEC} / 3600.0 FROM {tbl} WHERE ts>=?{w} AND game IN ({q}) GROUP BY game",
+                                (t30, *a, *names)).fetchall())
+        else:
+            hw = dict(c.execute(hwq + f" WHERE d.day>=? AND d.game IN ({q}) GROUP BY d.game", (d30, *names)).fetchall())
     s48, s30 = {}, {}
     for g, h, v in h48:
         s48.setdefault(g, {})[h] = v
     for g, dd, v in d:
         s30.setdefault(g, {})[dd] = v
-    h0, nb = int((now - 48 * 3600) / 3600), -(-ndays // bd)
+    h0, nb = int((now - 48 * 3600) / 3600), (24 if CAT_RANGES[rng] == -1 else -(-ndays // bd))
     rows = []
     for x in top:
         g = x["game"]

@@ -360,6 +360,15 @@ As of 26 Oct 2026:
   30-day peak and hours watched; Trending = biggest 24-hour rise among categories with 2,000+ watching (300+ India).
   Category pages add "month by month" (/api/catmonths -> scene.category_months): average watching = hours watched /
   hours tracked in the month, gain on the month before, peak, hours watched, all-time peak. Nav: Categories link.
+- v34: category ranges appear only once that much history exists.
+- v35 (29 Oct): categories default to 24H (hourly bars, peak and hours watched for the last 24 hours = readings x
+  scan interval); no text placeholders (a line from the last 48 hours, or the current value as a dot); phone rows get a
+  mini chart. Every channel read by default: ytextra.rss_once(400) every 15 min reads the public feed (free, latest 15
+  posts with views/likes) of every YouTube channel with nothing stored; prefetch_once does Twitch/Kick without YT quota
+  (30/run) and stops YouTube at 60% quota. API errors (quotaExceeded) now raise and fall back to the free channel pages;
+  a failed read sets _VFAIL so the page stops "loading" (history_loading). First visit to a channel with no daily stats
+  reads them on the spot (channel_extra). Channel page: no "hasn't seen live" text (live card hidden), loading shows a
+  skeleton, empty past-streams card hidden.
 
 ## Ideas not built yet
 
