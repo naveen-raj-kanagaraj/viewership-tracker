@@ -203,6 +203,8 @@ def _net(ip: str) -> str:
 
 
 def join(handle: str, name: str, consent: bool, ip: str = "") -> dict:
+    if game_closed():
+        raise GameError("Predict & Win is closed. See what everyone picked below.", 409)
     h = norm_handle(handle)
     name = re.sub(r"\s+", " ", (name or "")).strip()[:32]
     if not h:
@@ -285,8 +287,15 @@ def tnorm(s: str) -> str:
     return re.sub(r"[^a-z0-9]", "", (s or "").lower())
 
 
+HARD_CLOSE = ist_ts("2026-10-30", "14:00")      # BMIC 2026: no picks after Fri 30 Oct 2 PM IST, whatever the settings say
+
+
+def game_closed(now: float = None) -> bool:
+    return (now or time.time()) >= HARD_CLOSE
+
+
 def is_closed(q: dict, now: float = None) -> bool:
-    return bool(q["locked"]) or (now or time.time()) >= q["close_ts"]
+    return bool(q["locked"]) or (now or time.time()) >= min(q["close_ts"], HARD_CLOSE)
 
 
 def add_question(kind: str, title: str, options: list, close_ts: float, day: int = 0, tag: str = "",
@@ -806,7 +815,7 @@ def board(now: float = None) -> dict:
         boards[str(b)] = [{k: r[k] for k in ("rank", "handle", "name", "pts", "correct")}
                           for r in _ranked(players, sc, b) if r["pts"] > 0][:10]
     s = settings()
-    out = {"now": now, "questions": out_q, "boards": boards, "leaderboard": show_lb, "prize": s["prize"],
+    out = {"now": now, "closed": game_closed(now), "questions": out_q, "boards": boards, "leaderboard": show_lb, "prize": s["prize"],
            "days": s["days"]}
     _cache["board"] = (now, out)
     return out
