@@ -27,7 +27,7 @@ def _sources(src: dict) -> str:
     tf = src.get("twitch_full") or {}
     if tf.get("viewers"):
         rows += f'<div class="b"><span class="k">Twitch, all streams</span><span class="t"></span><span class="v">{tf.get("streams", 0):,}<small>{tf["viewers"]:,} watching</small></span></div>'
-    errs = "".join(f'<div style="color:#ff4d5e;font-size:13px;margin-top:4px"><b>{html.escape(k)}</b>: {html.escape(str(v))}</div>' for k, v in (src.get("errors") or {}).items())
+    errs = "".join(f'<div style="color:#ff4d5e;font-size:13px;margin-top:4px"><span style="font-weight:700">{html.escape(k)}</span>: {html.escape(str(v))}</div>' for k, v in (src.get("errors") or {}).items())
     return (f'<div class="c" style="margin-top:10px"><h2>Data sources (last scan {last})</h2>{rows or "<div class=e>No scan yet.</div>"}'
             f'{errs or "<div class=e style=margin-top:6px>No source failed in the last scan.</div>"}</div>')
 
