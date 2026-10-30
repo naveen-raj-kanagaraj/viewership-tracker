@@ -28,7 +28,7 @@ h1{font:700 38px/1.05 "Barlow Condensed",sans-serif;margin:6px 0 4px;text-transf
 .intro{color:var(--muted);margin:0}
 .card{background:var(--card);border:1px solid var(--line);margin-top:14px;padding:14px 16px}
 h2{font:700 24px "Barlow Condensed",sans-serif;margin:0 0 8px;text-transform:uppercase;letter-spacing:.02em}h2 small{color:var(--muted);font:500 14px "Barlow",sans-serif;text-transform:none;margin-left:6px;letter-spacing:0}
-.chips{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 10px}.chips button{background:none;border:1px solid var(--line);color:var(--muted);font:600 12px "Barlow Condensed",sans-serif;letter-spacing:.05em;padding:5px 10px;cursor:pointer}.chips button.on{background:var(--lime);color:#0b0b12;border-color:var(--lime)}
+#cq{width:100%;max-width:420px;background:#0e0e16;border:1px solid var(--line);color:var(--text,#fff);font:15px Barlow,sans-serif;padding:9px 12px;margin:2px 0 10px;outline:none}#cq:focus{border-color:#b6f23a}.chips{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 10px}.chips button{background:none;border:1px solid var(--line);color:var(--muted);font:600 12px "Barlow Condensed",sans-serif;letter-spacing:.05em;padding:5px 10px;cursor:pointer}.chips button.on{background:var(--lime);color:#0b0b12;border-color:var(--lime)}
 table{width:100%;border-collapse:collapse}th{font:600 12px "Barlow Condensed",sans-serif;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
 td{padding:8px;border-bottom:1px solid #1c1c29;text-align:right;white-space:nowrap}th.l,td.l{text-align:left}
 tr.rw{cursor:pointer}tr.rw:hover td{background:#171722}
@@ -51,7 +51,7 @@ canvas.mob{display:none}@media(max-width:700px){canvas.mob{display:block;margin-
 <div class="card" id="trcard"><h2>Trending <small>biggest rise in watching against 24 hours ago</small></h2>
 <table><thead><tr><th class="l">Category</th><th>24h change</th><th class="hide">Last 48 hours</th><th>Watching now</th></tr></thead><tbody id="tr"><tr><td class="l mu" colspan="4">Loading...</td></tr></tbody></table></div>
 <div class="card"><h2>Top categories <small>by watching now</small></h2>
-<div class="chips" id="rng"></div><div class="chips" id="chips"></div>
+<div class="chips" id="rng"></div><input id="cq" type="search" placeholder="Search categories: Valorant, BGMI, Just Chatting..." autocomplete="off"><div class="chips" id="chips"></div>
 <table><thead><tr><th class="rk"></th><th class="l">Category</th><th>Watching now</th><th class="hide" id="hb">Last 24 hours</th><th id="hp">Peak, 24 hours</th><th class="hide" id="hh">Hours watched, 24 hours</th></tr></thead><tbody id="tg"></tbody></table>
 <button class="more" id="more" style="display:none"></button>
 <div class="note" id="note"></div></div>
@@ -77,13 +77,13 @@ function render(){const T=J.rows.filter(r=>J.trending.includes(r.game)&&r.game!=
  T.forEach(r=>{const e=document.createElement('tr');e.className='rw';e.onclick=()=>go(r);e.innerHTML=`<td class="l"><div class="g">${art(r)}<b>${esc(r.game)}</b></div></td><td class="up">+${r.change.toLocaleString('en-IN')}%</td><td class="hide"></td><td>${full(r.viewers)}</td>`;e.children[2].appendChild(spark(r.h48,170,30,false,'#b6f23a',r.viewers));{const mb=spark(r.h48,110,18,false,'#b6f23a',r.viewers);mb.classList.add('mob');e.querySelector('.g').appendChild(mb)}tr.appendChild(e)});
  const secs=[...new Set(J.rows.map(r=>r.section).filter(Boolean))];
  document.getElementById('chips').innerHTML=[['','ALL']].concat(secs.map(s=>[s,(SECN[s]||s).toUpperCase()])).map(([v,l])=>`<button data-v="${v}" class="${v===SEC?'on':''}">${esc(l)}</button>`).join('');
- const L=J.rows.filter(r=>!SEC||r.section===SEC),show=ALL?L:L.slice(0,25),tg=document.getElementById('tg');tg.innerHTML='';
- show.forEach((r,i)=>{const e=document.createElement('tr');e.className='rw';e.onclick=()=>go(r);
+ const QQ=document.getElementById('cq').value.trim().toLowerCase(),L=J.rows.filter(r=>(!SEC||r.section===SEC)&&(!QQ||r.game.toLowerCase().includes(QQ))),show=ALL||QQ?L:L.slice(0,25),tg=document.getElementById('tg');tg.innerHTML='';
+ show.forEach((r,i0)=>{const i=J.rows.indexOf(r);const e=document.createElement('tr');e.className='rw';e.onclick=()=>go(r);
   const ch=r.change==null?'':`<div class="${r.change>=0?'up':'dn'}" style="font-size:12px">${r.change>=0?'+':''}${r.change}% 24h</div>`;
   e.innerHTML=`<td class="rk">${i+1}.</td><td class="l"><div class="g">${art(r)}<span style="min-width:0"><b>${esc(r.game)}</b><span class="mu" style="font-size:12px">${full(r.streams)} live</span></span></div></td><td>${full(r.viewers)}${ch}</td><td class="hide"></td><td class="mu">${full(r.peak30)}</td><td class="mu hide">${full(r.hw30)}h</td>`;
   const mk=(w,h)=>r.d30.some(v=>v>0)?spark(r.d30,w,h,true):spark(r.h48,w,h,false,'#b6f23a',r.viewers);e.children[3].appendChild(mk(190,34));const mb=mk(110,18);mb.classList.add('mob');e.querySelector('.g>span:last-child').appendChild(mb);e.children[5].textContent=full(r.hw30)+'h';e.children[4].textContent=full(r.peak30);tg.appendChild(e)});
- if(!show.length)tg.innerHTML='<tr><td class="l mu" colspan="6">Nothing live here right now.</td></tr>';
- const mo=document.getElementById('more');mo.style.display=L.length>25?'block':'none';mo.textContent=ALL?'Show top 25':`Show all ${L.length}`;
+ if(!show.length)tg.innerHTML=`<tr><td class="l mu" colspan="6">${QQ?'No category matching "'+esc(QQ)+'" is live right now.':'Nothing live here right now.'}</td></tr>`;
+ const mo=document.getElementById('more');mo.style.display=L.length>25&&!QQ?'block':'none';mo.textContent=ALL?'Show top 25':`Show all ${L.length}`;
  const hist=(Date.now()/1000-J.since)/86400,jan=(Date.now()-new Date(new Date().getFullYear(),0,1))/864e5;
  // a range appears only once the site has recorded that much history (no duplicate numbers under a longer label)
  const NEED={'24h':0,'7d':0,'1m':0,'3m':85,'6m':175,'ytd':jan-2,'1y':355,'all':32},RV=RN.filter(x=>hist>=NEED[x[0]]||x[0]===RNG);
@@ -95,6 +95,7 @@ function render(){const T=J.rows.filter(r=>J.trending.includes(r.game)&&r.game!=
 async function load(){try{const r=await fetch('/api/cats?region='+REGION+'&range='+RNG);if(!r.ok)throw 0;J=await r.json();render()}catch(e){setTimeout(load,5000)}}
 document.getElementById('rng').onclick=e=>{const b=e.target.closest('button');if(b){RNG=b.dataset.v;load()}};
 document.getElementById('chips').onclick=e=>{const b=e.target.closest('button');if(b){SEC=b.dataset.v;ALL=false;render()}};
+document.getElementById('cq').oninput=()=>{if(J)render()};
 document.getElementById('more').onclick=()=>{ALL=!ALL;render()};
 load();setInterval(()=>{if(!document.hidden)load()},60000);
 </script></body></html>"""
