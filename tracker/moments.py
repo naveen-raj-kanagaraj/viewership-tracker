@@ -368,6 +368,22 @@ def twitch_login() -> str:
 
 # ---------- for the pages ----------
 
+def _est_start(sid: str, ts: int) -> int:
+    """When this channel's stream began, from the site's own readings: walk back from the moment while the readings
+    continue (gaps under 6 minutes). Within about 2 minutes of the real start."""
+    with store._lock:
+        rows = [t for (t,) in _db().execute("SELECT DISTINCT ts FROM sc_samples WHERE sid=? AND ts BETWEEN ? AND ? ORDER BY ts DESC",
+                                             (sid, ts - 12 * 3600, ts))]
+    if not rows:
+        return 0
+    s0 = rows[0]
+    for t in rows[1:]:
+        if s0 - t > 360:
+            break
+        s0 = t
+    return s0
+
+
 def recent(region: str = "global", period: str = "today", game: str = "", sid: str = "", limit: int = 60, sort: str = "views") -> dict:
     days = {"today": 1, "7d": 7, "30d": 30}.get(period, 1)
     if period == "today":
@@ -409,6 +425,12 @@ def recent(region: str = "global", period: str = "today", game: str = "", sid: s
                     c.execute("UPDATE moments SET embed_t=?, link=? WHERE id=?", (r["embed_t"], r["link"], r["id"]))
                     c.commit()
         r["exact_time"] = bool(r["embed_t"]) or r["embed"] == "tw_clip"
+        if r["platform"] == "youtube" and not r["embed_t"] and not r["live_now"] and r.get("vid"):
+            s0 = _est_start(r["sid"], r["ts"])   # YouTube wouldn't say when the stream began: our own first reading of it
+            if s0:
+                r["embed_t"], r["approx_t"] = max(0, r["ts"] - s0 - LEAD), True
+                r["embed"], r["embed_id"] = "yt", r["embed_id"] or r["vid"]
+        r["clip_end"] = (r["embed_t"] or 0) + LEAD + min(60, max(2, (r["peak_ts"] or r["ts"]) - r["ts"])) + 30   # 30 s after the peak
     if sid:
         rows.sort(key=lambda r: -r["ts"])
     games = ["BGMI"] + [g for g in games if g and g != "BGMI"]      # esports first, even before its first moment today
