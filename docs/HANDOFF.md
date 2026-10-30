@@ -370,6 +370,18 @@ As of 26 Oct 2026:
   reads them on the spot (channel_extra). Channel page: no "hasn't seen live" text (live card hidden), loading shows a
   skeleton, empty past-streams card hidden.
 - v36: category search box on /categories (filters as you type, keeps overall rank); /api/cats returns up to 200 live categories.
+- v37 (30 Oct): Predict & Win switched to BMIC 2026 (predict.EVENT_KEY "bmic", settings in kv pw_settings_bmic). On first
+  start the BMSD questions/picks move to pw_bmsd_questions / pw_bmsd_picks and the BMSD results page is frozen in kv
+  pw_bmsd_crowd (served at /predict/bmsd); players are kept. 9 questions: champion, 2 PMGC teams, top 3 (ranked), PMGC
+  countries (single pick from 6 pairs, UI taps a country once or twice = x2), MVP / best IGL / best clutch (free text),
+  peak buckets (auto-resolved), feedback (kind "feedback": private, unscored, listed for the owner). Picks lock Sat 31 Oct
+  12:00 IST by default (lock_day "2"); change it on the owner page. Game is open unless PREDICT_OPEN_BMIC=0.
+  Owner dashboard: /admin/predict?key=ADMIN_KEY (players with IP, picks, crowd split, set answers, lock time, show
+  leaderboard, remove/release accounts, feedback, CSV at /admin/predict.csv). Player IPs stored (ip, last_ip); site
+  visitors' IPs kept in memory 2 days and shown on /admin/visitors (privacy policy updated). BMIC page: key art + logo
+  (static/eventlogos/BMIC26*.webp, preset "hero"). Team logos for all 16 BMIC teams in static/teamlogos. Predict page
+  follows the system light/dark theme. Channel feeds (rss_once) now every 5 min in their own thread; channel_stats falls
+  back to the free About pages when the API refuses (quota).
 
 ## Ideas not built yet
 

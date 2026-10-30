@@ -1,4 +1,5 @@
-"""Who is watching the public dashboard: privacy-friendly counts (no IPs, no cookies; a random per-tab id).
+"""Who is watching the public dashboard: counts by a random per-tab id (no cookies). The IP address of each
+visit is kept in memory for the owner's page (recent visitors) and dropped after 2 days; it is never written to disk.
 
 Country comes from Cloudflare's CF-IPCountry header. Live = pinged in the last 75s (pages ping every 30s).
 """
@@ -23,7 +24,8 @@ def _day(ts=None):
     return datetime.fromtimestamp(ts or time.time(), TZ).strftime("%Y-%m-%d")
 
 
-def hit(sid: str, country: str = "", ref: str = "", ua: str = "", width: int = 0, city: str = "", region: str = ""):
+def hit(sid: str, country: str = "", ref: str = "", ua: str = "", width: int = 0, city: str = "", region: str = "",
+        ip: str = "", _path: str = "", page: str = ""):
     sid = (sid or "")[:40]
     ua_l = (ua or "").lower()
     if not sid or any(b in ua_l for b in BOTS):
@@ -39,8 +41,11 @@ def hit(sid: str, country: str = "", ref: str = "", ua: str = "", width: int = 0
             if "letsgrowesports" in ref:
                 ref = "direct"
             s = _sess[sid] = {"first": now, "last": now, "country": (country or "??").upper()[:2], "ref": ref,
-                              "device": device, "day": _day(now), "city": (city or "")[:40], "region": (region or "")[:40]}
+                              "device": device, "day": _day(now), "city": (city or "")[:40], "region": (region or "")[:40],
+                              "ip": (ip or "")[:64], "page": (page or "")[:80]}
         s["last"] = now
+        if page:
+            s["page"] = page[:80]
         active = sum(1 for x in _sess.values() if now - x["last"] < ACTIVE_SEC)
         best = store.kv_get("visitors_peak", {}) or {}
         if active > best.get("n", 0):
@@ -78,7 +83,10 @@ def stats() -> dict:
             "all_countries": Counter(x["country"] for x in tod).most_common(),
             "active_all_countries": Counter(x["country"] for x in act).most_common(),
             "avg_min": round(sum(x["last"] - x["first"] for x in tod) / len(tod) / 60, 1) if tod else 0,
-            "days": store.kv_get("visitors_days", {}) or {}, "since": min((x["first"] for x in vals), default=now)}
+            "days": store.kv_get("visitors_days", {}) or {}, "since": min((x["first"] for x in vals), default=now),
+            "ips": Counter(x.get("ip") for x in tod if x.get("ip")).most_common(15),
+            "recent": [{k: x.get(k) for k in ("ip", "country", "city", "region", "device", "ref", "page", "first", "last")}
+                       for x in sorted(vals, key=lambda x: -x["last"])[:150]]}
 
 
 def summary() -> str:

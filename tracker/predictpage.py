@@ -157,50 +157,70 @@ tr.you td{background:rgba(182,242,58,.08)}tr.pin td{border-top:2px dashed var(--
  .card{padding:12px}.qs{grid-template-columns:1fr}.tabs button{padding:8px 10px;font-size:12px}td{padding:8px 5px}.hide-m{display:none}
  .prize{padding:10px}.prize b{font-size:14px}}
 .mo{position:relative}.mo .rk{position:absolute;top:4px;left:5px;font:700 12px "Barlow";color:#0a0a14;background:var(--lime);padding:0 5px;line-height:17px}
+.phero{position:relative;margin:-16px -16px 14px;aspect-ratio:16/7;overflow:hidden;background:#0b0f3a}
+.phero .ph-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 40%}
+.phero .ph-lg{position:absolute;left:14px;bottom:12px;height:44%;width:auto;filter:drop-shadow(0 4px 14px rgba(0,0,0,.6))}
+.cgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.cty{all:unset;cursor:pointer;position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 6px;border:1px solid var(--line);background:var(--card2);font-weight:600;text-align:center}
+.cty .cc{font:700 22px "Barlow Condensed",sans-serif;letter-spacing:.06em;color:var(--muted)}
+.cty.on{border-color:var(--lime);box-shadow:inset 0 0 0 1px var(--lime)}.cty.on .cc{color:var(--lime)}
+.cty .x2{position:absolute;top:6px;right:8px;font:700 13px "Barlow Condensed",sans-serif;font-style:normal;background:var(--lime);color:#0a0a14;padding:1px 6px}
+.cty[disabled]{cursor:default}.cty:focus-visible{outline:2px solid var(--cyan)}
+textarea.inp.fb{width:100%;min-height:76px;resize:vertical;font:15px/1.4 "Barlow",sans-serif}
+@media(max-width:600px){.phero{aspect-ratio:16/9;margin:-12px -12px 12px}.phero .ph-lg{height:38%}}
+@media(prefers-color-scheme:light){:root{color-scheme:light;--bg:#f4f4f8;--bg2:#ececf3;--card:#ffffff;--card2:#f1f1f7;--ink:#14141e;--muted:#5d5c70;--line:#d9d9e3;--lime:#4d8a00;--gold:#a8740a;--cyan:#0a7fb0}
+ body{background:var(--bg)}.bar{background:rgba(244,244,248,.92)!important}
+ .btn{color:#fff}.btn.ghost{color:var(--ink)}
+ .tlb,.mo .tlb{background:#14141e;border-radius:4px;padding:2px 3px}
+ .cty .x2{color:#fff}.sbar{background:rgba(255,255,255,.96)!important;color:var(--ink)}}
 .mo[disabled]{cursor:default}.mo.ok{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}.mo.ok:after{content:"\2713 RESULT";position:absolute;top:4px;right:5px;font:10px "Barlow Condensed";color:var(--gold)}
 """
 
 PAGE = r"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Predict & Win | BMSD 2026 | letsgrowesports</title>
-<meta name="description" content="Pick the champion, top 3, BMIC qualifiers, MVPs, best IGL and the peak viewership for the BMSD 2026 Grand Finals. Free to play. Top 5 win a gift card.">
+<title>Predict & Win | BMIC 2026 | letsgrowesports</title>
+<meta name="description" content="Call the BMIC 2026 champion, the two PMGC qualifiers, top 3, MVP, best IGL, best clutch and the peak viewership. Free to play. Win free UC, gift cards, vouchers and coupons.">
 <meta property="og:type" content="website"><meta property="og:site_name" content="letsgrowesports">
-<meta property="og:title" content="BMSD 2026 · Predict & Win"><meta property="og:description" content="Pick the champion, top 3, BMIC qualifiers, MVPs, best IGL and the peak viewership for the BMSD 2026 Grand Finals. Free to play. Top 5 win a gift card.">
-<meta property="og:url" content="__PUBLIC__/predict"><meta property="og:image" content="__PUBLIC__/predict/og.png?v=2">
+<meta property="og:title" content="BMIC 2026 · Predict & Win"><meta property="og:description" content="Call the BMIC 2026 champion, the two PMGC qualifiers, top 3, MVP, best IGL, best clutch and the peak viewership. Free to play. Win free UC, gift cards, vouchers and coupons.">
+<meta property="og:url" content="__PUBLIC__/predict"><meta property="og:image" content="__PUBLIC__/predict/og.png?v=3">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
-<meta name="twitter:card" content="summary_large_image"><meta name="twitter:description" content="Pick the champion, top 3, BMIC qualifiers, MVPs, best IGL and the peak viewership for the BMSD 2026 Grand Finals. Free to play. Top 5 win a gift card."><meta name="twitter:title" content="BMSD 2026 · Predict & Win"><meta name="twitter:image" content="__PUBLIC__/predict/og.png?v=2">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:description" content="Call the BMIC 2026 champion, the two PMGC qualifiers, top 3, MVP, best IGL, best clutch and the peak viewership. Free to play. Win free UC, gift cards, vouchers and coupons."><meta name="twitter:title" content="BMIC 2026 · Predict & Win"><meta name="twitter:image" content="__PUBLIC__/predict/og.png?v=3">
 <meta name="theme-color" content="#0b0b12">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
 <style>__CSS__</style></head><body>
 <div class="pwin" id="pwin"><b>PREDICT &amp; WIN</b></div>
 <div class="bar"><div class="in">
- <div class="title"><a class="brand" href="https://www.instagram.com/letsgrowesports.igc/" target="_blank" rel="noopener">letsgrowesports</a><h1>Predict & Win <span>// BMSD 2026</span></h1></div>
+ <div class="title"><a class="brand" href="https://www.instagram.com/letsgrowesports.igc/" target="_blank" rel="noopener">letsgrowesports</a><h1>Predict & Win <span>// BMIC 2026</span></h1></div>
  <a class="btn ghost sm" href="/">&larr; Live viewers</a>
 </div></div>
 <div class="wrap">
  <div class="card hero">
+  <div class="phero"><img class="ph-bg" src="/elogo/BMIC26HERO.webp" alt="BMIC 2026: Korea, India, Japan, for the crown" width="1600" height="900" fetchpriority="high"><img class="ph-lg" src="/elogo/BMIC26.webp" alt="BMIC 2026 logo" width="360" height="396"></div>
   <div class="lbl">// free to play · points only</div>
-  <h2>Predict the <b>BMSD 2026</b> Grand Finals</h2>
-  <p>Pick the winners. Get points when you're right. The top 5 win a gift card of their choice.</p>
+  <h2>Predict the <b>BMIC 2026</b> Grand Finals</h2>
+  <p>India, Korea and Japan, 16 teams, two PMGC slots. Pick the winners and get points when you're right.</p>
+  <div class="prize"><span class="ic">UC</span><div><b>Prizes</b><span>Free UC, gift cards, vouchers and coupons for the top players.</span></div></div>
   <div class="stats"><span class="pill red" id="nl">PICKS LOCK <b id="nlt">-</b></span></div>
  </div>
  <div class="card" id="joinCard"></div>
  <div class="card" id="qcard"><div class="lbl">// step 2</div><h2 style="margin:4px 0 12px">Make your picks</h2>
   <div class="tabs" id="dtabs"></div><div class="qs" id="qs"></div></div>
  <div class="card" id="crowdCard" style="display:none"><div class="lbl">// what everyone picked</div><h2 style="margin:4px 0 4px">Crowd picks</h2>
-  <div class="muted" style="font-size:13px;margin-bottom:10px">Updates live. The leaderboard and winners are revealed after the finals on Sun 18 Oct.</div><div id="crowd"></div></div>
+  <div class="muted" style="font-size:13px;margin-bottom:10px">Updates live. The leaderboard and winners are revealed after the finals on Sun 1 Nov.</div><div id="crowd"></div></div>
  <div class="card" id="lbCard" style="display:none"><div class="head"><div><div class="lbl">// leaderboard</div><h2>Top 10</h2></div><button class="btn sm" id="shareLb">Share</button></div>
   <div class="tabs" id="ltabs"></div>
   <table><thead><tr><th>#</th><th>Player</th><th class="num">Points</th></tr></thead><tbody id="lb"></tbody></table>
-  <div class="muted" style="font-size:12px;margin-top:8px">Gold = gift card zone. Tap a name to see their picks.</div></div>
+  <div class="muted" style="font-size:12px;margin-top:8px">Gold = prize zone. Tap a name to see their picks.</div></div>
  <div class="card rules"><div class="lbl">// rules</div>
   <ul>
    <li>Free to play. No money, no bets.</li>
    <li>Right pick = 100 points. If few people got it right, you get up to 100 bonus points.</li>
-   <li>Top 3 and BMIC: you get points for each team you got right.</li>
+   <li>Top 3 and PMGC teams: you get points for each team you got right.</li>
+   <li>PMGC countries: tap a country once for one slot, twice for both slots (x2).</li>
+   <li>Feedback earns no points, but only proper responses count; empty or unclear answers are void.</li>
    <li>Answer every question, then submit. Picks can't be changed after.</li>
-   <li>Top 5 on the leaderboard after the finals (Sun 18 Oct) win a gift card. Ties go to whoever joined first.</li>
+   <li>Top players after the finals (Sun 1 Nov) win free UC, gift cards, vouchers or coupons. Ties go to whoever joined first.</li>
    <li>One account per person and per internet connection. Fake accounts are removed.</li>
    <li>Fan-made game. Not linked to KRAFTON or Instagram.</li>
   </ul>
@@ -243,7 +263,7 @@ function renderJoin(){const c=$('joinCard');
    ${B&&B.leaderboard?`<div class="mono rkbox"><div style="font-size:22px;color:var(--lime)">${r.pts?'#'+r.rank:'-'}</div><div class="muted" style="font-size:12px">${r.pts||0} PTS</div></div><button class="btn sm" id="shareMe">Share my rank</button>`:`<div class="mono rkbox" style="font-size:13px;color:${Object.keys(ME.picks||{}).length?'var(--lime)':'var(--muted)'}">${Object.keys(ME.picks||{}).length?'✓ PICKS SUBMITTED':'NOT SUBMITTED YET'}</div>`}</div>`;
   const sm=$('shareMe');if(sm)sm.onclick=()=>share('me');renderCrowd();return}
  c.innerHTML=`<div class="lbl">// step 1</div><h2 style="margin-top:4px">Enter your Instagram ID</h2>
-  <div class="muted" style="font-size:13px;margin-top:4px">If you finish in the top 5, we'll DM you on Instagram. No password needed.<br><b style="color:var(--ink)">Answer every question, then press Submit. You can't change picks after submitting.</b></div>
+  <div class="muted" style="font-size:13px;margin-top:4px">If you win, we'll DM you on Instagram. No password needed.<br><b style="color:var(--ink)">Answer every question, then press Submit. You can't change picks after submitting.</b></div>
   <div id="jf"><label class="field"><span>INSTAGRAM ID</span><div class="at"><i>@</i><input class="inp" id="jh" maxlength="80" placeholder="yourhandle" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="email" required></div></label>
   <label class="field"><span>NAME (OPTIONAL)</span><input class="inp" id="jn" maxlength="32" placeholder="Shown on the leaderboard"></label>
   <div class="muted" style="font-size:12px;margin:10px 0">Your Instagram ID and picks will show on the leaderboard.</div>
@@ -277,8 +297,16 @@ function crowdBars(q,limit){const my=myOf(q),mine=Array.isArray(my)?my:[my];cons
  return `<div class="crowd"><div class="muted ch">What everyone picked</div>${top.map(([o,n])=>`<div class="cr ${mine.includes(o)?'mine':''} ${isAns(q,o)?'ok':''}"><div class="fill" style="width:${n}%"></div><span class="nmx">${tl(o)}<span>${esc(o)}</span></span><span class="pc">${n}%</span></div>`).join('')}${rest?`<div class="cr"><div class="fill" style="width:${rest}%"></div><span class="nmx"><span>Others</span></span><span class="pc">${rest}%</span></div>`:''}${!ent.length?'<div class="muted" style="font-size:13px">Crowd % shows once 20 players have picked.</div>':''}</div>`}
 function tiles(q,sel,attr,showPct,locked,ranked){return `<div class="mgrid">${q.options.map(o=>{const i=sel.indexOf(o);return `<button class="mo ${i>=0?'on':''} ${isAns(q,o)?'ok':''}" ${attr}="${q.id}" data-o="${esc(o)}" ${locked?'disabled':''}>${ranked&&i>=0?`<b class="rk">#${i+1}</b>`:''}${tl(o)}<span>${esc(o)}</span>${showPct?`<em class="tp">${pct(q,o)}%</em>`:''}</button>`}).join('')}</div>`}
 const openQs=()=>B.questions.filter(q=>!q.void&&!shutQ(q)&&myOf(q)===undefined);
-const isDone=(q,v)=>v!==undefined&&(q.kind==='multi'?Array.isArray(v)&&v.length===q.pick:String(v).trim().length>0);
+const isDone=(q,v)=>v!==undefined&&(q.kind==='multi'?Array.isArray(v)&&v.length===q.pick:q.style==='countries'?String(v).includes(' + '):q.kind==='feedback'?String(v).trim().length>=3:String(v).trim().length>0);
+const CTRY=['India','Korea','Japan'],CCODE={India:'IN',Korea:'KR',Japan:'JP'};
+const cSel=v=>v?String(v).split(' + ').filter(c=>CTRY.includes(c)):[];
+const cVal=a=>a.slice().sort((x,y)=>CTRY.indexOf(x)-CTRY.indexOf(y)).join(' + ');
 function qBody(q,shut){const my=myOf(q),done=shut||my!==undefined,dv=draft[q.id];
+ if(q.style==='countries'){const sel=cSel(my!==undefined?my:dv);
+  const t=`<div class="cgrid">${CTRY.map(c=>{const n=sel.filter(x=>x===c).length;return `<button class="cty ${n?'on':''}" data-cq="${q.id}" data-c="${c}" ${done?'disabled':''}><b class="cc">${CCODE[c]}</b><span>${c}</span>${n?`<em class="x2">x${n}</em>`:''}</button>`}).join('')}</div>`;
+  return t+(done?(q.picked?crowdBars(q,6):''):`<div class="mbar"><span class="mono">${sel.length} of 2 slots${sel.length?': '+esc(sel.join(' + ')):''}</span></div>`)}
+ if(q.kind==='feedback'){if(my!==undefined)return '<div class="muted" style="font-size:13px">Thanks, your feedback is in.</div>';if(shut)return '';
+  return `<div class="tx"><textarea class="inp fb" data-tq="${q.id}" maxlength="500" rows="3" placeholder="What should we add, fix or improve? (only proper responses count)">${esc(dv??'')}</textarea></div>`}
  if(q.kind==='multi'){const sel=my?[...my]:(dv||[]);const t=tiles(q,sel,'data-mq',done&&q.picked,done,q.ranked);
   return done?t:t+`<div class="mbar"><span class="mono">${sel.length} of ${q.pick} picked</span></div>`}
  if(q.style==='grid')return tiles(q,my!==undefined?[my]:dv!==undefined?[dv]:[],'data-gq',done&&q.picked,done);
@@ -286,14 +314,14 @@ function qBody(q,shut){const my=myOf(q),done=shut||my!==undefined,dv=draft[q.id]
  if(q.style==='dropdown')return crowdBars(q,5);
  const cur=my!==undefined?my:dv;
  return `<div class="opts ${q.options.length>4||q.options.some(o=>o.length>14)?'one':''}">${q.options.map(o=>`<button class="opt ${o===cur?'mine':''} ${isAns(q,o)?'ok':''}" data-q="${q.id}" data-o="${esc(o)}" ${done?'disabled':''}><div class="fill" style="width:${done&&q.picked?pct(q,o):0}%"></div><span>${esc(o)}</span><span class="pc">${done&&q.picked?pct(q,o)+'%':''}</span></button>`).join('')}</div>`}
-const HOW={text:()=>'Type a player name.',multi:q=>q.ranked?`Tap ${q.pick} teams in order: first tap is #1, then #2, then #3. Tap a team again to remove it.`:`Tap ${q.pick} teams. Tap a team again to remove it.`,grid:()=>'Tap a team.',buttons:()=>'Tap one.'};
+const HOW={countries:()=>'Tap a country for one slot. Tap it again for both slots (x2). Tap again to clear.',feedback:()=>'A line or two. Only proper responses count; empty or unclear answers are void.',text:()=>'Type a player name.',multi:q=>q.ranked?`Tap ${q.pick} teams in order: first tap is #1, then #2, then #3. Tap a team again to remove it.`:`Tap ${q.pick} teams. Tap a team again to remove it.`,grid:()=>'Tap a team.',buttons:()=>'Tap one.'};
 function qCard(q){const [ct,cc]=closeTxt(q),my=myOf(q),shut=shutQ(q),has=my!==undefined;
  let foot='';const got=ME&&ME.pts?ME.pts[q.id]:undefined;const ans=Array.isArray(q.answer)?q.answer.join(', '):q.answer;
  if(q.answer&&has)foot=got>0?`<span class="good">Correct · +${got} points</span>`:`<span class="bad">Missed · Answer: ${esc(ans)}</span>`;
  else if(q.answer)foot=`<span>Answer: ${esc(ans)}</span>`;
  else if(has)foot=`<span class="saved">✓ Submitted</span><span>${q.picked?'% = share of players who picked each team':'Crowd % shows once 20 players have picked'}</span>`;
  else if(!shut)foot=isDone(q,draft[q.id])?'<span class="saved">✓ Answered</span>':'<span class="bad">Not answered yet</span>';
- const how=!shut&&!has?`<div class="how">${(HOW[q.kind==='multi'?'multi':q.kind==='text'?'text':q.style]||HOW.buttons)(q)}</div>`:'';
+ const how=!shut&&!has?`<div class="how">${(HOW[q.kind==='multi'?'multi':q.kind==='text'?'text':q.kind==='feedback'?'feedback':q.style]||HOW.buttons)(q)}</div>`:'';
  return `<div class="q ${q.answer?'res':''} ${q.void?'void':''} ${q.day?'':'ev'}" data-id="${q.id}"><div class="qt"><span class="tag">${q.tag==='BMIC'&&TLOGO.BMIC26?`<img class="qbadge" src="${TLOGO.BMIC26}" alt="BMIC">`:esc(q.tag||q.kind)}</span><span class="cl ${cc}" data-cl="${q.id}">${ct}</span></div><h3>${esc(q.title)}</h3>${how}${qBody(q,shut)}<div class="qf">${foot}</div></div>`}
 function sbar(){const el=$('sbar');if(!el||!B)return;const oq=openQs(),n=oq.filter(q=>isDone(q,draft[q.id])).length;
  if(!oq.length){el.style.display='none';$('qcard').style.paddingBottom='';return}el.style.display='flex';$('qcard').style.paddingBottom=(el.offsetHeight+28)+'px';
@@ -310,6 +338,9 @@ function renderQs(){const {ev,dq}=visibleQs(),ids=[...ev,...dq].map(q=>q.id).joi
 function updCard(id){const q=B.questions.find(x=>x.id===id),el=$('qs').querySelector(`.q[data-id="${id}"]`);if(!q||!el)return renderQs();const h=qCard(q);cardHtml[id]=h;el.outerHTML=h}
 $('qs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.disabled)return;const d=b.dataset;
  if(d.gq){draft[+d.gq]=d.o;saveDraft();updCard(+d.gq);sbar();return}
+ if(d.cq){const id=+d.cq,q=B.questions.find(x=>x.id===id);if(myOf(q)!==undefined)return;let sel=cSel(draft[id]);const n=sel.filter(x=>x===d.c).length;
+  if(sel.length<2)sel.push(d.c);else if(n)sel=sel.filter(x=>x!==d.c);else{toast('Both slots are picked. Tap a country to clear it.');return}
+  draft[id]=sel.length?cVal(sel):undefined;if(!sel.length)delete draft[id];saveDraft();updCard(id);sbar();return}
  if(d.mq){const id=+d.mq,q=B.questions.find(x=>x.id===id);if(myOf(q)!==undefined)return;const sel=draft[id]||[];const i=sel.indexOf(d.o);
   if(i>=0)sel.splice(i,1);else if(sel.length<q.pick)sel.push(d.o);else{toast(`You already picked ${q.pick}. Tap one to remove it.`);return}draft[id]=sel;saveDraft();updCard(id);sbar();return}
  if(d.q&&b.classList.contains('opt')){draft[+d.q]=d.o;saveDraft();updCard(+d.q);sbar()}});
@@ -335,7 +366,7 @@ function confirmSubmit(){if(DEMO)return true;try{return window.confirm('Submit y
 let crowdSig='';
 function renderCrowd(){const card=$('crowdCard');if(!card||!B)return;const has=ME&&Object.keys(ME.picks||{}).length;card.style.display=has?'':'none';if(!has)return;
  const sig=JSON.stringify(ME.crowd||{})+JSON.stringify(ME.picks);if(sig===crowdSig)return;crowdSig=sig;
- $('crowd').innerHTML=B.questions.filter(q=>ME.picks[q.id]!==undefined).map(q=>{const pc=(ME.crowd||{})[q.id]||{},my=ME.picks[q.id],mine=Array.isArray(my)?my:[my];
+ $('crowd').innerHTML=B.questions.filter(q=>ME.picks[q.id]!==undefined&&q.kind!=='feedback').map(q=>{const pc=(ME.crowd||{})[q.id]||{},my=ME.picks[q.id],mine=Array.isArray(my)?my:[my];
   const ent=Object.entries(pc).sort((a,b)=>b[1]-a[1]).slice(0,q.kind==='multi'?Math.max(q.pick,6):5);
   const tag=q.tag==='BMIC'&&TLOGO.BMIC26?`<img class="qbadge" style="height:30px" src="${TLOGO.BMIC26}" alt="BMIC">`:esc(q.tag);
   return `<div class="cq"><div class="qt"><span class="tag">${tag}</span></div><div class="cqt">${esc(q.title)}</div>${ent.length?`<div class="crowd">${ent.map(([o,n])=>`<div class="cr ${mine.includes(o)||mine.map(tn0).includes(tn0(o))?'mine':''}"><div class="fill" style="width:${n}%"></div><span class="nmx">${tl(o)}<span>${esc(o)}</span></span><span class="pc">${n}%</span></div>`).join('')}</div>`:'<div class="muted" style="font-size:13px">Results show once 20 players have submitted.</div>'}</div>`}).join('')}
@@ -364,8 +395,8 @@ function cardBase(){const W=1080,H=1350,c=document.createElement('canvas');c.wid
  x.strokeStyle='#b6f23a';x.lineWidth=5;x.beginPath();x.moveTo(40,80);x.lineTo(40,40);x.lineTo(80,40);x.stroke();x.beginPath();x.moveTo(W-40,H-210);x.lineTo(W-40,H-170);x.lineTo(W-80,H-170);x.stroke();
  x.textBaseline='top';const T=(t,X,Y,f,col,al,mw)=>{x.font=f;if(mw){const w=x.measureText(t).width;if(w>mw){const m=f.match(/(\d+)px/);x.font=f.replace(/\d+px/,Math.max(10,Math.floor(+m[1]*mw/w))+'px')}}x.fillStyle=col;x.textAlign=al||'left';x.fillText(t,X,Y)};
  const M=s=>`${s}px "Barlow Condensed",sans-serif`,F=s=>`700 ${s}px "Barlow",sans-serif`;
- T('letsgrowesports',80,78,M(30),'#b6f23a');T('BMSD 2026 · PREDICT & WIN',80,118,F(54),'#eeeef5',null,W-160);
- x.fillStyle='#b6f23a';x.fillRect(0,H-130,W,130);T('LIVE.LETSGROWESPORTS.COM/PREDICT',80,H-108,F(44),'#0a0a14',null,W-160);T('Free to play · top 5 win a gift card · @letsgrowesports.igc',80,H-52,M(24),'#0a0a14',null,W-160);
+ T('letsgrowesports',80,78,M(30),'#b6f23a');T('BMIC 2026 · PREDICT & WIN',80,118,F(54),'#eeeef5',null,W-160);
+ x.fillStyle='#b6f23a';x.fillRect(0,H-130,W,130);T('LIVE.LETSGROWESPORTS.COM/PREDICT',80,H-108,F(44),'#0a0a14',null,W-160);T('Free to play · win free UC & gift cards · @letsgrowesports.igc',80,H-52,M(24),'#0a0a14',null,W-160);
  return{c,x,T,M,F,W,H}}
 function lbCard(){const {c,x,T,M,F,W}=cardBase(),rows=(B.boards[lbTab]||[]).slice(0,10);
  T(lbTab==='all'?'// OVERALL LEADERBOARD':`// DAY ${lbTab} LEADERBOARD`,80,205,M(30),'#ff4d5e');T(`updated ${istT(nowS())} IST`,80,248,M(24),'#8d8ca3');
@@ -386,7 +417,7 @@ function meCard(){const {c,x,T,M,F,W}=cardBase(),r=(ME.ranks||{}).all||{},h='@'+
 let shared=null;
 async function share(type){await FONTS;const c=type==='me'?meCard():lbCard();$('smt').textContent=type==='me'?'Share my rank':'Share leaderboard';$('simg').removeAttribute('src');$('smodal').classList.add('on');
  const r=(ME&&ME.ranks.all)||{};
- const text=type==='me'?`@${ME.player.handle} is #${r.rank||'-'} on Predict & Win · ${r.pts||0} pts. BMSD 2026 Grand Finals: call the winners, top 5 win a gift card.`:`BMSD 2026 Predict & Win leaderboard${lbTab==='all'?'':' (Day '+lbTab+')'}: ${(B.boards[lbTab]||[]).slice(0,3).map(x=>`${x.rank}. ${disp(x)} ${x.pts}`).join(' | ')}. Free to play, top 5 win a gift card.`;
+ const text=type==='me'?`@${ME.player.handle} is #${r.rank||'-'} on Predict & Win · ${r.pts||0} pts. BMIC 2026: call the winners, win free UC and gift cards.`:`BMIC 2026 Predict & Win leaderboard${lbTab==='all'?'':' (Day '+lbTab+')'}: ${(B.boards[lbTab]||[]).slice(0,3).map(x=>`${x.rank}. ${disp(x)} ${x.pts}`).join(' | ')}. Free to play, top 5 win a gift card.`;
  $('simg').src=c.toDataURL('image/png');c.toBlob(b=>{shared={blob:b,text,name:type==='me'?'predict-my-rank.png':'predict-leaderboard.png'}},'image/png')}
 $('sNative').onclick=async()=>{if(!shared)return;const f=new File([shared.blob],shared.name,{type:'image/png'});
  try{if(navigator.canShare&&navigator.canShare({files:[f]}))await navigator.share({files:[f],text:shared.text+' '+URLP});else if(navigator.share)await navigator.share({text:shared.text,url:URLP});else{dl();toast('Image downloaded')}}catch(e){}};

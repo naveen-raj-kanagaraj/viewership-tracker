@@ -3,7 +3,11 @@
 Players join with an Instagram handle + display name (no password). The server hands the browser a random
 token and stores only its SHA-256 hash. Picks are enforced server side against each question's close time
 (stored as UTC epoch seconds). Scoring: a correct pick earns 100 points plus an underdog bonus of
-100 x (1 - share of players who picked the correct answer). Nothing about the player's network is stored.
+100 x (1 - share of players who picked the correct answer). The player's IP address is kept for the owner, to
+stop duplicate accounts (disclosed in the privacy policy).
+
+One event at a time. BMSD 2026's questions and picks were moved to pw_bmsd_questions / pw_bmsd_picks when
+BMIC 2026 started (players are kept, so returning players stay signed in).
 """
 import hashlib
 import hmac
@@ -19,19 +23,25 @@ from datetime import datetime, timedelta, timezone
 from tracker import store
 
 IST = timezone(timedelta(hours=5, minutes=30))
-EVENT_KEY = "bmsd"
+EVENT_KEY = "bmic"
+SETTINGS_KEY = "pw_settings_bmic"
 
 DEFAULTS = {
-    "teams": ["Meta Ninza", "8Bit Esports", "RNTX Esports", "Blitz x Epigrotive", "TAG", "Nebula", "K9 Esports", "V1 x Blue Army",
-              "Outrage", "GodLike", "Gladiators", "Soul", "Myth Esports", "Welt Esports", "Genesis", "Wyld Fangs"],
+    "teams": ["iQOO SOUL", "iQOO 8BIT", "Gladiators", "K9 Esports", "Blitz x Epigrotive", "Outrage",
+              "DRX", "Dplus KIA", "NS RedForce", "FOCUS", "GAME PT",
+              "VALOR", "REIGNITE", "Making The Road", "Versus", "KINOTROPE"],
+    "countries": {"India": ["iQOO SOUL", "iQOO 8BIT", "Gladiators", "K9 Esports", "Blitz x Epigrotive", "Outrage"],
+                  "Korea": ["DRX", "Dplus KIA", "NS RedForce", "FOCUS", "GAME PT"],
+                  "Japan": ["VALOR", "REIGNITE", "Making The Road", "Versus", "KINOTROPE"]},
     "mvp": [],
-    "buckets": [400, 500, 600, 700, 750, 800, 850],                         # thousands; labels are built from these
-    "days": {"1": "2026-10-16", "2": "2026-10-17", "3": "2026-10-18"},
-    "close": "16:00",                                             # IST, default close time on a match day
+    "buckets": [200, 300, 400, 500, 600, 700, 800],                         # thousands; labels are built from these
+    "days": {"1": "2026-10-30", "2": "2026-10-31", "3": "2026-11-01"},
+    "close": "12:00",                                             # IST: picks lock at this time on lock_day
+    "lock_day": "2",                                              # before Day 2 starts (owner can change it)
     "matches": 6,
     "maps": {"1": ["Rondo", "Erangel", "Erangel", "Erangel", "Miramar", "Miramar"]},   # per day; other days reuse Day 1
     "match_questions": False,                                     # per-match chicken dinner questions (off)
-    "prize": "Top 5 on the overall leaderboard win a gift card of their choice.",
+    "prize": "Top players win free UC, gift cards, vouchers and coupons.",
     "show_leaderboard": False,
     "peak_actual": "",
     "podium": [],                                                 # final standings top 3 in order, for the results                                            # e.g. "653K": shown with the results                                    # owner turns this on after the finals
@@ -62,13 +72,42 @@ def _db():
                 PRIMARY KEY (player_id, qid));
             CREATE INDEX IF NOT EXISTS pw_picks_q ON pw_picks(qid);
             """)
-            try:
-                c.execute("ALTER TABLE pw_players ADD COLUMN net TEXT")
-            except sqlite3.OperationalError:
-                pass
+            for col in ("net TEXT", "ip TEXT", "last_ip TEXT", "last_ts REAL"):
+                try:
+                    c.execute(f"ALTER TABLE pw_players ADD COLUMN {col}")
+                except sqlite3.OperationalError:
+                    pass
             c.commit()
         _init_done = True
+        _archive_bmsd(c)
     return c
+
+
+def _archive_bmsd(c):
+    """Once: keep BMSD 2026's questions, picks and results page, then empty the game for BMIC 2026."""
+    if store.kv_get("pw_bmsd_archived"):
+        return
+    with store._lock:
+        old = c.execute("SELECT COUNT(*) FROM pw_questions WHERE title LIKE '%BMSD%'").fetchone()[0]
+    if old:
+        try:
+            from tracker import crowd
+            store.kv_set("pw_bmsd_crowd", crowd.split(top=6, all_teams=True))   # the BMSD results page, frozen
+        except Exception as e:
+            print(f"Predict: BMSD results snapshot failed: {str(e)[:100]}")
+        with store._lock:
+            c.execute("CREATE TABLE IF NOT EXISTS pw_bmsd_questions AS SELECT * FROM pw_questions")
+            c.execute("CREATE TABLE IF NOT EXISTS pw_bmsd_picks AS SELECT * FROM pw_picks")
+            c.execute("DELETE FROM pw_picks")
+            c.execute("DELETE FROM pw_questions")
+            c.commit()
+    store.kv_set("pw_bmsd_archived", int(time.time()))
+    if not store.kv_get("pw_bmic_created"):          # the BMIC question set, once
+        store.kv_set("pw_bmic_created", int(time.time()))
+        try:
+            create_event_set()
+        except Exception as e:
+            print(f"Predict: creating the BMIC questions failed: {str(e)[:100]}")
 
 
 def _bust():
@@ -78,16 +117,16 @@ def _bust():
 # ---------------- settings ----------------
 def settings() -> dict:
     s = dict(DEFAULTS)
-    s.update(store.kv_get("pw_settings", {}) or {})
+    s.update(store.kv_get(SETTINGS_KEY, {}) or {})
     return s
 
 
 def save_settings(**kw) -> dict:
-    s = store.kv_get("pw_settings", {}) or {}
+    s = store.kv_get(SETTINGS_KEY, {}) or {}
     for k, v in kw.items():
         if k in DEFAULTS and v is not None:
             s[k] = v
-    store.kv_set("pw_settings", s)
+    store.kv_set(SETTINGS_KEY, s)
     _bust()
     return settings()
 
@@ -176,11 +215,12 @@ def join(handle: str, name: str, consent: bool, ip: str = "") -> dict:
                 raise GameError("Someone has already joined from this internet connection. One account per person. "
                                 "If this is a mistake, DM @letsgrowesports.igc on Instagram.", 409)
         if r:   # released by the owner: claim it again from this device
-            c.execute("UPDATE pw_players SET token_hash=?, name=? WHERE id=?", (_hash(token), name, r["id"]))
+            c.execute("UPDATE pw_players SET token_hash=?, name=?, last_ip=?, last_ts=? WHERE id=?",
+                      (_hash(token), name, ip[:64], time.time(), r["id"]))
             pid = r["id"]
         else:
-            pid = c.execute("INSERT INTO pw_players (handle, name, token_hash, created, net) VALUES (?,?,?,?,?)",
-                            (h, name, _hash(token), time.time(), net)).lastrowid
+            pid = c.execute("INSERT INTO pw_players (handle, name, token_hash, created, net, ip, last_ip, last_ts) VALUES (?,?,?,?,?,?,?,?)",
+                            (h, name, _hash(token), time.time(), net, ip[:64], ip[:64], time.time())).lastrowid
         c.commit()
     _bust()
     return {"token": token, "player": {"id": pid, "handle": h, "name": name}}
@@ -251,6 +291,8 @@ def add_question(kind: str, title: str, options: list, close_ts: float, day: int
     meta = dict(meta or {})
     if kind == "text":
         opts, style = [], "text"
+    elif kind == "feedback":
+        opts, style = [], "feedback"
     elif len(opts) < 2:
         raise GameError("A question needs at least two options.")
     if kind == "multi":
@@ -274,7 +316,7 @@ def add_question(kind: str, title: str, options: list, close_ts: float, day: int
 
 def _close(day, close_ts=None):
     s = settings()
-    return close_ts or ist_ts(s["days"][str(day or 1)], s["close"])
+    return close_ts or ist_ts(s["days"][str(day or s.get("lock_day") or 1)], s["close"])
 
 
 def create_match_day(day: int, close_ts: float = None) -> list:
@@ -303,19 +345,23 @@ def _exists(kind, title, day=None) -> bool:
                                   (kind, title, int(day))).fetchone())
 
 
+COUNTRY_PAIRS = ["India + India", "India + Korea", "India + Japan", "Korea + Korea", "Korea + Japan", "Japan + Japan"]
+
+
 def event_spec(close_ts: float = None) -> list:
-    """The whole question set. Everything closes at one time (settings close on Day 1)."""
+    """The whole question set. Everything closes at one time (settings close on lock_day)."""
     s = settings()
-    close = _close(1, close_ts)
-    return [("team", "Who will win the BMSD 2026 Grand Finals?", s["teams"], "CHAMPION", "grid", {}, 1),
-            ("multi", "Which teams will finish in the top 3?", s["teams"], "TOP 3", "multi", {"pick": 3, "ranked": True}, 2),
-            ("multi", "Which 6 teams will qualify for BMIC?", s["teams"], "BMIC", "multi", {"pick": 6}, 3),
-            ("text", "Final MVP", [], "FINAL MVP", "text", {}, 4),
+    close = _close(0, close_ts)
+    return [("team", "Who will win the BMIC 2026 Grand Finals?", s["teams"], "CHAMPION", "grid", {}, 1),
+            ("multi", "Which two teams will qualify for PMGC?", s["teams"], "PMGC", "multi", {"pick": 2}, 2),
+            ("multi", "Which teams will finish in the top 3?", s["teams"], "TOP 3", "multi", {"pick": 3, "ranked": True}, 3),
+            ("team", "Which two countries will take the two PMGC slots?", COUNTRY_PAIRS, "PMGC COUNTRIES", "countries", {}, 4),
             ("text", "MVP of the Tournament", [], "TOURNAMENT MVP", "text", {}, 5),
             ("text", "Best IGL", [], "BEST IGL", "text", {}, 6),
-            ("text", "The Eliminator", [], "THE ELIMINATOR", "text", {}, 7),
+            ("text", "Best Clutch", [], "BEST CLUTCH", "text", {}, 7),
             ("peak", "What will the tournament's peak viewership be?", bucket_labels(), "PEAK VIEWERS", "buttons",
-             {"scope": "event", "date": s["days"]["3"], "auto": True, "buckets": s["buckets"]}, 8)], close
+             {"scope": "event", "date": s["days"]["3"], "auto": True, "buckets": s["buckets"]}, 8),
+            ("feedback", "Your feedback on the site", [], "FEEDBACK", "feedback", {}, 9)], close
 
 
 def create_event_set(close_ts: float = None) -> list:
@@ -557,6 +603,10 @@ def pick(token: str, qid: int, option, now: float = None) -> dict:
         if len(tnorm(stored)) < 2:
             raise GameError("Type a player name.")
         shown = stored
+    elif q["kind"] == "feedback":
+        stored = shown = re.sub(r"\s+", " ", str(option or "")).strip()[:500]
+        if len(tnorm(stored)) < 2:
+            raise GameError("Write a line of feedback.")
     else:
         if option not in q["options"]:
             raise GameError("Pick one of the options.")
@@ -572,7 +622,7 @@ def pick(token: str, qid: int, option, now: float = None) -> dict:
     return {"ok": True, "qid": q["id"], "option": shown}
 
 
-def submit_all(token: str, picks: dict, now: float = None) -> dict:
+def submit_all(token: str, picks: dict, now: float = None, ip: str = "") -> dict:
     """Save answers to every open question at once. Every open, unanswered question must be answered."""
     p = player_by_token(token)
     if not p:
@@ -583,6 +633,10 @@ def submit_all(token: str, picks: dict, now: float = None) -> dict:
     if not todo:
         raise GameError("Nothing left to answer right now.", 409)
     picks = {str(k): v for k, v in (picks or {}).items()}
+    if ip:
+        with store._lock:
+            _db().execute("UPDATE pw_players SET last_ip=?, last_ts=? WHERE id=?", (ip[:64], time.time(), p["id"]))
+            _db().commit()
     missing = [q["title"] for q in todo if picks.get(str(q["id"])) in (None, "", [])]
     if missing:
         raise GameError("Answer every question before submitting.")
@@ -600,9 +654,9 @@ def _check_option(q: dict, option):
         vals = list(dict.fromkeys(str(v) for v in option)) if isinstance(option, list) else []
         if len(vals) != k or any(v not in q["options"] for v in vals):
             raise GameError(f"{q['title']}: pick exactly {k} teams.")
-    elif q["kind"] == "text":
+    elif q["kind"] in ("text", "feedback"):
         if len(tnorm(str(option or ""))) < 2:
-            raise GameError(f"{q['title']}: type a name.")
+            raise GameError(f"{q['title']}: type an answer.")
     elif option not in q["options"]:
         raise GameError(f"{q['title']}: pick one of the options.")
 
@@ -618,6 +672,9 @@ def _qstats(qs: dict) -> dict:
         if not q:
             continue
         s = out.setdefault(q["id"], {"n": 0, "inc": {}, "names": {}})
+        if q["kind"] == "feedback":          # private: counted, never shown
+            s["n"] += 1
+            continue
         s["n"] += 1
         if q["kind"] == "multi":
             for v in _decode(q, r["option"]):
@@ -731,7 +788,7 @@ def board(now: float = None) -> dict:
                 best = 100 + round(100 * (1 - s.get("inc", {}).get(q["answer"], 1) / n))
         out_q.append({"id": q["id"], "kind": q["kind"], "tag": q["tag"], "title": q["title"], "day": q["day"],
                       "style": q["style"], "options": q["options"], "close_ts": q["close_ts"], "closed": closed,
-                      "void": bool(q["void"]), "answer": ans_list(q) if q["kind"] in ("multi", "text") else q["answer"],
+                      "void": bool(q["void"]), "answer": (ans_list(q) or None) if q["kind"] in ("multi", "text") else q["answer"],
                       "pick": q["meta"].get("pick"), "ranked": bool(q["meta"].get("ranked")), "pct": _pct(_public_counts(q, s, closed), s.get("n", 0)) if closed else {},
                       "picked": closed and s.get("n", 0) >= MIN_CROWD, "worth": best})
     out_q.sort(key=lambda q: (q["day"] != 0, q["day"], next(x["sort"] for x in qmap.values() if x["id"] == q["id"]), q["id"]))
@@ -782,7 +839,7 @@ def profile(handle: str, now: float = None) -> dict:
     picks = []
     for r in rows:
         q = qs.get(r["qid"])
-        if not q or not is_closed(q, now):
+        if not q or not is_closed(q, now) or q["kind"] == "feedback":
             continue
         v = _decode(q, r["option"])
         pts = points_for(q, st.get(q["id"]), r["option"])

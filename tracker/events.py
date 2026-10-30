@@ -79,6 +79,8 @@ PRESETS = {
         "game": "BGMI",
         "home": True,                           # the event shown at / (every event also has its own page at /e/<key>/)
         "hist": ["BMIC", "26"],                 # its place in the BGMI history chart (series key, 2-digit year)
+        "predict": True,                        # Predict & Win banner (tracker/predict.py, EVENT_KEY "bmic")
+        "hero": "BMIC26",                       # key art + logo at the top of the page (static/eventlogos)
         "roster": True,                         # show the watch-party roster (ROSTERS["bmic"]) and send the NOT LIVE alert
         # Watch-party streamers for BMIC: none yet. Until the list is added only the official broadcast counts.
         # permitted watch parties (owner's list, 29 Oct): channel-name tokens; their channels are also checked

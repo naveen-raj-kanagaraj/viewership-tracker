@@ -31,7 +31,15 @@ CACHE = {"/api/cats": 60, "/api/catmonths": 600, "/categories": 300, "/india/cat
 def _predict_closed():
     # Predict & Win is off the public site unless PREDICT_OPEN=1. Players' data stays in the database and the
     # 10-minute exports (exports/predict, exports/private); only the pages and API are hidden.
-    if request.path.startswith("/predict") and os.getenv("PREDICT_OPEN", "0") != "1":
+    if request.path == "/predict/bmsd" and request.method == "GET":     # BMSD 2026 results, frozen when BMIC began
+        from tracker import crowdpage
+        snap = __import__("tracker").store.kv_get("pw_bmsd_crowd")
+        if not snap:
+            return Response("Not found", status=404, mimetype="text/plain")
+        r = _memo("/predict-bmsd", 3600, lambda: crowdpage.build_html(snap), "text/html")
+        r.headers["Cache-Control"] = "public, max-age=600, s-maxage=600"
+        return r
+    if request.path.startswith("/predict") and not eventpage.predict_open():
         if os.getenv("PREDICT_SPLIT", "1") == "1" and request.method == "GET":
             if request.path in ("/predict", "/predict/"):      # the game is closed: show what the community predicted
                 from tracker import crowdpage
@@ -116,7 +124,7 @@ a.onclick=function(e){var r=document.referrer;if(r&&r.indexOf(location.origin+'/
 bar.insertBefore(a,bar.firstChild)})()</script>
 <script>(function(){if(/[?&]embed=/.test(location.search)||location.pathname.indexOf('/e/')===0)return;var k;try{k=sessionStorage.getItem('lge_s');if(!k){k=Math.random().toString(36).slice(2)+Date.now().toString(36);sessionStorage.setItem('lge_s',k)}}catch(e){k=Math.random().toString(36).slice(2)}
 var r=document.referrer&&document.referrer.indexOf(location.origin)!==0?document.referrer:'';
-function ping(){if(document.hidden)return;try{fetch('/hit',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({sid:k,ref:r,w:innerWidth})}).catch(function(){})}catch(e){}}
+function ping(){if(document.hidden)return;try{fetch('/hit',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({sid:k,ref:r,w:innerWidth,p:location.pathname})}).catch(function(){})}catch(e){}}
 ping();setInterval(ping,30000);document.addEventListener('visibilitychange',ping);
 document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('.rg a');if(!a)return;var h=a.getAttribute('href')||'';try{localStorage.setItem('lge_region',h.indexOf('/india')===0?'in':'global')}catch(x){}},true)})()</script>"""
 # Site-wide notice while the data is still being built up (owner, 29 Oct). Hidden in embeds.
@@ -738,6 +746,49 @@ def admin_visitors():
     return r
 
 
+def _owner() -> bool:
+    import hmac
+    want = os.getenv("ADMIN_KEY", "")
+    got = request.values.get("key", "")
+    return len(want) >= 16 and hmac.compare_digest(want, got)
+
+
+@app.route("/admin/predict")
+def admin_predict():
+    """Owner-only Predict & Win dashboard: /admin/predict?key=<ADMIN_KEY from .env>."""
+    if not _owner():
+        return Response("Not found", status=404, mimetype="text/plain")
+    from tracker import predictadmin
+    r = Response(predictadmin.build_html(request.args.get("key", ""), request.args.get("q", "")), mimetype="text/html")
+    r.headers["X-Robots-Tag"] = "noindex"
+    r.headers["Cache-Control"] = "no-store"
+    return r
+
+
+@app.route("/admin/predict.csv")
+def admin_predict_csv():
+    if not _owner():
+        return Response("Not found", status=404, mimetype="text/plain")
+    from tracker import predictadmin
+    r = Response(predictadmin.csv_text(), mimetype="text/csv")
+    r.headers["Content-Disposition"] = "attachment; filename=predict_bmic2026.csv"
+    r.headers["Cache-Control"] = "no-store"
+    return r
+
+
+@app.route("/admin/predict/act", methods=["POST"])
+def admin_predict_act():
+    if not _owner():
+        return Response("Not found", status=404, mimetype="text/plain")
+    from tracker import predictadmin
+    from urllib.parse import quote
+    try:
+        predictadmin.act(request.form)
+    except (predict.GameError, ValueError) as e:
+        return Response(f"{e}. Go back and try again.", status=400, mimetype="text/plain")
+    return Response(status=303, headers={"Location": "/admin/predict?key=" + quote(request.form.get("key", ""))})
+
+
 @app.route("/hit", methods=["POST"])
 def hit():
     j = request.get_json(silent=True) or {}
@@ -745,7 +796,9 @@ def hit():
         from urllib.parse import unquote
         _HITS.put_nowait((str(j.get("sid", "")), request.headers.get("CF-IPCountry", ""), str(j.get("ref", "")),
                           request.headers.get("User-Agent", ""), int(j.get("w") or 0),
-                          unquote(request.headers.get("cf-ipcity", "")), unquote(request.headers.get("cf-region", ""))))
+                          unquote(request.headers.get("cf-ipcity", "")), unquote(request.headers.get("cf-region", "")),
+                          request.headers.get("CF-Connecting-IP") or request.remote_addr or "", request.path_info,
+                          str(j.get("p", ""))[:80]))
     except Exception:
         pass                                  # queue full: drop the visit count, never slow the page
     return Response(status=204)
@@ -869,9 +922,9 @@ def predict_submit():
     picks = j.get("picks") if isinstance(j.get("picks"), dict) else {}
     clean = {}
     for k, v in list(picks.items())[:50]:
-        clean[str(k)] = [str(x) for x in v][:20] if isinstance(v, list) else str(v)[:60]
+        clean[str(k)] = [str(x) for x in v][:20] if isinstance(v, list) else str(v)[:500]
     try:
-        return _json(predict.submit_all(_tok(), clean))
+        return _json(predict.submit_all(_tok(), clean, ip=request.headers.get("CF-Connecting-IP") or request.remote_addr or ""))
     except predict.GameError as e:
         return _err(e)
 

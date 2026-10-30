@@ -6,7 +6,7 @@ import os
 
 from tracker import eventpage
 
-UPDATED = "29 October 2026"
+UPDATED = "30 October 2026"
 YT_TOS = "https://www.youtube.com/t/terms"
 G_PRIV = "https://policies.google.com/privacy"
 G_SEC = "https://myaccount.google.com/permissions"
@@ -49,11 +49,13 @@ If you have ever granted access to any app through your Google account, you can 
 <li><b>No accounts and no tracking cookies.</b> You can use the whole site without giving us any personal information.</li>
 <li><b>Anonymous visit counts.</b> While a page is open it tells our server it is still being viewed, using a random
 number that lives only in that browser tab. With it we count visitors, the country and city they are in (from our hosting
-provider, Cloudflare), the website they came from and the screen size. We do not store IP addresses.</li>
+provider, Cloudflare), the website they came from, the page and the screen size. The IP address of a visit is kept in
+memory for up to 2 days to spot abuse and bots; it is not written to our database.</li>
 <li><b>Your region choice.</b> If you pick Global or India, the choice is saved in your own browser (local storage), not on our server.</li>
 <li><b>Server logs.</b> Cloudflare and our server keep standard technical logs for security and to keep the site running.</li>
-<li><b>Predict &amp; Win.</b> If you took part in a Predict &amp; Win game, the details you entered are used only to run the game
-and contact winners, and are never sold or shared.</li>
+<li><b>Predict &amp; Win.</b> If you take part in a Predict &amp; Win game we keep your Instagram ID, display name, picks,
+feedback and the IP address you joined and submitted from. The IP address is used only to stop duplicate and fake accounts.
+These details are used only to run the game and contact winners, are never sold or shared, and can be deleted on request.</li>
 </ul>
 <h2>Embedded YouTube videos</h2>
 <p>Some pages play short highlights with the official YouTube embedded player. When you play one, YouTube and Google may set
