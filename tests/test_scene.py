@@ -660,4 +660,25 @@ print("CATEGORIES OK")
 for rg_ in ("7d", "1m", "3m", "6m", "ytd", "1y", "all"):
     jr = c.get(f"/api/cats?region=global&range={rg_}").get_json()
     assert jr["range"] == rg_ and all(len(r["d30"]) <= 31 for r in jr["rows"]), (rg_, [len(r["d30"]) for r in jr["rows"]])
+j24 = c.get("/api/cats?region=global&range=24h").get_json()
+assert j24["range"] == "24h" and j24["bar_days"] == 0 and all(len(r["d30"]) == 24 for r in j24["rows"])
+assert any(sum(r["d30"]) for r in j24["rows"]) and all(r["peak30"] >= 0 and r["hw30"] >= 0 for r in j24["rows"]), j24["rows"][:1]
+# free feed reading: views, likes, Shorts
+from tracker import ytextra as _yx
+class _R:
+    status_code = 200
+    text = ('<feed><entry><yt:videoId>abcdefghijk</yt:videoId><link rel="alternate" href="https://www.youtube.com/shorts/abcdefghijk"/>'
+            '<title>Clutch &amp; win</title><published>2026-10-01T10:00:00+00:00</published>'
+            '<media:starRating count="120" average="5.00"/><media:statistics views="4500"/></entry></feed>')
+_og = _yx.events._http.get
+_yx.events._http.get = lambda *a, **k: _R()
+try:
+    rv = _yx._rss_videos("UCxxxxxxxxxxxxxxxxxxxxxx")
+finally:
+    _yx.events._http.get = _og
+assert rv == [{"id": "abcdefghijk", "title": "Clutch & win", "ts": 1790848800, "views": 4500, "likes": 120, "short": 1,
+               "url": "https://www.youtube.com/shorts/abcdefghijk", "approx": 1}], rv
+assert _yx.history_loading("yt:UCnever") is True
+_yx._VFAIL["yt:UCnever"] = time.time()
+assert _yx.history_loading("yt:UCnever") is False      # a failed read never leaves the page loading forever
 print("CAT RANGES OK")

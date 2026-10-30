@@ -39,7 +39,7 @@ tr.rw{cursor:pointer}tr.rw:hover td{background:#171722}
 canvas{display:block}.empty{color:var(--muted);padding:14px 0}
 .more{display:block;width:100%;background:var(--card2);border:0;border-top:1px solid var(--line);color:var(--ink);font:13px "Barlow",sans-serif;padding:11px;cursor:pointer;margin-top:8px}
 .note{color:var(--muted);font-size:12px;margin-top:10px}
-@media(max-width:700px){.wrap{padding:0 12px 20px}.top .in{padding:9px 12px}.nav{display:none}h1{font-size:28px}.hide{display:none}td,th{padding:8px 4px}.g b{max-width:130px}.card{padding:12px}.rk{display:none}.g img,.g .ph{width:24px;height:32px}.g{gap:7px}}
+canvas.mob{display:none}@media(max-width:700px){canvas.mob{display:block;margin-top:4px}.wrap{padding:0 12px 20px}.top .in{padding:9px 12px}.nav{display:none}h1{font-size:28px}.hide{display:none}td,th{padding:8px 4px}.g b{max-width:130px}.card{padding:12px}.rk{display:none}.g img,.g .ph{width:24px;height:32px}.g{gap:7px}}
 </style></head><body>
 <div class="top"><div class="in"><a class="brand" href="__HOME__">__BRAND__</a><span class="beta">BETA</span>
 <span class="rg"><a href="/categories" class="__GON__">GLOBAL</a><a href="/india/categories" class="__ION__">INDIA</a></span>
@@ -52,7 +52,7 @@ canvas{display:block}.empty{color:var(--muted);padding:14px 0}
 <table><thead><tr><th class="l">Category</th><th>24h change</th><th class="hide">Last 48 hours</th><th>Watching now</th></tr></thead><tbody id="tr"><tr><td class="l mu" colspan="4">Loading...</td></tr></tbody></table></div>
 <div class="card"><h2>Top categories <small>by watching now</small></h2>
 <div class="chips" id="rng"></div><div class="chips" id="chips"></div>
-<table><thead><tr><th class="rk"></th><th class="l">Category</th><th>Watching now</th><th class="hide" id="hb">Last 30 days</th><th id="hp">Peak, 30 days</th><th class="hide" id="hh">Hours watched, 30 days</th></tr></thead><tbody id="tg"></tbody></table>
+<table><thead><tr><th class="rk"></th><th class="l">Category</th><th>Watching now</th><th class="hide" id="hb">Last 24 hours</th><th id="hp">Peak, 24 hours</th><th class="hide" id="hh">Hours watched, 24 hours</th></tr></thead><tbody id="tg"></tbody></table>
 <button class="more" id="more" style="display:none"></button>
 <div class="note" id="note"></div></div>
 </div>
@@ -63,34 +63,35 @@ const full=n=>Math.round(+n||0).toLocaleString('en-IN');
 const PAL=[['#b6f23a','#5fb31f'],['#a58bff','#6b4fe0'],['#4cc9f0','#2a7fd4'],['#ffd23f','#f08c00'],['#ff8a9a','#e0405a'],['#53fc18','#1fae5b'],['#ff9f5a','#e0602a']];
 const art=r=>{let h=0;for(const ch of r.game)h=(h*31+ch.charCodeAt(0))%PAL.length;const ph=`<span class="ph" style="background:linear-gradient(135deg,${PAL[h][0]},${PAL[h][1]})${r.art?';display:none':''}">${esc(r.game.replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase())}</span>`;
  return r.art?`<img src="${esc(r.art)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">${ph}`:ph};
-function spark(pts,w,h,bars,col){const c=document.createElement('canvas'),d=devicePixelRatio||1;c.width=w*d;c.height=h*d;c.style.width=w+'px';c.style.height=h+'px';const x=c.getContext('2d');x.scale(d,d);
- const vals=pts.filter(v=>v>0);if(!vals.length){x.fillStyle='#8d8ca3';x.font='11px Barlow';x.fillText('filling in',2,h/2+4);return c}
+function spark(pts,w,h,bars,col,now){col=col||'#b6f23a';const c=document.createElement('canvas'),d=devicePixelRatio||1;c.width=w*d;c.height=h*d;c.style.width=w+'px';c.style.height=h+'px';const x=c.getContext('2d');x.scale(d,d);
+ let vals=pts.filter(v=>v>0);if(!vals.length&&now>0){pts=[now];vals=[now]}if(!vals.length)return c;
+ if(vals.length===1&&!bars){x.strokeStyle=col;x.globalAlpha=.35;x.lineWidth=1.6;x.beginPath();x.moveTo(0,h/2);x.lineTo(w-4,h/2);x.stroke();x.globalAlpha=1;x.fillStyle=col;x.beginPath();x.arc(w-4,h/2,3,0,7);x.fill();return c}
  const mx=Math.max(...vals),mn=bars?0:Math.min(...vals);
  if(bars){const bw=w/pts.length;pts.forEach((v,i)=>{if(!v)return;const bh=Math.max(1,(h-2)*v/mx);x.fillStyle=i===pts.length-1?'#b6f23a':'#5c8a2a';x.fillRect(i*bw+.5,h-bh,Math.max(1,bw-1.5),bh)});return c}
  let first=pts.findIndex(v=>v>0);x.strokeStyle=col;x.lineWidth=1.6;x.beginPath();let on=false;pts.forEach((v,i)=>{if(!v)return;const px=i/(pts.length-1)*w,py=h-2-(h-4)*(v-mn)/((mx-mn)||1);on?x.lineTo(px,py):(x.moveTo(px,py),on=true)});x.stroke();return c}
-let J=null,SEC='',ALL=false,RNG='1m';
-const RN=[['7d','7D','7 days'],['1m','1M','30 days'],['3m','3M','3 months'],['6m','6M','6 months'],['ytd','YTD','this year'],['1y','1Y','12 months'],['all','ALL TIME','all time']];
+let J=null,SEC='',ALL=false,RNG='24h';
+const RN=[['24h','24H','24 hours'],['7d','7D','7 days'],['1m','1M','30 days'],['3m','3M','3 months'],['6m','6M','6 months'],['ytd','YTD','this year'],['1y','1Y','12 months'],['all','ALL TIME','all time']];
 const go=r=>{location.href=RP+'/c/'+r.slug};
 function render(){const T=J.rows.filter(r=>J.trending.includes(r.game)&&r.game!=='Other').sort((a,b)=>b.change-a.change);
  const tr=document.getElementById('tr');tr.innerHTML='';document.getElementById('trcard').style.display=T.length?'':'none';
- T.forEach(r=>{const e=document.createElement('tr');e.className='rw';e.onclick=()=>go(r);e.innerHTML=`<td class="l"><div class="g">${art(r)}<b>${esc(r.game)}</b></div></td><td class="up">+${r.change.toLocaleString('en-IN')}%</td><td class="hide"></td><td>${full(r.viewers)}</td>`;e.children[2].appendChild(spark(r.h48,170,30,false,'#b6f23a'));tr.appendChild(e)});
+ T.forEach(r=>{const e=document.createElement('tr');e.className='rw';e.onclick=()=>go(r);e.innerHTML=`<td class="l"><div class="g">${art(r)}<b>${esc(r.game)}</b></div></td><td class="up">+${r.change.toLocaleString('en-IN')}%</td><td class="hide"></td><td>${full(r.viewers)}</td>`;e.children[2].appendChild(spark(r.h48,170,30,false,'#b6f23a',r.viewers));{const mb=spark(r.h48,110,18,false,'#b6f23a',r.viewers);mb.classList.add('mob');e.querySelector('.g').appendChild(mb)}tr.appendChild(e)});
  const secs=[...new Set(J.rows.map(r=>r.section).filter(Boolean))];
  document.getElementById('chips').innerHTML=[['','ALL']].concat(secs.map(s=>[s,(SECN[s]||s).toUpperCase()])).map(([v,l])=>`<button data-v="${v}" class="${v===SEC?'on':''}">${esc(l)}</button>`).join('');
  const L=J.rows.filter(r=>!SEC||r.section===SEC),show=ALL?L:L.slice(0,25),tg=document.getElementById('tg');tg.innerHTML='';
  show.forEach((r,i)=>{const e=document.createElement('tr');e.className='rw';e.onclick=()=>go(r);
   const ch=r.change==null?'':`<div class="${r.change>=0?'up':'dn'}" style="font-size:12px">${r.change>=0?'+':''}${r.change}% 24h</div>`;
   e.innerHTML=`<td class="rk">${i+1}.</td><td class="l"><div class="g">${art(r)}<span style="min-width:0"><b>${esc(r.game)}</b><span class="mu" style="font-size:12px">${full(r.streams)} live</span></span></div></td><td>${full(r.viewers)}${ch}</td><td class="hide"></td><td class="mu">${full(r.peak30)}</td><td class="mu hide">${full(r.hw30)}h</td>`;
-  e.children[3].appendChild(spark(r.d30,190,34,true));e.children[5].textContent=full(r.hw30)+'h';e.children[4].textContent=full(r.peak30);tg.appendChild(e)});
+  const mk=(w,h)=>r.d30.some(v=>v>0)?spark(r.d30,w,h,true):spark(r.h48,w,h,false,'#b6f23a',r.viewers);e.children[3].appendChild(mk(190,34));const mb=mk(110,18);mb.classList.add('mob');e.querySelector('.g>span:last-child').appendChild(mb);e.children[5].textContent=full(r.hw30)+'h';e.children[4].textContent=full(r.peak30);tg.appendChild(e)});
  if(!show.length)tg.innerHTML='<tr><td class="l mu" colspan="6">Nothing live here right now.</td></tr>';
  const mo=document.getElementById('more');mo.style.display=L.length>25?'block':'none';mo.textContent=ALL?'Show top 25':`Show all ${L.length}`;
  const hist=(Date.now()/1000-J.since)/86400,jan=(Date.now()-new Date(new Date().getFullYear(),0,1))/864e5;
  // a range appears only once the site has recorded that much history (no duplicate numbers under a longer label)
- const NEED={'7d':0,'1m':0,'3m':85,'6m':175,'ytd':jan-2,'1y':355,'all':32},RV=RN.filter(x=>hist>=NEED[x[0]]||x[0]===RNG);
- const rl=(RN.find(x=>x[0]===RNG)||RN[1])[2];document.getElementById('rng').innerHTML=RV.map(([v,l])=>`<button data-v="${v}" class="${v===RNG?'on':''}">${l}</button>`).join('')+
+ const NEED={'24h':0,'7d':0,'1m':0,'3m':85,'6m':175,'ytd':jan-2,'1y':355,'all':32},RV=RN.filter(x=>hist>=NEED[x[0]]||x[0]===RNG);
+ const rl=(RN.find(x=>x[0]===RNG)||RN[0])[2];document.getElementById('rng').innerHTML=RV.map(([v,l])=>`<button data-v="${v}" class="${v===RNG?'on':''}">${l}</button>`).join('')+
   (RV.length<RN.length?`<span class="mu" style="font-size:12px;align-self:center;margin-left:4px">Longer ranges appear here as we keep recording. Check back soon.</span>`:'');
- document.getElementById('hb').textContent=J.bar_days>1?`${rl}, ${J.bar_days}-day bars`:rl;document.getElementById('hp').textContent='Peak, '+rl;document.getElementById('hh').textContent='Hours watched, '+rl;
+ document.getElementById('hb').textContent=J.bar_days===0?`${rl}, hourly bars`:J.bar_days>1?`${rl}, ${J.bar_days}-day bars`:rl;document.getElementById('hp').textContent='Peak, '+rl;document.getElementById('hh').textContent='Hours watched, '+rl;
  const days=Math.max(1,Math.round((Date.now()/1000-J.since)/86400));
- document.getElementById('note').textContent=`Watching now = everyone watching live streams in that category right now (each platform's own count). Change = against the same time yesterday. Bars = the most watching at once in each ${J.bar_days>1?J.bar_days+'-day stretch':'day'} (IST); the last bar is the latest. ${days<365?`We started recording ${days} day${days>1?'s':''} ago and add a reading every 2 minutes, so 3-month, 6-month and 1-year views unlock as the history builds up.`:''}`}
+ document.getElementById('note').textContent=`Watching now = everyone watching live streams in that category right now (each platform's own count). Change = against the same time yesterday. Bars = the most watching at once in each ${J.bar_days===0?'hour':J.bar_days>1?J.bar_days+'-day stretch':'day'}${J.bar_days===0?'':' (IST)'}; the last bar is the latest. ${days<365?`We started recording ${days} day${days>1?'s':''} ago and add a reading every 2 minutes, so 3-month, 6-month and 1-year views unlock as the history builds up.`:''}`}
 async function load(){try{const r=await fetch('/api/cats?region='+REGION+'&range='+RNG);if(!r.ok)throw 0;J=await r.json();render()}catch(e){setTimeout(load,5000)}}
 document.getElementById('rng').onclick=e=>{const b=e.target.closest('button');if(b){RNG=b.dataset.v;load()}};
 document.getElementById('chips').onclick=e=>{const b=e.target.closest('button');if(b){SEC=b.dataset.v;ALL=false;render()}};
