@@ -1,5 +1,5 @@
 """Owner-only visitors page (/admin/visitors?key=...): who is on the site now and today. Same numbers as
-`track.py visitors`, counted without cookies or IP addresses (one browser tab = one visitor)."""
+`track.py visitors`, counted without cookies (one browser tab = one visitor), with the IP of recent visits."""
 import html
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -32,6 +32,22 @@ def _sources(src: dict) -> str:
             f'{errs or "<div class=e style=margin-top:6px>No source failed in the last scan.</div>"}</div>')
 
 
+def _recent(s: dict) -> str:
+    """Latest visits with their IP address (kept in memory for 2 days)."""
+    rows = s.get("recent") or []
+    if not rows:
+        return ""
+    t = lambda ts: datetime.fromtimestamp(ts, TZ).strftime("%d %b %I:%M %p") if ts else "-"
+    tr = "".join(f'<tr><td class="ip">{html.escape(x.get("ip") or "-")}</td><td>{html.escape(" ".join(p for p in (FLAG(x.get("country") or ""), x.get("city") or "", x.get("region") or "") if p) or "-")}</td>'
+                 f'<td>{html.escape(x.get("page") or "-")}</td><td>{html.escape(x.get("device") or "")}</td><td>{html.escape(x.get("ref") or "")}</td>'
+                 f'<td>{t(x.get("first"))}</td><td>{t(x.get("last"))}</td></tr>' for x in rows)
+    ips = "".join(f'<div class="b"><span class="k ip">{html.escape(ip)}</span><span class="t"></span><span class="v">{n:,}<small>tabs</small></span></div>'
+                  for ip, n in s.get("ips") or [])
+    return (f'<div class="c" style="margin-top:10px"><h2>Most active IP addresses today</h2>{ips or "<div class=e>None yet.</div>"}</div>'
+            f'<div class="c" style="margin-top:10px"><h2>Recent visitors (latest {len(rows)})</h2><div style="overflow-x:auto;max-height:520px">'
+            f'<table><tr><th>IP</th><th>Place</th><th>Page</th><th>Device</th><th>From</th><th>First seen</th><th>Last seen</th></tr>{tr}</table></div></div>')
+
+
 def build_html(s: dict) -> str:
     pk = s.get("peak") or {}
     when = datetime.fromtimestamp(pk["ts"], TZ).strftime("%d %b, %I:%M %p IST") if pk.get("ts") else "-"
@@ -49,8 +65,9 @@ h1{{font-size:26px;margin:0 0 2px}}.sub{{color:#8d8ca3;font-size:13px}}.k4{{disp
 .t{{background:#1a1a26;height:10px}}.t i{{display:block;height:100%;background:#b6f23a}}.v{{text-align:right;font-variant-numeric:tabular-nums}}.v small{{color:#8d8ca3;margin-left:5px}}
 .d{{display:flex;align-items:flex-end;gap:3px;height:120px;margin-top:8px}}.d div{{flex:1;background:#a58bff;min-height:2px;position:relative}}.d div span{{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);font-size:10px;color:#8d8ca3}}
 .dl{{display:flex;justify-content:space-between;color:#8d8ca3;font-size:11px;margin-top:4px}}.e{{color:#8d8ca3;font-size:13px}}
+table{{border-collapse:collapse;width:100%;font-size:12px}}th,td{{text-align:left;padding:5px 7px;border-bottom:1px solid #262636;white-space:nowrap}}th{{color:#8d8ca3;position:sticky;top:0;background:#13131c}}.ip{{font-family:ui-monospace,monospace}}
 @media(max-width:700px){{.k4{{grid-template-columns:1fr 1fr}}.g{{grid-template-columns:1fr}}}}</style></head><body><main>
-<h1>Visitors</h1><div class="sub">Owner only, refreshes every 30 s. One browser tab = one visitor; no cookies, no IP addresses. Days are IST.</div>
+<h1>Visitors</h1><div class="sub">Owner only, refreshes every 30 s. One browser tab = one visitor; no cookies. IP addresses are kept in memory for 2 days only. Days are IST.</div>
 <div class="k4"><div class="c"><b>{s.get('active', 0):,}</b><span>on the site now</span></div><div class="c"><b>{tod:,}</b><span>visitors today</span></div>
 <div class="c"><b>{pk.get('n', 0):,}</b><span>most at once ({html.escape(when)})</span></div><div class="c"><b>{s.get('avg_min', 0)} min</b><span>average time on site today</span></div></div>
 {_sources(s.get('sources') or {})}
@@ -63,4 +80,5 @@ h1{{font-size:26px;margin:0 0 2px}}.sub{{color:#8d8ca3;font-size:13px}}.k4{{disp
 <div class="c"><h2>Today, by city</h2>{_bars(s.get('places', [])[:15], tod)}</div>
 <div class="c"><h2>Where they came from</h2>{_bars(s.get('refs', []), tod)}</div>
 <div class="c"><h2>Device</h2>{_bars(s.get('devices', []), tod)}</div></div>
+{_recent(s)}
 </main></body></html>"""

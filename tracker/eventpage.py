@@ -162,7 +162,29 @@ def _roster(out: dict) -> list:
 
 
 PWR = """<link rel="prefetch" href="/predict"><a class="pwb" href="/predict" onclick="return pwGo(event,this.href)"><span class="pwt">// PREDICT &amp; WIN · RESULTS ARE OUT</span><b>SEE WHO WON</b><span class="pws">The top 5 players, every correct answer and how the community voted.</span><i>RESULTS &rarr;</i></a>"""
-PWB = """<link rel="prefetch" href="/predict"><a class="pwb" href="/predict" onclick="return pwGo(event,this.href)"><span class="pwt">// NEW · FREE TO PLAY</span><b>PREDICT &amp; WIN</b><span class="pws">Call the BMSD 2026 champion, top 3 and more. Top 5 win a gift card.</span><i>PLAY NOW &rarr;</i></a>"""
+PWB = """<link rel="prefetch" href="/predict"><a class="pwb" href="/predict" onclick="return pwGo(event,this.href)"><span class="pwt">// NEW · FREE TO PLAY</span><b>PREDICT &amp; WIN</b><span class="pws">Call the BMIC 2026 champion, the PMGC qualifiers, MVP and more. Win free UC, gift cards, vouchers and coupons.</span><i>PLAY NOW &rarr;</i></a>"""
+
+
+def predict_open() -> bool:
+    """The game for the current event (predict.EVENT_KEY) is open unless PREDICT_OPEN_<EVENT>=0."""
+    from tracker import predict
+    return os.getenv(f"PREDICT_OPEN_{predict.EVENT_KEY.upper()}", "1") == "1"
+
+
+def _hero(key) -> str:
+    """The event's key art with its logo on top (presets with "hero": "<file stem in static/eventlogos>")."""
+    h = _preset(key).get("hero")
+    if not h:
+        return ""
+    name = html.escape(_preset(key).get("name", ""))
+    return (f'<div class="ehero"><img class="eh-bg" src="/elogo/{h}HERO.webp" alt="{name} key art" width="1600" height="900" fetchpriority="high">'
+            f'<img class="eh-lg" src="/elogo/{h}.webp" alt="{name} logo" width="360" height="396"></div>')
+
+
+EHERO_CSS = """<style>.ehero{position:relative;margin-top:12px;overflow:hidden;border:1px solid var(--line);aspect-ratio:16/7;max-height:380px;width:100%;background:#0b0f3a}
+.ehero .eh-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 40%}
+.ehero .eh-lg{position:absolute;left:16px;bottom:14px;height:36%;width:auto;filter:drop-shadow(0 4px 14px rgba(0,0,0,.6))}
+@media(max-width:600px){.ehero{aspect-ratio:16/9}.ehero .eh-lg{height:38%;left:10px;bottom:10px}}</style>"""
 
 
 def _social() -> str:
@@ -230,7 +252,8 @@ def build_html(key: str = None, live: bool = False, style: str = None) -> str:
                 .replace("__SOCIAL__", _social())
                 .replace("__GAMESLUG__", __import__("tracker.scene", fromlist=["x"]).slug(_preset(key).get("game") or "BGMI"))
                 .replace("__GAMENAME__", html.escape(_preset(key).get("game") or "BGMI"))
-                .replace("__PWB__", "" if (_ended(key) or not _preset(key).get("predict")) else PWB if os.getenv("PREDICT_OPEN", "0") == "1" else (PWR if os.getenv("PREDICT_SPLIT", "1") == "1" else ""))
+                .replace("__PWB__", _hero(key) + ("" if (_ended(key) or not _preset(key).get("predict")) else PWB if predict_open() else (PWR if os.getenv("PREDICT_SPLIT", "1") == "1" else "")))
+                .replace("__EHCSS__", EHERO_CSS if _preset(key).get("hero") else "")
                 .replace("__BRAND__", html.escape(BRAND)).replace("__BRANDURL__", html.escape(BRAND_URL, quote=True))
                 .replace("__SITEURL__", SITE_URL))
 
@@ -423,7 +446,7 @@ tr.fu td.num{animation:fu 1.2s}tr.fd td.num{animation:fd 1.2s}@keyframes fu{0%{c
 .dayr{cursor:pointer}.dayr:hover td{background:rgba(182,242,58,.05)}.dayr .car{display:inline-block;width:14px;color:var(--lime);transition:transform .2s}.dayr.open .car{transform:rotate(90deg)}.dayr.open td{background:rgba(182,242,58,.07)}
 .dayx>td{padding:0!important;background:var(--bg2)}.dxin{padding:10px 12px;display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:780px){.dxin{grid-template-columns:1fr}}
 .dxt table{width:100%}.dxt .lbl{margin-bottom:4px}.dxs{display:flex;align-items:center;gap:8px;color:var(--ink)}.dxs img{width:22px;height:22px;border-radius:50%}.dxs span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
-</style></head><body>
+</style>__EHCSS__</head><body>
 <div class="bar"><div class="in">
  <div class="title"><a class="brand" href="/india">__BRAND__</a><h1>__TITLE__ <span>live viewership</span></h1></div>
  <span id="st" class="pill"><span class="dot"></span><span id="stt">Live</span></span>

@@ -377,12 +377,20 @@ def channel_stats(cids: list) -> dict:
     """{channel id: (subs, views, videos)}. YouTube Data API (exact views; 1 quota unit per 50) when
     YOUTUBE_API_KEY is set, else About pages."""
     key, out = os.getenv("YOUTUBE_API_KEY"), {}
-    if key:
+    if key and events.yt_quota_left(.95):
         for i in range(0, len(cids), 50):
             r = events._http.get("https://www.googleapis.com/youtube/v3/channels",
                                  params={"part": "statistics,topicDetails,snippet", "id": ",".join(cids[i:i + 50]), "key": key}, timeout=15)
-            if r.status_code >= 400:          # keep YouTube's reason (quotaExceeded, keyInvalid ...) in the error
-                raise RuntimeError(f"YouTube API {r.status_code}: {(r.json().get('error') or {}).get('errors', [{}])[0].get('reason', '') if r.headers.get('content-type', '').startswith('application/json') else r.text[:80]}")
+            if r.status_code >= 400:          # quota used up or refused: read the rest from the free About pages
+                why = (r.json().get('error') or {}).get('errors', [{}])[0].get('reason', '') if r.headers.get('content-type', '').startswith('application/json') else r.text[:80]
+                print(f"Channel stats via API: {r.status_code} {why}; reading About pages instead")
+                rest = cids[i:i + 300]
+                for cid, v in _pool.map(lambda c: (c, _safe(_about_stats, c) or None), rest):
+                    if v:
+                        out[cid] = v
+                if not out:
+                    raise RuntimeError(f"YouTube API {r.status_code}: {why}")
+                return out
             for it in r.json().get("items", []):
                 s = it.get("statistics") or {}
                 _META[it["id"]] = {"topic": topic_of((it.get("topicDetails") or {}).get("topicCategories") or []),
@@ -487,9 +495,22 @@ def intra_once(limit: int = INTRA_PER_RUN) -> int:
     return len(got)
 
 
+def run_rss():
+    """Every 5 minutes: the latest posts of 400 channels with nothing stored yet, from their free public feeds
+    (about 115,000 channels a day; no API units)."""
+    time.sleep(90)
+    while True:
+        try:
+            rss_once(400)
+        except Exception as e:
+            print(f"Channel feeds: {str(e)[:150]}")
+        time.sleep(300)
+
+
 def run_stats():
     if not STATS_ON:
         return
+    threading.Thread(target=run_rss, daemon=True).start()
     time.sleep(120)
     while True:
         try:
@@ -498,7 +519,6 @@ def run_stats():
             discover_once(DISCOVER_PER_RUN)
             prefetch_once(max(16, events.YT_QUOTA // 600) if key else 2)    # scales with the quota Google allows
             followers_once(100)
-            rss_once(400)                         # free: every channel's latest posts, ~38,000 channels a day
             intra_once()
         except Exception as e:
             print(f"Channel stats: {str(e)[:150]}")
