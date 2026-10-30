@@ -17,6 +17,7 @@ print([ (q["kind"], q["style"], q["title"][:30]) for q in qs])
 assert len(qs) == 9 and c.execute("SELECT COUNT(*) FROM pw_bmsd_picks").fetchone()[0] == 1
 assert store.kv_get("pw_bmsd_crowd")
 import tracker.predict as P
+P.HARD_CLOSE = time.time() + 86400
 P.MAX_PER_NET = 5
 now = qs[0]["close_ts"] - 3600
 tok = predict.join("@fan_1", "Fan", True, "1.2.3.4")["token"]
@@ -44,6 +45,13 @@ assert cl.get("/admin/predict?key=" + "k"*20).status_code == 200
 r = cl.post("/admin/predict/act", data={"key": "k"*20, "action": "lock_at", "value": "2026-10-31T12:00"}); print(r.status_code, r.headers.get("Location"))
 assert cl.get("/predict").status_code == 200 and cl.get("/predict/bmsd").status_code == 200
 assert cl.get("/predict/api/board").status_code == 200
+P.HARD_CLOSE = time.time() - 1          # after 2 PM IST: closed, results public, no new players
+predict._bust()
+assert predict.board()["closed"] and all(q["closed"] for q in predict.board()["questions"])
+try:
+    predict.join("late_fan", "", True, "8.8.8.8"); raise SystemExit("join after close")
+except predict.GameError:
+    pass
 print("PREDICT OK")
 # visitor pings are counted (a broken /hit once dropped every visit silently)
 from tracker import visitors

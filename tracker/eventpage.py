@@ -165,6 +165,14 @@ PWR = """<link rel="prefetch" href="/predict"><a class="pwb" href="/predict" onc
 PWB = """<link rel="prefetch" href="/predict"><a class="pwb" href="/predict" onclick="return pwGo(event,this.href)"><span class="pwt">// NEW · FREE TO PLAY</span><b>PREDICT &amp; WIN</b><span class="pws">Call the BMIC 2026 champion, the PMGC qualifiers, MVP and more. Win free UC, gift cards, vouchers and coupons.</span><i>PLAY NOW &rarr;</i></a>"""
 
 
+PWC = """<a class="pwb" href="/predict"><span class="pwt">// PREDICT &amp; WIN · PICKS CLOSED</span><b>WHAT THE COMMUNITY PICKED</b><span class="pws">Champion, PMGC qualifiers, top 3, MVP and more. Winners after the finals on Sun 1 Nov.</span><i>SEE RESULTS &rarr;</i></a>"""
+
+
+def _pw_closed() -> bool:
+    from tracker import predict
+    return predict.game_closed()
+
+
 def predict_open() -> bool:
     """The game for the current event (predict.EVENT_KEY) is open unless PREDICT_OPEN_<EVENT>=0."""
     from tracker import predict
@@ -252,7 +260,7 @@ def build_html(key: str = None, live: bool = False, style: str = None) -> str:
                 .replace("__SOCIAL__", _social())
                 .replace("__GAMESLUG__", __import__("tracker.scene", fromlist=["x"]).slug(_preset(key).get("game") or "BGMI"))
                 .replace("__GAMENAME__", html.escape(_preset(key).get("game") or "BGMI"))
-                .replace("__PWB__", _hero(key) + ("" if (_ended(key) or not _preset(key).get("predict")) else PWB if predict_open() else (PWR if os.getenv("PREDICT_SPLIT", "1") == "1" else "")))
+                .replace("__PWB__", _hero(key) + ("" if (_ended(key) or not _preset(key).get("predict")) else (PWC if _pw_closed() else PWB) if predict_open() else (PWR if os.getenv("PREDICT_SPLIT", "1") == "1" else "")))
                 .replace("__EHCSS__", EHERO_CSS if _preset(key).get("hero") else "")
                 .replace("__BRAND__", html.escape(BRAND)).replace("__BRANDURL__", html.escape(BRAND_URL, quote=True))
                 .replace("__SITEURL__", SITE_URL))

@@ -258,6 +258,7 @@ const dayName=d=>{const s=(B&&B.days||{})[d];return s?new Date(s+'T12:00:00+05:3
 const disp=p=>p.name&&p.name!==p.handle?p.name:'@'+p.handle;
 function nameHtml(p){return p.name&&p.name!==p.handle?`<b>${esc(p.name)}</b> <span class="hd">@${esc(p.handle)}</span>`:`<b>@${esc(p.handle)}</b>`}
 function renderJoin(){const c=$('joinCard');
+ if(B&&B.closed&&!ME){c.innerHTML='<div class="lbl">// picks are closed</div><h2 style="margin-top:4px">Predict &amp; Win is closed</h2><div class="muted" style="font-size:13px;margin-top:4px">Picks locked Fri 30 Oct, 2 PM IST. Here is what everyone picked. Winners are announced after the finals on Sun 1 Nov.</div>';renderCrowd();return}
  if(ME){const r=(ME.ranks||{}).all||{},p=ME.player;
   c.innerHTML=`<div class="me"><div class="av">${esc((p.name||p.handle).slice(0,1).toUpperCase())}</div><div class="who"><div class="lbl">// playing as</div><div class="pn">${nameHtml(p)}</div></div>
    ${B&&B.leaderboard?`<div class="mono rkbox"><div style="font-size:22px;color:var(--lime)">${r.pts?'#'+r.rank:'-'}</div><div class="muted" style="font-size:12px">${r.pts||0} PTS</div></div><button class="btn sm" id="shareMe">Share my rank</button>`:`<div class="mono rkbox" style="font-size:13px;color:${Object.keys(ME.picks||{}).length?'var(--lime)':'var(--muted)'}">${Object.keys(ME.picks||{}).length?'✓ PICKS SUBMITTED':'NOT SUBMITTED YET'}</div>`}</div>`;
@@ -364,9 +365,9 @@ async function submitAll(){if(!ME){toast('Enter your Instagram ID first (step 1)
 function confirmSubmit(){if(DEMO)return true;try{return window.confirm('Submit your picks? You can\'t change them after.')}catch(e){return true}}
 // ---------- crowd picks (only for players who submitted) ----------
 let crowdSig='';
-function renderCrowd(){const card=$('crowdCard');if(!card||!B)return;const has=ME&&Object.keys(ME.picks||{}).length;card.style.display=has?'':'none';if(!has)return;
- const sig=JSON.stringify(ME.crowd||{})+JSON.stringify(ME.picks);if(sig===crowdSig)return;crowdSig=sig;
- $('crowd').innerHTML=B.questions.filter(q=>ME.picks[q.id]!==undefined&&q.kind!=='feedback').map(q=>{const pc=(ME.crowd||{})[q.id]||{},my=ME.picks[q.id],mine=Array.isArray(my)?my:[my];
+function renderCrowd(){const card=$('crowdCard');if(!card||!B)return;const has=(ME&&Object.keys(ME.picks||{}).length)||B.closed;card.style.display=has?'':'none';if(!has)return;
+ const sig=JSON.stringify(ME?ME.crowd||{}:{})+JSON.stringify(ME?ME.picks:{})+JSON.stringify(B.closed?B.questions.map(q=>q.pct):0);if(sig===crowdSig)return;crowdSig=sig;
+ $('crowd').innerHTML=B.questions.filter(q=>q.kind!=='feedback'&&(B.closed||ME.picks[q.id]!==undefined)).map(q=>{const pc=(ME&&ME.crowd&&ME.crowd[q.id])||q.pct||{},my=ME?ME.picks[q.id]:undefined,mine=Array.isArray(my)?my:[my];
   const ent=Object.entries(pc).sort((a,b)=>b[1]-a[1]).slice(0,q.kind==='multi'?Math.max(q.pick,6):5);
   const tag=q.tag==='BMIC'&&TLOGO.BMIC26?`<img class="qbadge" style="height:30px" src="${TLOGO.BMIC26}" alt="BMIC">`:esc(q.tag);
   return `<div class="cq"><div class="qt"><span class="tag">${tag}</span></div><div class="cqt">${esc(q.title)}</div>${ent.length?`<div class="crowd">${ent.map(([o,n])=>`<div class="cr ${mine.includes(o)||mine.map(tn0).includes(tn0(o))?'mine':''}"><div class="fill" style="width:${n}%"></div><span class="nmx">${tl(o)}<span>${esc(o)}</span></span><span class="pc">${n}%</span></div>`).join('')}</div>`:'<div class="muted" style="font-size:13px">Results show once 20 players have submitted.</div>'}</div>`}).join('')}
@@ -434,7 +435,7 @@ function header(){
  const nx=B.questions.filter(q=>!q.closed&&!q.void&&q.close_ts>nowS()).sort((a,b)=>a.close_ts-b.close_ts)[0];
  $('nlt').textContent=nx?`${istT(nx.close_ts)} IST · ${left(nx.close_ts-nowS())}`:'ALL LOCKED';
 }
-let lbSig='';async function loadBoard(){try{B=await api('board')}catch(e){return}header();dayTabs();renderQs();sbar();$('lbCard').style.display=B.leaderboard?'':'none';const sg=JSON.stringify(B.boards)+lbTab;if(sg!==lbSig){lbSig=sg;lbTabs();renderLb()}}
+let lbSig='';async function loadBoard(){try{B=await api('board')}catch(e){return}if(B.closed){const h=$('qcard').querySelector('h2'),l=$('qcard').querySelector('.lbl');if(h)h.textContent='What everyone picked';if(l)l.textContent='// picks closed';}header();dayTabs();renderQs();sbar();$('lbCard').style.display=B.leaderboard?'':'none';const sg=JSON.stringify(B.boards)+lbTab;if(sg!==lbSig){lbSig=sg;lbTabs();renderLb()}}
 function tick(){if(!B)return;B.questions.forEach(q=>{if(!q.closed&&nowS()>=q.close_ts){q.closed=true;if(openCb===q.id)openCb=null;updCard(q.id)}});
  document.querySelectorAll('[data-cl]').forEach(el=>{const q=B.questions.find(x=>x.id===+el.dataset.cl);if(q)el.textContent=closeTxt(q)[0]});header()}
 setTimeout(()=>{const p=$('pwin');if(p)p.remove()},1100);
