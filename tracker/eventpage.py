@@ -985,7 +985,7 @@ boot();
 (function(){let sid=null;try{sid=sessionStorage.getItem('lg_sid')}catch(e){}
  if(!sid){sid=Math.random().toString(36).slice(2)+Date.now().toString(36);try{sessionStorage.setItem('lg_sid',sid)}catch(e){}}
  let ref='';try{ref=document.referrer?new URL(document.referrer).hostname:''}catch(e){}
- const hit=()=>{if(document.hidden||!LIVE)return;try{fetch('hit',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({sid,ref,w:window.innerWidth})}).catch(()=>{})}catch(e){}};
+ const hit=()=>{if(document.hidden||!LIVE)return;try{fetch('hit',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({sid,ref,w:window.innerWidth,p:location.pathname})}).catch(()=>{})}catch(e){}};
  hit();setInterval(hit,30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)hit()})})();
 </script></body></html>
 """

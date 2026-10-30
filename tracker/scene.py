@@ -31,7 +31,8 @@ MIN_VIEWERS = int(os.getenv("SCENE_MIN_VIEWERS", "20"))
 KEEP_DAYS = int(os.getenv("SCENE_KEEP_DAYS", "3"))         # raw per-scan readings; per-day totals are kept for good
 GLOBAL_MIN = int(os.getenv("SCENE_GLOBAL_MIN", "100"))     # non-Indian streams smaller than this are left out
 TWITCH_PAGES = int(os.getenv("SCENE_TWITCH_PAGES", "20"))  # global Twitch: top 100 x this many (stops below GLOBAL_MIN)
-KICK_CATS = int(os.getenv("SCENE_KICK_CATS", "12"))         # global Kick: top 100 overall + top 100 in this many categories
+_KICK_COOL = [0.0]
+KICK_CATS = int(os.getenv("SCENE_KICK_CATS", "8"))         # global Kick: top 100 overall + top 100 in this many categories
 YT_LIVE_PAGES = int(os.getenv("SCENE_YT_LIVE_PAGES", "4"))  # YouTube Live page: first page + this many "more" pages
 YT_RECOUNT = int(os.getenv("SCENE_YT_RECOUNT", "400"))     # YouTube streams re-counted each scan (biggest first)
 FAST_MAX = int(os.getenv("SCENE_FAST_MAX", "300"))         # Kick/Twitch channels re-read every 2s (biggest first)
@@ -184,12 +185,19 @@ def platform_global(p: str, errors: dict) -> list:
             for x in top:
                 if x.get("category") and x["category"] not in cats:
                     cats.append(x["category"])
+            if time.time() < _KICK_COOL[0]:       # Kick said "rate limit exceeded": rest the category calls
+                cats = []
             for name in cats[:KICK_CATS]:
                 try:
                     cid = _category_id("kick", name)
                     if cid:
                         rows += _kick_live({"category_id": cid})
+                    time.sleep(0.4)
                 except Exception as e:
+                    if "429" in str(e):
+                        _KICK_COOL[0] = time.time() + 600
+                        errors["kick categories"] = "Kick rate limit: category lists paused for 10 minutes (top 100 still counted)"
+                        break
                     errors[f"kick category {name}"] = str(e)[:80]
     except Exception as e:
         errors[f"{p} global"] = str(e)[:120]
