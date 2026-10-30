@@ -83,10 +83,14 @@ function render(){const T=J.rows.filter(r=>J.trending.includes(r.game)&&r.game!=
   e.children[3].appendChild(spark(r.d30,190,34,true));e.children[5].textContent=full(r.hw30)+'h';e.children[4].textContent=full(r.peak30);tg.appendChild(e)});
  if(!show.length)tg.innerHTML='<tr><td class="l mu" colspan="6">Nothing live here right now.</td></tr>';
  const mo=document.getElementById('more');mo.style.display=L.length>25?'block':'none';mo.textContent=ALL?'Show top 25':`Show all ${L.length}`;
- const rl=(RN.find(x=>x[0]===RNG)||RN[1])[2];document.getElementById('rng').innerHTML=RN.map(([v,l])=>`<button data-v="${v}" class="${v===RNG?'on':''}">${l}</button>`).join('');
+ const hist=(Date.now()/1000-J.since)/86400,jan=(Date.now()-new Date(new Date().getFullYear(),0,1))/864e5;
+ // a range appears only once the site has recorded that much history (no duplicate numbers under a longer label)
+ const NEED={'7d':0,'1m':0,'3m':85,'6m':175,'ytd':jan-2,'1y':355,'all':32},RV=RN.filter(x=>hist>=NEED[x[0]]||x[0]===RNG);
+ const rl=(RN.find(x=>x[0]===RNG)||RN[1])[2];document.getElementById('rng').innerHTML=RV.map(([v,l])=>`<button data-v="${v}" class="${v===RNG?'on':''}">${l}</button>`).join('')+
+  (RV.length<RN.length?`<span class="mu" style="font-size:12px;align-self:center;margin-left:4px">Longer ranges appear here as we keep recording. Check back soon.</span>`:'');
  document.getElementById('hb').textContent=J.bar_days>1?`${rl}, ${J.bar_days}-day bars`:rl;document.getElementById('hp').textContent='Peak, '+rl;document.getElementById('hh').textContent='Hours watched, '+rl;
  const days=Math.max(1,Math.round((Date.now()/1000-J.since)/86400));
- document.getElementById('note').textContent=`Watching now = everyone watching live streams in that category right now (each platform's own count). Change = against the same time yesterday. Bars = the most watching at once in each ${J.bar_days>1?J.bar_days+'-day stretch':'day'} (IST); the last bar is the latest. ${J.days>days?`This site has been recording for ${days} day${days>1?'s':''}, so longer ranges are still filling in.`:''}`}
+ document.getElementById('note').textContent=`Watching now = everyone watching live streams in that category right now (each platform's own count). Change = against the same time yesterday. Bars = the most watching at once in each ${J.bar_days>1?J.bar_days+'-day stretch':'day'} (IST); the last bar is the latest. ${days<365?`We started recording ${days} day${days>1?'s':''} ago and add a reading every 2 minutes, so 3-month, 6-month and 1-year views unlock as the history builds up.`:''}`}
 async function load(){try{const r=await fetch('/api/cats?region='+REGION+'&range='+RNG);if(!r.ok)throw 0;J=await r.json();render()}catch(e){setTimeout(load,5000)}}
 document.getElementById('rng').onclick=e=>{const b=e.target.closest('button');if(b){RNG=b.dataset.v;load()}};
 document.getElementById('chips').onclick=e=>{const b=e.target.closest('button');if(b){SEC=b.dataset.v;ALL=false;render()}};
