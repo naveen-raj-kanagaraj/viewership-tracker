@@ -34,9 +34,9 @@ select{background:var(--card);border:1px solid var(--line);color:var(--ink);font
 .th{position:relative;aspect-ratio:16/9;background:#0f0d22;cursor:pointer;overflow:hidden}
 .th img.bg{width:100%;height:100%;object-fit:cover;display:block;opacity:.85}
 .th .av{position:absolute;inset:0;display:grid;place-items:center}.th .av img,.th .av span{width:72px;height:72px;border-radius:50%;object-fit:cover;border:2px solid var(--line);background:var(--card2);display:grid;place-items:center;font:700 22px "Barlow",sans-serif;color:var(--muted)}
-.th .jmp{position:absolute;left:10px;bottom:10px;background:rgba(11,11,18,.85);padding:4px 9px;font:700 22px "Barlow Condensed",sans-serif;color:var(--lime)}
+.th .jmp{position:absolute;left:10px;bottom:10px;z-index:1;background:rgba(11,11,18,.85);padding:4px 9px;font:700 22px "Barlow Condensed",sans-serif;color:var(--lime)}
 .th .jmp small{font:500 12px "Barlow Condensed",sans-serif;color:var(--muted);margin-left:6px}
-.th .pl{position:absolute;right:10px;bottom:10px;width:44px;height:44px;border-radius:50%;background:rgba(182,242,58,.92);display:grid;place-items:center}
+.th .pl{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;background:rgba(182,242,58,.92);display:grid;place-items:center}
 .th .pl:after{content:"";border-left:14px solid #0b0b12;border-top:9px solid transparent;border-bottom:9px solid transparent;margin-left:4px}
 .th .tag{position:absolute;left:10px;top:10px;font:700 11px "Barlow Condensed",sans-serif;letter-spacing:.05em;padding:3px 7px;color:#0b0b12}
 .th iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
@@ -46,7 +46,15 @@ select{background:var(--card);border:1px solid var(--line);color:var(--ink);font
 .bd .s a{color:var(--lime);text-decoration:none}
 .empty{color:var(--muted);padding:24px 0}
 .note{color:var(--muted);font-size:12px;margin-top:16px;line-height:1.6}
-@media(max-width:640px){.wrap{padding:0 12px 20px}.top .in{padding:9px 12px;gap:10px}.brand{font-size:15px}.nav{display:none}h1{font-size:28px}.grid{grid-template-columns:1fr}}
+.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin-top:10px;padding-bottom:2px}.chips::-webkit-scrollbar{display:none}
+.chips button{flex:none;background:var(--card2);border:0;color:var(--ink);font:600 14px "Barlow",sans-serif;padding:7px 13px;border-radius:8px;cursor:pointer;white-space:nowrap}.chips button.on{background:var(--ink);color:#0b0b12}
+.th .dur{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.82);color:#fff;font:700 13px "Barlow",sans-serif;padding:2px 6px;border-radius:4px}
+.row{display:flex;gap:10px;padding:10px 12px 14px}.row a{text-decoration:none}.row .ava{flex:none;width:36px;height:36px;border-radius:50%;object-fit:cover;background:var(--card2);display:grid;place-items:center;font:700 13px "Barlow";color:var(--muted);overflow:hidden}
+.row .tx{min-width:0;flex:1}.row .tt{font-weight:600;font-size:15px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.row .mt{font-size:13px;color:var(--muted);margin-top:3px;line-height:1.35}.row .mt b{color:var(--lime);font-weight:600}.row .mt a{color:var(--muted);text-decoration:none}
+@media(max-width:640px){.wrap{padding:0 0 20px}.crumb,h1,.intro,.filters,.chips,.note{padding-left:12px;padding-right:12px}.top .in{padding:9px 12px;gap:10px}.brand{font-size:15px}.nav{display:none}h1{font-size:28px}
+ .grid{grid-template-columns:1fr;gap:6px}.m{border:0;background:none}.m:hover{transform:none}.th .jmp{font-size:16px;left:8px;bottom:8px;padding:2px 7px;border-radius:4px}.th .jmp small{display:none}.th .pl{display:none}.th .tag{top:8px;left:8px;border-radius:4px}.filters{margin-top:10px}.filters .seg{display:none}}
+@media(min-width:641px){.chips .mob{display:none}}
 </style></head><body>
 <div class="top"><div class="in"><a class="brand" href="__HOME__">__BRAND__</a><span class="beta">BETA</span><span class="rg"><a href="/moments" class="__GON__">GLOBAL</a><a href="/india/moments" class="__ION__">INDIA</a></span><span class="nav"><a href="__HOME__">DASHBOARD</a><a href="__RP__/rankings">RANKINGS</a><a href="/map">MAP</a></span></div></div>
 <div class="wrap">
@@ -54,6 +62,7 @@ select{background:var(--card);border:1px solid var(--line);color:var(--ink);font
 <h1>Moments <em>__WHERE__</em></h1>
 <p class="intro">When a live stream suddenly jumps in viewers, something happened. Tap one to watch from just before the jump.</p>
 <div class="filters"><div class="seg" id="per"></div><div class="seg" id="sort"></div><select id="game"><option value="">All games & categories</option></select></div>
+<div class="chips" id="chips"></div>
 <div class="grid" id="grid"></div>
 <div class="note" id="note"></div>
 </div>
@@ -70,21 +79,26 @@ const Q=new URLSearchParams(location.search);let FOCUS=Q.get('id')||'';let per=[
 function player(m){if(m.embed==='yt'&&(m.live_now||!m.embed_t))return '';if(m.embed==='tw_vod'&&!m.embed_t)return '';if(m.embed==='yt')return `https://www.youtube.com/embed/${encodeURIComponent(m.embed_id)}?start=${m.embed_t||0}&autoplay=1`;
  if(m.embed==='tw_clip')return `https://clips.twitch.tv/embed?clip=${encodeURIComponent(m.embed_id)}&parent=${HOST}&autoplay=true`;
  if(m.embed==='tw_vod')return `https://player.twitch.tv/?video=${encodeURIComponent(m.embed_id)}&time=${hms(m.embed_t||0)}&parent=${HOST}&autoplay=true`;return ''}
-function card(m,i){const p=player(m),tag=m.embed==='tw_clip'?['CLIP','#a970ff']:p?['PLAYS AT THE MOMENT','#b6f23a']:m.live_now?['STILL LIVE: REPLAY WHEN IT ENDS','#ff4d5e']:['OPENS THE STREAM','#8d8ca3'];
+const thumb=m=>m.thumb||(m.platform==='youtube'&&(m.embed_id||m.vid)&&!/:/.test(m.embed_id||m.vid)?`https://i.ytimg.com/vi/${encodeURIComponent(m.embed_id||m.vid)}/hqdefault.jpg`:'');
+function card(m,i){m.thumb=thumb(m);const p=player(m),tag=m.embed==='tw_clip'?['CLIP','#a970ff']:p?['PLAYS AT THE MOMENT','#b6f23a']:m.live_now?['STILL LIVE: REPLAY WHEN IT ENDS','#ff4d5e']:['OPENS THE STREAM','#8d8ca3'];
  return `<div class="m"><div class="th" data-i="${i}">${m.thumb?`<img class="bg" src="${esc(m.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`:`<div class="av">${m.logo?`<img src="${esc(m.logo)}" alt="" referrerpolicy="no-referrer">`:`<span>${ini(m.name)}</span>`}</div>`}
-  <span class="tag" style="background:${tag[1]}">${tag[0]}</span><span class="jmp">${m.kind==='chat'||m.kind==='both'?`${m.chat_base?Math.max(2,Math.round(m.chat_peak/Math.max(m.chat_base,.1))):''}x chat`:'+'+fmt(m.jump)}<small>${m.kind==='both'?'+'+fmt(m.jump)+' viewers · ':m.kind==='chat'?'':`in ${m.secs<120?m.secs+'s':Math.round(m.secs/60)+' min'} · ${m.pct}% · `}hype ${Math.round(m.score||0)}</small></span>${p||m.link?'<span class="pl"></span>':''}</div>
-  <div class="bd"><div class="n"><a href="${RP}/ch/${encodeURIComponent(m.sid)}">${esc(m.name)}</a></div><div class="t">${esc(m.title)}</div>
-  <div class="s"><b style="color:${COL[m.platform]}">${NAMES[m.platform]||''}</b> · ${esc(m.game)} · ${fmt(m.base)} to ${fmt(m.peak)} watching · ${ago(m.ts)}${m.link?` · <a href="${esc(m.link)}" target="_blank" rel="noopener">open</a>`:''}</div></div></div>`}
+  <span class="tag" style="background:${tag[1]}">${tag[0]}</span><span class="jmp">${m.kind==='chat'||m.kind==='both'?`${m.chat_base?Math.max(2,Math.round(m.chat_peak/Math.max(m.chat_base,.1))):''}x chat`:'+'+fmt(m.jump)}<small>${m.kind==='both'?'+'+fmt(m.jump)+' viewers · ':m.kind==='chat'?'':`in ${m.secs<120?m.secs+'s':Math.round(m.secs/60)+' min'} · ${m.pct}% · `}hype ${Math.round(m.score||0)}</small></span>${p||m.link?'<span class="pl"></span>':''}<span class="dur">${fmt(m.peak)} watching</span></div>
+
+  <div class="row"><a href="${RP}/ch/${encodeURIComponent(m.sid)}">${m.logo?`<img class="ava" src="${esc(m.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:`<span class="ava">${ini(m.name)}</span>`}</a>
+  <div class="tx"><div class="tt">${esc(m.title||m.name)}</div><div class="mt"><a href="${RP}/ch/${encodeURIComponent(m.sid)}">${esc(m.name)}</a> · <span style="color:${COL[m.platform]}">${NAMES[m.platform]||''}</span> · ${esc(m.game)}<br><b>+${fmt(m.jump)}</b> viewers${m.kind==='chat'?'':` in ${m.secs<120?m.secs+'s':Math.round(m.secs/60)+' min'}`} · ${fmt(m.base)} to ${fmt(m.peak)} · ${ago(m.ts)}</div></div></div></div>`}
 let sort=['views','jump','hype','new'].includes(Q.get('sort'))?Q.get('sort'):'views';
 async function load(){const p=new URLSearchParams({region:REGION,period:per,sort});if(game)p.set('game',game);
  const so=document.getElementById('sort');so.innerHTML=[['views','MOST WATCHED'],['jump','BIGGEST JUMP'],['hype','HYPE'],['new','NEWEST']].map(([v,l])=>`<button data-v="${v}" class="${v===sort?'on':''}">${l}</button>`).join('');so.onclick=e=>{const b=e.target.closest('button');if(b){sort=b.dataset.v;load()}};history.replaceState(null,'',location.pathname+'?'+new URLSearchParams({period:per,sort,...(game?{game}:{})}));
  try{const j=await (await fetch('/api/moments?'+p)).json();M=j.moments||[];
   document.getElementById('per').innerHTML=[['today','TODAY'],['7d','7 DAYS'],['30d','30 DAYS']].map(([v,l])=>`<button data-v="${v}" class="${v===per?'on':''}">${l}</button>`).join('');
+  document.getElementById('chips').innerHTML=[['p:today','Today',per==='today'],['p:7d','7 days',per==='7d'],['p:30d','30 days',per==='30d']].map(([v,l,on])=>`<button class="mob ${on?'on':''}" data-v="${v}">${l}</button>`).join('')+
+   [['','All',!game],...(j.games||[]).slice(0,15).map(g=>[g,g,g===game])].map(([v,l,on])=>`<button class="${on?'on':''}" data-g="${esc(v)}">${esc(l)}</button>`).join('');
   const gs=document.getElementById('game');gs.innerHTML='<option value="">All games & categories</option>'+(j.games||[]).map(g=>`<option${g===game?' selected':''}>${esc(g)}</option>`).join('');
   setTimeout(()=>{if(!FOCUS)return;const i=M.findIndex(m=>String(m.id)===FOCUS);FOCUS='';const t=document.querySelector(`#grid .th[data-i="${i}"]`);if(i<0||!t)return;const cd=t.parentElement;cd.scrollIntoView({block:'center'});cd.style.outline='2px solid var(--lime)';if(player(M[i]))t.click()},0);
   document.getElementById('grid').innerHTML=M.map(card).join('')||'<div class="empty">No moments yet in this period. They appear when a stream with 1,000+ watching suddenly jumps.</div>';
   document.getElementById('note').innerHTML=`How it works: for the biggest Kick, Twitch and YouTube streams, chat speed and viewers are read every few seconds. A moment is a chat explosion (far above that stream's usual chat speed) and/or a jump in viewers far beyond that stream's usual swings. Raids, stream starts and people returning after a break don't count. Chat pins the time within seconds; viewer counts lag, so viewers-only moments start earlier. Hype = how far above normal it was. Players start 30 seconds before. ${j.clips?'Big Twitch jumps are clipped automatically.':''} Kick has no way to link to a time, so Kick moments open the channel. Replays can be missing if the streamer turned them off or deleted them.`}catch(e){}}
 document.getElementById('per').onclick=e=>{const b=e.target.closest('button');if(b){per=b.dataset.v;load()}};
+document.getElementById('chips').onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.v)per=b.dataset.v.slice(2);else game=b.dataset.g||'';load()};
 document.getElementById('game').onchange=e=>{game=e.target.value;load()};
 document.getElementById('grid').onclick=e=>{const t=e.target.closest('.th');if(!t)return;const m=M[+t.dataset.i],p=player(m);
  if(p){t.innerHTML=`<iframe src="${p}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`}else if(m.link)window.open(m.link,'_blank','noopener')};

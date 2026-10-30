@@ -44,7 +44,7 @@ CHAT_Z = float(os.getenv("MOMENT_CHAT_Z", "5"))
 VIEW_Z = float(os.getenv("MOMENT_VIEW_Z", "5"))
 COOLDOWN = int(os.getenv("MOMENT_COOLDOWN", "600"))        # seconds between two moments of one channel
 VIEW_LAG = 60                                              # viewer counts trail the moment by about this much
-FOLLOW = 180                                               # seconds to keep updating a moment's peak
+FOLLOW = 60                                                # seconds to keep updating a moment's peak (a jump is about the last minute)
 CLIPS_PER_HOUR = int(os.getenv("TWITCH_CLIPS_PER_HOUR", "20"))
 LEAD = 30                                                  # links start this many seconds before the jump
 
@@ -114,7 +114,7 @@ def viewer_spike(sid: str, h: deque, now: float):
     pts = list(h)
     if len(pts) < 30 or now - pts[0][0] < 600:
         return None                           # first 10 minutes of watching this stream: ramps, not moments
-    win = [v for t, v in pts if now - 150 <= t <= now - 60]
+    win = [v for t, v in pts if now - 90 <= t <= now - 55]      # the level about a minute ago
     if len(win) < 5:
         return None
     v0, v = min(win), pts[-1][1]
@@ -139,7 +139,7 @@ def viewer_spike(sid: str, h: deque, now: float):
         return None
     earlier = [x for t, x in pts if now - 1800 <= t < now - 150]
     recovery = bool(earlier) and max(earlier) >= .97 * v
-    start = next((t for t, x in pts if t >= now - 150 and x > v0 + .3 * d), pts[-1][0])
+    start = next((t for t, x in pts if t >= now - 90 and x > v0 + .3 * d), pts[-1][0])
     return start, round(z, 1), v0, v, recovery
 
 
@@ -411,4 +411,5 @@ def recent(region: str = "global", period: str = "today", game: str = "", sid: s
         r["exact_time"] = bool(r["embed_t"]) or r["embed"] == "tw_clip"
     if sid:
         rows.sort(key=lambda r: -r["ts"])
-    return {"moments": rows, "games": [g for g in games if g], "clips": bool(_user().get("refresh"))}
+    games = ["BGMI"] + [g for g in games if g and g != "BGMI"]      # esports first, even before its first moment today
+    return {"moments": rows, "games": games, "clips": bool(_user().get("refresh"))}
