@@ -31,8 +31,10 @@ Audience numbers for creators and live events are late, partial and split across
 - **Live dashboard:** everyone watching right now across YouTube, Twitch and Kick, by platform, category and game, refreshed every 2 seconds. Worldwide and India views.
 - **Channel pages for any channel:** subscribers, lifetime views, views gained per day, every recent video with views, likes, comments and engagement, best day and time to post, and live stats while the channel is streaming.
 - **Rankings:** channels by views gained (day, week, month), total views or subscribers; streamers by hours watched, peak or average viewers; filter by YouTube category, game and country.
-- **Tournament trackers:** every stream carrying an event (official broadcast and permitted watch parties) counted together, with the official vs watch-party split.
-- **Moments:** sudden audience jumps detected from chat speed and viewer counts, linked to that second of the stream.
+- **Categories:** every game and category ranked by watching now, with the change against 24 hours ago, hourly bars for the last 24 hours, peak and hours watched, a Trending list and a search box. Longer ranges (7 days, 1 month and up) appear as the history builds.
+- **Tournament trackers:** every stream carrying an event (official broadcast and permitted watch parties) counted together, with the official vs watch-party split. Tracking starts by itself when the official channel goes live. Live now: BMIC 2026 (India, Korea, Japan).
+- **Moments:** sudden audience jumps (against the level a minute earlier) detected from chat speed and viewer counts. Each one plays on the site: a YouTube clip from 30 seconds before the jump to 30 seconds after the peak, a Twitch clip or replay, or the live channel.
+- **Predict & Win:** a free prediction game per tournament (champion, qualifiers, top 3, MVP, best IGL, peak viewership) with crowd results, a leaderboard and prizes, run from an owner dashboard.
 - **Compare, search, share cards, creator badges, world map.**
 
 | Rankings | World map |
@@ -55,7 +57,7 @@ Built with LLM coding tools (Claude, Cursor, Lovable) and tested on the live sit
 | **Go-to-market and launch** | Launched on a live national esports event (BMSD 2026) for an instant audience. Built distribution into the product: share cards sized for Instagram and X, live rank badges creators embed on their own pages, an India-first view for the core market. Free during beta to grow audience and data first. | [Decision 11](docs/product/DECISIONS.md) |
 | **Metrics, data and iteration** | One written definition for every number. Instrumented privacy-friendly visitor analytics, data-source health and API usage on an owner dashboard. Iterated from what the data and testing showed: tightened moments after small jumps were flagged, fixed low Twitch totals, added same-day views for new channels. | [Metric definitions](docs/product/METRICS.md) |
 
-**Product manager and product owner.** As product manager: the vision, market positioning, roadmap and success metrics. As product owner: the backlog and the release cadence, with 58 releases merged in 11 days (19 to 29 Oct 2026), each with automated tests and an acceptance check on the live site.
+**Product manager and product owner.** As product manager: the vision, market positioning, roadmap and success metrics. As product owner: the backlog and the release cadence, with 72 releases merged in 12 days (19 to 30 Oct 2026), each with automated tests and an acceptance check before release.
 
 **Problems worked through**
 - **Trust:** impossible readings (lifetime views below a channel's own biggest video, "10.56K" misread as 1,056) are rejected automatically instead of shown.
@@ -63,6 +65,8 @@ Built with LLM coding tools (Claude, Cursor, Lovable) and tested on the live sit
 - **Coverage:** Twitch totals looked low next to other trackers because only the top streams were counted; the worldwide view now counts every live Twitch stream.
 - **Signal over noise:** moments now need a real audience jump (8% and 1,000 viewers) and skip news streams.
 - **Product health:** an owner-only dashboard shows visitors, API use and any data source that failed, so problems are caught by the product, not by users.
+- **Regressions:** a release silently dropped every visitor count during BMIC; it was traced, fixed within the day and a test now guards it. Kick's API rate limit is handled by pausing category calls for 10 minutes instead of failing every scan.
+- **Event-day product calls:** BMIC Predict & Win locked at 2 PM IST on Day 1 by rule (no late picks), with results made public at close; the 2026 BMSD game was archived with its results page kept.
 
 ## Case study: BMSD 2026
 
@@ -84,7 +88,7 @@ The official broadcast and the watch parties rise and fall together with each ma
 - **Freshness:** live counts every 2 seconds; channel statistics daily plus hourly readings for the most active channels.
 - **Accuracy:** sanity checks on every reading, labelled estimates, metered API use.
 - **Stack:** Python and Flask, SQLite, Cloudflare in front of a single cloud VM, stdlib-first so updates deploy without new dependencies.
-- **Privacy:** no accounts, no tracking cookies, no IP addresses stored.
+- **Privacy:** no accounts and no tracking cookies. Visitor IP addresses are held in memory for 2 days only (abuse and bots); Predict & Win stores players' IP addresses to stop duplicate accounts. Both are disclosed in the [privacy policy](https://live.letsgrowesports.com/privacy).
 
 Details, commands and configuration: [docs/TECHNICAL.md](docs/TECHNICAL.md).
 
