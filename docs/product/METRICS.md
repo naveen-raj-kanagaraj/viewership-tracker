@@ -29,14 +29,14 @@ One definition per number, used everywhere on the site (pages, rankings, share c
 
 | Metric | Definition |
 |---|---|
-| Moment | A jump in viewers of at least 8% and 1,000 people over 1 to 2 minutes, far beyond the stream's normal swings, and/or a chat burst far above its normal rate. News and devotional streams excluded. |
+| Moment | A jump in viewers of at least 8% and 1,000 people against the level about a minute earlier, far beyond the stream's normal swings, and/or a chat burst far above its normal rate. News and devotional streams excluded. |
 | Hype | Chat z-score + viewer z-score at the moment |
 
 ## Product health
 
 | Metric | Definition | Where |
 |---|---|---|
-| Visitors | Browser tab sessions (random per-tab id; no cookies, no IP stored) | Owner page |
+| Visitors | Browser tab sessions (random per-tab id; no cookies; IP held in memory for 2 days) | Owner page |
 | Returning visitors | Sessions on more than one day (planned) | |
 | Channel pages viewed | Page views of /ch/ pages | North star |
 | Coverage | Tracked channels with a complete page (stats + recent videos) / tracked channels | |

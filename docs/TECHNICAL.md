@@ -197,7 +197,11 @@ During BMSD 2026, 1,875 players made 13,824 picks. The results card the game pro
 
 ![What the community predicted](../exports/bmsd_predictions_x.png)
 
-Set `PREDICT_OPEN=1` to accept entries. With it off, the page shows what the crowd predicted and how it turned out.
+BMIC 2026 (Oct 30 to Nov 1) is the current game (`predict.EVENT_KEY = "bmic"`): 9 questions, picks locked Fri 30 Oct 2 PM IST (`predict.HARD_CLOSE`), after which `/predict` shows the crowd split to everyone. The BMSD questions and picks were moved to `pw_bmsd_questions` / `pw_bmsd_picks` and its results page is served from a snapshot at `/predict/bmsd`.
+
+Owner dashboard: `/admin/predict?key=<ADMIN_KEY>`: players with IP addresses (and accounts sharing an IP), picks, crowd split, feedback, set answers, lock time, public leaderboard on or off, remove or release accounts, CSV at `/admin/predict.csv`. Visitors (with recent IPs) are at `/admin/visitors?key=<ADMIN_KEY>`.
+
+The game is open unless `PREDICT_OPEN_BMIC=0`.
 
 ---
 
@@ -305,7 +309,7 @@ Copy `.env.example` to `.env`. Every setting is optional.
 | `EVENT_PUBLIC_LINK`, `EVENT_TUNNEL_NAME`, `EVENT_PUBLIC_URL` | | Cloudflare tunnel and public address |
 | `AUTO_UPDATE`, `AUTO_UPDATE_MIN` | `true`, `10` | Self-update from GitHub |
 | `BACKUP_NIGHTLY`, `BACKUP_KEEP` | `true`, `3` | Nightly database backups |
-| `PREDICT_OPEN` | `0` | Whether Predict & Win accepts entries |
+| `PREDICT_OPEN_BMIC` | `1` | Whether the BMIC Predict & Win page is on (picks still lock at the set time) |
 | `TRACKER_DB` | `data/tracker.db` | Database location |
 
 ## Layout
