@@ -173,6 +173,25 @@ def _pw_closed() -> bool:
     return predict.game_closed()
 
 
+def event_peaks() -> list:
+    """[series, 2-digit year, peak in thousands] of every tracked event with a place in the history chart, measured
+    by this site (so a finished event joins the chart by itself)."""
+    out = []
+    try:
+        with events.store._lock:
+            c = events._db()
+            for key, pr in events.PRESETS.items():
+                h = pr.get("hist")
+                if not h:
+                    continue
+                pk = c.execute("SELECT MAX(total) FROM ev_ticks WHERE event=?", (key,)).fetchone()[0] or 0
+                if pk >= 1000:
+                    out.append([h[0], h[1], round(pk / 1000)])
+    except Exception:
+        pass
+    return out
+
+
 def predict_open() -> bool:
     """The game for the current event (predict.EVENT_KEY) is open unless PREDICT_OPEN_<EVENT>=0."""
     from tracker import predict
@@ -251,6 +270,7 @@ def build_html(key: str = None, live: bool = False, style: str = None) -> str:
                 .replace("__LIVE__", "true" if live else "false")
                 .replace("__ELOGO__", json.dumps(_elogos(embed=not live)))
                 .replace("__CUR__", json.dumps(_preset(key).get("hist") or []))
+                .replace("__EVPEAKS__", json.dumps(event_peaks()))
                 .replace("__GAME__", json.dumps(_preset(key).get("game") or ""))
                 .replace("__NEEDOFF__", "false" if _preset(key).get("need_official") is False else "true")
                 .replace("__ENDED__", "true" if _ended(key) else "false")
@@ -472,6 +492,7 @@ tr.fu td.num{animation:fu 1.2s}tr.fd td.num{animation:fd 1.2s}@keyframes fu{0%{c
  <img id="mimg" alt="Share card"><div class="mrow"><button class="btn" id="mig">Instagram</button><button class="btn" id="mxb">X</button><button class="btn ghost" id="mdl">Download</button></div>
  <p class="muted" id="mhint" style="font-size:12px;margin:10px 0 0">On your phone, Instagram and X open the share menu with the image attached: pick Instagram (Story or Post) or X.</p></div></div>
 <script>
+const EVPEAKS=__EVPEAKS__;
 const ENDED=__ENDED__, CUR=__CUR__, GAME=__GAME__, NEEDOFF=__NEEDOFF__;
 const PLATS=()=>((typeof D!=='undefined'&&D&&D.platform_names)||['YouTube']).join(' + ');
 const DISC=()=>GAME==='BGMI'?'Not affiliated with or endorsed by KRAFTON.':'Not affiliated with or endorsed by the organisers or the platforms.';
@@ -492,7 +513,7 @@ function tween(el,to){const from=+el.dataset.v||0;el.dataset.v=to;if(from===to){
 function isOff(){return !D.official_live&&D.last_broadcast}
 const HIST=[['LAUNCH','21',540],['BGIS','21',460],['BMPS','22',305],['BMSD','22',315],['BGIS','23',235],['BMPS','23',201],['INKR','23',178],['BGIS','24',275],['BMPS','24',495],['BGIS','25',485],['BMPS','25',320],['BMSD','25',380],['BMIC','25',372],['BGIS','26',578],['BMPS','26',730],['BMSD','26',653]];
 const HNAME={LAUNCH:'BGMI Launch Party',BGIS:'BGIS',BMPS:'BMPS',BMSD:'BMSD',INKR:'INKR Invitational',BMIC:'BMIC'};
-function hist(){const h=HIST.map(x=>x.slice());if(!CUR.length)return h;const cur=Math.round((D.peak||0)/1000);let e=h.find(x=>x[0]===CUR[0]&&x[1]===CUR[1]);
+function hist(){const h=HIST.map(x=>x.slice());EVPEAKS.forEach(([s,y,v])=>{const e=h.find(x=>x[0]===s&&x[1]===y);if(e){if(v>e[2])e[2]=v}else h.push([s,y,v])});if(!CUR.length)return h;const cur=Math.round((D.peak||0)/1000);let e=h.find(x=>x[0]===CUR[0]&&x[1]===CUR[1]);
  if(!e&&cur>0){e=[CUR[0],CUR[1],0];h.push(e)}if(e&&cur>e[2])e[2]=cur;return h}
 const ISCUR=x=>!ENDED&&CUR.length&&x[0]===CUR[0]&&x[1]===CUR[1];
 const EIMG={};function elogo(k){const u=ELOGO[k];if(!u)return null;let im=EIMG[k];if(!im){im=EIMG[k]=new Image();im.onload=()=>{drawHistCanvas()};im.src=u}return im.complete&&im.naturalWidth?im:null}

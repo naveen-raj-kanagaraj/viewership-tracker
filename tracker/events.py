@@ -90,8 +90,8 @@ PRESETS = {
                     "juniorgaming", "engineer", "sriop", "lolzz", "shreeman"],
         "official_channels": ["UCugG6-k5QGbq_iDEPAnG4NQ"],   # KRAFTON INDIA ESPORTS: every live stream is tracked
         "always_check": ["@ShreemanLegend", "@LadyPredator"],   # second channels; the rest come from the roster
-        "ended": False,
-        "next_start": "2026-10-30 12:30",       # IST; countdown until the official stream goes live
+        "ended": True,                          # finished Sun 1 Nov 2026
+        "next_start": None,       # IST; countdown until the official stream goes live
         "match": ["bmic", "bgmi international cup", "battlegrounds mobile india international cup",
                   "bgmi international championship", "bm international cup"],
         "queries": ["BMIC", "BMIC 2026", "BGMI International Cup", "Battlegrounds Mobile India International Cup",
