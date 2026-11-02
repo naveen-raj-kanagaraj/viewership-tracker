@@ -73,3 +73,11 @@ qs2 = {q["tag"]: q for q in predict.questions()}
 assert qs2["CHAMPION"]["answer"] == "NS RedForce" and "K9xtaurus" not in qs2["BEST CLUTCH"]["answer"] and predict.settings()["show_leaderboard"]
 assert predict.tnorm("K9xtaurus") in {predict.tnorm(a) for a in predict.ans_list(qs2["BEST CLUTCH"])}
 print("RESULTS OK")
+# BMSD winners from the archived game
+c.execute("UPDATE pw_bmsd_questions SET answer='A'"); c.commit()
+store.kv_set("pw_bmsd_winners", None)
+bw = predict.bmsd_winners()
+assert bw and bw[0]["handle"] == "old" and bw[0]["pts"] > 0, bw
+eventpage._WCACHE[0] = 0
+assert "BMSD 2026 winners" in eventpage._winners("bmsd") and "@old" in eventpage._winners("bmsd")
+print("BMSD WINNERS OK")
