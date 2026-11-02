@@ -187,8 +187,8 @@ def _winners(key) -> str:
             pod = "".join(f'<div class="wp p{r["rank"]}"><i>#{r["rank"]}</i><a href="https://www.instagram.com/{html.escape(r["handle"])}/" target="_blank" rel="noopener">@{html.escape(r["handle"])}</a><span>{r["pts"]:,} pts · {r["correct"]} right</span></div>' for r in top[:3])
             rest = "".join(f'<div class="wr"><i>#{r["rank"]}</i><a href="https://www.instagram.com/{html.escape(r["handle"])}/" target="_blank" rel="noopener">@{html.escape(r["handle"])}</a><span>{r["pts"]:,} pts</span></div>' for r in top[3:])
             out = (WIN_CSS + f'<div class="pwwin"><div class="lbl">// Predict &amp; Win · results</div><h2>BMIC 2026 winners</h2>'
-                   f'<div class="wps">{pod}</div><div class="wrs">{rest}</div><div class="was">{ans}</div>'
-                   f'<a class="wl" href="/predict">Full leaderboard and everyone&#39;s picks &rarr;</a></div>')
+                   f'<div class="wps">{pod}</div><div class="wrs">{rest}</div>'
+                   f'<a class="wl" href="/predict">Leaderboard &rarr;</a></div>')
     except Exception as e:
         print(f"Winners block: {str(e)[:100]}")
     _WCACHE[0], _WCACHE[1] = time.time(), out

@@ -173,6 +173,7 @@ textarea.inp.fb{width:100%;min-height:76px;resize:vertical;font:15px/1.4 "Barlow
  .btn{color:#fff}.btn.ghost{color:var(--ink)}
  .tlb,.mo .tlb{background:#14141e;border-radius:4px;padding:2px 3px}
  .cty .x2{color:#fff}.sbar{background:rgba(255,255,255,.96)!important;color:var(--ink)}}
+body.final #qcard,body.final #crowdCard,body.final #joinCard,body.final #sbar{display:none!important}
 .mo[disabled]{cursor:default}.mo.ok{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}.mo.ok:after{content:"\2713 RESULT";position:absolute;top:4px;right:5px;font:10px "Barlow Condensed";color:var(--gold)}
 """
 
@@ -435,7 +436,8 @@ function header(){
  const nx=B.questions.filter(q=>!q.closed&&!q.void&&q.close_ts>nowS()).sort((a,b)=>a.close_ts-b.close_ts)[0];
  $('nlt').textContent=nx?`${istT(nx.close_ts)} IST · ${left(nx.close_ts-nowS())}`:'ALL LOCKED';
 }
-let lbSig='';async function loadBoard(){try{B=await api('board')}catch(e){return}if(B.closed){const h=$('qcard').querySelector('h2'),l=$('qcard').querySelector('.lbl');if(h)h.textContent='What everyone picked';if(l)l.textContent='// picks closed';}header();dayTabs();renderQs();sbar();$('lbCard').style.display=B.leaderboard?'':'none';const sg=JSON.stringify(B.boards)+lbTab;if(sg!==lbSig){lbSig=sg;lbTabs();renderLb()}}
+let lbSig='';async function loadBoard(){try{B=await api('board')}catch(e){return}if(B.closed){const h=$('qcard').querySelector('h2'),l=$('qcard').querySelector('.lbl');if(h)h.textContent='What everyone picked';if(l)l.textContent='// picks closed';}
+if(B.closed&&B.leaderboard){['qcard','crowdCard','joinCard'].forEach(id=>{const e=$(id);if(e)e.style.setProperty('display','none','important')});const sb=$('sbar');if(sb)sb.remove();document.body.classList.add('final')}header();dayTabs();renderQs();sbar();$('lbCard').style.display=B.leaderboard?'':'none';const sg=JSON.stringify(B.boards)+lbTab;if(sg!==lbSig){lbSig=sg;lbTabs();renderLb()}}
 function tick(){if(!B)return;B.questions.forEach(q=>{if(!q.closed&&nowS()>=q.close_ts){q.closed=true;if(openCb===q.id)openCb=null;updCard(q.id)}});
  document.querySelectorAll('[data-cl]').forEach(el=>{const q=B.questions.find(x=>x.id===+el.dataset.cl);if(q)el.textContent=closeTxt(q)[0]});header()}
 setTimeout(()=>{const p=$('pwin');if(p)p.remove()},1100);

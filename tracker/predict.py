@@ -83,6 +83,33 @@ def _db():
     return c
 
 
+BMIC_RESULTS = {      # final results (owner, 2 Nov); text answers list every spelling players used for the right player
+    "CHAMPION": "NS RedForce",
+    "PMGC": ["DRX", "NS RedForce"],
+    "TOP 3": ["NS RedForce", "DRX", "Dplus KIA"],
+    "PMGC COUNTRIES": "Korea + Korea",
+    "TOURNAMENT MVP": ["xzy1", "xzy", "xyz", "NS xzy", "NSR xzy", "NS xyz", "NS RedForce xyz", "NSRXZY", "NS_XZY"],
+    "BEST IGL": ["Soez", "NS Soez", "NSR Soez", "NSx Soez", "Soezz", "Soezy", "So ez"],
+    "BEST CLUTCH": ["Taurus", "Tauras", "Torus", "Taurass", "Tauraus", "K9 Taurus", "K9x Taurus", "K9 Tauras",
+                    "K9x Tauras", "K9 Torous", "K9Taurus"],
+    "PEAK VIEWERS": "450K-500K",
+}
+
+
+def _set_bmic_results():
+    """Once: the BMIC 2026 answers, and the leaderboard made public."""
+    store.kv_set("pw_bmic_answers_v1", int(time.time()))
+    for q in questions():
+        a = BMIC_RESULTS.get(q["tag"])
+        if a is None:
+            continue
+        try:
+            update_question(q["id"], "answer", a)
+        except Exception as e:
+            print(f"Predict: answer for {q['tag']} failed: {str(e)[:100]}")
+    save_settings(show_leaderboard=True)
+
+
 def _archive_bmsd(c):
     """Once: keep BMSD 2026's questions, picks and results page, then empty the game for BMIC 2026."""
     with store._lock:
@@ -109,6 +136,8 @@ def _archive_bmsd(c):
             c.execute("UPDATE pw_questions SET options=?, meta=json_set(meta, '$.buckets', json(?)) WHERE kind='peak'",
                       (json.dumps(bucket_labels()[1:]), json.dumps(s["buckets"])))
             c.commit()
+    if store.kv_get("pw_bmic_created") and not store.kv_get("pw_bmic_answers_v1"):
+        _set_bmic_results()
     if not store.kv_get("pw_bmic_created"):          # the BMIC question set, once
         store.kv_set("pw_bmic_created", int(time.time()))
         store.kv_set("pw_bmic_v2", 1)
