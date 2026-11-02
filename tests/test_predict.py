@@ -59,3 +59,10 @@ cl.post("/hit", json={"sid": "t1", "w": 390, "p": "/e/bmic/"}, headers={"User-Ag
 time.sleep(1)
 assert any(x["ip"] == "9.9.9.9" for x in visitors.stats()["recent"]), visitors.stats()["recent"]
 print("VISITORS OK")
+# winners on the BMIC page once answers are set and the leaderboard is shown
+from tracker import eventpage
+predict.save_settings(show_leaderboard=True)
+eventpage._WCACHE[0] = 0
+w = eventpage._winners("bmic")
+assert "BMIC 2026 winners" in w and "@fan_1" in w and "DRX" in w, w[:300]
+print("WINNERS OK")
