@@ -778,6 +778,48 @@ def _scores():
     return players, sc, st, qs
 
 
+def bmsd_winners(n: int = 10) -> list:
+    """BMSD 2026 final top n, scored from the archived questions and picks (cached; they never change)."""
+    hit = store.kv_get("pw_bmsd_winners")
+    if hit:
+        return hit[:n]
+    c = _db()
+    with store._lock:
+        try:
+            qs = {r["id"]: _q(r) for r in c.execute("SELECT * FROM pw_bmsd_questions")}
+            picks = c.execute("SELECT k.player_id, k.qid, k.option FROM pw_bmsd_picks k JOIN pw_players p ON p.id=k.player_id "
+                              "WHERE p.hidden=0").fetchall()
+            players = {r["id"]: dict(r) for r in c.execute("SELECT id, handle, name, created FROM pw_players WHERE hidden=0")}
+        except sqlite3.OperationalError:
+            return []
+    st = {}
+    for k in picks:
+        q = qs.get(k["qid"])
+        if not q:
+            continue
+        x = st.setdefault(q["id"], {"n": 0, "inc": {}, "names": {}})
+        x["n"] += 1
+        vals = _decode(q, k["option"]) if q["kind"] == "multi" else [tnorm(k["option"]) if q["kind"] == "text" else k["option"]]
+        for v in vals:
+            x["inc"][v] = x["inc"].get(v, 0) + 1
+    sc = {}
+    for k in picks:
+        q = qs.get(k["qid"])
+        if not q or not q["answer"] or q["void"] or k["player_id"] not in players:
+            continue
+        pts = points_for(q, st.get(q["id"]), k["option"])
+        if pts:
+            z = sc.setdefault(k["player_id"], {"all": [0, 0]})["all"]
+            z[0] += pts
+            z[1] += 1
+    have = {pid: players[pid] for pid in sc}
+    rows = [{"rank": r["rank"], "handle": r["handle"], "pts": r["pts"], "correct": r["correct"]}
+            for r in _ranked(have, sc, "all")[:25]]
+    if rows:
+        store.kv_set("pw_bmsd_winners", rows)
+    return rows[:n]
+
+
 def _ranked(players, sc, board):
     rows = [{"id": pid, "handle": p["handle"], "name": p["name"], "pts": sc[pid][board][0],
              "correct": sc[pid][board][1], "created": p["created"]} for pid, p in players.items()]

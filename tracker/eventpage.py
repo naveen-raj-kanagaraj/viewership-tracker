@@ -174,24 +174,36 @@ _WCACHE = [0.0, ""]
 def _winners(key) -> str:
     """BMIC Predict & Win winners on the event page, once the owner shows the leaderboard (cached a minute)."""
     from tracker import predict, crowd
+    if key == "bmsd":                          # BMSD 2026: from the results saved when BMIC began
+        snap = events.store.kv_get("pw_bmsd_crowd") or {}
+        try:
+            top = (snap.get("winners") or [])[:10] or predict.bmsd_winners(10)
+        except Exception as e:
+            print(f"BMSD winners: {str(e)[:100]}")
+            top = []
+        return _winners_html("BMSD 2026", top, "/predict/bmsd")
     if key != predict.EVENT_KEY or not predict.game_closed():
         return ""
     if time.time() - _WCACHE[0] < 60:
         return _WCACHE[1]
     out = ""
     try:
-        top = crowd.winners(10)
-        if top:
-            qs = [q for q in predict.questions() if q["kind"] != "feedback" and q["answer"] and not q["void"]]
-            ans = "".join(f'<div class="wa"><span>{html.escape(q["tag"])}</span><b>{html.escape(", ".join(predict.ans_list(q)[:1] if q["kind"] == "text" else predict.ans_list(q)))}</b></div>' for q in qs)
-            pod = "".join(f'<div class="wp p{r["rank"]}"><i>#{r["rank"]}</i><a href="https://www.instagram.com/{html.escape(r["handle"])}/" target="_blank" rel="noopener">@{html.escape(r["handle"])}</a><span>{r["pts"]:,} pts · {r["correct"]} right</span></div>' for r in top[:3])
-            rest = "".join(f'<div class="wr"><i>#{r["rank"]}</i><a href="https://www.instagram.com/{html.escape(r["handle"])}/" target="_blank" rel="noopener">@{html.escape(r["handle"])}</a><span>{r["pts"]:,} pts</span></div>' for r in top[3:])
-            out = (WIN_CSS + f'<div class="pwwin"><div class="lbl">// Predict &amp; Win · results</div><h2>BMIC 2026 winners</h2>'
-                   f'<div class="wps">{pod}</div><div class="wrs">{rest}</div>'
-                   f'<a class="wl" href="/predict">Leaderboard &rarr;</a></div>')
+        out = _winners_html("BMIC 2026", crowd.winners(10), "/predict")
     except Exception as e:
         print(f"Winners block: {str(e)[:100]}")
     _WCACHE[0], _WCACHE[1] = time.time(), out
+    return out
+
+
+def _winners_html(name, top, link) -> str:
+    out = ""
+    if True:
+        if top:
+            pod = "".join(f'<div class="wp p{r["rank"]}"><i>#{r["rank"]}</i><a href="https://www.instagram.com/{html.escape(r["handle"])}/" target="_blank" rel="noopener">@{html.escape(r["handle"])}</a><span>{r["pts"]:,} pts · {r["correct"]} right</span></div>' for r in top[:3])
+            rest = "".join(f'<div class="wr"><i>#{r["rank"]}</i><a href="https://www.instagram.com/{html.escape(r["handle"])}/" target="_blank" rel="noopener">@{html.escape(r["handle"])}</a><span>{r["pts"]:,} pts</span></div>' for r in top[3:])
+            out = (WIN_CSS + f'<div class="pwwin"><div class="lbl">// Predict &amp; Win · results</div><h2>{name} winners</h2>'
+                   f'<div class="wps">{pod}</div><div class="wrs">{rest}</div>'
+                   f'<a class="wl" href="{link}">Leaderboard &rarr;</a></div>')
     return out
 
 
