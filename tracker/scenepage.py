@@ -219,7 +219,7 @@ body{font-size:14px}.wrap{padding:0 12px 20px}
 <nav class="secnav" id="secnav"></nav></div>
 <div class="wrap">
 <div class="crumb" id="crumb"></div>
-<h1 id="h1"></h1><p class="intro" id="intro"></p>
+<h1 id="h1"></h1><p class="intro" id="intro"></p>__EVBANNER__
 <div class="hero" id="hero"><div class="kpis">
  <div class="kpi main"><div class="k" id="k1l">Watching now</div><div class="v mono" id="k1">-</div><div class="bar" id="pbar"></div><div class="leg" id="pleg"></div><button class="btn shr" data-share="now">SHARE</button></div>
  <div class="kpi"><div class="k">Live channels</div><div class="v mono" id="k2">-</div><div class="s" id="k2s">streaming right now</div></div>
@@ -619,7 +619,17 @@ def build_html(cat: str = "", cat_name: str = "", region: str = "in", sec: str =
                 "top streamers, gaming, esports tournaments, IRL, news and more, updated every 2 seconds.")
     home = "/" if region == "global" else "/india"
     qs = f"region={region}" + (f"&sec={sec}" if sec else "") + (f"&cat={cat}" if cat else "")
-    return (PAGE.replace("__QS__", qs).replace("__PANEL_JS__", PANEL_JS).replace("__PANEL_CSS__", PANEL_CSS).replace("__TITLE__", html.escape(title)).replace("__DESC__", html.escape(desc))
+    banner = ""
+    if cat == "bgmi":                         # the latest BGMI tournament: key art, its peak, a link to the full tracker
+        pk = next((p for s, y, p in eventpage.event_peaks() if s == "BMIC" and y == "26"), 0)
+        banner = ('<a class="evb" href="/e/bmic/"><img src="/elogo/BMIC26HERO.webp" alt="BMIC 2026" loading="lazy" width="1600" height="900">'
+                  f'<span class="evt"><b>BMIC 2026</b><span>{f"Peak {pk}K watching at once · " if pk else ""}Full viewership: official + watch parties &rarr;</span></span></a>'
+                  '<style>.evb{display:block;position:relative;margin-top:14px;border:1px solid var(--line);overflow:hidden;aspect-ratio:16/6;max-height:300px;text-decoration:none;color:#fff}'
+                  '.evb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 40%}'
+                  '.evt{position:absolute;left:0;right:0;bottom:0;padding:22px 14px 12px;background:linear-gradient(transparent,rgba(0,0,0,.85));display:flex;flex-direction:column}'
+                  '.evt b{font:700 24px "Barlow Condensed",sans-serif;letter-spacing:.04em}.evt span{font-size:14px;color:#e6e6ee}'
+                  '@media(max-width:640px){.evb{aspect-ratio:16/9}}</style>')
+    return (PAGE.replace("__EVBANNER__", banner).replace("__QS__", qs).replace("__PANEL_JS__", PANEL_JS).replace("__PANEL_CSS__", PANEL_CSS).replace("__TITLE__", html.escape(title)).replace("__DESC__", html.escape(desc))
                 .replace("__CATNAME__", json.dumps(cat_name)).replace("__CAT__", json.dumps(cat))
                 .replace("__SEC__", json.dumps(sec)).replace("__REGION__", json.dumps(region))
                 .replace("__SECTIONS__", json.dumps(scene.SECTIONS)).replace("__ALLG__", json.dumps([{"game": g, "slug": scene.slug(g)} for g, _ in scene.GAMES])).replace("__TOPICS__", json.dumps(__import__("tracker.ytextra", fromlist=["x"]).CATEGORIES)).replace("__HOME__", home)

@@ -370,6 +370,7 @@ As of 26 Oct 2026:
   reads them on the spot (channel_extra). Channel page: no "hasn't seen live" text (live card hidden), loading shows a
   skeleton, empty past-streams card hidden.
 - v36: category search box on /categories (filters as you type, keeps overall rank); /api/cats returns up to 200 live categories.
+- v45 (1 Nov): BMIC ended (preset ended, no countdown); history charts take every tracked event's measured peak (eventpage.event_peaks, ev_ticks), so BMIC 2026 joins the BGMI chart; BGMI page shows a BMIC 2026 banner with its peak linking to /e/bmic/.
 - v44: Predict & Win hard-closed Fri 30 Oct 2 PM IST (predict.HARD_CLOSE): no joins or picks after, /predict shows the crowd split to everyone, BMIC banner says picks closed.
 - v38: CEGC hidden (preset hidden/ended, skipped in scene._events); picks lock Fri 30 Oct 2 PM IST; peak options 250K-300K ... 700K+ (two columns); back on /predict goes to the previous page or /e/bmic/.
 - v37 (30 Oct): Predict & Win switched to BMIC 2026 (predict.EVENT_KEY "bmic", settings in kv pw_settings_bmic). On first
