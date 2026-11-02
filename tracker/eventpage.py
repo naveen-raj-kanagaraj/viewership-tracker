@@ -168,6 +168,45 @@ PWB = """<link rel="prefetch" href="/predict"><a class="pwb" href="/predict" onc
 PWC = """<a class="pwb" href="/predict"><span class="pwt">// PREDICT &amp; WIN · PICKS CLOSED</span><b>WHAT THE COMMUNITY PICKED</b><span class="pws">Champion, PMGC qualifiers, top 3, MVP and more. Winners after the finals on Sun 1 Nov.</span><i>SEE RESULTS &rarr;</i></a>"""
 
 
+_WCACHE = [0.0, ""]
+
+
+def _winners(key) -> str:
+    """BMIC Predict & Win winners on the event page, once the owner shows the leaderboard (cached a minute)."""
+    from tracker import predict, crowd
+    if key != predict.EVENT_KEY or not predict.game_closed():
+        return ""
+    if time.time() - _WCACHE[0] < 60:
+        return _WCACHE[1]
+    out = ""
+    try:
+        top = crowd.winners(10)
+        if top:
+            qs = [q for q in predict.questions() if q["kind"] != "feedback" and q["answer"] and not q["void"]]
+            ans = "".join(f'<div class="wa"><span>{html.escape(q["tag"])}</span><b>{html.escape(", ".join(predict.ans_list(q)[:1] if q["kind"] == "text" else predict.ans_list(q)))}</b></div>' for q in qs)
+            pod = "".join(f'<div class="wp p{r["rank"]}"><i>#{r["rank"]}</i><a href="https://www.instagram.com/{html.escape(r["handle"])}/" target="_blank" rel="noopener">@{html.escape(r["handle"])}</a><span>{r["pts"]:,} pts · {r["correct"]} right</span></div>' for r in top[:3])
+            rest = "".join(f'<div class="wr"><i>#{r["rank"]}</i><a href="https://www.instagram.com/{html.escape(r["handle"])}/" target="_blank" rel="noopener">@{html.escape(r["handle"])}</a><span>{r["pts"]:,} pts</span></div>' for r in top[3:])
+            out = (WIN_CSS + f'<div class="pwwin"><div class="lbl">// Predict &amp; Win · results</div><h2>BMIC 2026 winners</h2>'
+                   f'<div class="wps">{pod}</div><div class="wrs">{rest}</div><div class="was">{ans}</div>'
+                   f'<a class="wl" href="/predict">Full leaderboard and everyone&#39;s picks &rarr;</a></div>')
+    except Exception as e:
+        print(f"Winners block: {str(e)[:100]}")
+    _WCACHE[0], _WCACHE[1] = time.time(), out
+    return out
+
+
+WIN_CSS = """<style>.pwwin{margin-top:12px;border:1px solid rgba(245,196,81,.5);background:linear-gradient(135deg,rgba(245,196,81,.12),rgba(124,92,255,.08));padding:16px}
+.pwwin .lbl{font:12px "Barlow Condensed",sans-serif;color:#ff4d5e;letter-spacing:.08em}.pwwin h2{margin:4px 0 12px;font:700 24px "Barlow Condensed",sans-serif;text-transform:uppercase;color:#f5c451}
+.wps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.wp{background:rgba(11,11,18,.6);border:1px solid #262636;padding:12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.wp i{font:700 28px "Barlow Condensed",sans-serif;font-style:normal;color:#f5c451}.wp.p2 i{color:#d7d7e4}.wp.p3 i{color:#e0a46b}
+.wp a,.wr a{color:#eeeef5;font-weight:700;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.wp span,.wr span{color:#8d8ca3;font-size:13px}
+.wrs{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px 14px;margin-top:10px}.wr{display:grid;grid-template-columns:34px 1fr auto;gap:6px;align-items:center;padding:5px 0;border-bottom:1px solid #262636}
+.wr i{font-style:normal;color:#8d8ca3;font:600 15px "Barlow Condensed",sans-serif}
+.was{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}.wa{border:1px solid #262636;padding:5px 9px;font-size:13px}.wa span{color:#8d8ca3;font:11px "Barlow Condensed",sans-serif;letter-spacing:.06em;margin-right:6px}.wa b{color:#b6f23a}
+.pwwin .wl{display:inline-block;margin-top:12px;color:#b6f23a;font-weight:600;text-decoration:none}
+@media(max-width:600px){.wps{grid-template-columns:1fr}.wp{flex-direction:row;align-items:center;gap:10px}.wp i{font-size:22px}.wp span{margin-left:auto;white-space:nowrap}}</style>"""
+
+
 def _pw_closed() -> bool:
     from tracker import predict
     return predict.game_closed()
@@ -280,7 +319,7 @@ def build_html(key: str = None, live: bool = False, style: str = None) -> str:
                 .replace("__SOCIAL__", _social())
                 .replace("__GAMESLUG__", __import__("tracker.scene", fromlist=["x"]).slug(_preset(key).get("game") or "BGMI"))
                 .replace("__GAMENAME__", html.escape(_preset(key).get("game") or "BGMI"))
-                .replace("__PWB__", _hero(key) + ("" if (_ended(key) or not _preset(key).get("predict")) else (PWC if _pw_closed() else PWB) if predict_open() else (PWR if os.getenv("PREDICT_SPLIT", "1") == "1" else "")))
+                .replace("__PWB__", _hero(key) + _winners(key) + ("" if (_ended(key) or not _preset(key).get("predict")) else (PWC if _pw_closed() else PWB) if predict_open() else (PWR if os.getenv("PREDICT_SPLIT", "1") == "1" else "")))
                 .replace("__EHCSS__", EHERO_CSS if _preset(key).get("hero") else "")
                 .replace("__BRAND__", html.escape(BRAND)).replace("__BRANDURL__", html.escape(BRAND_URL, quote=True))
                 .replace("__SITEURL__", SITE_URL))
