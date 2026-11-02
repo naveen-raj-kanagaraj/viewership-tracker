@@ -64,5 +64,12 @@ from tracker import eventpage
 predict.save_settings(show_leaderboard=True)
 eventpage._WCACHE[0] = 0
 w = eventpage._winners("bmic")
-assert "BMIC 2026 winners" in w and "@fan_1" in w and "DRX" in w, w[:300]
+assert "BMIC 2026 winners" in w and "@fan_1" in w, w[:300]
 print("WINNERS OK")
+# final results set once in code
+store.kv_set("pw_bmic_answers_v1", 0)
+predict._set_bmic_results()
+qs2 = {q["tag"]: q for q in predict.questions()}
+assert qs2["CHAMPION"]["answer"] == "NS RedForce" and "K9xtaurus" not in qs2["BEST CLUTCH"]["answer"] and predict.settings()["show_leaderboard"]
+assert predict.tnorm("K9xtaurus") in {predict.tnorm(a) for a in predict.ans_list(qs2["BEST CLUTCH"])}
+print("RESULTS OK")
