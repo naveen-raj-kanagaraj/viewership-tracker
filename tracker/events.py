@@ -113,15 +113,16 @@ PRESETS = {
                               "kiolmao", "tagkiolmao", "tag-kiolmao", "therawknee", "rawknee", "pardhan", "pardhangaming",
                               "kushalmahajan", "kushal-mahajan", "mizoplays", "mizo-plays", "jabakumargaming", "jabakumar",
                               "vinogamingtamil", "vinogaming", "vino-gaming-tamil", "mrspike", "mrspikeyt"]},
-        "official_only": True,                  # nothing from YouTube counts except the official channels
+        "official_only": True,
+        "kick_only": True,                      # broadcast and watch parties are all on Kick: YouTube is never counted
         "allowed": ["snax", "lolzz", "ravensharp", "mazy", "soulaman", "vadhiyaar", "vaadhiyaar", "neyoo", "sharkshe",
                     "sheek", "shreeman", "kiolmao", "rawknee", "pardhan", "kushalmahajan", "mizoplays", "jabakumar",
                     "vinogaming", "mrspike"],
         "ended": False,
         "next_start": "2026-11-03 13:30",       # IST; countdown until the broadcast goes live
         "match": ["cegc", "c e g c", "sky esports", "skyesports", "watch party", "watchparty", "watch along", "watchalong"],
-        "queries": ["CEGC", "CEGC live"],
-        "official": ["sky esports", "cegc"],
+        "queries": [],                          # no YouTube search (a Portuguese channel is also called CEGC)
+        "official": ["sky esports"],
     },
 }
 
@@ -167,7 +168,19 @@ def _db():
     CREATE TABLE IF NOT EXISTS ev_ticks (event TEXT, ts INTEGER, total INTEGER, live INTEGER, official INTEGER,
         watch INTEGER, community INTEGER, PRIMARY KEY (event, ts));
     """)
+    if not _CLEANED[0]:
+        _CLEANED[0] = True
+        if not store.kv_get("ev_cegc_clean_v1"):    # 3 Nov: drop a Portuguese YouTube channel ("... CEGC") counted by mistake
+            t0 = int(datetime(2026, 11, 3, 13, 0, tzinfo=REPORT_TZ).timestamp())
+            for t in ("ev_samples", "ev_fine", "ev_anomalies", "ev_ticks"):
+                c.execute(f"DELETE FROM {t} WHERE event='cegc' AND ts<?", (t0,))
+            c.execute("DELETE FROM ev_streams WHERE event='cegc' AND vid NOT LIKE 'kick:%'")
+            c.commit()
+            store.kv_set("ev_cegc_clean_v1", 1)
     return c
+
+
+_CLEANED = [False]
 
 
 def events() -> dict:
@@ -363,6 +376,9 @@ def permitted(ev: dict, s: dict) -> bool:
 
 
 def relevant(ev: dict, s: dict) -> bool:
+    pr = PRESETS.get(ev.get("key", ""), {})
+    if pr.get("kick_only") and not str(s.get("vid", "")).startswith("kick:"):
+        return False                             # this event is on Kick only: nothing from YouTube or Twitch
     if not permitted(ev, s):
         return False
     if s["vid"] in ev.get("excluded", []) or (s.get("channel_id") and s["channel_id"] in ev.get("excluded", [])) \
