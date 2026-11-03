@@ -102,17 +102,14 @@ PRESETS = {
         "name": "CEGC",
         "auto": True,                           # created on startup if missing (no command needed)
         "home": True,                           # the event at / while it runs
-        # official broadcast on kick.com/cegc (Sky Esports). Permitted watch parties (owner's list, 3 Nov) stream
-        # only on Kick: every likely slug of each is listed; Kick returns only the channels that exist, and a
-        # listed channel counts only while its title names the event (so a wrong guess can't add viewers).
-        "kick": {"official": ["cegc", "skyesports"],
-                 "channels": ["snaxgaming", "snax", "lolzzgaming", "lolzzzgaming", "lolzz", "ravensharp", "raven-sharp",
-                              "mazy", "mazyyy", "mazygaming", "soulaman", "aman-soul", "soul-aman",
-                              "vadhiyaar", "vaadhiyaar", "vadhiyaarr", "neyoogaming", "neyoo", "sharkshe", "sharksheyt",
-                              "sheekgaming", "sheek", "shreemanlegend", "shreeman", "shreemanlegendlive",
-                              "kiolmao", "tagkiolmao", "tag-kiolmao", "therawknee", "rawknee", "pardhan", "pardhangaming",
-                              "kushalmahajan", "kushal-mahajan", "mizoplays", "mizo-plays", "jabakumargaming", "jabakumar",
-                              "vinogamingtamil", "vinogaming", "vino-gaming-tamil", "mrspike", "mrspikeyt"]},
+        # official broadcast on Kick (Sky Esports). Permitted watch parties (owner's list, 3 Nov) stream only on Kick.
+        "kick": {"official": ["cegc", "skyesports", "skyesports_2", "skyesports-2"],
+                 # exact channels from the owner (3 Nov); Kick slugs use "-" where the URL shows "_"
+                 "channels": ["sheekgaming", "snaxgaming", "lolzzzgaming", "ravensharplive", "mazyislive", "soulaman",
+                              "vaadhiyaar", "neyoo_gaming", "neyoo-gaming", "sharkshe", "shreemanlegend", "tagkiolmao",
+                              "therawknee", "pardhan", "kushalmahajan", "mizo", "jabakumargaming", "vinogaminglive",
+                              "mrspikeyt"]},
+        "any_title": True,                      # the list is exact: count these channels whatever their stream title says
         "official_only": True,
         "kick_only": True,                      # broadcast and watch parties are all on Kick: YouTube is never counted
         "allowed": ["snax", "lolzz", "ravensharp", "mazy", "soulaman", "vadhiyaar", "vaadhiyaar", "neyoo", "sharkshe",
