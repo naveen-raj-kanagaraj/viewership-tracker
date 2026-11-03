@@ -48,6 +48,20 @@ def _recent(s: dict) -> str:
             f'<table><tr><th>IP</th><th>Place</th><th>Page</th><th>Device</th><th>From</th><th>First seen</th><th>Last seen</th></tr>{tr}</table></div></div>')
 
 
+def _coverage(s: dict) -> str:
+    cv = s.get("coverage") or {}
+    if not cv or cv.get("error"):
+        return f'<div class="sub" style="margin-top:6px">Channel coverage: {html.escape(cv.get("error", "-"))}</div>' if cv else ""
+    n, f = max(cv["channels"], 1), cv.get("feeds") or {}
+    last = datetime.fromtimestamp(f["last"], TZ).strftime("%I:%M %p IST") if f.get("last") else "not yet"
+    return (f'<div class="c" style="margin-top:10px"><h2>YouTube channel coverage</h2>'
+            f'<div class="b"><span class="k">Daily stats today</span><span class="t"><i style="width:{100 * cv["stats_today"] / n:.1f}%"></i></span><span class="v">{cv["stats_today"]:,}<small>of {cv["channels"]:,}</small></span></div>'
+            f'<div class="b"><span class="k">Have videos</span><span class="t"><i style="width:{100 * cv["with_videos"] / n:.1f}%"></i></span><span class="v">{cv["with_videos"]:,}<small>of {cv["channels"]:,}</small></span></div>'
+            f'<div class="b"><span class="k">Videos read in 24 h</span><span class="t"><i style="width:{100 * cv["videos_24h"] / n:.1f}%"></i></span><span class="v">{cv["videos_24h"]:,}<small>of {cv["channels"]:,}</small></span></div>'
+            f'<div class="e" style="margin-top:6px">Free feeds, last run {last}: {f.get("got", 0):,} of {f.get("asked", 0):,} channels read, '
+            f'{f.get("failed", 0):,} refused by YouTube, {f.get("videos", 0):,} videos updated. Runs every 5 minutes.</div></div>')
+
+
 def build_html(s: dict) -> str:
     pk = s.get("peak") or {}
     when = datetime.fromtimestamp(pk["ts"], TZ).strftime("%d %b, %I:%M %p IST") if pk.get("ts") else "-"
@@ -71,6 +85,7 @@ table{{border-collapse:collapse;width:100%;font-size:12px}}th,td{{text-align:lef
 <div class="k4"><div class="c"><b>{s.get('active', 0):,}</b><span>on the site now</span></div><div class="c"><b>{tod:,}</b><span>visitors today</span></div>
 <div class="c"><b>{pk.get('n', 0):,}</b><span>most at once ({html.escape(when)})</span></div><div class="c"><b>{s.get('avg_min', 0)} min</b><span>average time on site today</span></div></div>
 {_sources(s.get('sources') or {})}
+{_coverage(s)}
 <div class="sub" style="margin-top:8px">YouTube API used today: {(s.get('ytq') or (0, 0))[0]:,} of {(s.get('ytq') or (0, 0))[1]:,} units (resets at midnight Pacific).</div>
 <div class="c" style="margin-top:10px"><h2>Visitors per day, last 30 days</h2><div class="d">{''.join(f'<div style="height:{100 * n / dmax:.0f}%" title="{d}: {n:,}"><span>{n if n * 6 >= dmax else ""}</span></div>' for d, n in days) or '<div class="e">No history yet.</div>'}</div>
 <div class="dl"><span>{days[0][0][5:] if days else ''}</span><span>{days[-1][0][5:] if days else ''}</span></div></div>

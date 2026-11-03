@@ -741,7 +741,12 @@ def admin_visitors():
             z[0] += 1
             z[1] += x.get("viewers") or 0
     src = {"errors": dict(sc_._STATE.get("errors") or {}), "last": sc_._STATE.get("last"), "by": by, "twitch_full": dict(sc_._TWFULL)}
-    r = Response(visitorspage.build_html({**visitors.stats(), "ytq": (used, ev_.YT_QUOTA), "sources": src}), mimetype="text/html")
+    try:
+        from tracker import ytextra as yx_
+        cov = yx_.coverage()
+    except Exception as e:
+        cov = {"error": str(e)[:100]}
+    r = Response(visitorspage.build_html({**visitors.stats(), "ytq": (used, ev_.YT_QUOTA), "sources": src, "coverage": cov}), mimetype="text/html")
     r.headers["X-Robots-Tag"] = "noindex"
     return r
 

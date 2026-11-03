@@ -501,7 +501,7 @@ def run_rss():
     time.sleep(90)
     while True:
         try:
-            rss_once(400)
+            rss_once(600)
         except Exception as e:
             print(f"Channel feeds: {str(e)[:150]}")
         time.sleep(300)
@@ -1403,8 +1403,12 @@ def _rss_videos(cid: str) -> list:
                          headers={"User-Agent": events._UA})
     if r.status_code != 200:
         return []
+    return _rss_parse(r.text)
+
+
+def _rss_parse(text: str) -> list:
     out = []
-    for e in re.findall(r"<entry>(.*?)</entry>", r.text, re.S):
+    for e in re.findall(r"<entry>(.*?)</entry>", text, re.S):
         v, pub = re.search(r"<yt:videoId>([\w-]{11})</yt:videoId>", e), re.search(r"<published>([^<]+)</published>", e)
         if not (v and pub):
             continue
@@ -1420,32 +1424,67 @@ def _rss_videos(cid: str) -> list:
 _RSSTRIED = {}
 
 
-def rss_once(n: int = 400) -> int:
-    """Every YouTube channel gets its latest posts without anyone opening its page: channels with nothing stored yet
-    are read from their public feeds (free), biggest first. Opening the page then fills in the full history."""
+RSS_STATS = {"last": 0, "asked": 0, "got": 0, "failed": 0, "videos": 0}
+
+
+def _rss_get(cid: str):
+    """The feed's posts, or None if YouTube refused (not the same as a channel with no posts)."""
+    try:
+        r = events._http.get(f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}", timeout=10,
+                             headers={"User-Agent": events._UA})
+    except Exception:
+        return None
+    if r.status_code != 200:
+        return None
+    return _rss_parse(r.text)
+
+
+def rss_once(n: int = 600) -> int:
+    """Free, no API units. Every 5 minutes: channels with nothing stored yet first (biggest first), then channels
+    whose latest posts haven't been re-read for a day, so views and likes of recent posts stay current."""
+    day = time.time() - 86400
     with store._lock:
-        cand = [r[0] for r in _db().execute(
-            """SELECT c.sid FROM sc_channels c LEFT JOIN (SELECT s.sid, s.subs FROM sc_chstats s JOIN
-               (SELECT sid, MAX(day) d FROM sc_chstats GROUP BY sid) m ON m.sid=s.sid AND m.d=s.day) t ON t.sid=c.sid
-               WHERE c.platform='youtube' AND c.sid NOT IN (SELECT DISTINCT sid FROM yt_videos)
-               ORDER BY COALESCE(c.tracked,0) DESC, COALESCE(t.subs,0) DESC LIMIT ?""", (n * 4,))]
-    cand = [x for x in cand if time.time() - _RSSTRIED.get(x, 0) > 86400][:n]    # empty feeds: once a day
+        c = _db()
+        new = [r[0] for r in c.execute(
+            """SELECT c.sid FROM sc_channels c LEFT JOIN yt_videos v ON v.sid=c.sid
+               WHERE c.platform='youtube' AND v.vid IS NULL
+               ORDER BY COALESCE(c.tracked,0) DESC, COALESCE(c.last_live,0) DESC LIMIT ?""", (n * 4,))]
+        old = [r[0] for r in c.execute(
+            "SELECT sid FROM yt_videos WHERE sid LIKE 'yt:%' GROUP BY sid HAVING MAX(updated) < ? ORDER BY MAX(updated) LIMIT ?",
+            (day, n))]
+    cand = [x for x in dict.fromkeys(new + old) if time.time() - _RSSTRIED.get(x, 0) > 86400][:n]
     for x in cand:
         _RSSTRIED[x] = time.time()
     if not cand:
         return 0
     from tracker import scene
-    got = list(_pool.map(lambda sid: (sid, _safe(_rss_videos, sid[3:])), cand))
+    got = list(_pool.map(lambda sid: (sid, _rss_get(sid[3:])), cand))
     now, rows = int(time.time()), []
     for sid, vids in got:
         rows += [(v["id"], sid, v["ts"], v["title"], v["views"], v["likes"], None, 0, 0, 1, now, v["short"], v["url"],
                   scene.classify("", v["title"]), None) for v in vids or []]
     with store._lock:
         c = _db()
-        c.executemany("""INSERT OR IGNORE INTO yt_videos (vid, sid, ts, title, views, likes, comments, secs, live, approx, updated, short, url, game, cat)
-                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", rows)
+        c.executemany("""INSERT INTO yt_videos (vid, sid, ts, title, views, likes, comments, secs, live, approx, updated, short, url, game, cat)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(vid) DO UPDATE SET
+                         views=MAX(COALESCE(excluded.views, 0), COALESCE(yt_videos.views, 0)),
+                         likes=COALESCE(excluded.likes, yt_videos.likes), title=excluded.title, updated=excluded.updated""", rows)
         c.commit()
-    return sum(1 for _, v in got if v)
+    RSS_STATS.update(last=now, asked=len(cand), got=sum(1 for _, v in got if v), failed=sum(1 for _, v in got if v is None),
+                     videos=len(rows))
+    return RSS_STATS["got"]
+
+
+def coverage() -> dict:
+    """How many YouTube channels have their numbers: for the owner page."""
+    d = _day()
+    with store._lock:
+        c = _db()
+        tot = c.execute("SELECT COUNT(*) FROM sc_channels WHERE platform='youtube'").fetchone()[0]
+        st = c.execute("SELECT COUNT(*) FROM sc_chstats WHERE day=? AND sid LIKE 'yt:%'", (d,)).fetchone()[0]
+        vids = c.execute("SELECT COUNT(DISTINCT sid) FROM yt_videos WHERE sid LIKE 'yt:%'").fetchone()[0]
+        fresh = c.execute("SELECT COUNT(DISTINCT sid) FROM yt_videos WHERE sid LIKE 'yt:%' AND updated>?", (time.time() - 86400,)).fetchone()[0]
+    return {"channels": tot, "stats_today": st, "with_videos": vids, "videos_24h": fresh, "feeds": dict(RSS_STATS)}
 
 
 def _safe(f, *a):
