@@ -100,12 +100,26 @@ PRESETS = {
     },
     "cegc": {
         "name": "CEGC",
-        "auto": False,                          # off the site for now (owner, 30 Oct): BMIC only
-        "hidden": True,
-        "kick": {"official": ["cegc"]},         # kick.com/cegc (Sky Esports) is the official broadcast
-        "ended": True,
+        "auto": True,                           # created on startup if missing (no command needed)
+        "home": True,                           # the event at / while it runs
+        # official broadcast on kick.com/cegc (Sky Esports). Permitted watch parties (owner's list, 3 Nov) stream
+        # only on Kick: every likely slug of each is listed; Kick returns only the channels that exist, and a
+        # listed channel counts only while its title names the event (so a wrong guess can't add viewers).
+        "kick": {"official": ["cegc", "skyesports"],
+                 "channels": ["snaxgaming", "snax", "lolzzgaming", "lolzzzgaming", "lolzz", "ravensharp", "raven-sharp",
+                              "mazy", "mazyyy", "mazygaming", "soulaman", "aman-soul", "soul-aman",
+                              "vadhiyaar", "vaadhiyaar", "vadhiyaarr", "neyoogaming", "neyoo", "sharkshe", "sharksheyt",
+                              "sheekgaming", "sheek", "shreemanlegend", "shreeman", "shreemanlegendlive",
+                              "kiolmao", "tagkiolmao", "tag-kiolmao", "therawknee", "rawknee", "pardhan", "pardhangaming",
+                              "kushalmahajan", "kushal-mahajan", "mizoplays", "mizo-plays", "jabakumargaming", "jabakumar",
+                              "vinogamingtamil", "vinogaming", "vino-gaming-tamil", "mrspike", "mrspikeyt"]},
+        "official_only": True,                  # nothing from YouTube counts except the official channels
+        "allowed": ["snax", "lolzz", "ravensharp", "mazy", "soulaman", "vadhiyaar", "vaadhiyaar", "neyoo", "sharkshe",
+                    "sheek", "shreeman", "kiolmao", "rawknee", "pardhan", "kushalmahajan", "mizoplays", "jabakumar",
+                    "vinogaming", "mrspike"],
+        "ended": False,
         "next_start": "2026-11-03 13:30",       # IST; countdown until the broadcast goes live
-        "match": ["cegc"],
+        "match": ["cegc", "c e g c", "sky esports", "skyesports", "watch party", "watchparty", "watch along", "watchalong"],
         "queries": ["CEGC", "CEGC live"],
         "official": ["sky esports", "cegc"],
     },
@@ -360,7 +374,8 @@ def relevant(ev: dict, s: dict) -> bool:
             (platforms.is_other(s["vid"]) and opt(ev, "any_title")):
         return True
     text = f"{s.get('title', '')} {s.get('channel', '')}".lower()
-    return any(m in text for m in ev["match"])
+    terms = set(ev["match"]) | {m.lower() for m in PRESETS.get(ev.get("key", ""), {}).get("match", [])}   # preset edits apply to existing events
+    return any(m in text for m in terms)
 
 
 def _forced_channel(ev, s) -> bool:
