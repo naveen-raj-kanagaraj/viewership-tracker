@@ -502,6 +502,7 @@ def run_rss():
     while True:
         try:
             rss_once(600)
+            video_stats_once(30)                  # likes, comments, length for those posts: ~1 API unit per 50
         except Exception as e:
             print(f"Channel feeds: {str(e)[:150]}")
         time.sleep(300)
@@ -1475,6 +1476,58 @@ def rss_once(n: int = 600) -> int:
     return RSS_STATS["got"]
 
 
+VSTATS = {"last": 0, "videos": 0, "calls": 0}
+
+
+def video_stats_once(max_calls: int = 30) -> int:
+    """Exact views, likes, comments, length and live/upload for posts read from the free feeds: 50 videos per API
+    unit, batched across channels (about 0.3 units a channel). Posts never checked first, then the oldest checks;
+    stops at 80% of the day's API allowance so channel pages and live counts keep theirs."""
+    key = os.getenv("YOUTUBE_API_KEY")
+    if not key:
+        return 0
+    with store._lock:
+        ids = [r[0] for r in _db().execute(
+            """SELECT vid FROM yt_videos WHERE sid LIKE 'yt:%' AND ts>? AND (comments IS NULL OR updated<?)
+               ORDER BY comments IS NOT NULL, updated LIMIT ?""",
+            (time.time() - 60 * 86400, time.time() - 86400, max_calls * 50))]
+    done = calls = 0
+    for i in range(0, len(ids), 50):
+        if not events.yt_quota_left(.8):
+            break
+        part = ids[i:i + 50]
+        try:
+            r = events._http.get("https://www.googleapis.com/youtube/v3/videos", timeout=15,
+                                 params={"part": "statistics,contentDetails,liveStreamingDetails,snippet", "id": ",".join(part), "key": key})
+        except Exception:
+            break
+        calls += 1
+        if r.status_code >= 400:
+            break
+        now, rows, seen = int(time.time()), [], set()
+        for v in r.json().get("items") or []:
+            st, ls, sn = v.get("statistics") or {}, v.get("liveStreamingDetails") or {}, v.get("snippet") or {}
+            pub = ls.get("actualStartTime") or sn.get("publishedAt")
+            seen.add(v["id"])
+            rows.append((int(st["viewCount"]) if "viewCount" in st else None, int(st["likeCount"]) if "likeCount" in st else None,
+                         int(st.get("commentCount") or 0), _iso_dur((v.get("contentDetails") or {}).get("duration")),
+                         1 if ls.get("actualStartTime") else 0,
+                         int(datetime.fromisoformat(pub.replace("Z", "+00:00")).timestamp()) if pub else None,
+                         int(sn["categoryId"]) if str(sn.get("categoryId") or "").isdigit() else None, now, v["id"]))
+        with store._lock:
+            c = _db()
+            c.executemany("""UPDATE yt_videos SET views=COALESCE(?, views), likes=COALESCE(?, likes), comments=?,
+                             secs=CASE WHEN ?>0 THEN ? ELSE secs END, live=?, ts=COALESCE(?, ts), cat=COALESCE(?, cat),
+                             approx=0, updated=? WHERE vid=?""",
+                          [(a, b, cm, d, d, lv, t, ct, u, vid) for a, b, cm, d, lv, t, ct, u, vid in rows])
+            gone = [x for x in part if x not in seen]          # deleted or private: stop asking
+            c.executemany("UPDATE yt_videos SET comments=COALESCE(comments, 0), updated=? WHERE vid=?", [(now, x) for x in gone])
+            c.commit()
+        done += len(rows)
+    VSTATS.update(last=int(time.time()), videos=done, calls=calls)
+    return done
+
+
 def coverage() -> dict:
     """How many YouTube channels have their numbers: for the owner page."""
     d = _day()
@@ -1484,7 +1537,9 @@ def coverage() -> dict:
         st = c.execute("SELECT COUNT(*) FROM sc_chstats WHERE day=? AND sid LIKE 'yt:%'", (d,)).fetchone()[0]
         vids = c.execute("SELECT COUNT(DISTINCT sid) FROM yt_videos WHERE sid LIKE 'yt:%'").fetchone()[0]
         fresh = c.execute("SELECT COUNT(DISTINCT sid) FROM yt_videos WHERE sid LIKE 'yt:%' AND updated>?", (time.time() - 86400,)).fetchone()[0]
-    return {"channels": tot, "stats_today": st, "with_videos": vids, "videos_24h": fresh, "feeds": dict(RSS_STATS)}
+        exact = c.execute("SELECT COUNT(DISTINCT sid) FROM yt_videos WHERE sid LIKE 'yt:%' AND approx=0").fetchone()[0]
+    return {"channels": tot, "stats_today": st, "with_videos": vids, "videos_24h": fresh, "exact": exact,
+            "feeds": dict(RSS_STATS), "vstats": dict(VSTATS)}
 
 
 def _safe(f, *a):
