@@ -58,8 +58,9 @@ def _coverage(s: dict) -> str:
             f'<div class="b"><span class="k">Daily stats today</span><span class="t"><i style="width:{100 * cv["stats_today"] / n:.1f}%"></i></span><span class="v">{cv["stats_today"]:,}<small>of {cv["channels"]:,}</small></span></div>'
             f'<div class="b"><span class="k">Have videos</span><span class="t"><i style="width:{100 * cv["with_videos"] / n:.1f}%"></i></span><span class="v">{cv["with_videos"]:,}<small>of {cv["channels"]:,}</small></span></div>'
             f'<div class="b"><span class="k">Videos read in 24 h</span><span class="t"><i style="width:{100 * cv["videos_24h"] / n:.1f}%"></i></span><span class="v">{cv["videos_24h"]:,}<small>of {cv["channels"]:,}</small></span></div>'
+            f'<div class="b"><span class="k">Likes + comments</span><span class="t"><i style="width:{100 * cv.get("exact", 0) / n:.1f}%"></i></span><span class="v">{cv.get("exact", 0):,}<small>of {cv["channels"]:,}</small></span></div>'
             f'<div class="e" style="margin-top:6px">Free feeds, last run {last}: {f.get("got", 0):,} of {f.get("asked", 0):,} channels read, '
-            f'{f.get("failed", 0):,} refused by YouTube, {f.get("videos", 0):,} videos updated. Runs every 5 minutes.</div></div>')
+            f'{f.get("failed", 0):,} refused by YouTube, {f.get("videos", 0):,} videos updated. Runs every 5 minutes. Likes/comments: {(cv.get("vstats") or {}).get("videos", 0):,} videos in the last run ({(cv.get("vstats") or {}).get("calls", 0)} API units).</div></div>')
 
 
 def build_html(s: dict) -> str:
