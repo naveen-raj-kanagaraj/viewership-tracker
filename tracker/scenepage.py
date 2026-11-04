@@ -10,7 +10,7 @@ Share cards are drawn on a canvas in the browser.
 import html
 import json
 
-from tracker import eventpage, scene
+from tracker import eventpage, events, scene
 
 PANEL_CSS = r""".row.x{cursor:pointer}.row.x.open{background:#171722;border-bottom-color:transparent}.row .car{color:var(--muted);font-size:10px;margin-left:6px;display:inline-block;transition:transform .15s}.row.open .car{transform:rotate(90deg);color:var(--lime)}
 .cx{background:#0f0f17;border-bottom:1px solid var(--line);border-left:2px solid var(--lime);padding:12px 14px 14px;font-size:13px}
@@ -620,7 +620,7 @@ def build_html(cat: str = "", cat_name: str = "", region: str = "in", sec: str =
     home = "/" if region == "global" else "/india"
     qs = f"region={region}" + (f"&sec={sec}" if sec else "") + (f"&cat={cat}" if cat else "")
     banner = ""
-    if cat == "bgmi":                         # the latest BGMI tournament: key art, its peak, a link to the full tracker
+    if cat == "bgmi" and not events.PRESETS.get("bmic", {}).get("ended"):   # BMIC key art only while it runs (owner, 4 Nov)
         pk = next((p for s, y, p in eventpage.event_peaks() if s == "BMIC" and y == "26"), 0)
         banner = ('<a class="evb" href="/e/bmic/"><img src="/elogo/BMIC26HERO.webp" alt="BMIC 2026" loading="lazy" width="1600" height="900">'
                   f'<span class="evt"><b>BMIC 2026</b><span>{f"Peak {pk}K watching at once · " if pk else ""}Full viewership: official + watch parties &rarr;</span></span></a>'
