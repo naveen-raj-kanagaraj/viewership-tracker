@@ -1,7 +1,7 @@
 # Live Viewership Tracker
 
 **Real-time audience analytics for creators and live streams across YouTube, Twitch and Kick.**
-Live at [live.letsgrowesports.com](https://live.letsgrowesports.com)
+Live at [live.letsgrowesports.com](https://live.letsgrowesports.com), used by 5,000+ people a day.
 
 > Maintaining it? Start with [docs/HANDOFF.md](docs/HANDOFF.md). How it works under the hood: [docs/TECHNICAL.md](docs/TECHNICAL.md).
 
@@ -28,11 +28,11 @@ Audience numbers for creators and live events are late, partial and split across
 
 ## What it does
 
-- **Live dashboard:** everyone watching right now across YouTube, Twitch and Kick, by platform, category and game, refreshed every 2 seconds. Worldwide and India views.
+- **Live dashboard:** everyone watching right now across YouTube, Twitch and Kick, by platform, category and game, refreshed every 2 seconds. Worldwide and India views. Every live Twitch stream is counted, plus the top Kick and YouTube streams: over 100,000 live streams at once (126,100 on 5 Nov 2026).
 - **Channel pages for any channel:** subscribers, lifetime views, views gained per day, every recent video with views, likes, comments and engagement, best day and time to post, and live stats while the channel is streaming.
 - **Rankings:** channels by views gained (day, week, month), total views or subscribers; streamers by hours watched, peak or average viewers; filter by YouTube category, game and country.
 - **Categories:** every game and category ranked by watching now, with the change against 24 hours ago, hourly bars for the last 24 hours, peak and hours watched, a Trending list and a search box. Longer ranges (7 days, 1 month and up) appear as the history builds.
-- **Tournament trackers:** every stream carrying an event (official broadcast and permitted watch parties) counted together, with the official vs watch-party split. Tracking starts by itself when the official channel goes live. Live now: BMIC 2026 (India, Korea, Japan).
+- **Tournament trackers:** every stream carrying an event (official broadcast and permitted watch parties) counted together, with the official vs watch-party split. Tracking starts by itself when the official channel goes live. Tracked end to end so far: BMSD 2026 (653K peak) and BMIC 2026. Worldwide tournaments (LoL Worlds, VCT, ESL, IEM, PGL and more) are detected from stream titles and grouped with their co-streams on the dashboard.
 - **Moments:** sudden audience jumps (against the level a minute earlier) detected from chat speed and viewer counts. Each one plays on the site: a YouTube clip from 30 seconds before the jump to 30 seconds after the peak, a Twitch clip or replay, or the live channel.
 - **Predict & Win:** a free prediction game per tournament (champion, qualifiers, top 3, MVP, best IGL, peak viewership) with crowd results, a leaderboard and prizes, run from an owner dashboard.
 - **Compare, search, share cards, creator badges, world map.**
