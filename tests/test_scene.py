@@ -196,7 +196,7 @@ assert sc.resolve_art("BGMI") == ("https://k/bgmi.jpg", "Kick 'Battlegrounds Mob
 assert sc.resolve_art("PUBG Mobile")[0] == "https://tw/PUBG MOBILE-144x192.jpg"
 assert sc.resolve_art("PUBG: Battlegrounds")[0] == "https://tw/PUBG: BATTLEGROUNDS-144x192.jpg"
 assert sc.resolve_art("Hollow Knight") == ("", "none")          # inexact search results are never used
-assert sc.cat_art("Call of Duty") == "" and sc.cat_art("Cricket games") == ""
+assert sc.cat_art("Call of Duty") == "" and sc.cat_art("Cricket") == "" and sc.section_of("Cricket", tour="ipl") == "sports" and sc.section_of("Cricket 24") == "sports"
 print("ART OK")
 r = web.app.test_client().get("/global/c/bgmi"); assert r.status_code == 301 and r.headers["Location"].endswith("/c/bgmi")
 print("ROUTES OK")
