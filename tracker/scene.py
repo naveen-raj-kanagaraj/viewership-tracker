@@ -255,10 +255,10 @@ GAMES = [
     ("Dota 2", ["dota"]),
     ("League of Legends", ["league of legends"]),
     ("EA Sports FC", ["ea sports fc", "ea fc", "fifa"]),
-    ("Cricket games", ["real cricket", "cricket 24", "cricket 22", "world cricket championship", "wcc3"]),
     ("Chess", ["chess"]),
     ("Among Us", ["among us"]),
-    ("Cricket (live)", ["ipl", "live cricket", "cricket live", "ind vs", "india vs", "t20", " odi ", "test match"]),
+    ("Cricket", ["ipl", "live cricket", "cricket live", "ind vs", "india vs", "t20", " odi ", "test match", "real cricket",
+                 "cricket 24", "cricket 22", "world cricket championship", "wcc3", "cricket"]),   # always Sports (owner, 8 Nov)
     ("News", ["news", "khabar", "samachar", "headlines", "breaking", "aaj tak", "ndtv", "republic", "tv9", "abp ",
               "zee ", "india tv", "lok sabha", "rajya sabha", "sansad"]),
     ("Devotional", ["bhajan", "aarti", "kirtan", "gurbani", "darshan", "katha", "satsang", "mandir", "temple", "puja",
@@ -379,6 +379,24 @@ def _db():
                 pass
         c.commit()
         store.kv_set("scene_mig_pubg", True)
+    if not _COLS and not store.kv_get("scene_mig_cricket"):   # one Cricket category, under Sports
+        old = "('Cricket games','Cricket (live)')"
+        for t, key in (("sc_cat", "ts"), ("sc_reg", "ts, region")):
+            try:
+                c.execute(f"""INSERT INTO {t} ({key}, game, viewers, streams)
+                              SELECT {key}, 'Cricket', SUM(viewers), SUM(streams) FROM {t} WHERE game IN {old} GROUP BY {key}
+                              ON CONFLICT DO UPDATE SET viewers=viewers+excluded.viewers, streams=streams+excluded.streams""")
+                c.execute(f"DELETE FROM {t} WHERE game IN {old}")
+            except Exception as e:
+                print(f"Cricket merge {t}: {e}")
+        for t in ("sc_samples", "sc_daily", "sc_channels"):
+            try:
+                c.execute(f"UPDATE OR IGNORE {t} SET game='Cricket' WHERE game IN {old}")
+                c.execute(f"DELETE FROM {t} WHERE game IN {old}") if t == "sc_daily" else None
+            except Exception as e:
+                print(f"Cricket merge {t}: {e}")
+        c.commit()
+        store.kv_set("scene_mig_cricket", True)
     if not _COLS:
         have = {r[1] for r in c.execute("PRAGMA table_info(sc_channels)")}
         for col, typ in (("country", "TEXT"), ("india", "INTEGER"), ("language", "TEXT"), ("tracked", "INTEGER"), ("topic", "TEXT"), ("ytcat", "TEXT")):
@@ -398,20 +416,23 @@ def slug(game: str) -> str:
 
 
 ALL = "__all__"          # the India-wide total in sc_cat
-NON_GAMING = {"News", "Devotional", "Music", "Podcast / Talk", "Just Chatting", "IRL", "Cricket (live)", "Other"}
+NON_GAMING = {"News", "Devotional", "Music", "Podcast / Talk", "Just Chatting", "IRL", "Cricket", "Other"}
+CRICKET_OLD = ("Cricket games", "Cricket (live)")
 # Top-level sections shown in the site's menu. A stream's section comes from its tournament (Esports) or its game/category.
 SECTIONS = [("gaming", "Gaming"), ("esports", "Esports"), ("irl", "IRL"), ("just-chatting", "Just Chatting"),
             ("news", "News"), ("music", "Music"), ("sports", "Sports"), ("devotional", "Devotional"),
             ("podcasts", "Podcasts & Talk"), ("other", "Other")]
 SECTION_NAMES = dict(SECTIONS)
 _SEC_FIXED = {"Just Chatting": "just-chatting", "IRL": "irl", "News": "news", "Music": "music",
-              "Cricket (live)": "sports", "Devotional": "devotional", "Podcast / Talk": "podcasts", "Other": "other"}
+              "Cricket": "sports", "Devotional": "devotional", "Podcast / Talk": "podcasts", "Other": "other"}
 _SEC_WORDS = [("irl", ("irl", "travel", "outdoor", "food", "cooking", "vlog")), ("sports", ("sport", "football", "cricket",
               "basketball", "wrestling", "racing")), ("music", ("music", "dj", "concert")), ("podcasts", ("podcast", "talk")),
               ("news", ("news", "politic")), ("other", ("slots", "casino", "pools", "asmr", "art", "special events"))]
 
 
 def section_of(game: str, tour=None) -> str:
+    if game == "Cricket" or "cricket" in (game or "").lower():
+        return "sports"                  # never Gaming or Esports, even inside a tournament
     if tour:
         return "esports"
     if game in _SEC_FIXED:
@@ -423,7 +444,7 @@ def section_of(game: str, tour=None) -> str:
         if any(w in low for w in words):
             return sec
     return "gaming" if game else "other"
-_NON_GAMING_WORDS = ("irl", "chatting", "music", "talk", "sports", "slots", "casino", "pools", "asmr", "travel",
+_NON_GAMING_WORDS = ("irl", "chatting", "music", "talk", "sports", "cricket", "slots", "casino", "pools", "asmr", "travel",
                      "podcast", "news", "special events", "art", "food", "politics")
 
 
@@ -442,7 +463,7 @@ TWITCH_NAMES = {"BGMI": ["Battlegrounds Mobile India"], "PUBG: Battlegrounds": [
 KICK_NAMES = {"BGMI": ["Battlegrounds Mobile India"], "PUBG Mobile": ["PUBG Mobile"], "Free Fire": ["Free Fire", "Garena Free Fire"],
               "GTA V": ["Grand Theft Auto V (GTA)", "Grand Theft Auto V"], "Counter-Strike 2": ["Counter-Strike 2"],
               "Indus": ["Indus Battle Royale", "Indus"], "PUBG: Battlegrounds": ["PUBG: Battlegrounds", "PUBG"]}
-NO_ART = {"Call of Duty", "EA Sports FC", "Cricket games", "Other", "Other tournaments"}   # several games share these names
+NO_ART = {"Call of Duty", "EA Sports FC", "Other", "Other tournaments"}   # several games share these names
 ART_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "gameart")
 _ART_BUSY = set()
 
