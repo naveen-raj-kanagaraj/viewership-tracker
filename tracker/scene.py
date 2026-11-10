@@ -44,9 +44,10 @@ INDIA_MARK = re.compile(r"[\u0900-\u0D7F]|\b(hindi|india|indian|desi|bharat|hing
                         r"marathi|bengali|bangla|punjabi|gujarati|odia|assamese|bgmi|bmps|bgis|bmsd|bmic|"
                         r"soulcity|mumbai|delhi|bangalore|bengaluru|hyderabad|chennai|kolkata|pune)\b", re.I)
 INDIA_CATS = {"kick": [x.strip() for x in os.getenv("SCENE_KICK_CATS", "PUBG Mobile,Free Fire,Grand Theft Auto V,"
-                                                   "Valorant,Just Chatting,Battlegrounds Mobile India").split(",") if x.strip()],
+                                                   "Valorant,Just Chatting,Battlegrounds Mobile India,Grand Theft Auto VI").split(",") if x.strip()],
               "twitch": [x.strip() for x in os.getenv("SCENE_TWITCH_CATS", "PUBG MOBILE,Garena Free Fire,Grand Theft Auto V,"
-                                                     "VALORANT,Just Chatting,Battlegrounds Mobile India").split(",") if x.strip()]}
+                                                     "VALORANT,Just Chatting,Battlegrounds Mobile India,Grand Theft Auto VI").split(",") if x.strip()]}
+PINNED = [g.strip() for g in os.getenv("SCENE_PINNED", "GTA 6").split(",") if g.strip()]   # always first in Categories
 
 
 # Titles in Chinese, Japanese, Korean, Thai, Arabic or Cyrillic script are not Indian streams even when the
@@ -236,6 +237,7 @@ GAMES = [
     ("Rocket League", ["rocket league", "rlcs"]),
     ("Overwatch 2", ["overwatch", "owcs"]),
     ("Free Fire", ["free fire", "freefire", "ff max", "garena"]),
+    ("GTA 6", ["gta 6", "gta6", "gta vi ", "gta vi:", "gta vi|", "grand theft auto vi", "grand theft auto 6"]),  # before GTA V
     ("GTA V", ["gta", "grand theft auto", "soulcity", "soul city rp"]),
     ("Valorant", ["valorant", "valo "]),
     ("Minecraft", ["minecraft"]),
@@ -455,13 +457,13 @@ _NON_GAMING_WORDS = ("irl", "chatting", "music", "talk", "sports", "cricket", "s
 # (slug: 'bgmi', 'free-fire' ...) overrides everything.
 TWITCH_NAMES = {"BGMI": ["Battlegrounds Mobile India"], "PUBG: Battlegrounds": ["PUBG: BATTLEGROUNDS"],
                 "PUBG Mobile": ["PUBG MOBILE"], "Free Fire": ["Garena Free Fire", "Free Fire"],
-                "GTA V": ["Grand Theft Auto V"], "Valorant": ["VALORANT"], "COD Mobile": ["Call of Duty: Mobile"],
+                "GTA 6": ["Grand Theft Auto VI"], "GTA V": ["Grand Theft Auto V"], "Valorant": ["VALORANT"], "COD Mobile": ["Call of Duty: Mobile"],
                 "Call of Duty: Warzone": ["Call of Duty: Warzone"], "Call of Duty: Black Ops 7": ["Call of Duty: Black Ops 7"],
                 "Call of Duty: Black Ops 6": ["Call of Duty: Black Ops 6"], "Counter-Strike 2": ["Counter-Strike"],
                 "Pokemon Unite": ["Pokémon UNITE"], "Mobile Legends": ["Mobile Legends: Bang Bang"],
                 "Indus": ["Indus Battle Royale"], "IRL": ["IRL"], "Just Chatting": ["Just Chatting"], "Music": ["Music"]}
 KICK_NAMES = {"BGMI": ["Battlegrounds Mobile India"], "PUBG Mobile": ["PUBG Mobile"], "Free Fire": ["Free Fire", "Garena Free Fire"],
-              "GTA V": ["Grand Theft Auto V (GTA)", "Grand Theft Auto V"], "Counter-Strike 2": ["Counter-Strike 2"],
+              "GTA 6": ["Grand Theft Auto VI"], "GTA V": ["Grand Theft Auto V (GTA)", "Grand Theft Auto V"], "Counter-Strike 2": ["Counter-Strike 2"],
               "Indus": ["Indus Battle Royale", "Indus"], "PUBG: Battlegrounds": ["PUBG: Battlegrounds", "PUBG"]}
 NO_ART = {"Call of Duty", "EA Sports FC", "Other", "Other tournaments"}   # several games share these names
 ART_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "gameart")
@@ -1804,6 +1806,15 @@ def categories(region: str = "global", limit: int = 60, rng: str = "1m") -> dict
                      "h48": [s48.get(g, {}).get(h, 0) for h in range(h0, h0 + 49)],
                      "d30": [s30.get(g, {}).get(k, 0) for k in range(nb)],
                      "peak30": max(s30.get(g, {}).values(), default=x["viewers"]), "hw30": round(hw.get(g) or 0)})
+    for p in reversed(PINNED):            # pinned categories on top, even before their first live stream
+        hit = next((r for r in rows if r["game"] == p), None)
+        if hit:
+            rows.remove(hit)
+        else:
+            hit = {"game": p, "slug": slug(p), "art": cat_art(p), "section": section_of(p), "viewers": 0, "streams": 0,
+                   "ago": None, "change": None, "h48": [0] * 49, "d30": [0] * nb, "peak30": 0, "hw30": 0}
+        hit["pinned"] = True
+        rows.insert(0, hit)
     big = 300 if region == "in" else 2000
     trend = sorted([r for r in rows if r["change"] is not None and r["viewers"] >= big and (r["ago"] or 0) >= big / 4],
                    key=lambda r: -r["change"])[:5]

@@ -652,7 +652,8 @@ print("NO OTHER OK")
 cj = c.get("/api/cats?region=global").get_json()
 assert cj["rows"] and all(len(r["h48"]) == 49 and 1 <= len(r["d30"]) <= 31 for r in cj["rows"]) and "trending" in cj, cj["rows"][:1]
 assert c.get("/categories").status_code == 200 and c.get("/india/categories").status_code == 200
-slug0 = cj["rows"][0]["slug"]
+assert cj["rows"][0]["game"] == "GTA 6" and cj["rows"][0]["pinned"]          # pinned on top
+slug0 = next(r for r in cj["rows"] if not r.get("pinned"))["slug"]
 cm = c.get(f"/api/catmonths?cat={slug0}&region=global").get_json()
 assert cm["months"] and cm["last30"] and cm["peak_all"], cm
 assert c.get("/api/catmonths?cat=nope-nothing").status_code == 404
