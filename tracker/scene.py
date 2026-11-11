@@ -924,6 +924,8 @@ def _store(rows, now, last):
         return
     dt = min(now - last, SCENE_SEC * 2) if last else SCENE_SEC
     day = datetime.fromtimestamp(now, events.REPORT_TZ).strftime("%Y-%m-%d")
+    fpk = dict(_FPEAK)                        # 2-second readings since the last scan: the true peak in between
+    _FPEAK.clear()
     with store._lock:
         c = _db()
         c.executemany("INSERT INTO sc_samples VALUES (?,?,?,?)", [(int(now), x["sid"], x["viewers"], x["game"]) for x in rows])
@@ -940,7 +942,8 @@ def _store(rows, now, last):
             c.execute("""INSERT INTO sc_daily VALUES (?,?,?,?,?,?,?) ON CONFLICT(day, sid, game) DO UPDATE SET
                          peak_at=CASE WHEN excluded.peak > sc_daily.peak THEN excluded.peak_at ELSE sc_daily.peak_at END,
                          peak=MAX(sc_daily.peak, excluded.peak), mins=sc_daily.mins+excluded.mins, hw=sc_daily.hw+excluded.hw""",
-                      (day, x["sid"], x["game"], x["viewers"], int(now), dt / 60, x["viewers"] * dt / 3600))
+                      (day, x["sid"], x["game"], max(x["viewers"], fpk.get(x["sid"], 0)), int(now), dt / 60,
+                       x["viewers"] * dt / 3600))
         def totals(rs, key):
             out = {}
             for x in rs:
@@ -971,6 +974,12 @@ def _store(rows, now, last):
 
 FAST_SEC = float(os.getenv("SCENE_FAST_SEC", "2"))
 _FASTV = {}          # sid -> [ts, viewers or None, misses]: Kick/Twitch re-read every FAST_SEC between scans
+_FPEAK = {}          # sid -> highest 2-second reading since the last scan was stored (so daily peaks catch short spikes)
+
+
+def _fast_seen(sid: str, v: int):
+    if v and v > _FPEAK.get(sid, 0):
+        _FPEAK[sid] = v
 
 
 YT_FAST_N = int(os.getenv("SCENE_YT_FAST_N", "25"))   # biggest YouTube channels re-counted every FAST_SEC
@@ -1046,6 +1055,7 @@ def yt_fast_once(now: float = None) -> int:
             continue                          # couldn't read: keep the last value
         if v > 0:
             f[:] = [t, v, 0]
+            _fast_seen(sid, v)
         else:
             f[0], f[2] = t, f[2] + 1
             if f[2] >= 3:                     # no 'watching' count three times running: ended
@@ -1072,6 +1082,7 @@ def fast_once(now: float = None) -> int:
             f = _FASTV.setdefault(s, [t, None, 0])
             if s in got:
                 f[:] = [t, got[s], 0]
+                _fast_seen(s, got[s])
                 n += 1
             else:
                 f[0], f[2] = t, f[2] + 1
@@ -1624,6 +1635,46 @@ def _prev_ranks(c, region, game, sec, period) -> dict:
 RANK_PERIODS = {"day": 1, "week": 7, "month": 30}
 
 
+_RB = {}          # rankings: raw per-channel-per-game rows for a date window, shared by every filter combination
+_RB_LOCK = threading.Lock()
+
+
+def _rank_base(d0: str, d1: str, current: bool) -> list:
+    """sc_daily rows for days d0..d1 joined with their channel, cached (90 s while the window includes today,
+    an hour for past windows). Game, platform, section, country and region filters are applied in memory, so
+    changing a filter never touches the database."""
+    key, now = ("base", d0, d1), time.time()
+    hit = _RB.get(key)
+    if hit and now - hit[0] < (90 if current else 3600):
+        return hit[1]
+    with _RB_LOCK:
+        hit = _RB.get(key)
+        if hit and time.time() - hit[0] < (90 if current else 3600):
+            return hit[1]
+        with store._lock:
+            rows = [dict(r) for r in _db().execute(
+                """SELECT d.sid, d.game, MAX(d.peak) peak, SUM(d.mins) mins, SUM(d.hw) hw, c.name, c.platform, c.url, c.logo,
+                   c.country, COALESCE(c.india,1) india, c.last_live FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid
+                   WHERE d.day BETWEEN ? AND ? GROUP BY d.sid, d.game""", (d0, d1))]
+        _RB[key] = (time.time(), rows)
+        for k in [k for k, v in _RB.items() if isinstance(v, tuple) and time.time() - v[0] > 3600]:
+            _RB.pop(k, None)
+    return rows
+
+
+def _rank_extra(metric: str, d0: str, d1: str, current: bool) -> dict:
+    """Super Chats or views gained for a window, cached like _rank_base."""
+    from tracker import ytextra
+    key, now = (metric, d0, d1), time.time()
+    hit = _RB.get(key)
+    if hit and now - hit[0] < (300 if current else 3600):
+        return hit[1]
+    with _RB_LOCK:
+        val = ytextra.window_superchats(d0, d1) if metric == "sc" else ytextra.window_views(d0, d1)
+        _RB[key] = (time.time(), val)
+    return val
+
+
 def rankings(region="global", metric="hw", period="day", date="", cat="", country="", platform="", sec="", limit=100):
     """Leaderboard of channels for one day / the 7 or 30 days ending on `date` (IST), by hours watched, peak or
     average viewers, filtered by game, section, streamer country and platform, with each channel's move against the
@@ -1642,41 +1693,46 @@ def rankings(region="global", metric="hw", period="day", date="", cat="", countr
 
     def window(e):
         s_ = e - timedelta(days=n - 1)
-        q = """SELECT d.sid, d.game, MAX(d.peak) peak, SUM(d.mins) mins, SUM(d.hw) hw, c.name, c.platform, c.url, c.logo,
-               c.country, COALESCE(c.india,1) india, c.last_live FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid
-               WHERE d.day BETWEEN ? AND ?""" + (" AND COALESCE(c.india,1)=1" if region == "in" else "")
         args = [s_.strftime("%Y-%m-%d"), e.strftime("%Y-%m-%d")]
-        if game:
-            q += " AND d.game=?"
-            args.append(game)
-        if platform in platforms.NAMES:
-            q += " AND c.platform=?"
-            args.append(platform)
-        with store._lock:
-            rows = _db().execute(q + " GROUP BY d.sid, d.game", args).fetchall()
+        rows = _rank_base(args[0], args[1], e >= today)       # cached; every filter below runs in memory
         out, games, ctrs = {}, {}, {}
         blk = blocked()
+        secs, cts = {}, {}
         for r in rows:
-            if r["sid"] in blk or (sec and section_of(r["game"]) != sec):
+            sid, g = r["sid"], r["game"]
+            if sid in blk or (region == "in" and not r["india"]) or (game and g != game) \
+                    or (platform in platforms.NAMES and r["platform"] != platform):
                 continue
-            ct = country_of(r["country"]) or (country_of("IN") if r["india"] else None)
+            if sec:
+                if g not in secs:
+                    secs[g] = section_of(g)
+                if secs[g] != sec:
+                    continue
+            ck = (r["country"], r["india"])
+            if ck not in cts:
+                cts[ck] = country_of(r["country"]) or (country_of("IN") if r["india"] else None)
+            ct = cts[ck]
             if ct:
                 ctrs[ct[0]] = ct[2]
             if ctry and (not ct or ct[0] != ctry[0]):
                 continue
-            x = out.setdefault(r["sid"], {"sid": r["sid"], "name": r["name"] or r["sid"], "platform": r["platform"] or "",
-                                          "url": r["url"] or "", "logo": _logo({"sid": r["sid"], "logo": r["logo"]}),
-                                          "country": ct[0] if ct else "", "country_name": ct[2] if ct else "",
-                                          "last_live": r["last_live"], "peak": 0, "mins": 0.0, "hw": 0.0, "g": {}})
+            x = out.get(sid)
+            if x is None:
+                x = out[sid] = {"sid": sid, "name": r["name"] or sid, "platform": r["platform"] or "",
+                                "url": r["url"] or "", "logo": _logo({"sid": sid, "logo": r["logo"]}),
+                                "country": ct[0] if ct else "", "country_name": ct[2] if ct else "",
+                                "last_live": r["last_live"], "peak": 0, "mins": 0.0, "hw": 0.0, "g": {}}
             x["peak"] = max(x["peak"], r["peak"] or 0)
             x["mins"] += r["mins"] or 0
             x["hw"] += r["hw"] or 0
-            x["g"][r["game"]] = x["g"].get(r["game"], 0) + (r["hw"] or 0)
-            games[r["game"]] = games.get(r["game"], 0) + (r["hw"] or 0)
-        # Super Chats and views gained come from their own tables; channels not live in the period still rank by them
-        from tracker import ytextra
+            x["g"][g] = x["g"].get(g, 0) + (r["hw"] or 0)
+            games[g] = games.get(g, 0) + (r["hw"] or 0)
+        # Super Chats and views gained come from their own tables (read only when ranking by them);
+        # channels not live in the period still rank by them
         d0, d1 = args[0], args[1]
-        extra = {"sc": ytextra.window_superchats(d0, d1), "vg": ytextra.window_views(d0, d1)}
+        extra = {"sc": {}, "vg": {}}
+        if metric in ("sc", "vg"):
+            extra[metric] = _rank_extra(metric, d0, d1, e >= today)
         if metric in ("sc", "vg") and extra[metric]:
             missing = [sid for sid in extra[metric] if sid not in out and sid not in blk]
             for i in range(0, len(missing), 500):
@@ -1722,8 +1778,10 @@ def rankings(region="global", metric="hw", period="day", date="", cat="", countr
         x["rank"] = i + 1
         x["delta"] = prev[x["sid"]] - x["rank"] if x["sid"] in prev else None
         x["now"] = now.get(x["sid"], 0)
-    with store._lock:
-        first = _db().execute("SELECT MIN(day) FROM sc_daily").fetchone()[0]
+    if not _RB.get("first"):
+        with store._lock:
+            _RB["first"] = _db().execute("SELECT MIN(day) FROM sc_daily").fetchone()[0]
+    first = _RB["first"]
     return {"region": region, "metric": metric, "period": period, "date": end.strftime("%Y-%m-%d"),
             "start": (end - timedelta(days=n - 1)).strftime("%Y-%m-%d"), "first_day": first, "today": today.strftime("%Y-%m-%d"),
             "total": len(cur), "rows": cur[:limit],

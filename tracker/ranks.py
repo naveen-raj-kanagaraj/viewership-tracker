@@ -12,6 +12,8 @@ Metrics
 Country: YouTube's channel country, or India for channels detected as Indian. Category: YouTube's own category
 (Gaming, People & Blogs, Music ...) for YouTube channels, the section of their most-streamed game for Twitch / Kick.
 """
+import os
+import pickle
 import threading
 import time
 from datetime import datetime, timedelta
@@ -99,11 +101,35 @@ def compute():
                     rank[(r["sid"], m, gk[1])] = i + 1
     with _lock:
         _R.update(at=time.time(), rank=rank, tot=tot, rows={r["sid"]: r for r in rows})
+    try:                                   # kept on disk so a restart (every update) serves rankings instantly
+        tmp = CACHE + ".tmp"
+        with open(tmp, "wb") as f:
+            pickle.dump(dict(_R), f, protocol=pickle.HIGHEST_PROTOCOL)
+        os.replace(tmp, CACHE)
+    except Exception as e:
+        print(f"Ranks cache: {str(e)[:100]}")
     return len(rows)
 
 
+CACHE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "ranks_cache.pkl")
+
+
+def load_cache() -> bool:
+    try:
+        with open(CACHE, "rb") as f:
+            d = pickle.load(f)
+        if time.time() - d.get("at", 0) < 2 * 86400:
+            with _lock:
+                _R.update(d)
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def run_forever():
-    time.sleep(90)
+    load_cache()
+    time.sleep(5 if _R["at"] else 20)
     while True:
         try:
             compute()

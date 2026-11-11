@@ -54,6 +54,7 @@ select,.dt input{background:var(--card);border:1px solid var(--line);color:var(-
 .empty{padding:18px 14px;color:var(--muted)}.lbl{color:var(--red);font:12px "Barlow Condensed",sans-serif;letter-spacing:.06em;text-transform:uppercase}.muted{color:var(--muted)}
 .cx [data-ch]{display:none}
 .note{color:var(--muted);font-size:12px;margin-top:14px;line-height:1.6}
+.busy #podium,.busy .list{opacity:.45;transition:opacity .15s;pointer-events:none}
 __PANEL_CSS__
 @media(max-width:700px){.wrap{padding:0 12px 20px}.top .in{padding:9px 12px;gap:10px}.brand{font-size:15px}h1{font-size:28px}
 .filters{gap:6px}.seg button{padding:6px 8px;font-size:12px}select{max-width:48%}
@@ -101,6 +102,10 @@ const ini=s=>esc(String(s||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCa
 const av=x=>`<span class="av">${x.logo?`<img src="${esc(x.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=ph>${ini(x.name)}</span>'">`:`<span class="ph">${ini(x.name)}</span>`}<span class="bd" style="background:${COL[x.platform]||'#888'}">${(x.platform||'?')[0].toUpperCase()}</span></span>`;
 const dl=d=>d===null?'<span class="dl nw">NEW</span>':d>0?`<span class="dl up">&#9650;${d}</span>`:d<0?`<span class="dl dn">&#9660;${-d}</span>`:'<span class="dl" style="color:var(--muted)">=</span>';
 const liveMap=()=>{const m={};(R?R.rows:[]).forEach(x=>{if(x.now)m[x.sid]=x.now});return m};
+const JC=new Map();let SEQ=0;
+async function getJ(u,ttl,force){const h=JC.get(u);if(!force&&h&&Date.now()-h.t<ttl)return h.j;const j=await (await fetch(u)).json();JC.set(u,{t:Date.now(),j});return j}
+function pre(u,ttl){const h=JC.get(u);if(h&&Date.now()-h.t<ttl)return;fetch(u).then(r=>r.json()).then(j=>JC.set(u,{t:Date.now(),j})).catch(()=>{})}
+const busy=on=>document.body.classList.toggle('busy',on);
 const Q=new URLSearchParams(location.search);
 let S={period:['day','week','month'].includes(Q.get('period'))?Q.get('period'):'day',metric:Q.get('metric')||'hw',date:Q.get('date')||'',cat:Q.get('cat')||'',country:Q.get('country')||'',platform:Q.get('platform')||'',sec:Q.get('sec')||''};
 let R=null,OPEN=null,ALL=false;
@@ -116,8 +121,10 @@ function setMode(m){MODE=m;document.querySelector('h1').innerHTML=(m==='live'?'T
 async function goCh(){if(!CMS().some(x=>x[0]===C.metric))C.metric=CMS()[0][0];
  const p=new URLSearchParams({platform:C.platform,metric:C.metric});if(C.country)p.set('country',C.country);if(C.category)p.set('category',C.category);if(C.game)p.set('game',C.game);
  history.replaceState(null,'',location.pathname+'?'+new URLSearchParams({mode:'channels',...Object.fromEntries(p)}));
- try{CR=await (await fetch('/api/topch?'+p)).json()}catch(e){return}
- seg('cplat',[['youtube','YOUTUBE'],['twitch','TWITCH'],['kick','KICK']],C.platform,v=>{C.platform=v;C.category='';C.game='';goCh()});
+ const my=++SEQ;busy(true);let J;try{J=await getJ('/api/topch?'+p,60000)}catch(e){busy(false);return}if(my!==SEQ)return;busy(false);CR=J;
+ if(!CR.updated){setTimeout(()=>{if(MODE==='channels'){JC.delete('/api/topch?'+p);goCh()}},15000)}
+ setTimeout(()=>CMS().forEach(([m])=>{if(m!==C.metric){const q=new URLSearchParams(p);q.set('metric',m);pre('/api/topch?'+q,60000)}}),600);
+ seg('cplat',[['youtube','YOUTUBE'],['twitch','TWITCH'],['kick','KICK']],C.platform,v=>{if(v!==C.platform)C.metric=v==='youtube'?'vday':'size';C.platform=v;C.category='';C.game='';goCh()});
  seg('cmetric',CMS(),C.metric,v=>{C.metric=v;goCh()});
  const cc=document.getElementById('ccat');cc.innerHTML=`<option value="">${YT()?'All YouTube categories':'All sections'}</option>`+(CR.categories||[]).map(x=>`<option${x===C.category?' selected':''}>${esc(x)}</option>`).join('');
  const cg=document.getElementById('cgame');cg.innerHTML='<option value="">All games</option>'+(CR.games||[]).map(x=>`<option${x===C.game?' selected':''}>${esc(x)}</option>`).join('');
@@ -129,7 +136,7 @@ async function goCh(){if(!CMS().some(x=>x[0]===C.metric))C.metric=CMS()[0][0];
  const L=CR.rows||[],P=L.slice(0,3),ord=P.length===3?[P[1],P[0],P[2]]:P,link=x=>`${RP}/ch/${encodeURIComponent(x.sid)}`;
  document.getElementById('podium').innerHTML=ord.map(x=>`<a class="pd p${x.rank}" href="${link(x)}" style="text-decoration:none"><div class="md">#${x.rank}</div>${x.logo?`<img src="${esc(x.logo)}" alt="" referrerpolicy="no-referrer">`:`<span class="ph">${ini(x.name)}</span>`}<div class="n">${esc(x.name)}</div><div class="v">${CMV(C.metric,x[C.metric])}</div><div class="s">${esc([x.category,x.country_name].filter(Boolean).join(' · '))}</div></a>`).join('');
  document.getElementById('rows').innerHTML=L.slice(3,ALL?100:25).map(x=>`<a class="row" href="${link(x)}" style="text-decoration:none"><span class="rk">${x.rank}</span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">${esc([x.category,x.game&&x.game!==x.category?x.game:'',x.country_name].filter(Boolean).join(' · '))}</div></span>`+
-  [C.metric,...others].map((m,i)=>`<span class="c${i===0?' m':''} x${i+1}">${CMV(m,x[m])}</span>`).join('')+'</a>').join('')||(L.length?'':'<div class="empty">No channels here yet. Views per day need two daily snapshots of a channel, so this fills in from the day after a channel is first tracked.</div>');
+  [C.metric,...others].map((m,i)=>`<span class="c${i===0?' m':''} x${i+1}">${CMV(m,x[m])}</span>`).join('')+'</a>').join('')||(L.length?'':`<div class="empty">${!CR.updated?'Rankings are being calculated after a site update. This fills in by itself in a minute.':['vday','v7','growth'].includes(C.metric)?(YT()?'Views gained':'Followers gained')+' needs two daily readings of a channel, so it fills in from the day after a channel is first read. Try '+(YT()?'TOTAL VIEWS or SUBSCRIBERS':'FOLLOWERS or LIVE HOURS')+' meanwhile.':'No channels match these filters yet.'}</div>`);
  const mo=document.getElementById('more');mo.style.display=L.length>25?'block':'none';mo.textContent=ALL?'Show top 25':`Show top ${Math.min(100,L.length)}`;mo.onclick=()=>{ALL=!ALL;goCh()}}
 function seg(id,opts,cur,on){const e=document.getElementById(id);e.innerHTML=opts.map(([v,l])=>`<button data-v="${v}" class="${v===cur?'on':''}">${l}</button>`).join('');e.onclick=ev=>{const b=ev.target.closest('button');if(b)on(b.dataset.v)}}
 const shift=(d,n)=>{const t=new Date(d+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10)};
@@ -162,35 +169,57 @@ document.getElementById('prev').onclick=()=>{S.date=shift(R.date,-({day:1,week:7
 document.getElementById('next').onclick=()=>{S.date=shift(R.date,{day:1,week:7,month:30}[S.period]);if(S.date>R.today)S.date='';go()};
 document.getElementById('cat').onchange=e=>{S.cat=e.target.value;go()};document.getElementById('country').onchange=e=>{S.country=e.target.value;go()};
 document.getElementById('rows').addEventListener('click',e=>{if(e.target.closest('.cx'))return;const r=e.target.closest('.row.x');if(r)toggleRow(r.dataset.k)});
-async function go(){const p=new URLSearchParams({region:REGION,period:S.period,metric:S.metric});['date','cat','country','platform','sec'].forEach(k=>{if(S[k])p.set(k,S[k])});
+async function go(force){const p=new URLSearchParams({region:REGION,period:S.period,metric:S.metric});['date','cat','country','platform','sec'].forEach(k=>{if(S[k])p.set(k,S[k])});
  const u=new URLSearchParams(p);u.delete('region');history.replaceState(null,'',location.pathname+(u.toString()?'?'+u:''));
- try{R=await (await fetch('/api/rank?'+p)).json()}catch(e){return}OPEN=null;ALL=false;controls();render()}
-controls();setMode(MODE);setInterval(()=>{if(!document.hidden&&MODE==='live'&&R&&R.date===R.today)go()},60000);
+ const my=++SEQ;busy(true);let J;try{J=await getJ('/api/rank?'+p,45000,force)}catch(e){busy(false);return}if(my!==SEQ)return;busy(false);R=J;OPEN=null;ALL=false;controls();render();
+ setTimeout(()=>['hw','peak','avg','hours'].forEach(m=>{if(m!==S.metric){const q=new URLSearchParams(p);q.set('metric',m);pre('/api/rank?'+q,45000)}}),600)}
+controls();setMode(MODE);setInterval(()=>{if(!document.hidden&&MODE==='live'&&R&&R.date===R.today)go(true)},60000);
 // share: top 10 as an image
 let blob=null;
 function loadImg(u){return new Promise(r=>{if(!u)return r(null);const i=new Image();i.crossOrigin='anonymous';i.onload=()=>r(i);i.onerror=()=>r(null);i.src=u})}
 let FMT='post';
-async function makeCard(logos){const H=FMT==='story'?1920:1350,TOP=FMT==='story'?230:0,RH=FMT==='story'?110:96;
+async function makeCard(logos){const ST=FMT==='story',H=ST?1920:1350;
  const c=document.createElement('canvas');c.width=2160;c.height=H*2;const x=c.getContext('2d');x.scale(2,2);
- x.fillStyle='#0b0b12';x.fillRect(0,0,1080,H);x.translate(0,TOP);const g=x.createRadialGradient(860,-60,10,860,-60,700);g.addColorStop(0,'rgba(124,92,255,.22)');g.addColorStop(1,'rgba(124,92,255,0)');x.fillStyle=g;x.fillRect(0,-TOP,1080,H);
- x.fillStyle='#b6f23a';x.font='700 30px "Barlow Condensed",sans-serif';x.fillText('LETSGROWESPORTS',72,96);
+ x.fillStyle='#0b0b12';x.fillRect(0,0,1080,H);const g=x.createRadialGradient(860,ST?120:-60,10,860,ST?120:-60,760);g.addColorStop(0,'rgba(124,92,255,.24)');g.addColorStop(1,'rgba(124,92,255,0)');x.fillStyle=g;x.fillRect(0,0,1080,H);
+ const fit=(t,w)=>{t=String(t||'');while(x.measureText(t).width>w&&t.length>2)t=t.slice(0,-1);return t};
+ const shrink=(t,w,px,f)=>{t=String(t||'');let n=px;x.font=f.replace('#',n);while(x.measureText(t).width>w&&n>px*.7){n--;x.font=f.replace('#',n)}return fit(t,w)};
  const CH=MODE==='channels',cat=CH?(C.game||C.category):S.cat?(R.categories.find(g=>g.slug===S.cat)||{}).game||S.cat:'';
  const where=CH?(C.country?((CR.countries.find(z=>z.code===C.country)||{}).name||C.country):'WORLDWIDE'):(GL?'WORLDWIDE':'INDIA');
- x.fillStyle='#fff';x.font='700 64px "Barlow Condensed",sans-serif';const fit=(t,w)=>{while(x.measureText(t).width>w&&t.length>4)t=t.slice(0,-1);return t};
- x.fillText(fit(CH?'TOP '+(NAMES[C.platform]||'').toUpperCase()+' CHANNELS':'TOP STREAMERS '+(cat?'· '+cat.toUpperCase():where.toUpperCase()),936),72,170);
- if(CH){x.fillStyle='#b6f23a';x.font='700 34px "Barlow Condensed",sans-serif';x.fillText(fit([cat,where,'BY '+CML(C.metric)].filter(Boolean).join(' · ').toUpperCase(),936),72,215)}
- if(!CH){x.fillStyle='#8d8ca3';x.font='28px "Barlow Condensed",sans-serif';x.fillText(document.getElementById('span').textContent.toUpperCase().slice(0,62),72,215)}x.fillStyle='#262636';x.fillRect(72,245,936,2);
+ const y0=ST?210:64;
+ x.fillStyle='#b6f23a';x.font='700 30px "Barlow Condensed",sans-serif';x.fillText('LETSGROWESPORTS',72,y0+26);
+ x.fillStyle='#fff';x.font='700 64px "Barlow Condensed",sans-serif';
+ x.fillText(fit(CH?'TOP '+(NAMES[C.platform]||'').toUpperCase()+' CHANNELS':'TOP STREAMERS '+(cat?'· '+cat.toUpperCase():where.toUpperCase()),936),72,y0+100);
+ if(CH){x.fillStyle='#b6f23a';x.font='700 34px "Barlow Condensed",sans-serif';x.fillText(fit([cat,where,'BY '+CML(C.metric)].filter(Boolean).join(' · ').toUpperCase(),936),72,y0+145)}
+ else{x.fillStyle='#8d8ca3';x.fillText(shrink(document.getElementById('span').textContent.toUpperCase(),936,28,'#px "Barlow Condensed",sans-serif'),72,y0+145)}
+ x.fillStyle='#262636';x.fillRect(72,y0+170,936,2);
  const L=(CH?CR.rows:R.rows).slice(0,10),ims=logos?await Promise.all(L.map(s=>loadImg(s.logo))):[];
- L.forEach((s,i)=>{const y=285+i*RH;x.fillStyle=i<3?MEDAL[i]:'#8d8ca3';x.font='700 40px "Barlow Condensed",sans-serif';x.fillText(String(i+1).padStart(2,'0'),72,y+46);
-  if(ims[i]){x.save();x.beginPath();x.arc(180,y+34,30,0,7);x.clip();x.drawImage(ims[i],150,y+4,60,60);x.restore()}
-  x.fillStyle='#fff';x.font='700 36px "Barlow",sans-serif';let n=s.name;while(x.measureText(n).width>470&&n.length>3)n=n.slice(0,-2);x.fillText(n,232,y+30);
-  x.font='600 22px "Barlow Condensed",sans-serif';
-  if(CH){x.fillStyle='#8d8ca3';x.fillText([s.category,s.game&&s.game!==s.category?s.game:'',s.country_name].filter(Boolean).join(' · ').toUpperCase().slice(0,44),232,y+64)}
-  else{x.fillStyle=s.delta>0?'#3ddc84':s.delta<0?'#ff4d5e':'#a58bff';x.fillText((s.delta===null?'NEW':s.delta>0?'▲'+s.delta:s.delta<0?'▼'+(-s.delta):'=')+'  ',232,y+64);
-  x.fillStyle='#8d8ca3';x.fillText(`${(NAMES[s.platform]||'').toUpperCase()} · PEAK ${fmt(s.peak)} · AVG ${fmt(s.avg)}`,300,y+64)}
-  x.textAlign='right';x.fillStyle='#fff';x.font='700 44px "Barlow Condensed",sans-serif';x.fillText(CH?CMV(C.metric,s[C.metric]):MET[S.metric][1](s[S.metric]),1008,y+46);
-  if(CH){x.font='600 18px "Barlow Condensed",sans-serif';x.fillStyle='#8d8ca3';x.fillText(CML(C.metric),1008,y+70)}x.textAlign='left';x.fillStyle='#1d1d2b';x.fillRect(72,y+84,936,1)});
- x.fillStyle='#8d8ca3';x.font='26px "Barlow Condensed",sans-serif';x.setTransform(2,0,0,2,0,0);x.fillStyle='#8d8ca3';x.font='26px "Barlow Condensed",sans-serif';x.fillText((SITE+location.pathname).replace('https://','')+'  ·  '+new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}),72,H-(FMT==='story'?240:50));
+ const val=s=>CH?CMV(C.metric,s[C.metric]):MET[S.metric][1](s[S.metric]);
+ const sub=s=>CH?[s.category,s.game&&s.game!==s.category?s.game:'',s.country_name].filter(Boolean).join(' · '):[s.game,'PEAK '+fmt(s.peak)].filter(Boolean).join(' · ');
+ const dtxt=d=>d===null?['NEW','#a58bff']:d>0?['▲'+d,'#3ddc84']:d<0?['▼'+(-d),'#ff4d5e']:['=','#8d8ca3'];
+ const face=(im,s,cx,cy,r,ring)=>{x.save();x.beginPath();x.arc(cx,cy,r,0,7);x.fillStyle='#1a1a26';x.fill();if(im){x.clip();x.drawImage(im,cx-r,cy-r,2*r,2*r)}else{x.fillStyle='#8d8ca3';x.font=`700 ${Math.round(r*.7)}px "Barlow",sans-serif`;x.textAlign='center';x.fillText(String(s.name||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase(),cx,cy+r*.25)}x.restore();
+  x.beginPath();x.arc(cx,cy,r,0,7);x.lineWidth=ring?4:2;x.strokeStyle=ring||'#262636';x.stroke()};
+ // podium: #2 left, #1 centre (taller), #3 right
+ const pTop=y0+190,pH=ST?480:390,W=296,GP=24,O=ST?{rk:66,g:30,n:52,v:66,s:40,r:[86,72]}:{rk:54,g:22,n:44,v:54,s:34,r:[64,54]};
+ [1,0,2].forEach((i,j)=>{const s=L[i];if(!s)return;const bx=72+j*(W+GP),by=pTop+(i?50:0),bh=pH-(i?50:0),cx=bx+W/2,col=MEDAL[i];
+  x.fillStyle='#13131c';x.fillRect(bx,by,W,bh);if(!i){const gg=x.createLinearGradient(0,by,0,by+bh*.6);gg.addColorStop(0,'rgba(255,210,63,.16)');gg.addColorStop(1,'rgba(255,210,63,0)');x.fillStyle=gg;x.fillRect(bx,by,W,bh)}
+  x.lineWidth=2;x.strokeStyle=col;x.strokeRect(bx+1,by+1,W-2,bh-2);
+  x.textAlign='center';x.fillStyle=col;x.font=`700 ${i?50:62}px "Barlow Condensed",sans-serif`;const rt='#'+(i+1);x.fillText(rt,cx,by+O.rk);
+  if(!CH){const [t,dc]=dtxt(s.delta);const w=x.measureText(rt).width;x.textAlign='left';x.fillStyle=dc;x.font='700 24px "Barlow Condensed",sans-serif';x.fillText(t,cx+w/2+8,by+O.rk);x.textAlign='center'}
+  const r=O.r[i?1:0],cy=by+O.rk+O.g+r;face(ims[i],s,cx,cy,r,col);x.textAlign='center';
+  x.fillStyle='#fff';x.fillText(shrink(s.name,W-24,ST?32:28,'700 #px "Barlow",sans-serif'),cx,cy+r+O.n);
+  x.font=`700 ${ST?60:50}px "Barlow Condensed",sans-serif`;x.fillText(val(s),cx,cy+r+O.n+O.v);
+  x.fillStyle='#8d8ca3';x.font=`600 ${ST?22:20}px "Barlow Condensed",sans-serif`;x.fillText(fit(sub(s).toUpperCase(),W-24),cx,cy+r+O.n+O.v+O.s);x.textAlign='left'});
+ // 4 to 10
+ const rS=pTop+pH+(ST?36:24),RH=ST?100:88;
+ L.slice(3).forEach((s,k)=>{const i=k+3,y=rS+k*RH;x.fillStyle='#8d8ca3';x.font='700 40px "Barlow Condensed",sans-serif';x.fillText(String(i+1).padStart(2,'0'),72,y+46);
+  face(ims[i],s,180,y+34,30,null);
+  x.fillStyle='#fff';x.font='700 34px "Barlow",sans-serif';x.fillText(fit(s.name,470),232,y+32);
+  x.font='600 22px "Barlow Condensed",sans-serif';let sx=232;
+  if(!CH){const [t,dc]=dtxt(s.delta);x.fillStyle=dc;x.fillText(t,sx,y+64);sx+=x.measureText(t).width+14}
+  x.fillStyle='#8d8ca3';x.fillText(fit((CH?sub(s):`${(NAMES[s.platform]||'').toUpperCase()} · PEAK ${fmt(s.peak)} · AVG ${fmt(s.avg)}`).toUpperCase(),520-(sx-232)),sx,y+64);
+  x.textAlign='right';x.fillStyle='#fff';x.font='700 44px "Barlow Condensed",sans-serif';x.fillText(val(s),1008,y+46);
+  if(CH){x.font='600 18px "Barlow Condensed",sans-serif';x.fillStyle='#8d8ca3';x.fillText(CML(C.metric),1008,y+70)}x.textAlign='left';x.fillStyle='#1d1d2b';x.fillRect(72,y+RH-12,936,1)});
+ x.fillStyle='#8d8ca3';x.font='26px "Barlow Condensed",sans-serif';x.fillText((SITE+location.pathname).replace('https://','')+'  ·  '+new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}),72,H-(ST?230:30));
  return new Promise(r=>{try{c.toBlob(r,'image/png')}catch(e){r(null)}})}
 document.getElementById('share').onclick=async()=>{const L0=MODE==='channels'?(CR&&CR.rows):(R&&R.rows);if(!L0||!L0.length)return;try{await document.fonts.ready}catch(e){}blob=await makeCard(true)||await makeCard(false);
  document.getElementById('mimg').src=URL.createObjectURL(blob);document.getElementById('modal').style.display='flex'};

@@ -1035,9 +1035,11 @@ def twitch_followers(logins: list) -> dict:
     """{login: followers}. Needs the connected Twitch account (track.py twitch-login); Twitch only gives follower totals
     to logged-in accounts."""
     from tracker import moments
-    tok = moments._user_token()
-    if not tok or not logins:
+    if not logins:
         return {}
+    tok = moments._user_token()
+    if not tok:
+        return _twitch_followers_public(logins)
     cid = (platforms._keys("twitch") or ("",))[0]
     users, out = _twitch_users(logins), {}
     for login, u in users.items():
@@ -1045,6 +1047,32 @@ def twitch_followers(logins: list) -> dict:
                                 headers={"Authorization": f"Bearer {tok}", "Client-Id": cid}, timeout=10)
         if r.status_code == 200:
             out[login] = int(r.json().get("total") or 0)
+    return out
+
+
+_GQL_CID = "kimne78kx3ncx6brgo4mv6wki5h1ko"     # the public client id twitch.tv itself uses
+
+
+def _twitch_followers_public(logins: list) -> dict:
+    """{login: followers} without a connected account: Twitch's own public website API (the follower count shown on
+    every channel page). Unofficial, so it is only the fallback; batches of 30."""
+    out = {}
+    logins = [l.lower() for l in logins if re.fullmatch(r"[a-z0-9_]{2,40}", l.lower())]
+    for i in range(0, len(logins), 30):
+        part = logins[i:i + 30]
+        body = [{"query": 'query{user(login:"%s"){login followers{totalCount}}}' % l} for l in part]
+        try:
+            r = platforms._http.post("https://gql.twitch.tv/gql", json=body, headers={"Client-Id": _GQL_CID}, timeout=15)
+            if r.status_code != 200:
+                break
+            for item in r.json() if isinstance(r.json(), list) else []:
+                u = ((item or {}).get("data") or {}).get("user") or {}
+                n = (u.get("followers") or {}).get("totalCount")
+                if u.get("login") and isinstance(n, int):
+                    out[u["login"].lower()] = n
+        except Exception as e:
+            print(f"Twitch followers (public): {str(e)[:100]}")
+            break
     return out
 
 
