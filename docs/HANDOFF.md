@@ -190,6 +190,13 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- Game and accuracy fixes (11 Nov 2026): a bare "PUBG" title is PUBG: Battlegrounds (PC), no longer PUBG Mobile
+  (which Indian channels turn into BGMI). CarryisLive's PUBG PC streams had been filed as BGMI; startup migration
+  scene_mig_pubgpc moves his readings, daily rows and category totals (scene._move_game, scene.PUBG_PC_FIX).
+  YouTube 2-second counts now cover the top 25 worldwide plus the top 25 Indian streams (SCENE_YT_FAST_IN);
+  Super Chats are read for the top 50 worldwide plus the top 50 Indian streams (SUPERCHAT_TOP_IN).
+  tests/test_pubg.py covers both.
+
 - Speed and accuracy pass (11 Nov 2026): /api/rank reads sc_daily once per date window (scene._rank_base, cached 90 s
   for windows including today, 1 h for past ones) and applies game/platform/section/country filters in memory;
   Super Chats / views gained are read only when ranking by them. Rankings page caches answers in the browser,
