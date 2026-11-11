@@ -2,7 +2,8 @@
 videos) for every YouTube channel the site has seen live.
 
 Super Chats
-  The live chat of the top SUPERCHAT_TOP YouTube streams (by viewers, any country) is read the way the YouTube
+  The live chat of the top SUPERCHAT_TOP YouTube streams (by viewers, any country) and the top SUPERCHAT_TOP_IN
+  Indian ones is read the way the YouTube
   player reads it: the chat popout page gives the first continuation, then youtubei/v1/live_chat/get_live_chat
   returns new chat actions and the next continuation every few seconds. Paid items are stored once each (by their
   chat id) in sc_superchat:
@@ -29,11 +30,12 @@ from datetime import datetime, timedelta
 from tracker import events, platforms, store
 
 SUPERCHAT_TOP = int(os.getenv("SUPERCHAT_TOP", "50"))       # how many of the biggest YouTube streams to read chat for
+SUPERCHAT_TOP_IN = int(os.getenv("SUPERCHAT_TOP_IN", "50"))  # plus the biggest Indian ones (India totals need them)
 SUPERCHAT_ON = os.getenv("SUPERCHAT", "true").lower() == "true"
 STATS_ON = os.getenv("CHANNEL_STATS", "true").lower() == "true"
 # channels snapshotted per day, most watched first: 50 per API unit, so 300,000 channels = 6,000 units
 STATS_MAX = int(os.getenv("CHANNEL_STATS_MAX", "300000" if os.getenv("YOUTUBE_API_KEY") else "3000"))
-_pool = ThreadPoolExecutor(6)
+_pool = ThreadPoolExecutor(10)
 
 # ---------- storage ----------
 
@@ -266,7 +268,8 @@ def _targets() -> dict:
     from tracker import scene
     rows = [r for r in scene._SCAN.get("rows") or [] if r.get("platform") == "youtube" and (r.get("url") or "").startswith("https://youtu.be/")]
     rows.sort(key=lambda r: -(r.get("viewers") or 0))
-    return {r["url"].rsplit("/", 1)[-1]: r["sid"] for r in rows[:SUPERCHAT_TOP]}
+    pick = rows[:SUPERCHAT_TOP] + [r for r in rows if r.get("india")][:SUPERCHAT_TOP_IN]
+    return {r["url"].rsplit("/", 1)[-1]: r["sid"] for r in pick}
 
 
 def _poll(vid: str):

@@ -230,9 +230,12 @@ def platform_india(p: str, errors: dict) -> list:
 
 # (game, words in a platform category or a stream title). Order matters: the first match wins.
 GAMES = [
-    ("PUBG: Battlegrounds", ["pubg: battlegrounds", "pubg pc", "pubg battlegrounds", "pubg steam"]),
+    ("PUBG: Battlegrounds", ["pubg: battlegrounds", "pubg pc", "pubg battlegrounds", "pubg steam", "playerunknown"]),
     ("BGMI", ["bgmi", "battlegrounds mobile india", "bmps", "bgis", "bmsd", "bmic", "bmoc"]),
-    ("PUBG Mobile", ["pubg mobile", "pmgc", "pmwi", "pmsl", "pmpl", "pmrc", "battlegrounds mobile", "pubg"]),
+    ("PUBG Mobile", ["pubg mobile", "pmgc", "pmwi", "pmsl", "pmpl", "pmrc", "battlegrounds mobile"]),
+    # a bare "PUBG" (no "mobile", no "BGMI") is the PC game: CarryMinati's "PUBG ME DIWALI CELEBRATION" is
+    # PLAYERUNKNOWN'S BATTLEGROUNDS on PC, and BGMI streamers write BGMI
+    ("PUBG: Battlegrounds", ["pubg"]),
     ("Mobile Legends", ["mobile legends", "mlbb", "mpl ", "msc "]),
     ("Rocket League", ["rocket league", "rlcs"]),
     ("Overwatch 2", ["overwatch", "owcs"]),
@@ -381,6 +384,14 @@ def _db():
                 pass
         c.commit()
         store.kv_set("scene_mig_pubg", True)
+    if not _COLS and not store.kv_get("scene_mig_pubgpc"):   # bare "PUBG" titles were filed as BGMI: move them
+        for sid in PUBG_PC_FIX:
+            try:
+                _move_game(c, sid, "BGMI", "PUBG: Battlegrounds")
+            except Exception as e:
+                print(f"PUBG fix {sid}: {e}")
+        c.commit()
+        store.kv_set("scene_mig_pubgpc", True)
     if not _COLS and not store.kv_get("scene_mig_cricket"):   # one Cricket category, under Sports
         old = "('Cricket games','Cricket (live)')"
         for t, key in (("sc_cat", "ts"), ("sc_reg", "ts, region")):
@@ -410,6 +421,30 @@ def _db():
 
 
 _COLS = []
+PUBG_PC_FIX = ["yt:UC0IWRLai-BAwci_e9MylNGw"]      # CarryisLive: PUBG PC streams that were counted as BGMI
+
+
+def _move_game(c, sid: str, old: str, new: str):
+    """Re-file one channel's readings from game `old` to `new`: its per-scan readings, daily rows, and the
+    category totals those readings were added to (India totals and worldwide per-game totals)."""
+    for ts, v in c.execute("SELECT ts, viewers FROM sc_samples WHERE sid=? AND game=?", (sid, old)).fetchall():
+        for t, key, args in (("sc_cat", "ts", (ts,)), ("sc_reg", "ts, region", (ts, "global"))):
+            where = "ts=?" + (" AND region=?" if t == "sc_reg" else "")
+            if not c.execute(f"SELECT 1 FROM {t} WHERE {where} AND game=?", (*args, old)).fetchone():
+                continue                    # not counted there (e.g. a channel outside India in sc_cat)
+            c.execute(f"UPDATE {t} SET viewers=MAX(0, viewers-?), streams=MAX(0, streams-1) WHERE {where} AND game=?",
+                      (v, *args, old))
+            c.execute(f"""INSERT INTO {t} ({key}, game, viewers, streams) VALUES ({','.join('?' * len(args))}, ?, ?, 1)
+                          ON CONFLICT DO UPDATE SET viewers=viewers+excluded.viewers, streams=streams+1""", (*args, new, v))
+    c.execute("UPDATE sc_samples SET game=? WHERE sid=? AND game=?", (new, sid, old))
+    for day, peak, pat, mins, hw in c.execute("SELECT day, peak, peak_at, mins, hw FROM sc_daily WHERE sid=? AND game=?",
+                                              (sid, old)).fetchall():
+        c.execute("""INSERT INTO sc_daily VALUES (?,?,?,?,?,?,?) ON CONFLICT(day, sid, game) DO UPDATE SET
+                     peak_at=CASE WHEN excluded.peak > sc_daily.peak THEN excluded.peak_at ELSE sc_daily.peak_at END,
+                     peak=MAX(sc_daily.peak, excluded.peak), mins=sc_daily.mins+excluded.mins, hw=sc_daily.hw+excluded.hw""",
+                  (day, sid, new, peak, pat, mins, hw))
+    c.execute("DELETE FROM sc_daily WHERE sid=? AND game=?", (sid, old))
+    c.execute("UPDATE sc_channels SET game=? WHERE sid=? AND game=?", (new, sid, old))
 
 
 def slug(game: str) -> str:
@@ -983,6 +1018,7 @@ def _fast_seen(sid: str, v: int):
 
 
 YT_FAST_N = int(os.getenv("SCENE_YT_FAST_N", "25"))   # biggest YouTube channels re-counted every FAST_SEC
+YT_FAST_IN = int(os.getenv("SCENE_YT_FAST_IN", "25"))  # plus the biggest Indian ones (most of this site's audience)
 _YTF = {"next": 0.0, "slow": 0}
 
 
@@ -1036,7 +1072,8 @@ def yt_fast_once(now: float = None) -> int:
         return 0
     with _lock:
         top = [(sid, list(x["streams"])) for sid, x in sorted(_LIVE.items(), key=lambda kv: -kv[1]["viewers"])
-               if x["platform"] == "youtube"][:YT_FAST_N]
+               if x["platform"] == "youtube"]
+        top = top[:YT_FAST_N] + [(sid, v) for sid, v in top[YT_FAST_N:] if _LIVE[sid].get("india")][:YT_FAST_IN]
         have = {sid for sid, _ in top}
         top += [(sid, list(_LIVE[sid]["streams"])) for sid, exp in list(HOT.items())   # channel pages open right now
                 if exp > t and sid in _LIVE and sid not in have and sid.startswith("yt:")][:20]
