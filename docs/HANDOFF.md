@@ -190,6 +190,11 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- YouTube API compliance (11 Nov 2026, ToS Violations Report V.1, project 869573729233): the reviewer flagged the
+  small coloured platform badge on avatars (a red square with "Y") as a non-compliant YouTube icon (III.F.2a).
+  Removed on every page; the platform is now plain text next to the name (.pf). Filter buttons say YOUTUBE, not YT.
+  Rule from now on: never draw YouTube's logo or an imitation of it; plain text "YouTube" only, unabbreviated.
+
 - Game and accuracy fixes (11 Nov 2026): a bare "PUBG" title is PUBG: Battlegrounds (PC), no longer PUBG Mobile
   (which Indian channels turn into BGMI). CarryisLive's PUBG PC streams had been filed as BGMI; startup migration
   scene_mig_pubgpc moves his readings, daily rows and category totals (scene._move_game, scene.PUBG_PC_FIX).

@@ -51,7 +51,7 @@ h2{margin:2px 0 0;font-size:20px}.big{font:700 44px/1 "Barlow Condensed",sans-se
 .row:last-child{border-bottom:0}.row .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row .ds{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .vv{font:600 16px "Barlow Condensed",sans-serif;text-align:right}
 .av{position:relative;width:34px;height:34px}.av img,.av .ph{width:34px;height:34px;border-radius:50%;object-fit:cover;background:var(--card2);border:1px solid var(--line);display:grid;place-items:center;font:700 11px "Barlow",sans-serif;color:var(--muted)}
-.av .bd{position:absolute;right:-3px;bottom:-3px;width:14px;height:14px;border-radius:4px;display:grid;place-items:center;font:700 8px "Barlow",sans-serif;color:#0b0b12;border:2px solid var(--card)}
+.av .bd{position:absolute;right:-3px;bottom:-3px;width:14px;height:14px;border-radius:4px;display:grid;place-items:center;font:700 8px "Barlow",sans-serif;color:#0b0b12;border:2px solid var(--card)}.pf{font:500 11px Barlow,sans-serif;color:var(--muted);margin-left:6px;letter-spacing:.02em}
 .rank{margin-top:8px;display:grid;gap:2px}
 .cr{display:grid;grid-template-columns:22px minmax(0,1fr) 70px;gap:8px;align-items:center;padding:6px 6px;cursor:pointer;border:1px solid transparent;font-size:14px}
 .cr:hover,.cr.on{background:var(--card2);border-color:var(--line)}.cr.on{border-color:var(--lime)}
@@ -98,7 +98,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const fmt=n=>{n=+n||0;return n>=1e9?(n/1e9).toFixed(2)+'B':n>=1e7?(n/1e6).toFixed(1)+'M':n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e4?(n/1e3).toFixed(1)+'K':Math.round(n).toLocaleString('en-IN')};
 const full=n=>Math.round(+n||0).toLocaleString('en-IN');
 const ini=s=>esc(String(s||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase()||'?');
-const av=x=>`<span class="av">${x.logo?`<img src="${esc(x.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=ph>${ini(x.name)}</span>'">`:`<span class="ph">${ini(x.name)}</span>`}<span class="bd" style="background:${COL[x.platform]||'#888'}">${(x.platform||'?')[0].toUpperCase()}</span></span>`;
+const av=x=>`<span class="av">${x.logo?`<img src="${esc(x.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=ph>${ini(x.name)}</span>'">`:`<span class="ph">${ini(x.name)}</span>`}</span>`;
 const cv=document.getElementById('gl'),ctx=cv.getContext('2d'),tip=document.getElementById('tip'),TOUCH=window.matchMedia('(hover:none)').matches;
 let W=0,H=0,R=0,zoom=1,rot=[-60,-20,0],spin=true,idleT=0,G=null,BY={},RANK={},MAX=1,FEATS=[],sel=null,hover=null,anim=null,selCat='';
 const SPEED=24;   // degrees per second
@@ -180,7 +180,7 @@ function renderSide(){const box=document.getElementById('sel');if(!box)return;if
   <div class="kv"><div>${selCat?S.length:d.channels}<small>LIVE CHANNELS</small></div><div>${tot?(100*(selCat&&cg?cg.viewers:d.viewers)/tot).toFixed(1):0}%<small>OF EVERYONE TRACKED</small></div></div>
   <div class="gm"><a href="#" data-g="" class="${selCat?'':'on'}">All</a>${d.games.map(g=>`<a href="#" data-g="${esc(g.game)}" class="${selCat===g.game?'on':''}">${esc(g.game)}<b>${fmt(g.viewers)}</b></a>`).join('')}</div>
   ${selCat&&cg?`<a class="go" href="${catLink(d,cg)}">${d.country==='IN'?'Open '+esc(selCat)+' in India':'Open '+esc(selCat)+' worldwide'} &rarr;</a>`:''}
-  <div style="margin-top:8px">${S.slice(0,12).map(x=>`<a class="row" href="${esc(x.url)}" target="_blank" rel="noopener">${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="ds">${esc(x.game)}</div></span><span class="vv">${full(x.viewers)}</span></a>`).join('')||'<div class="empty">Nothing live.</div>'}</div>
+  <div style="margin-top:8px">${S.slice(0,12).map(x=>`<a class="row" href="${esc(x.url)}" target="_blank" rel="noopener">${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}<span class="pf">${({youtube:'YouTube',kick:'Kick',twitch:'Twitch'})[x.platform]||''}</span></div><div class="ds">${esc(x.game)}</div></span><span class="vv">${full(x.viewers)}</span></a>`).join('')||'<div class="empty">Nothing live.</div>'}</div>
   ${d.country==='IN'&&!selCat?'<a class="go" href="/india">Full India dashboard &rarr;</a>':''}`;
  box.querySelectorAll('.gm a').forEach(a=>a.onclick=e=>{e.preventDefault();selCat=a.dataset.g;renderSide()})}
 function renderRank(){const el=document.getElementById('rank');if(!el)return;const C=(G?G.countries:[]).slice(0,30);
