@@ -982,7 +982,11 @@ def robots():
 
 WARM = ["/", "/india", "/api/cats?region=global&range=24h", "/api/cats?region=in&range=24h", "/categories", "/india/categories", "/api/home?region=global", "/api/home?region=in", "/api/scene?region=global&period=today", "/api/scene?region=in&period=today",
         "/api/scene/live?region=global", "/api/scene/live?region=in", "/rankings", "/api/rank?region=global&period=day&metric=hw",
-        "/api/rank?region=in&period=day&metric=hw", "/map", "/api/geo", "/moments", "/api/moments?region=global&period=7d"]
+        "/api/rank?region=in&period=day&metric=hw", "/map", "/api/geo", "/moments", "/api/moments?region=global&period=7d",
+        "/india/rankings", "/api/rank?region=in&period=week&metric=peak", "/api/rank?region=global&period=week&metric=hw",
+        "/api/topch?platform=youtube&metric=vday", "/api/topch?platform=youtube&metric=vday&country=IN",
+        "/api/topch?platform=twitch&metric=size&country=IN", "/api/topch?platform=kick&metric=size&country=IN",
+        "/c/gta-6", "/india/c/gta-6", "/api/scene?region=global&cat=gta-6&period=today", "/api/scene?region=in&cat=gta-6&period=today"]
 
 
 def _warm_forever():

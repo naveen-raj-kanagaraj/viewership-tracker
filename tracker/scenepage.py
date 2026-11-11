@@ -169,7 +169,7 @@ input{background:var(--card2);border:1px solid var(--line);color:var(--ink);font
 .sres{position:absolute;z-index:40;left:16px;right:16px;top:100%;margin-top:-6px;background:var(--bg2);border:1px solid var(--line);max-height:70vh;overflow:auto;box-shadow:0 20px 40px rgba(0,0,0,.5)}
 .sres:empty{display:none}.sres .h{padding:8px 14px 4px;font:12px "Barlow Condensed",sans-serif;color:var(--muted);letter-spacing:.06em}
 .sres .gc{margin:4px 14px;background:var(--card)}
-.secnav a.mapl{color:var(--lime)}
+.secnav a.mapl{color:var(--lime)}.secnav a.g6{color:#ff4f93;font-weight:600}.secnav a.g6.on{border-bottom-color:#ff2d78}
 .hist{margin-top:12px;display:grid;gap:5px}
 .hr{display:grid;grid-template-columns:150px minmax(0,1fr) 64px;gap:10px;align-items:center;font-size:13px}
 .hr .hb{height:16px;background:var(--line);position:relative}.hr .hb div{height:100%;background:linear-gradient(90deg,#5b47c8,var(--purple))}
@@ -189,7 +189,7 @@ body{font-size:14px}.wrap{padding:0 12px 20px}
 .secnav{padding:8px 12px 10px;gap:6px;flex-wrap:nowrap;overflow-x:auto;-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
 .secnav a{display:flex;align-items:center;gap:6px;padding:6px 11px;border:1px solid var(--line);border-radius:99px;font-size:13px;background:var(--card)}
 .secnav a i{display:inline-flex;color:var(--lime)}.secnav a b{margin-left:2px;font-size:11px}
-.secnav a.on{background:var(--lime);color:#0b0b12;border-color:var(--lime)}.secnav a.on i,.secnav a.on b{color:#0b0b12}.secnav a.z{opacity:.5}
+.secnav a.on{background:var(--lime);color:#0b0b12;border-color:var(--lime)}.secnav a.g6{border-color:#ff2d78}.secnav a.g6 i{color:#ff4f93}.secnav a.g6.on{background:#ff2d78;color:#fff}.secnav a.on i,.secnav a.on b{color:#0b0b12}.secnav a.z{opacity:.5}
 .crumb{margin-top:12px;font-size:11px}h1{font-size:24px;margin:4px 0}.intro{font-size:13px;color:var(--muted)}
 .hero{margin-top:12px;gap:8px}.kpis,.hero:not(.noglobe) .kpis{grid-template-columns:repeat(3,1fr);gap:8px}.gcard iframe{min-height:280px}.hchart{height:250px}
 .cx{padding:10px 12px 12px}.cxc{grid-template-columns:1fr}.cxt td{font-size:14px;padding:4px 3px}.cxt th{padding:4px 3px;font-size:10px}.cxt td:first-child{font-size:12px}
@@ -385,7 +385,7 @@ const boardList=()=>{const lm=liveMap();return (D.board||[]).filter(x=>bplat==='
 function render(){if(!D)return;const K=D.kpis||{};
  updLabel();
  const S=D.sections||[];
- setH('secnav',`<a href="${HOME}" class="${!SEC&&!CAT?'on':''}"><i>${svg('overview',14)}</i>Overview<b>${D.fresh?fmt(D.india_total):''}</b></a><a href="${RP}/rankings" class="mapl"><i>${svg('rank',14)}</i>Rankings</a><a href="${RP}/categories" class="mapl"><i>${svg('overview',14)}</i>Categories</a><a href="${RP}/moments" class="mapl"><i>${svg('bolt',14)}</i>Moments</a><a href="/map" class="mapl"><i>${svg('globe',14)}</i>World map</a><a href="${RP}/compare" class="mapl"><i>${svg('overview',14)}</i>Compare</a>`+S.slice().sort((a,b)=>b.viewers-a.viewers).map(s=>`<a href="${SU(s.key)}" class="${SEC===s.key?'on':''}${s.viewers?'':' z'}"><i>${svg(s.key,14)}</i>${esc(s.name)}<b>${s.viewers?fmt(s.viewers):''}</b></a>`).join(''));
+ setH('secnav',`<a href="${HOME}" class="${!SEC&&!CAT?'on':''}"><i>${svg('overview',14)}</i>Overview<b>${D.fresh?fmt(D.india_total):''}</b></a><a href="${RP}/c/gta-6" class="g6${CAT==='gta-6'?' on':''}"><i>${svg('gaming',14)}</i>GTA 6<b>${(((D.categories||[]).find(g=>g.slug==='gta-6')||{}).viewers)?fmt(D.categories.find(g=>g.slug==='gta-6').viewers):''}</b></a><a href="${RP}/rankings" class="mapl"><i>${svg('rank',14)}</i>Rankings</a><a href="${RP}/categories" class="mapl"><i>${svg('overview',14)}</i>Categories</a><a href="${RP}/moments" class="mapl"><i>${svg('bolt',14)}</i>Moments</a><a href="/map" class="mapl"><i>${svg('globe',14)}</i>World map</a><a href="${RP}/compare" class="mapl"><i>${svg('overview',14)}</i>Compare</a>`+S.slice().sort((a,b)=>b.viewers-a.viewers).map(s=>`<a href="${SU(s.key)}" class="${SEC===s.key?'on':''}${s.viewers?'':' z'}"><i>${svg(s.key,14)}</i>${esc(s.name)}<b>${s.viewers?fmt(s.viewers):''}</b></a>`).join(''));
  if(!window._navScrolled){const on=document.querySelector('.secnav a.on');if(on&&on.scrollIntoView){on.scrollIntoView({inline:'center',block:'nearest'});window._navScrolled=1}}
  setT('k1l','Watching now'+(CAT||SEC?' · '+(CAT?CATNAME:SECNAME[SEC]):''));if(D.fresh)tw('k1',K.watching,full);else setT('k1','-');
  const tot=K.watching||1;setH('pbar',(D.platforms||[]).map(p=>`<div style="width:${100*p.viewers/tot}%;background:${COL[p.platform]}"></div>`).join(''));

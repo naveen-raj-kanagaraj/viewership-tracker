@@ -190,6 +190,17 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- Speed and accuracy pass (11 Nov 2026): /api/rank reads sc_daily once per date window (scene._rank_base, cached 90 s
+  for windows including today, 1 h for past ones) and applies game/platform/section/country filters in memory;
+  Super Chats / views gained are read only when ranking by them. Rankings page caches answers in the browser,
+  drops stale responses, shows a loading state and pre-loads the other metrics. Daily peaks now include the
+  2-second readings (scene._FPEAK), not only the 2-minute scans, so short spikes are no longer missed (only from
+  this deploy on; older days keep their scan-only peaks). Channel ranks are saved to data/ranks_cache.pkl and
+  loaded on start (previously empty for minutes after every restart). Twitch follower counts fall back to Twitch's
+  public website API when no account is connected (ytextra._twitch_followers_public). GTA 6 tab in the dashboard
+  nav. Share cards (post and story) show a top-3 podium. tests/test_plat.py fails on main at the BMIC home-preset
+  assertion (BMIC is marked ended); not yet updated.
+
 As of 26 Oct 2026:
 - BMSD 2026: finished, peak 653K. Results and Predict & Win winners published.
 - BMIC 2026: countdown to 30 Oct 2026 12:30 IST. 22 permitted watch parties (owner's list, 29 Oct): events.ROSTER_BMIC,
