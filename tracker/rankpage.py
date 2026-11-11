@@ -86,7 +86,7 @@ __PANEL_CSS__
 <div class="note"><b>Super Chats</b>: what viewers paid in Super Chats and Super Stickers on the biggest YouTube live streams (the top 50 by viewers at any moment), converted at the day's exchange rate, before YouTube's cut. Smaller streams' Super Chats aren't read. <b>Views gained</b>: growth of a YouTube channel's total views (all its videos, not only live) between daily snapshots; it starts counting the day after a channel is first snapshotted. Hours watched = viewers x time live. Peak = most people watching at once. Average = hours watched / hours live. Days run midnight to midnight IST. Rank arrows compare with the period before (yesterday, last week, last month). Total views aren't published by Kick and Twitch for live streams, so they're not ranked here.</div>
 </div>
 <div class="modal" id="modal" style="position:fixed;inset:0;z-index:60;background:rgba(3,2,12,.82);display:none;align-items:center;justify-content:center;padding:16px"><div style="background:var(--bg2);border:1px solid var(--line);padding:14px;max-width:440px;width:100%;max-height:94vh;overflow:auto">
- <img id="mimg" alt="Share card" style="width:100%;display:block;border:1px solid var(--line);margin-bottom:10px"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="mshare">SHARE</button><button class="btn" id="mdl">DOWNLOAD</button><button class="btn" id="mcopy">COPY LINK</button><button class="btn" id="mclose" style="background:none;color:var(--muted);border:1px solid var(--line)">CLOSE</button></div></div></div>
+ <div class="seg" id="mfmt" style="margin-bottom:8px"><button data-f="post" class="on">POST 4:5</button><button data-f="story">STORY 9:16</button></div><img id="mimg" alt="Share card" style="width:100%;max-height:70vh;object-fit:contain;display:block;border:1px solid var(--line);margin-bottom:10px"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="mshare">SHARE</button><button class="btn" id="mdl">DOWNLOAD</button><button class="btn" id="mcopy">COPY LINK</button><button class="btn" id="mclose" style="background:none;color:var(--muted);border:1px solid var(--line)">CLOSE</button></div></div></div>
 <script>
 const REGION=__REGION__,GL=REGION==='global',RP=GL?'':'/india',SITE=__SITEURL__,WHERE=GL?'worldwide':'in India';
 const NAMES={youtube:'YouTube',kick:'Kick',twitch:'Twitch'},COL={youtube:'#ff4d5e',kick:'#53fc18',twitch:'#a970ff'},MEDAL=['#ffd23f','#d9dde8','#ff9f5a'];
@@ -169,8 +169,10 @@ controls();setMode(MODE);setInterval(()=>{if(!document.hidden&&MODE==='live'&&R&
 // share: top 10 as an image
 let blob=null;
 function loadImg(u){return new Promise(r=>{if(!u)return r(null);const i=new Image();i.crossOrigin='anonymous';i.onload=()=>r(i);i.onerror=()=>r(null);i.src=u})}
-async function makeCard(logos){const c=document.createElement('canvas');c.width=2160;c.height=2700;const x=c.getContext('2d');x.scale(2,2);
- x.fillStyle='#0b0b12';x.fillRect(0,0,1080,1350);const g=x.createRadialGradient(860,-60,10,860,-60,700);g.addColorStop(0,'rgba(124,92,255,.22)');g.addColorStop(1,'rgba(124,92,255,0)');x.fillStyle=g;x.fillRect(0,0,1080,1350);
+let FMT='post';
+async function makeCard(logos){const H=FMT==='story'?1920:1350,TOP=FMT==='story'?230:0,RH=FMT==='story'?110:96;
+ const c=document.createElement('canvas');c.width=2160;c.height=H*2;const x=c.getContext('2d');x.scale(2,2);
+ x.fillStyle='#0b0b12';x.fillRect(0,0,1080,H);x.translate(0,TOP);const g=x.createRadialGradient(860,-60,10,860,-60,700);g.addColorStop(0,'rgba(124,92,255,.22)');g.addColorStop(1,'rgba(124,92,255,0)');x.fillStyle=g;x.fillRect(0,-TOP,1080,H);
  x.fillStyle='#b6f23a';x.font='700 30px "Barlow Condensed",sans-serif';x.fillText('LETSGROWESPORTS',72,96);
  const CH=MODE==='channels',cat=CH?(C.game||C.category):S.cat?(R.categories.find(g=>g.slug===S.cat)||{}).game||S.cat:'';
  const where=CH?(C.country?((CR.countries.find(z=>z.code===C.country)||{}).name||C.country):'WORLDWIDE'):(GL?'WORLDWIDE':'INDIA');
@@ -179,7 +181,7 @@ async function makeCard(logos){const c=document.createElement('canvas');c.width=
  if(CH){x.fillStyle='#b6f23a';x.font='700 34px "Barlow Condensed",sans-serif';x.fillText(fit([cat,where,'BY '+CML(C.metric)].filter(Boolean).join(' · ').toUpperCase(),936),72,215)}
  if(!CH){x.fillStyle='#8d8ca3';x.font='28px "Barlow Condensed",sans-serif';x.fillText(document.getElementById('span').textContent.toUpperCase().slice(0,62),72,215)}x.fillStyle='#262636';x.fillRect(72,245,936,2);
  const L=(CH?CR.rows:R.rows).slice(0,10),ims=logos?await Promise.all(L.map(s=>loadImg(s.logo))):[];
- L.forEach((s,i)=>{const y=285+i*96;x.fillStyle=i<3?MEDAL[i]:'#8d8ca3';x.font='700 40px "Barlow Condensed",sans-serif';x.fillText(String(i+1).padStart(2,'0'),72,y+46);
+ L.forEach((s,i)=>{const y=285+i*RH;x.fillStyle=i<3?MEDAL[i]:'#8d8ca3';x.font='700 40px "Barlow Condensed",sans-serif';x.fillText(String(i+1).padStart(2,'0'),72,y+46);
   if(ims[i]){x.save();x.beginPath();x.arc(180,y+34,30,0,7);x.clip();x.drawImage(ims[i],150,y+4,60,60);x.restore()}
   x.fillStyle='#fff';x.font='700 36px "Barlow",sans-serif';let n=s.name;while(x.measureText(n).width>470&&n.length>3)n=n.slice(0,-2);x.fillText(n,232,y+30);
   x.font='600 22px "Barlow Condensed",sans-serif';
@@ -188,11 +190,13 @@ async function makeCard(logos){const c=document.createElement('canvas');c.width=
   x.fillStyle='#8d8ca3';x.fillText(`${(NAMES[s.platform]||'').toUpperCase()} · PEAK ${fmt(s.peak)} · AVG ${fmt(s.avg)}`,300,y+64)}
   x.textAlign='right';x.fillStyle='#fff';x.font='700 44px "Barlow Condensed",sans-serif';x.fillText(CH?CMV(C.metric,s[C.metric]):MET[S.metric][1](s[S.metric]),1008,y+46);
   if(CH){x.font='600 18px "Barlow Condensed",sans-serif';x.fillStyle='#8d8ca3';x.fillText(CML(C.metric),1008,y+70)}x.textAlign='left';x.fillStyle='#1d1d2b';x.fillRect(72,y+84,936,1)});
- x.fillStyle='#8d8ca3';x.font='26px "Barlow Condensed",sans-serif';x.fillText((SITE+location.pathname).replace('https://','')+'  ·  '+new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}),72,1300);
+ x.fillStyle='#8d8ca3';x.font='26px "Barlow Condensed",sans-serif';x.setTransform(2,0,0,2,0,0);x.fillStyle='#8d8ca3';x.font='26px "Barlow Condensed",sans-serif';x.fillText((SITE+location.pathname).replace('https://','')+'  ·  '+new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}),72,H-(FMT==='story'?240:50));
  return new Promise(r=>{try{c.toBlob(r,'image/png')}catch(e){r(null)}})}
 document.getElementById('share').onclick=async()=>{const L0=MODE==='channels'?(CR&&CR.rows):(R&&R.rows);if(!L0||!L0.length)return;try{await document.fonts.ready}catch(e){}blob=await makeCard(true)||await makeCard(false);
  document.getElementById('mimg').src=URL.createObjectURL(blob);document.getElementById('modal').style.display='flex'};
 document.getElementById('cshare').onclick=()=>document.getElementById('share').onclick();
+document.getElementById('mfmt').onclick=async e=>{const b=e.target.closest('button');if(!b)return;FMT=b.dataset.f;
+ document.querySelectorAll('#mfmt button').forEach(x=>x.classList.toggle('on',x===b));blob=await makeCard(true)||await makeCard(false);document.getElementById('mimg').src=URL.createObjectURL(blob)};
 document.getElementById('mcopy').onclick=async e=>{try{await navigator.clipboard.writeText(location.href);e.target.textContent='COPIED'}catch(x){prompt('Copy this link',location.href)}};
 document.getElementById('mclose').onclick=()=>document.getElementById('modal').style.display='none';
 document.getElementById('mdl').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='rankings.png';a.click()};

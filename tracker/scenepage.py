@@ -219,7 +219,7 @@ body{font-size:14px}.wrap{padding:0 12px 20px}
 <nav class="secnav" id="secnav"></nav></div>
 <div class="wrap">
 <div class="crumb" id="crumb"></div>
-<h1 id="h1"></h1><p class="intro" id="intro"></p>__EVBANNER__
+<h1 id="h1"></h1><p class="intro" id="intro"></p><div id="g6cd" style="display:none"></div>__EVBANNER__
 <div class="hero" id="hero"><div class="kpis">
  <div class="kpi main"><div class="k" id="k1l">Watching now</div><div class="v mono" id="k1">-</div><div class="bar" id="pbar"></div><div class="leg" id="pleg"></div><button class="btn shr" data-share="now">SHARE</button></div>
  <div class="kpi"><div class="k">Live channels</div><div class="v mono" id="k2">-</div><div class="s" id="k2s">streaming right now</div></div>
@@ -297,6 +297,12 @@ const art=(g,a,cls)=>{let h=0;for(const ch of String(g))h=(h*31+ch.charCodeAt(0)
  return a?`<img class="${cls||''}" src="${esc(a)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">${ic}`:ic};
 function seg(id,opts,cur,on){const e=document.getElementById(id);setH(id,opts.map(([v,l])=>`<button data-v="${v}" class="${v===cur?'on':''}">${l}</button>`).join(''));e.onclick=ev=>{const b=ev.target.closest('button');if(b)on(b.dataset.v)}}
 {const tail=CAT?'/c/'+CAT:SEC?'/s/'+SEC:'';setH('rg',`<a href="${tail||'/'}" class="${GL?'on':''}">GLOBAL</a><a href="/india${tail}" class="${GL?'':'on'}">INDIA</a>`)}
+if(CAT==='gta-6'){const el=document.getElementById('g6cd'),T=new Date(2026,10,19,0,0,0).getTime();   // midnight 19 Nov, local time
+ el.style.cssText='display:block;margin:6px 0 16px;padding:16px 18px;border:1px solid rgba(255,45,120,.5);background:linear-gradient(135deg,rgba(255,45,120,.18),rgba(124,92,255,.12))';
+ const tick=()=>{let s=Math.max(0,Math.floor((T-Date.now())/1000));const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60),c=s%60,b=(v,l)=>`<span style="display:inline-block;min-width:64px;text-align:center"><b style="display:block;font:700 40px 'Barlow Condensed',sans-serif;line-height:1">${String(v).padStart(2,'0')}</b><span style="font:600 11px 'Barlow Condensed',sans-serif;letter-spacing:.1em;color:#c9c8da">${l}</span></span>`;
+  el.innerHTML=s?`<div style="font:700 13px 'Barlow Condensed',sans-serif;letter-spacing:.12em;color:#ff7aa8">GTA 6 LAUNCHES IN</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${b(d,'DAYS')}${b(h,'HOURS')}${b(m,'MINUTES')}${b(c,'SECONDS')}</div><div style="color:#c9c8da;font-size:13px;margin-top:6px">19 November 2026, midnight your time (PS5 and Xbox Series X|S)</div>`
+   :`<div style="font:700 22px 'Barlow Condensed',sans-serif;color:#ff7aa8">GTA 6 IS OUT</div><div style="color:#c9c8da;font-size:13px">Every GTA 6 stream on YouTube, Kick and Twitch, live below.</div>`};
+ tick();setInterval(tick,1000)}
 setH('crumb',`<a href="${HOME}">${GL?'WORLDWIDE':'INDIA'}</a>`+(SEC||CAT?` / ${SEC?esc(SECNAME[SEC].toUpperCase()):''}${CAT?esc(CATNAME.toUpperCase()):''}`:' / OVERVIEW'));
 setH('h1',CAT?`<em>${esc(CATNAME)}</em> live ${WHERE}`:SEC?`<em>${esc(SECNAME[SEC])}</em> live ${WHERE}`:GL?`Live streaming <em>worldwide</em>, right now`:`Live streaming <em>in India</em>, right now`);
 setT('intro','YouTube, Kick and Twitch, updated every 2 seconds.');
