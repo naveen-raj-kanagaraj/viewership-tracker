@@ -190,6 +190,13 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- New uploads (12 Nov 2026): YouTube's channel RSS feeds returned 404 for every channel (seen 12 Nov), so new
+  videos stopped arriving. ytextra._latest_posts now falls back to the public uploads playlist page
+  (playlist?list=UU..., newest ~100 posts) plus the Shorts playlist (UUSH...) to mark Shorts; after 20 feed
+  failures it stops trying the feed for 30 min. Ranked channels are re-read hourly (top tier) / 6-hourly, others
+  daily; rss_once 800 channels per 5 min. video_stats_once re-reads videos under 2 days old every 3 h.
+  tests/test_uploads.py.
+
 - Deep data (12 Nov 2026, tracker/deep.py, started from track.py): ranked set = top 1,000 per YouTube category and
   per game / topic (scene.GAMES), worldwide and India, plus top 1,000 overall (world, India) and live channels.
   Subscribers / total views: tier A hourly, tier B every 3 h (sc_intra kept INTRA_DAYS=35). History: every post

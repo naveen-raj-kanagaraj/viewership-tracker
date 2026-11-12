@@ -550,7 +550,7 @@ def run_rss():
     time.sleep(90)
     while True:
         try:
-            rss_once(600)
+            rss_once(800)
             video_stats_once(30)                  # likes, comments, length for those posts: ~1 API unit per 50
         except Exception as e:
             print(f"Channel feeds: {str(e)[:150]}")
@@ -1527,6 +1527,67 @@ def _rss_get(cid: str):
     return _rss_parse(r.text)
 
 
+_FEED = {"down_at": 0, "probe_at": 0}
+
+
+def _playlist_page(list_id: str):
+    """ytInitialData of a public playlist page (free), or None if YouTube refused."""
+    try:
+        r = events._http.get(f"https://www.youtube.com/playlist?list={list_id}", timeout=15,
+                             headers={"User-Agent": events._UA, "Accept-Language": "en-US,en;q=0.9"},
+                             cookies={"CONSENT": "YES+", "SOCS": "CAI"})
+    except Exception:
+        return None
+    if r.status_code != 200:
+        return None
+    m = re.search(r'var ytInitialData\s*=\s*(\{.+?\})\s*;\s*</script>', r.text, re.S)
+    return m.group(1) if m else None
+
+
+def _uploads_free(cid: str):
+    """The channel's newest ~100 posts (videos, Shorts, ended streams) from its public uploads playlist page, or None.
+    Dates and views are approximate ("18h ago", "1.2K views"); video_stats_once then reads the exact ones."""
+    raw = _playlist_page("UU" + cid[2:])
+    if raw is None:
+        return None
+    items = _parse_tab(json.loads(raw))
+    return [{"id": v["id"], "title": v["title"], "ts": v["ts"] or int(time.time()), "views": v["views"], "likes": None,
+             "short": 0, "url": v["url"], "approx": 1} for v in items if v.get("id")]
+
+
+def _shorts_ids(cid: str) -> set:
+    raw = _playlist_page("UUSH" + cid[2:])
+    return set(re.findall(r'"videoId":\s*"([\w-]{11})"', raw or ""))
+
+
+def _latest_posts(sid: str):
+    """Newest posts of a YouTube channel: the public feed when YouTube serves it, else the uploads playlist page.
+    When the feed fails for most channels (YouTube switched it off for a while), stop asking it for 30 minutes."""
+    cid = sid[3:]
+    if time.time() - _FEED["down_at"] > 1800:
+        got = _rss_get(cid)
+        if got is not None:
+            return got
+        _FEED["fails"] = _FEED.get("fails", 0) + 1
+        if _FEED["fails"] >= 20:
+            _FEED.update(down_at=time.time(), fails=0)
+            print("YouTube channel feeds are failing: reading uploads playlist pages instead for 30 minutes")
+    got = _uploads_free(cid)
+    if got:
+        with store._lock:
+            have = {r[0] for r in _db().execute(f"SELECT vid FROM yt_videos WHERE vid IN ({','.join('?' * len(got))})",
+                                               [v["id"] for v in got])}
+        if any(v["id"] not in have for v in got):
+            sh = _shorts_ids(cid)
+            for v in got:
+                v["short"] = 1 if v["id"] in sh else 0
+            if sh:
+                for v in got:
+                    if v["short"]:
+                        v["url"] = f"https://www.youtube.com/shorts/{v['id']}"
+    return got
+
+
 def rss_once(n: int = 600) -> int:
     """Free, no API units. Every 5 minutes: channels with nothing stored yet first (biggest first), then channels
     whose latest posts haven't been re-read for a day, so views and likes of recent posts stay current."""
@@ -1540,13 +1601,23 @@ def rss_once(n: int = 600) -> int:
         old = [r[0] for r in c.execute(
             "SELECT sid FROM yt_videos WHERE sid LIKE 'yt:%' GROUP BY sid HAVING MAX(updated) < ? ORDER BY MAX(updated) LIMIT ?",
             (day, n))]
-    cand = [x for x in dict.fromkeys(new + old) if time.time() - _RSSTRIED.get(x, 0) > 86400][:n]
+    gap = {}                                   # ranked channels more often: top tier hourly, the rest every 6 hours
+    try:
+        from tracker import deep
+        A, B = deep.ranked_set()
+        gap.update({x: 6 * 3600 - 300 for x in B})
+        gap.update({x: 3300 for x in A})
+    except Exception:
+        A, B = [], []
+    now_ = time.time()
+    due = [x for x in A + B if now_ - _RSSTRIED.get(x, 0) > gap[x]]
+    cand = [x for x in dict.fromkeys(new + due + old) if now_ - _RSSTRIED.get(x, 0) > gap.get(x, 86400)][:n]
     for x in cand:
         _RSSTRIED[x] = time.time()
     if not cand:
         return 0
     from tracker import scene
-    got = list(_pool.map(lambda sid: (sid, _rss_get(sid[3:])), cand))
+    got = list(_pool.map(lambda sid: (sid, _latest_posts(sid)), cand))
     now, rows = int(time.time()), []
     for sid, vids in got:
         rows += [(v["id"], sid, v["ts"], v["title"], v["views"], v["likes"], None, 0, 0, 1, now, v["short"], v["url"],
@@ -1556,7 +1627,8 @@ def rss_once(n: int = 600) -> int:
         c.executemany("""INSERT INTO yt_videos (vid, sid, ts, title, views, likes, comments, secs, live, approx, updated, short, url, game, cat)
                          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(vid) DO UPDATE SET
                          views=MAX(COALESCE(excluded.views, 0), COALESCE(yt_videos.views, 0)),
-                         likes=COALESCE(excluded.likes, yt_videos.likes), title=excluded.title, updated=excluded.updated""", rows)
+                         likes=COALESCE(excluded.likes, yt_videos.likes), title=excluded.title,
+                         short=MAX(COALESCE(yt_videos.short, 0), excluded.short)""", rows)
         c.commit()
     RSS_STATS.update(last=now, asked=len(cand), got=sum(1 for _, v in got if v), failed=sum(1 for _, v in got if v is None),
                      videos=len(rows))
@@ -1575,9 +1647,11 @@ def video_stats_once(max_calls: int = 30) -> int:
         return 0
     with store._lock:
         ids = [r[0] for r in _db().execute(
-            """SELECT vid FROM yt_videos WHERE sid LIKE 'yt:%' AND ts>? AND (comments IS NULL OR updated<?)
-               ORDER BY comments IS NOT NULL, updated LIMIT ?""",
-            (time.time() - 60 * 86400, time.time() - 86400, max_calls * 50))]
+            """SELECT vid FROM yt_videos WHERE sid LIKE 'yt:%' AND ts>? AND (comments IS NULL OR updated<?
+               OR (ts>? AND updated<?))
+               ORDER BY comments IS NOT NULL, ts<=?, updated LIMIT ?""",
+            (time.time() - 60 * 86400, time.time() - 86400, time.time() - 2 * 86400, time.time() - 3 * 3600,
+             time.time() - 2 * 86400, max_calls * 50))]
     done = calls = 0
     for i in range(0, len(ids), 50):
         if not events.yt_quota_left(.8):
