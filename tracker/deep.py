@@ -107,7 +107,8 @@ def refresh_once(max_channels: int = 4000) -> int:
                                             (time.time() - 86400,)).fetchall()))
     now = time.time()
     due = [s for s in a if now - _LAST.get(s, 0) >= TIER_A_H * 3600 - 300]
-    due += [s for s in b if now - _LAST.get(s, 0) >= TIER_B_H * 3600 - 300]
+    if events.yt_quota_left(.55):              # the long tail only while plenty is left: new videos' exact numbers first
+        due += [s for s in b if now - _LAST.get(s, 0) >= TIER_B_H * 3600 - 300]
     due = due[:max_channels]
     if not due:
         return 0
@@ -137,7 +138,7 @@ def backfill_once(n_api: int = 30, n_free: int = 8) -> int:
         if (m.get("since") or 9e12) <= BACKFILL_FROM + 86400 or m.get("full") or sid in ytextra._VBUSY \
                 or time.time() - ytextra._VFAIL.get(sid, 0) < 6 * 3600:
             continue
-        use_api = bool(key) and events.yt_quota_left(.7)
+        use_api = bool(key) and events.yt_quota_left(.45)
         if use_api and api_n < n_api:
             api_n += 1
         elif not use_api and free_n < n_free:
@@ -352,7 +353,7 @@ def comments_once(max_calls: int = 60) -> int:
         c = _db()
         c.execute("DELETE FROM yt_comments WHERE fetched<?", (time.time() - COMMENTS_KEEP_DAYS * 86400,))
         c.commit()
-    if not key or not events.yt_quota_left(.75):
+    if not key or not events.yt_quota_left(.5):
         return 0
     a, b = ranked_set()
     top = (a + b)[:5000]
@@ -369,7 +370,7 @@ def comments_once(max_calls: int = 60) -> int:
     vids = [v for v, _ in sorted(vids, key=lambda x: -(x[1] or 0))][:max_calls]
     done = 0
     for vid in vids:
-        if not events.yt_quota_left(.75):
+        if not events.yt_quota_left(.5):
             break
         try:
             r = events._http.get("https://www.googleapis.com/youtube/v3/commentThreads", timeout=15, params={

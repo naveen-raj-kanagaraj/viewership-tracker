@@ -157,7 +157,7 @@ def admit(found: dict, scope: str = "in") -> int:
                       [("yt:" + cid, "youtube", "", f"https://www.youtube.com/channel/{cid}", "", now, None, "", found[cid][1],
                         None, 0, "", found[cid][0]) for cid in new])
         c.commit()
-    if os.getenv("YOUTUBE_API_KEY") and events.yt_quota_left(.9):
+    if os.getenv("YOUTUBE_API_KEY") and events.yt_quota_left(.6):
         got = ytextra._sane(ytextra.channel_stats(new))
         ytextra.save_stats(got, {cid: found[cid][0] for cid in new})
         # keep what this job is for; the rest would cost a reading every day for nothing
@@ -183,7 +183,7 @@ def charts(hungry: list) -> int:
     """YouTube's most-popular videos per category and country -> their channels, category known. India every
     6 hours, other countries daily (1 API unit per 50 videos)."""
     key = os.getenv("YOUTUBE_API_KEY")
-    if not key or not events.yt_quota_left(.8):
+    if not key or not events.yt_quota_left(.5):
         return 0
     last = store.kv_get("fill_chart_at") or {}
     found = {"in": {}, "world": {}}
