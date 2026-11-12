@@ -190,6 +190,14 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- Design polish from BMIC fan feedback (12 Nov 2026, 993 responses: 92 asked for player pick lists, ~30 for less
+  clutter / better contrast / fonts / motion / "looks AI generated"): tracker/polish.py is injected into every
+  HTML page by web._html: brighter grey text, borderless rounded cards with more space, sideways-scrolling
+  segmented controls on phones, one-time card fade-in (never on rows: pages rebuild those), hover / press / focus
+  states, reduced-motion respected. Predict & Win: a question card being typed in is no longer redrawn by the
+  20-second board refresh (it closed the phone keyboard after a few letters), and "Answered" updates while typing.
+  Next Predict: player dropdown for MVP / IGL questions (top request).
+
 - API allowance priority (12 Nov 2026): exact numbers for new videos (video_stats_once) may use up to 92% of the
   day; top-tier channel refresh 85%; long-tail refresh only below 55%; comments 50%; history backfill 45%;
   discovery charts 50%, new-channel reads 60%. Seen live: new uploads arriving via the playlist fallback but all

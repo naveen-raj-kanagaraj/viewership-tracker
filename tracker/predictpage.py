@@ -332,7 +332,7 @@ function saveDraft(){try{localStorage.setItem('pw_draft',JSON.stringify(draft))}
 try{draft=JSON.parse(localStorage.getItem('pw_draft')||'{}')||{}}catch(e){}
 function visibleQs(){const ev=B.questions.filter(q=>!q.day),dq=B.questions.filter(q=>q.day===dayTab);return{ev:dayTab===1?ev:ev.filter(q=>!shutQ(q)||q.answer),dq}}
 function renderQs(){const {ev,dq}=visibleQs(),ids=[...ev,...dq].map(q=>q.id).join(',');const box=$('qs');
- if(box.dataset.ids===ids){[...ev,...dq].forEach(q=>{const h=qCard(q);if(cardHtml[q.id]!==h){cardHtml[q.id]=h;const el=box.querySelector(`.q[data-id="${q.id}"]`);if(el)el.outerHTML=h}});if(openCb)toggleCb(openCb,true);return}
+ if(box.dataset.ids===ids){[...ev,...dq].forEach(q=>{const h=qCard(q);if(cardHtml[q.id]!==h){const el=box.querySelector(`.q[data-id="${q.id}"]`);if(el&&el.contains(document.activeElement)&&!q.closed)return;cardHtml[q.id]=h;if(el)el.outerHTML=h}});if(openCb)toggleCb(openCb,true);return}
  box.dataset.ids=ids;cardHtml={};
  box.innerHTML=(ev.length&&dq.length?`<div class="qsec">Whole tournament</div>`:'')+(ev.length?``+ev.map(q=>(cardHtml[q.id]=qCard(q))).join(''):'')+
   (dq.length?`<div class="qsec">Day ${dayTab} · ${dayName(dayTab)}</div>`+dq.map(q=>(cardHtml[q.id]=qCard(q))).join(''):'');
@@ -346,7 +346,8 @@ $('qs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b
  if(d.mq){const id=+d.mq,q=B.questions.find(x=>x.id===id);if(myOf(q)!==undefined)return;const sel=draft[id]||[];const i=sel.indexOf(d.o);
   if(i>=0)sel.splice(i,1);else if(sel.length<q.pick)sel.push(d.o);else{toast(`You already picked ${q.pick}. Tap one to remove it.`);return}draft[id]=sel;saveDraft();updCard(id);sbar();return}
  if(d.q&&b.classList.contains('opt')){draft[+d.q]=d.o;saveDraft();updCard(+d.q);sbar()}});
-$('qs').addEventListener('input',e=>{const t=e.target;if(t.dataset.tq){draft[+t.dataset.tq]=t.value;saveDraft();sbar()}});
+$('qs').addEventListener('input',e=>{const t=e.target;if(t.dataset.tq){const id=+t.dataset.tq,q=B.questions.find(x=>x.id===id);draft[id]=t.value;saveDraft();sbar();
+ const f=t.closest('.q')&&t.closest('.q').querySelector('.qf');if(f&&q&&!q.answer)f.innerHTML=isDone(q,t.value)?'<span class="saved">✓ Answered</span>':'<span class="bad">Not answered yet</span>'}});
 function toggleCb(qid,force){document.querySelectorAll('.cbp').forEach(p=>p.remove());if(openCb===qid&&!force){openCb=null;return}
  const q=B.questions.find(x=>x.id===qid),host=document.querySelector(`.cb[data-q="${qid}"]`);if(!q||!host){openCb=null;return}openCb=qid;
  const my=myOf(q),p=document.createElement('div');p.className='cbp';
