@@ -145,6 +145,9 @@ def _html(build):
             h = h.decode()
         if "<head>" in h:
             h = h.replace("<head>", "<head>" + REGIONJS, 1)
+        if "</head>" in h and 'id="lgepolish"' not in h:
+            from tracker import polish
+            h = h.replace("</head>", polish.CSS + "</head>", 1)
         h = __import__("re").sub(r"(<body[^>]*>)", lambda m: m.group(1) + WIP, h, count=1)
         return h.replace("</body>", LEGAL + FASTNAV + "</body>", 1) if "</body>" in h else h
     return b
