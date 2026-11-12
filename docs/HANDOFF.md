@@ -190,6 +190,15 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- Brand tools (12 Nov 2026): tracker/chatstats.py reads every chat the Super Chat reader polls: per stream
+  (chat_stream) messages, unique chatters, top words / emotes, language by script (+ Hinglish), mood (word + emoji
+  lists, approximate). chat_aud keeps a salted hash (kv chat_salt or CHAT_SALT) of a fixed quarter of chatters per
+  channel for 30 days; chat_overlap daily for the top OVERLAP_TOP=300 audiences. paid_items now tells renewals
+  ("milestone") from new members. tracker/kit.py: /kit/<sid> media kit (print = PDF), /shortlist (browser
+  localStorage, CSV), /api/kit, data API /api/v1/{creator,rankings,streamers,live,search} with keys
+  (`track.py scene apikey create "Name" [per day]` / list / revoke <prefix>), docs /api/docs. Channel pages link
+  MEDIA KIT. Membership money is estimated at the lowest common price (MEMBER_PRICE_USD). tests/test_kit.py.
+
 - New uploads (12 Nov 2026): YouTube's channel RSS feeds returned 404 for every channel (seen 12 Nov), so new
   videos stopped arriving. ytextra._latest_posts now falls back to the public uploads playlist page
   (playlist?list=UU..., newest ~100 posts) plus the Shorts playlist (UUSH...) to mark Shorts; after 20 feed
