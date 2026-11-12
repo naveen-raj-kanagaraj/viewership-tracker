@@ -385,6 +385,27 @@ def scene_search():
     return _memo(f"/api/search:{region}:{q}", 20, _jdump(lambda: scene.search(q, region)), "application/json")
 
 
+@app.route("/api/deep")
+def api_deep():
+    """A channel's metrics and where it stands among peers, history by month since January, best-performing
+    recent videos and top comments: /api/deep?sid=yt:UC..."""
+    import re as _re
+    from tracker import deep
+    sid = request.args.get("sid", "")
+    if not _re.fullmatch(r"yt:UC[\w-]{22}", sid):
+        return Response('{"error":"bad sid"}', status=400, mimetype="application/json")
+
+    def build():
+        perf = deep.performance(sid)
+        with __import__("tracker").store._lock:
+            vids = {r[0]: dict(r) for r in deep._db().execute(
+                "SELECT vid, title, ts, views, likes, comments FROM yt_videos WHERE sid=? AND ts>?", (sid, time.time() - 90 * 86400))}
+        best = sorted(((v, p) for v, p in perf.items() if v in vids), key=lambda x: -x[1])[:5]
+        return {"standing": deep.standing(sid), "monthly": deep.monthly(sid), "since": deep.BACKFILL_FROM,
+                "best": [{**vids[v], "index": p} for v, p in best], "comments": deep.top_comments(sid)}
+    return _memo(f"/api/deep:{sid}", 600, _jdump(build), "application/json")
+
+
 @app.route("/api/channel")
 def scene_channel():
     """One channel's analytics: /api/channel?sid=yt:UC..."""

@@ -31,11 +31,14 @@ from tracker import events, platforms, store
 
 SUPERCHAT_TOP = int(os.getenv("SUPERCHAT_TOP", "50"))       # how many of the biggest YouTube streams to read chat for
 SUPERCHAT_TOP_IN = int(os.getenv("SUPERCHAT_TOP_IN", "50"))  # plus the biggest Indian ones (India totals need them)
+SUPERCHAT_MIN_VIEWERS = int(os.getenv("SUPERCHAT_MIN_VIEWERS", "50"))   # and every other stream with this many watching
+SUPERCHAT_MAX = int(os.getenv("SUPERCHAT_MAX", "400"))                  # streams read at once, at most
 SUPERCHAT_ON = os.getenv("SUPERCHAT", "true").lower() == "true"
 STATS_ON = os.getenv("CHANNEL_STATS", "true").lower() == "true"
 # channels snapshotted per day, most watched first: 50 per API unit, so 300,000 channels = 6,000 units
 STATS_MAX = int(os.getenv("CHANNEL_STATS_MAX", "300000" if os.getenv("YOUTUBE_API_KEY") else "3000"))
-_pool = ThreadPoolExecutor(10)
+_pool = ThreadPoolExecutor(16)
+INTRA_DAYS = int(os.getenv("INTRA_DAYS", "35"))      # readings through the day (every 1-3 h for ranked channels) kept this long
 
 # ---------- storage ----------
 
@@ -264,12 +267,19 @@ def _count_chat(sid: str, actions: list):
 
 
 def _targets() -> dict:
-    """{video id: channel sid} for the biggest YouTube streams in the latest scan."""
+    """{video id: (channel sid, viewers)}: every YouTube stream in the latest scan with SUPERCHAT_MIN_VIEWERS+ watching,
+    biggest first, up to SUPERCHAT_MAX (the biggest worldwide and Indian ones always included)."""
     from tracker import scene
     rows = [r for r in scene._SCAN.get("rows") or [] if r.get("platform") == "youtube" and (r.get("url") or "").startswith("https://youtu.be/")]
     rows.sort(key=lambda r: -(r.get("viewers") or 0))
     pick = rows[:SUPERCHAT_TOP] + [r for r in rows if r.get("india")][:SUPERCHAT_TOP_IN]
-    return {r["url"].rsplit("/", 1)[-1]: r["sid"] for r in pick}
+    pick += [r for r in rows if (r.get("viewers") or 0) >= SUPERCHAT_MIN_VIEWERS]
+    out = {}
+    for r in pick:
+        if len(out) >= SUPERCHAT_MAX:
+            break
+        out.setdefault(r["url"].rsplit("/", 1)[-1], (r["sid"], r.get("viewers") or 0))
+    return out
 
 
 def _poll(vid: str):
@@ -284,7 +294,9 @@ def _poll(vid: str):
         _store(vid, st["sid"], paid_items(got["actions"]))
         _count_chat(st["sid"], got["actions"])
         st["fails"] = 0
-        st["next"] = time.time() + min(15, max(5, got["wait"] / 1000))
+        v = st.get("viewers") or 0           # big chats as often as YouTube allows; small ones less often (nothing is
+        gap = min(15, max(5, got["wait"] / 1000)) if v >= 5000 else (15 if v >= 500 else 30)   # lost: each read
+        st["next"] = time.time() + gap        # returns every message since the last one)
         if not st["cont"]:                    # chat ended or turned off: start over later
             st["next"] = time.time() + 300
     except Exception as e:
@@ -305,8 +317,9 @@ def run_superchats():
         try:
             want = _targets()
             now = time.time()
-            for vid, sid in want.items():
-                _CHAT.setdefault(vid, {"sid": sid, "cont": None, "next": 0, "fails": 0, "busy": False})["seen"] = now
+            for vid, (sid, viewers) in want.items():
+                st = _CHAT.setdefault(vid, {"sid": sid, "cont": None, "next": 0, "fails": 0, "busy": False})
+                st["seen"], st["viewers"] = now, viewers
             for vid in [v for v, s in _CHAT.items() if now - s.get("seen", 0) > 300 and not s.get("busy")]:
                 del _CHAT[vid]
             for vid, st in list(_CHAT.items()):
@@ -445,7 +458,7 @@ def save_stats(got: dict, cats: dict = None):
         c.executemany("INSERT OR REPLACE INTO sc_chstats VALUES (?,?,?,?,?,?)",
                       [(d, "yt:" + cid, s, v, n, now) for cid, (s, v, n) in got.items()])
         c.executemany("INSERT OR IGNORE INTO sc_intra VALUES (?,?,?,?)", [("yt:" + cid, now, s, v) for cid, (s, v, n) in got.items()])
-        c.execute("DELETE FROM sc_intra WHERE ts<?", (now - 3 * 86400,))
+        c.execute("DELETE FROM sc_intra WHERE ts<?", (now - INTRA_DAYS * 86400,))
         meta = [(m["topic"], m["country"], m["name"], m["logo"], "yt:" + cid) for cid, m in _META.items() if cid in got]
         c.executemany("""UPDATE sc_channels SET topic=COALESCE(NULLIF(?,''), topic),
                          country=CASE WHEN ?!='' THEN ? ELSE country END, name=COALESCE(NULLIF(?,''), name),
@@ -1334,15 +1347,17 @@ _VBUSY = set()
 _VFAIL = {}      # sid -> when reading its videos last came back empty
 
 
-def _refresh_videos(sid: str, full: bool):
-    """Fetch the channel's videos (everything on a full pass, the last 60 days otherwise) and store them."""
+def _refresh_videos(sid: str, full: bool, since_ts: float = None):
+    """Fetch the channel's videos (everything on a full pass, the last 60 days otherwise, or back to since_ts) and
+    store them."""
     if sid in _VBUSY:
         return
     _VBUSY.add(sid)
     try:
         plat, _, ident = sid.partition(":")
         failed = False
-        since = 0 if full else time.time() - 60 * 86400
+        since = since_ts if since_ts else (0 if full else time.time() - 60 * 86400)
+        full = full or bool(since_ts)
         key = os.getenv("YOUTUBE_API_KEY")
         if plat == "yt":
             vids = None
@@ -1397,7 +1412,10 @@ def _refresh_videos(sid: str, full: bool):
             _VFAIL[sid] = time.time()
             return
         m["recent"] = now
-        if full:
+        if since_ts:
+            m["since"] = min(since_ts, m.get("since") or since_ts)
+            m["since_at"] = now
+        elif full:
             m["full"] = now
         store.kv_set(f"vids:{sid}", m)
     except Exception as e:

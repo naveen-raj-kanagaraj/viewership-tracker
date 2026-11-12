@@ -24,7 +24,9 @@ _R = {"at": 0, "rank": {}, "tot": {}, "rows": {}}
 _lock = threading.Lock()
 _YT_FROM_SEC = {"gaming": "Gaming", "esports": "Gaming", "news": "News & Politics", "music": "Music", "sports": "Sports",
                 "irl": "People & Blogs", "just-chatting": "People & Blogs", "devotional": "People & Blogs", "podcasts": "Entertainment"}
-METRICS = ("size", "views", "vday", "v7", "growth", "live")
+RATE_METRICS = ("eng", "likes")          # rates rank only channels big enough for them to mean something
+RATE_MIN_SUBS = int(os.getenv("RATE_MIN_SUBS", "10000"))
+METRICS = ("size", "views", "vday", "v7", "growth", "live", "eng", "likes", "medv")
 
 
 def _rows():
@@ -50,6 +52,16 @@ def _rows():
         chans = {r["sid"]: dict(r) for r in c.execute(
             "SELECT sid, platform, name, logo, url, country, COALESCE(india,0) india, game, topic, ytcat FROM sc_channels")}
     day1 = ytextra._latest_gains()
+    eng = {}                                          # this site's medians from the channel's recent posts (deep.py)
+    try:
+        from tracker import deep
+        with store._lock:
+            for sid, fmt, e, lk, mv, n in deep._db().execute(
+                    "SELECT sid, fmt, eng_rate, like_rate, med_views, n FROM ch_metrics WHERE fmt IN ('long','short')"):
+                if sid not in eng or (fmt == "long" and n >= 5):
+                    eng[sid] = (e, lk, mv)
+    except Exception as ex:
+        print(f"Ranks engagement: {str(ex)[:80]}")
     rows = []
     for sid, ch in chans.items():
         L, O, O7 = latest.get(sid), old.get(sid), old7.get(sid)
@@ -77,7 +89,9 @@ def _rows():
             cat = scene.SECTION_NAMES.get(sec, "") if sec != "other" else ""
         rows.append({"sid": sid, "platform": ch["platform"], "name": ch["name"], "logo": ch["logo"], "url": ch["url"],
                      "country": ct[0] if ct else "", "country_name": ct[2] if ct else "", "category": cat or "", "game": g,
-                     "size": size, "views": views, "vday": vday, "v7": v7, "growth": growth, "live": round(live)})
+                     "size": size, "views": views, "vday": vday, "v7": v7, "growth": growth, "live": round(live),
+                     "eng": (eng.get(sid) or (None,))[0], "likes": (eng.get(sid) or (None, None))[1],
+                     "medv": (eng.get(sid) or (None, None, None))[2]})
     return rows
 
 
@@ -88,7 +102,8 @@ def compute():
         for scope in ("world", "country", "category", "game"):
             groups = {}
             for r in rows:
-                if r[m] is None or (m in ("live", "views") and not r[m]) or (m in ("growth", "vday", "v7") and r[m] <= 0):
+                if r[m] is None or (m in ("live", "views") and not r[m]) or (m in ("growth", "vday", "v7") and r[m] <= 0) \
+                        or (m in RATE_METRICS and (r["size"] or 0) < RATE_MIN_SUBS):
                     continue
                 key = {"world": "", "country": r["country"], "category": r["category"], "game": r["game"]}[scope]
                 if scope != "world" and not key:
@@ -163,6 +178,7 @@ def top(platform: str = "youtube", metric: str = "size", country: str = "", cate
     with _lock:
         rows = [r for r in _R["rows"].values() if r["platform"] == platform and r[metric] is not None
                 and (metric not in ("growth", "vday", "v7") or r[metric] > 0) and (metric not in ("live", "views") or r[metric])
+                and (metric not in RATE_METRICS or (r["size"] or 0) >= RATE_MIN_SUBS)
                 and (not country or r["country"] == country) and (not category or r["category"] == category)
                 and (not game or r["game"] == game)]
         cats = sorted({r["category"] for r in _R["rows"].values() if r["platform"] == platform and r["category"]}, key=str.lower)

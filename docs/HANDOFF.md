@@ -190,6 +190,20 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- Deep data (12 Nov 2026, tracker/deep.py, started from track.py): ranked set = top 1,000 per YouTube category and
+  per game / topic (scene.GAMES), worldwide and India, plus top 1,000 overall (world, India) and live channels.
+  Subscribers / total views: tier A hourly, tier B every 3 h (sc_intra kept INTRA_DAYS=35). History: every post
+  since BACKFILL_FROM=2026-01-01 for ranked channels, biggest first (API while under 70% of quota, then free pages,
+  approximate). Metrics every 3 h: ch_metrics (medians over last 30 posts aged 3-90 d per format: views, like rate,
+  comment rate, engagement, posts/week, views per sub), ch_bench (p25/50/75/90 per scope / category or game / size
+  band / format). Top comments (yt_comments, text deleted after 30 days). /api/deep?sid= feeds the channel page
+  cards (Benchmarks, This year by month, Best recent videos, Top comments). Rankings: ENGAGEMENT, LIKE RATE,
+  TYPICAL VIEWS (channels 10K+ subs). Super Chats now on every YouTube stream with 50+ viewers (SUPERCHAT_MAX 400,
+  small chats polled every 30 s). catfill now fills India and worldwide groups (worldwide keeps channels with
+  50K+ subs). Not recoverable for the past: subscriber history, concurrent viewers of past streams, daily view
+  gains before the site started. Progress: `track.py scene deep`, `track.py scene catfill`. Tests: test_deep.py.
+  Quota note: 10,000 units/day backfills roughly 500 channels a day; a quota increase speeds this up.
+
 - Top Indian channels per YouTube category (12 Nov 2026, tracker/catfill.py, runs inside ytextra.run_stats every
   15 min): target FILL_TARGET=1000 per category (keeps finding until 1.5x, then tops up). Sources: India most-popular
   chart per category (API, each category every 6 h, ~240 units/day max), YouTube channel search 25 pages deep with
