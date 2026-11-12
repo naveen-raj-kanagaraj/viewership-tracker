@@ -231,6 +231,8 @@ def paid_items(actions: list) -> list:
                 if not pm:
                     continue
                 x["amount"], x["currency"] = pm
+            elif kind == "member" and _text(r.get("headerPrimaryText")):
+                x["kind"] = "milestone"           # "Member for 6 months": a renewal shown in chat, not a new member
             elif kind == "gift":
                 hdr = ((r.get("header") or {}).get("liveChatSponsorshipsHeaderRenderer") or {})
                 x["author"] = x["author"] or _text(hdr.get("authorName"))
@@ -293,6 +295,11 @@ def _poll(vid: str):
             st["cont"] = got["cont"]
         _store(vid, st["sid"], paid_items(got["actions"]))
         _count_chat(st["sid"], got["actions"])
+        try:
+            from tracker import chatstats
+            chatstats.add(vid, st["sid"], got["actions"])
+        except Exception as e:
+            print(f"Chat stats add: {str(e)[:100]}")
         st["fails"] = 0
         v = st.get("viewers") or 0           # big chats as often as YouTube allows; small ones less often (nothing is
         gap = min(15, max(5, got["wait"] / 1000)) if v >= 5000 else (15 if v >= 500 else 30)   # lost: each read

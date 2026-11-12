@@ -107,6 +107,8 @@ def cmd_run(args) -> int:
         ytextra.start()                    # Super Chats on the biggest YouTube streams + daily channel stats
         from tracker import deep
         deep.start()                       # ranked channels: refresh every 1-3 h, history since Jan, metrics, comments
+        from tracker import chatstats
+        chatstats.start()                  # chat words, emotes, languages, mood, audience overlap
         from tracker import chat
         chat.start()                       # chat speed (Twitch IRC, Kick websocket) for Moments
         from tracker import ranks
@@ -296,6 +298,17 @@ def cmd_scene(args) -> int:
             top = sorted(((sid, sum(n for _, n in d)) for sid, d in chat._C.items()), key=lambda kv: -kv[1])[:15]
         for sid, n in top:
             print(f"  {sid:35} {n} messages")
+        return 0
+    if a[0] == "apikey":                               # data API keys: scene apikey create "Agency" [per day] | list | revoke <prefix>
+        from tracker import kit
+        if len(a) >= 3 and a[1] == "create":
+            key = kit.key_create(a[2], int(a[3]) if len(a) > 3 else 10000)
+            print(f"API key for {a[2]} (shown once, send it privately):\n{key}")
+        elif len(a) >= 3 and a[1] == "revoke":
+            print(f"Revoked {kit.key_revoke(a[2])} key(s)")
+        else:
+            for k in kit.key_list():
+                print(f"{k['prefix']}...  {k['name']:30s} {k['today']:6d} / {k['daily']} today  {'active' if k['active'] else 'revoked'}")
         return 0
     if a[0] == "deep":                                 # ranked channels: refresh tiers, history since January, metrics
         from tracker import deep

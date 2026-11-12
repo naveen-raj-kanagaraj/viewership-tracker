@@ -385,6 +385,120 @@ def scene_search():
     return _memo(f"/api/search:{region}:{q}", 20, _jdump(lambda: scene.search(q, region)), "application/json")
 
 
+# ---------- media kits, shortlist, data API (tracker/kit.py) ----------
+
+def _sid_ok(sid):
+    return bool(__import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid or ""))
+
+
+@app.route("/kit/<path:sid>")
+@app.route("/india/kit/<path:sid>")
+def kit_page(sid):
+    from tracker import kit, scene
+    if not _sid_ok(sid):
+        return Response("Not found", status=404, mimetype="text/plain")
+    with __import__("tracker").store._lock:
+        row = scene._db().execute("SELECT name FROM sc_channels WHERE sid=?", (sid,)).fetchone()
+    if not row:
+        return Response("Not found", status=404, mimetype="text/plain")
+    return _memo(f"/kit/{sid}", 300, lambda: kit.kit_html(sid, row[0] or sid), "text/html")
+
+
+@app.route("/shortlist")
+def shortlist_page():
+    from tracker import kit
+    return _memo("/shortlist", 3600, kit.shortlist_html, "text/html")
+
+
+@app.route("/api/docs")
+def api_docs():
+    from tracker import kit
+    return _memo("/api/docs", 3600, kit.docs_html, "text/html")
+
+
+@app.route("/api/kit")
+def api_kit():
+    from tracker import kit
+    sid = request.args.get("sid", "")
+    if not _sid_ok(sid):
+        return Response('{"error":"bad sid"}', status=400, mimetype="application/json")
+    return _memo(f"/api/kit:{sid}", 600, _jdump(lambda: kit.data(sid)), "application/json")
+
+
+def _v1(build):
+    """Data API: key check, daily limit, JSON."""
+    from tracker import kit
+    key = request.headers.get("X-API-Key") or request.args.get("key") or ""
+    ok, used, limit, _ = kit.key_check(key)
+    if not ok:
+        msg = "daily limit reached" if limit else "missing or invalid API key (see /api/docs)"
+        return Response(json.dumps({"error": msg}), status=429 if limit else 401, mimetype="application/json")
+    try:
+        body = json.dumps(build(), separators=(",", ":"))
+    except ValueError as e:
+        return Response(json.dumps({"error": str(e)}), status=400, mimetype="application/json")
+    r = Response(body, mimetype="application/json")
+    r.headers["X-Calls-Today"], r.headers["X-Calls-Limit"] = str(used), str(limit)
+    r.headers["Cache-Control"] = "no-store"
+    return r
+
+
+@app.route("/api/v1/creator")
+def v1_creator():
+    from tracker import kit
+    sid = request.args.get("sid", "")
+
+    def build():
+        if not _sid_ok(sid):
+            raise ValueError("bad sid")
+        return kit.data(sid) or {"error": "not found"}
+    return _v1(build)
+
+
+@app.route("/api/v1/rankings")
+def v1_rankings():
+    from tracker import ranks
+    g = request.args.get
+
+    def build():
+        plat = g("platform", "youtube")
+        if plat not in ("youtube", "twitch", "kick") or g("metric", "vday") not in ranks.METRICS:
+            raise ValueError("bad platform or metric")
+        return ranks.top(plat, g("metric", "vday"), (g("country", "") or "")[:2].upper(), g("category", "")[:60],
+                         limit=max(1, min(1000, int(g("limit") or 100))), game=g("game", "")[:60])
+    return _v1(build)
+
+
+@app.route("/api/v1/streamers")
+def v1_streamers():
+    from tracker import scene
+    g = request.args.get
+    re_ = __import__("re")
+
+    def build():
+        return scene.rankings(region=g("region", "global"), metric=g("metric", "hw"), period=g("period", "day"),
+                              date=g("date", "") if re_.fullmatch(r"\d{4}-\d{2}-\d{2}", g("date", "")) else "",
+                              cat=g("cat", "") if re_.fullmatch(r"[a-z0-9-]{0,40}", g("cat", "")) else "",
+                              country=(g("country", "") or "")[:2].upper(),
+                              platform=g("platform", "") if g("platform", "") in ("youtube", "kick", "twitch") else "")
+    return _v1(build)
+
+
+@app.route("/api/v1/live")
+def v1_live():
+    from tracker import scene
+    region = request.args.get("region", "global")
+    region = region if region in scene.REGIONS else "global"
+    return _v1(lambda: scene.data("today", "", region, ""))
+
+
+@app.route("/api/v1/search")
+def v1_search():
+    from tracker import scene
+    q = (request.args.get("q") or "").strip().lower()[:60]
+    return _v1(lambda: scene.search(q, "global"))
+
+
 @app.route("/api/deep")
 def api_deep():
     """A channel's metrics and where it stands among peers, history by month since January, best-performing
