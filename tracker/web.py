@@ -566,8 +566,12 @@ def api_topch():
     metric = g("metric", "size") if g("metric") in ranks.METRICS else "size"
     country = (g("country") or "")[:2].upper()
     category, game = (g("category") or "")[:40], (g("game") or "")[:60]
-    return _memo(f"/api/topch:{plat}:{metric}:{country}:{category}:{game}", 120,
-                 _jdump(lambda: ranks.top(plat, metric, country, category, game=game)), "application/json")
+    try:
+        limit = max(10, min(1000, int(g("limit") or 100)))
+    except ValueError:
+        limit = 100
+    return _memo(f"/api/topch:{plat}:{metric}:{country}:{category}:{game}:{limit}", 120,
+                 _jdump(lambda: ranks.top(plat, metric, country, category, limit=limit, game=game)), "application/json")
 
 
 SID_RX = r"(yt:UC[\w-]{22}|(twitch|kick):[a-z0-9_-]{2,40})"

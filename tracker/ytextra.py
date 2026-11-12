@@ -399,6 +399,8 @@ def channel_stats(cids: list) -> dict:
                 _META[it["id"]] = {"topic": topic_of((it.get("topicDetails") or {}).get("topicCategories") or []),
                                    "country": (it.get("snippet") or {}).get("country") or "",
                                    "name": (it.get("snippet") or {}).get("title") or "",
+                                   "lang": ((it.get("snippet") or {}).get("defaultLanguage") or "").lower(),
+                                   "text": ((it.get("snippet") or {}).get("title") or "") + " " + ((it.get("snippet") or {}).get("description") or "")[:400],
                                    "logo": (((it.get("snippet") or {}).get("thumbnails") or {}).get("medium") or {}).get("url") or ""}
                 out[it["id"]] = (None if s.get("hiddenSubscriberCount") else int(s.get("subscriberCount") or 0),
                                  int(s.get("viewCount") or 0), int(s.get("videoCount") or 0))
@@ -413,6 +415,51 @@ def channel_stats(cids: list) -> dict:
         if v:
             out[cid] = v
     return out
+
+
+# Indian-script text (Devanagari, Gurmukhi, Gujarati, Odia, Tamil, Telugu, Kannada, Malayalam). Bengali is left out:
+# it is just as much Bangladesh's. Used only for channels that have not set a country.
+_INDIC = re.compile("[\u0900-\u097F\u0A00-\u0D7F]")
+IN_LANGS = {"hi", "ta", "te", "kn", "ml", "mr", "gu", "pa", "or", "as", "en-in", "hi-in", "ta-in", "te-in"}
+
+
+def looks_indian(m: dict) -> bool:
+    """A channel with no country set: Indian if its default language is an Indian one or most of the letters in its
+    name and description are in an Indian script (Bengali excluded)."""
+    if (m.get("lang") or "") in IN_LANGS:
+        return True
+    t = m.get("text") or ""
+    letters = [ch for ch in t if ch.isalpha()]
+    if len(letters) < 8:
+        return False
+    return len(_INDIC.findall(t)) >= .4 * len(letters)
+
+
+def save_stats(got: dict, cats: dict = None):
+    """Store today's (subs, views, videos) for channels and the details read with them (topic, country, name, logo).
+    cats: {channel id: YouTube category} known from where the channel was found (a category chart)."""
+    d = _day()
+    now = int(time.time())
+    with store._lock:
+        c = _db()
+        c.executemany("INSERT OR REPLACE INTO sc_chstats VALUES (?,?,?,?,?,?)",
+                      [(d, "yt:" + cid, s, v, n, now) for cid, (s, v, n) in got.items()])
+        c.executemany("INSERT OR IGNORE INTO sc_intra VALUES (?,?,?,?)", [("yt:" + cid, now, s, v) for cid, (s, v, n) in got.items()])
+        c.execute("DELETE FROM sc_intra WHERE ts<?", (now - 3 * 86400,))
+        meta = [(m["topic"], m["country"], m["name"], m["logo"], "yt:" + cid) for cid, m in _META.items() if cid in got]
+        c.executemany("""UPDATE sc_channels SET topic=COALESCE(NULLIF(?,''), topic),
+                         country=CASE WHEN ?!='' THEN ? ELSE country END, name=COALESCE(NULLIF(?,''), name),
+                         logo=COALESCE(NULLIF(?,''), logo) WHERE sid=?""",
+                      [(t, ct, ct, n, lg, sid) for t, ct, n, lg, sid in meta])
+        c.executemany("UPDATE sc_channels SET india=1 WHERE sid=? AND COALESCE(country,'')='' AND COALESCE(india,0)=0",
+                      [("yt:" + cid,) for cid, m in _META.items() if cid in got and not m.get("country") and looks_indian(m)])
+        if cats:
+            c.executemany("UPDATE sc_channels SET ytcat=? WHERE sid=? AND COALESCE(ytcat,'')=''",
+                          [(cat, "yt:" + cid) for cid, cat in cats.items() if cat and cid in got])
+        c.execute("UPDATE sc_channels SET india=1 WHERE country='IN' AND platform='youtube' AND COALESCE(india,0)=0")
+        c.commit()
+    for cid in got:
+        _META.pop(cid, None)
 
 
 def stats_once(limit: int = 300) -> int:
@@ -430,21 +477,7 @@ def stats_once(limit: int = 300) -> int:
     if not todo:
         return 0
     got = _sane(channel_stats([s[3:] for s in todo]))
-    now = int(time.time())
-    with store._lock:
-        c = _db()
-        c.executemany("INSERT OR REPLACE INTO sc_chstats VALUES (?,?,?,?,?,?)",
-                      [(d, "yt:" + cid, s, v, n, now) for cid, (s, v, n) in got.items()])
-        c.executemany("INSERT OR IGNORE INTO sc_intra VALUES (?,?,?,?)", [("yt:" + cid, now, s, v) for cid, (s, v, n) in got.items()])
-        c.execute("DELETE FROM sc_intra WHERE ts<?", (now - 3 * 86400,))
-        meta = [(m["topic"], m["country"], m["name"], m["logo"], "yt:" + cid) for cid, m in _META.items() if cid in got]
-        c.executemany("""UPDATE sc_channels SET topic=COALESCE(NULLIF(?,''), topic),
-                         country=CASE WHEN ?!='' THEN ? ELSE country END, name=COALESCE(NULLIF(?,''), name),
-                         logo=COALESCE(NULLIF(?,''), logo) WHERE sid=?""",
-                      [(t, ct, ct, n, lg, sid) for t, ct, n, lg, sid in meta])
-        c.execute("UPDATE sc_channels SET india=1 WHERE country='IN' AND platform='youtube' AND COALESCE(india,0)=0")
-        c.commit()
-    _META.clear()
+    save_stats(got)
     return len(got)
 
 
@@ -521,6 +554,11 @@ def run_stats():
             key = os.getenv("YOUTUBE_API_KEY")
             stats_once(5000 if key and events.yt_quota_left(.85) else 120)
             discover_once(DISCOVER_PER_RUN)
+            try:
+                from tracker import catfill
+                catfill.run_once()                # top Indian channels in every YouTube category
+            except Exception as e:
+                print(f"Category fill: {str(e)[:150]}")
             prefetch_once(max(16, events.YT_QUOTA // 600) if key else 2)    # scales with the quota Google allows
             followers_once(100)
             intra_once()
