@@ -31,6 +31,13 @@ h1{font:700 40px/1.05 "Barlow Condensed",sans-serif;margin:0;text-transform:uppe
 .btn{background:var(--lime);color:#0b0b12;border:0;font:700 13px "Barlow Condensed",sans-serif;letter-spacing:.05em;padding:9px 16px;cursor:pointer;text-decoration:none;display:inline-block;white-space:nowrap}
 .btn.red{background:var(--red);color:#fff}
 .card{background:var(--card);border:1px solid var(--line);margin-top:14px}
+.dpeer{padding:10px 16px 14px}.dpr{display:grid;grid-template-columns:1fr 2fr 56px;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--line);font-size:13px}
+.dpr small{display:block;color:var(--muted);font-size:11px}.dbar{position:relative;height:10px;background:var(--card2)}.dbar i{position:absolute;top:0;bottom:0;background:rgba(182,242,58,.25)}
+.dbar b{position:absolute;top:-4px;width:3px;height:18px;background:var(--lime)}.dpr .pc{font:700 20px "Barlow Condensed",sans-serif;text-align:right}
+.ytab{overflow-x:auto;padding:10px 16px 14px}.ytab table{border-collapse:collapse;width:100%;font-size:13px;min-width:560px}.ytab th{color:var(--muted);font-weight:500;text-align:right;padding:6px 8px;font-size:11px}
+.ytab td{text-align:right;padding:6px 8px;border-top:1px solid var(--line);white-space:nowrap}.ytab th:first-child,.ytab td:first-child{text-align:left}
+.tcm{padding:10px 16px;border-top:1px solid var(--line);font-size:13px}.tcm small{color:var(--muted);display:block;margin-top:3px;font-size:11px}
+
 .card h2{font-size:19px;margin:0;padding:14px 16px 0}.card .cap{color:var(--muted);font-size:12px;padding:2px 16px 0}
 .lv{color:var(--red);font:600 11px "Barlow Condensed",sans-serif;margin-right:4px}.lv:before{content:"\25CF ";}
 .av{position:relative;width:38px;height:38px}.av img,.av .ph{width:38px;height:38px;border-radius:50%;object-fit:cover}.av .bd{display:none}
@@ -96,6 +103,11 @@ __PANEL_CSS__
  <div class="vk" id="vidk"></div><canvas id="vidchart"></canvas><div class="vtip" id="vtip"></div>
  <div class="ins" id="vins"></div>
  <div class="ps" id="vidlist"></div></div>
+<div class="card" id="dcard" style="display:none"><div class="vhead"><div><h2>Benchmarks</h2><div class="cap">How this channel compares with channels of the same size in its category and game. This site's own calculations from YouTube's public counts (medians of the last 30 posts aged 3 to 90 days), not YouTube figures.</div></div></div>
+ <div class="vseg" id="dfmt" style="padding:10px 16px 0"></div><div class="vk" id="dk"></div><div id="dpeer" class="dpeer"></div></div>
+<div class="card" id="ycard" style="display:none"><h2>This year, month by month</h2><div class="cap" id="ycap">Posts published each month, with the views, likes and comments those posts have now.</div><div id="ytab" class="ytab"></div></div>
+<div class="card" id="bvcard" style="display:none"><h2>Best recent videos</h2><div class="cap">Last 90 days, by performance index: the video's views divided by this channel's typical views. 2.0x = twice its usual.</div><div class="ps" id="bv"></div></div>
+<div class="card" id="tccard" style="display:none"><h2>Top comments</h2><div class="cap">YouTube's top comments on this channel's videos from the past week, most liked first. Kept for 30 days.</div><div id="tc"></div></div>
 <div id="smodal" style="position:fixed;inset:0;z-index:60;background:rgba(3,2,12,.85);display:none;align-items:center;justify-content:center;padding:16px"><div style="background:var(--bg2);border:1px solid var(--line);padding:14px;max-width:440px;width:100%;max-height:94vh;overflow:auto">
  <img id="simg" alt="Share card" style="width:100%;display:block;border:1px solid var(--line);margin-bottom:10px"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="sgo">SHARE</button><button class="btn" id="sdl">DOWNLOAD</button><button class="btn" id="sx" style="background:none;color:var(--muted);border:1px solid var(--line)">CLOSE</button></div></div></div>
 <div class="card" id="bcard" style="display:none"><div class="vhead"><div><h2>Creator badge</h2><div class="cap">A live badge for your website, link page or press kit. It updates itself as the rank changes. Pick which rank to show.</div></div></div>
@@ -311,6 +323,21 @@ async function badges(){try{const O=await (await fetch('/api/badges?sid='+encode
   c.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(CDATA&&CDATA.name||'badge').replace(/[^\w-]+/g,'_')+'_rank.png';a.click()},'image/png')};im.src=document.getElementById('bimg').src};
  draw()}catch(e){}}
 load();past();moms();videos();badges();liveTick();setInterval(()=>{if(!document.hidden){load();if(!LV.on)liveTick()}},15000);
+
+(async function deepLoad(){if(!SID.startsWith('yt:'))return;let D;try{D=await (await fetch('/api/deep?sid='+encodeURIComponent(SID))).json()}catch(e){return}
+ const pc=x=>x==null?'-':(x*100).toFixed(x<.1?2:1)+'%',F={long:'Videos',short:'Shorts',live:'Live streams'},S=D.standing||{},FM=Object.keys(S.formats||{});
+ if(FM.length){let cur=FM.includes('long')?'long':FM[0];const draw=()=>{const f=S.formats[cur];
+   document.getElementById('dfmt').innerHTML=FM.map(k=>`<button data-v="${k}" class="${k===cur?'on':''}">${F[k]}</button>`).join('');
+   document.getElementById('dk').innerHTML=[[pc(f.eng_rate),'engagement (likes + comments / views)'],[pc(f.like_rate),'like rate'],[pc(f.comment_rate),'comment rate'],[fmt(f.med_views),'typical views'],[(f.per_week||0).toFixed(1),'posts a week']].map(([v,l])=>`<div><b>${v}</b>${l}</div>`).join('');
+   document.getElementById('dpeer').innerHTML=(f.peers||[]).map(p=>{const mx=Math.max(p.p90*1.25,f.eng_rate*1.1)||1,X=v=>Math.min(100,v/mx*100);
+     return `<div class="dpr"><div>${esc(p.group)}${p.scope==='in'?' · India':''}<small>${esc(p.size)} subscribers · ${p.n} channels · median ${pc(p.p50)}</small></div><div class="dbar"><i style="left:${X(p.p25)}%;width:${X(p.p75)-X(p.p25)}%"></i><b style="left:${X(f.eng_rate)}%"></b></div><div class="pc">${p.pct>=50?'TOP '+(100-p.pct)+'%':'BOTTOM '+(p.pct||1)+'%'}</div></div>`}).join('')||'<div class="cap" style="padding:0">Peer comparison appears once enough channels like this one have been measured.</div>'};
+  draw();document.getElementById('dfmt').onclick=e=>{const b=e.target.closest('button');if(b){cur=b.dataset.v;draw()}};document.getElementById('dcard').style.display=''}
+ const M=D.monthly||[];if(M.length){const mn=k=>new Date(k+'-01T00:00:00').toLocaleDateString('en-IN',{month:'short',year:'2-digit'});
+  document.getElementById('ytab').innerHTML=`<table><tr><th>Month</th><th>Videos</th><th>Shorts</th><th>Streams</th><th>Hours live</th><th>Views</th><th>Likes</th><th>Comments</th><th>Engagement</th></tr>${M.map(m=>`<tr><td>${mn(m.month)}</td><td>${m.videos}</td><td>${m.shorts}</td><td>${m.streams}</td><td>${m.stream_hours||'-'}</td><td>${fmt(m.views)}</td><td>${fmt(m.likes)}</td><td>${fmt(m.comments)}</td><td>${pc(m.eng_rate)}</td></tr>`).join('')}</table>`;
+  document.getElementById('ycard').style.display=''}
+ const B=D.best||[];if(B.length){document.getElementById('bv').innerHTML=B.map(v=>`<a class="p" href="https://www.youtube.com/watch?v=${encodeURIComponent(v.vid)}" target="_blank" rel="noopener" style="display:flex;justify-content:space-between;gap:10px;padding:9px 16px;border-top:1px solid var(--line);color:var(--ink);text-decoration:none"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.title)}<small style="display:block;color:var(--muted)">${fmt(v.views)} views · ${new Date(v.ts*1000).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</small></span><b style="font:700 22px 'Barlow Condensed',sans-serif;color:var(--lime)">${v.index.toFixed(1)}x</b></a>`).join('');document.getElementById('bvcard').style.display=''}
+ const T=D.comments||[];if(T.length){document.getElementById('tc').innerHTML=T.map(c=>`<div class="tcm">${esc(c.text)}<small>${esc(c.author)} · ${fmt(c.likes)} likes · on "${esc(c.title)}"</small></div>`).join('');document.getElementById('tccard').style.display=''}
+})();
 </script></body></html>"""
 
 

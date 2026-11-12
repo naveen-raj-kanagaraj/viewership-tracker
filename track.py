@@ -105,6 +105,8 @@ def cmd_run(args) -> int:
         threading.Thread(target=scene.run_forever, daemon=True).start()
         from tracker import ytextra
         ytextra.start()                    # Super Chats on the biggest YouTube streams + daily channel stats
+        from tracker import deep
+        deep.start()                       # ranked channels: refresh every 1-3 h, history since Jan, metrics, comments
         from tracker import chat
         chat.start()                       # chat speed (Twitch IRC, Kick websocket) for Moments
         from tracker import ranks
@@ -294,6 +296,17 @@ def cmd_scene(args) -> int:
             top = sorted(((sid, sum(n for _, n in d)) for sid, d in chat._C.items()), key=lambda kv: -kv[1])[:15]
         for sid, n in top:
             print(f"  {sid:35} {n} messages")
+        return 0
+    if a[0] == "deep":                                 # ranked channels: refresh tiers, history since January, metrics
+        from tracker import deep
+        A, B = deep.ranked_set(force=True)
+        print(f"Ranked channels: {len(A)} hourly (top + live), {len(B)} every 3 hours")
+        print(f"History since {deep.datetime.fromtimestamp(deep.BACKFILL_FROM):%d %b %Y}: {deep.backfill_progress()}")
+        with __import__("tracker").store._lock:
+            c = deep._db()
+            print("Channels with metrics:", c.execute("SELECT COUNT(DISTINCT sid) FROM ch_metrics").fetchone()[0],
+                  "| benchmark rows:", c.execute("SELECT COUNT(*) FROM ch_bench").fetchone()[0],
+                  "| videos with top comments:", c.execute("SELECT COUNT(DISTINCT vid) FROM yt_comments WHERE rank>0").fetchone()[0])
         return 0
     if a[0] == "catfill":                              # Indian channels known per YouTube category: track.py scene catfill
         from tracker import catfill

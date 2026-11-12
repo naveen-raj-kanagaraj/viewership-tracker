@@ -67,7 +67,8 @@ assert not ytextra.looks_indian({"text": "english channel about cars"})
 assert not ytextra.looks_indian({"text": "বাংলা গান প্রতিদিন নতুন ভিডিও"})     # Bengali alone: could be Bangladesh
 
 # charts: category from the chart, Indian by country or script; category 29 has no chart
-n = catfill.charts(["Music", "Nonprofits & Activism"])
+catfill.WORLD_ON = False
+n = catfill.charts([("in", "cat", "Music"), ("in", "cat", "Nonprofits & Activism")])
 assert n == 2, n                                               # the US channel is not kept
 c = ytextra._db()
 rows = {r[0]: (r[1], r[2], r[3]) for r in c.execute("SELECT sid, ytcat, india, country FROM sc_channels")}
@@ -75,20 +76,26 @@ assert rows["yt:" + cid(10002)] == ("Music", 1, "IN"), rows   # country India
 assert rows["yt:" + cid(10000)][:2] == ("Music", 1)            # no country, Hindi text
 assert "yt:" + cid(10001) not in rows                          # US: dropped
 assert c.execute("SELECT COUNT(*) FROM sc_chstats").fetchone()[0] == 2
-assert catfill.charts(["Music"]) == 0                         # not again within 6 hours
+assert catfill.charts([("in", "cat", "Music")]) == 0                         # not again within 6 hours
 
 # deep search: page 1 then continuation page 2
 catfill.SEARCH_PAGES = 2
-added = catfill.search(["Music"]) + catfill.search(["Music"])  # one page per query per run, rotating
+added = catfill.search([("in", "cat", "Music")]) + catfill.search([("in", "cat", "Music")])  # one page per query per run, rotating
 assert added == 1, added                                       # 800001 (India) kept; 800000 and 800003 (US) dropped
-assert catfill._S["hindi songs"]["page"] >= 2
+assert catfill._S[("hindi songs", "IN")]["page"] >= 2
 
 # Channels-tab links from Indian Music channels
-added = catfill.links(["Music"])
+added = catfill.links([("in", "cat", "Music")])
 assert added == 2, added                                      # 900001 (Hindi, no country) and 900003 (India); never itself
-assert catfill.links(["Music"]) == 0 or True
+
 
 print(catfill.report())
-assert catfill.counts()["Music"] >= 4, catfill.counts()
+assert catfill.counts()[("in", "cat", "Music")] >= 4, catfill.counts()
+# worldwide: a big US channel is kept, a small one dropped; game search seeds the game
+catfill.WORLD_ON = True
+assert ("world", "game", "BGMI") in catfill.groups() and ("in", "game", "Free Fire") in catfill.groups()
+kept = catfill.admit({cid(700002): ("", "BGMI"), cid(700005): ("", "")}, "world")
+r2 = {r[0]: r[1] for r in c.execute("SELECT sid, game FROM sc_channels WHERE sid IN (?,?)", ("yt:" + cid(700002), "yt:" + cid(700005)))}
+assert kept >= 1 and r2.get("yt:" + cid(700002)) == "BGMI", r2
 catfill.run_once()
 print("CATFILL OK")
