@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS ch_metrics (sid TEXT, fmt TEXT, n INTEGER, med_views 
     eng_rate REAL, per_week REAL, views_per_sub REAL, updated INTEGER, PRIMARY KEY (sid, fmt));
 CREATE TABLE IF NOT EXISTS ch_bench (scope TEXT, kind TEXT, grp TEXT, size TEXT, fmt TEXT, metric TEXT, n INTEGER,
     p25 REAL, p50 REAL, p75 REAL, p90 REAL, updated INTEGER, PRIMARY KEY (scope, kind, grp, size, fmt, metric));
+CREATE TABLE IF NOT EXISTS ch_period (sid TEXT, period TEXT, n INTEGER, eng_rate REAL, like_rate REAL, med_views REAL,
+    updated INTEGER, PRIMARY KEY (sid, period));
 CREATE TABLE IF NOT EXISTS yt_comments (vid TEXT, rank INTEGER, author TEXT, text TEXT, likes INTEGER, ts INTEGER,
     fetched INTEGER, PRIMARY KEY (vid, rank));
 """
@@ -207,7 +209,46 @@ def metrics_once(limit: int = 20000) -> int:
         c.executemany("INSERT OR REPLACE INTO ch_metrics VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
         c.commit()
     benchmarks()
+    period_metrics(sids)
     return len(rows)
+
+
+def period_metrics(sids: list) -> int:
+    """ch_period: per channel and period (ranks.PERIODS), medians over the posts published in the period: engagement
+    ((likes + comments) / views), like rate, typical views. Long videos when the period has enough of them (1 in
+    24 h, 2 in 3 days, 3 otherwise), else Shorts. One pass over the channels' stored posts."""
+    from tracker import ranks
+    now = time.time()
+    starts = {p: (ranks.period_start(p) and datetime.combine(ranks.period_start(p), datetime.min.time()).timestamp())
+              for p in ranks.PERIODS}
+    need = {"24h": 1, "3d": 2}
+    out = []
+    for i in range(0, len(sids), 300):
+        part = sids[i:i + 300]
+        with store._lock:
+            rows = _db().execute(f"""SELECT sid, ts, views, likes, comments, COALESCE(short,0), COALESCE(live,0) FROM yt_videos
+                                     WHERE sid IN ({','.join('?' * len(part))}) AND views>0""", part).fetchall()
+        by = {}
+        for r in rows:
+            by.setdefault(r[0], []).append(r)
+        for sid, L in by.items():
+            for p in ranks.PERIODS:
+                st = starts[p] or 0
+                win = [r for r in L if r[1] and r[1] >= st and r[1] <= now]
+                k = need.get(p, 3)
+                use = [r for r in win if not r[5] and not r[6]]
+                if len(use) < k:
+                    use = [r for r in win if r[5]]
+                if len(use) < k:
+                    continue
+                out.append((sid, p, len(use), _med([((r[3] or 0) + (r[4] or 0)) / r[2] for r in use if r[3] is not None]),
+                            _med([r[3] / r[2] for r in use if r[3] is not None]), _med([r[2] for r in use]), int(now)))
+    with store._lock:
+        c = _db()
+        c.execute("DELETE FROM ch_period WHERE updated<?", (int(now) - 2 * 86400,))
+        c.executemany("INSERT OR REPLACE INTO ch_period VALUES (?,?,?,?,?,?,?)", out)
+        c.commit()
+    return len(out)
 
 
 BENCH_METRICS = ("eng_rate", "like_rate", "comment_rate", "med_views", "views_per_sub", "per_week")

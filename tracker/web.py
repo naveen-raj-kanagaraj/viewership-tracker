@@ -467,7 +467,7 @@ def v1_rankings():
 
     def build():
         plat = g("platform", "youtube")
-        if plat not in ("youtube", "twitch", "kick") or g("metric", "vday") not in ranks.METRICS:
+        if plat not in ("youtube", "twitch", "kick") or g("metric", "vday") not in ranks.METRICS + ranks.PMETRICS:
             raise ValueError("bad platform or metric")
         return ranks.top(plat, g("metric", "vday"), (g("country", "") or "")[:2].upper(), g("category", "")[:60],
                          limit=max(1, min(1000, int(g("limit") or 100))), game=g("game", "")[:60])
@@ -703,7 +703,7 @@ def api_topch():
     from tracker import ranks
     g = request.args.get
     plat = g("platform", "youtube") if g("platform") in ("youtube", "twitch", "kick") else "youtube"
-    metric = g("metric", "size") if g("metric") in ranks.METRICS else "size"
+    metric = g("metric", "size") if g("metric") in ranks.METRICS + ranks.PMETRICS else "size"
     country = (g("country") or "")[:2].upper()
     category, game = (g("category") or "")[:40], (g("game") or "")[:60]
     try:
