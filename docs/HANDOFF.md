@@ -201,7 +201,7 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
   polish layer: Figtree sentence-case headings, near-black ground, bordered quiet panels, compact segmented
   controls. Previous look kept: footer link "Classic look" / ?theme=classic (remembered per browser), or
   SITE_THEME=classic in .env for the whole site. Share cards (rankings, dashboard / categories, stat card, channel,
-  event, Predict) print the site address at the right of the subtitle line, because creators crop off the brand
+  event, Predict) print "For more: <site address>" at the right of the subtitle line, because creators crop off the brand
   line and footer.
 
 - Design polish from BMIC fan feedback (12 Nov 2026, 993 responses: 92 asked for player pick lists, ~30 for less
