@@ -190,6 +190,14 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- Top Indian channels per YouTube category (12 Nov 2026, tracker/catfill.py, runs inside ytextra.run_stats every
+  15 min): target FILL_TARGET=1000 per category (keeps finding until 1.5x, then tops up). Sources: India most-popular
+  chart per category (API, each category every 6 h, ~240 units/day max), YouTube channel search 25 pages deep with
+  per-category keywords in Indian languages (free), Channels-tab links of big Indian channels (free). New channels
+  are read at once (API) and kept only if Indian (country IN, or no country and Indian language / script:
+  ytextra.looks_indian, Bengali excluded); FILL_MAX_NEW=3000 per call. Progress: `track.py scene catfill`.
+  Channels page lists up to 1,000 (/api/topch?limit=, 25 -> 100 -> 250 -> 500 -> 1000). tests/test_catfill.py.
+
 - YouTube API compliance (11 Nov 2026, ToS Violations Report V.1, project 869573729233): the reviewer flagged the
   small coloured platform badge on avatars (a red square with "Y") as a non-compliant YouTube icon (III.F.2a).
   Removed on every page; the platform is now plain text next to the name (.pf). Filter buttons say YOUTUBE, not YT.

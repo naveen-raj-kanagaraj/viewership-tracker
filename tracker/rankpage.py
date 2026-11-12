@@ -102,7 +102,7 @@ const ini=s=>esc(String(s||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCa
 const av=x=>`<span class="av">${x.logo?`<img src="${esc(x.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=ph>${ini(x.name)}</span>'">`:`<span class="ph">${ini(x.name)}</span>`}</span>`;
 const dl=d=>d===null?'<span class="dl nw">NEW</span>':d>0?`<span class="dl up">&#9650;${d}</span>`:d<0?`<span class="dl dn">&#9660;${-d}</span>`:'<span class="dl" style="color:var(--muted)">=</span>';
 const liveMap=()=>{const m={};(R?R.rows:[]).forEach(x=>{if(x.now)m[x.sid]=x.now});return m};
-const JC=new Map();let SEQ=0;
+const JC=new Map();let SEQ=0,CN=25;
 async function getJ(u,ttl,force){const h=JC.get(u);if(!force&&h&&Date.now()-h.t<ttl)return h.j;const j=await (await fetch(u)).json();JC.set(u,{t:Date.now(),j});return j}
 function pre(u,ttl){const h=JC.get(u);if(h&&Date.now()-h.t<ttl)return;fetch(u).then(r=>r.json()).then(j=>JC.set(u,{t:Date.now(),j})).catch(()=>{})}
 const busy=on=>document.body.classList.toggle('busy',on);
@@ -121,6 +121,7 @@ function setMode(m){MODE=m;document.querySelector('h1').innerHTML=(m==='live'?'T
 async function goCh(){if(!CMS().some(x=>x[0]===C.metric))C.metric=CMS()[0][0];
  const p=new URLSearchParams({platform:C.platform,metric:C.metric});if(C.country)p.set('country',C.country);if(C.category)p.set('category',C.category);if(C.game)p.set('game',C.game);
  history.replaceState(null,'',location.pathname+'?'+new URLSearchParams({mode:'channels',...Object.fromEntries(p)}));
+ if(CN>100)p.set('limit','1000');
  const my=++SEQ;busy(true);let J;try{J=await getJ('/api/topch?'+p,60000)}catch(e){busy(false);return}if(my!==SEQ)return;busy(false);CR=J;
  if(!CR.updated){setTimeout(()=>{if(MODE==='channels'){JC.delete('/api/topch?'+p);goCh()}},15000)}
  setTimeout(()=>CMS().forEach(([m])=>{if(m!==C.metric){const q=new URLSearchParams(p);q.set('metric',m);pre('/api/topch?'+q,60000)}}),600);
@@ -135,9 +136,9 @@ async function goCh(){if(!CMS().some(x=>x[0]===C.metric))C.metric=CMS()[0][0];
  document.getElementById('span').textContent=`${full(CR.total)} ${NAMES[C.platform]} channels${C.category?' in '+C.category:''}${C.game?' making '+C.game:''}${C.country?' from '+((CR.countries.find(x=>x.code===C.country)||{}).name||C.country):''} · ranked by ${CML(C.metric).toLowerCase()} · updated ${CR.updated?Math.round((Date.now()/1000-CR.updated)/60)+' min ago':'soon'}`;
  const L=CR.rows||[],P=L.slice(0,3),ord=P.length===3?[P[1],P[0],P[2]]:P,link=x=>`${RP}/ch/${encodeURIComponent(x.sid)}`;
  document.getElementById('podium').innerHTML=ord.map(x=>`<a class="pd p${x.rank}" href="${link(x)}" style="text-decoration:none"><div class="md">#${x.rank}</div>${x.logo?`<img src="${esc(x.logo)}" alt="" referrerpolicy="no-referrer">`:`<span class="ph">${ini(x.name)}</span>`}<div class="n">${esc(x.name)}</div><div class="v">${CMV(C.metric,x[C.metric])}</div><div class="s">${esc([x.category,x.country_name].filter(Boolean).join(' · '))}</div></a>`).join('');
- document.getElementById('rows').innerHTML=L.slice(3,ALL?100:25).map(x=>`<a class="row" href="${link(x)}" style="text-decoration:none"><span class="rk">${x.rank}</span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}<span class="pf">${({youtube:'YouTube',kick:'Kick',twitch:'Twitch'})[x.platform]||''}</span></div><div class="ds">${esc([x.category,x.game&&x.game!==x.category?x.game:'',x.country_name].filter(Boolean).join(' · '))}</div></span>`+
+ document.getElementById('rows').innerHTML=L.slice(3,CN).map(x=>`<a class="row" href="${link(x)}" style="text-decoration:none"><span class="rk">${x.rank}</span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}<span class="pf">${({youtube:'YouTube',kick:'Kick',twitch:'Twitch'})[x.platform]||''}</span></div><div class="ds">${esc([x.category,x.game&&x.game!==x.category?x.game:'',x.country_name].filter(Boolean).join(' · '))}</div></span>`+
   [C.metric,...others].map((m,i)=>`<span class="c${i===0?' m':''} x${i+1}">${CMV(m,x[m])}</span>`).join('')+'</a>').join('')||(L.length?'':`<div class="empty">${!CR.updated?'Rankings are being calculated after a site update. This fills in by itself in a minute.':['vday','v7','growth'].includes(C.metric)?(YT()?'Views gained':'Followers gained')+' needs two daily readings of a channel, so it fills in from the day after a channel is first read. Try '+(YT()?'TOTAL VIEWS or SUBSCRIBERS':'FOLLOWERS or LIVE HOURS')+' meanwhile.':'No channels match these filters yet.'}</div>`);
- const mo=document.getElementById('more');mo.style.display=L.length>25?'block':'none';mo.textContent=ALL?'Show top 25':`Show top ${Math.min(100,L.length)}`;mo.onclick=()=>{ALL=!ALL;goCh()}}
+ const mo=document.getElementById('more'),tot=Math.min(1000,CR.total||L.length),nx=[100,250,500,1000].find(n=>n>CN&&n<=Math.max(100,Math.ceil(tot/100)*100))||0;mo.style.display=tot>25?'block':'none';mo.textContent=nx?`Show top ${Math.min(nx,tot)}`:'Show top 25';mo.onclick=()=>{CN=nx||25;goCh();if(!nx)window.scrollTo(0,0)}}
 function seg(id,opts,cur,on){const e=document.getElementById(id);e.innerHTML=opts.map(([v,l])=>`<button data-v="${v}" class="${v===cur?'on':''}">${l}</button>`).join('');e.onclick=ev=>{const b=ev.target.closest('button');if(b)on(b.dataset.v)}}
 const shift=(d,n)=>{const t=new Date(d+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10)};
 const dshortD=d=>new Date(d+'T12:00:00+05:30').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});

@@ -295,6 +295,10 @@ def cmd_scene(args) -> int:
         for sid, n in top:
             print(f"  {sid:35} {n} messages")
         return 0
+    if a[0] == "catfill":                              # Indian channels known per YouTube category: track.py scene catfill
+        from tracker import catfill
+        print(catfill.report())
+        return 0
     if a[0] == "stats" and len(a) >= 2:              # one channel's subscribers / views / videos: track.py scene stats @handle
         from tracker import ytextra
         print(ytextra.probe_stats(a[1]))
