@@ -201,7 +201,7 @@ async function makeCard(logos){const ST=FMT==='story',H=ST?1920:1350;
  x.fillStyle='#b6f23a';x.font='700 30px "Barlow Condensed",sans-serif';x.fillText('LETSGROWESPORTS',72,y0+26);
  x.fillStyle='#fff';x.font='700 64px "Barlow Condensed",sans-serif';
  x.fillText(fit(CH?'TOP '+(NAMES[C.platform]||'').toUpperCase()+' CHANNELS':'TOP STREAMERS '+(cat?'· '+cat.toUpperCase():where.toUpperCase()),936),72,y0+100);
- const WM=(location.host||'live.letsgrowesports.com').replace(/^www\./,'');x.font='600 22px "Barlow Condensed",sans-serif';const wmW=x.measureText(WM).width+28;
+ const WM='For more: '+(location.host||'live.letsgrowesports.com').replace(/^www\./,'');x.font='600 22px "Barlow Condensed",sans-serif';const wmW=x.measureText(WM).width+28;
  if(CH){x.fillStyle='#b6f23a';x.font='700 34px "Barlow Condensed",sans-serif';x.fillText(fit([cat,where,'BY '+CML(C.metric)].filter(Boolean).join(' · ').toUpperCase(),936-wmW),72,y0+145)}
  else{x.fillStyle='#8d8ca3';x.fillText(shrink(document.getElementById('span').textContent.toUpperCase(),936-wmW,28,'#px "Barlow Condensed",sans-serif'),72,y0+145)}
  x.textAlign='right';x.fillStyle='#a9a8be';x.font='600 22px "Barlow Condensed",sans-serif';x.fillText(WM,1008,y0+145);x.textAlign='left';
