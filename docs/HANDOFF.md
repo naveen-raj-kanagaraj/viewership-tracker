@@ -190,6 +190,13 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- Clean look (12 Nov 2026, owner asked for Streams Charts-style type and tables): polish.CLEAN, injected with the
+  polish layer: Figtree sentence-case headings, near-black ground, bordered quiet panels, compact segmented
+  controls. Previous look kept: footer link "Classic look" / ?theme=classic (remembered per browser), or
+  SITE_THEME=classic in .env for the whole site. Share cards (rankings, dashboard / categories, stat card, channel,
+  event, Predict) print the site address at the right of the subtitle line, because creators crop off the brand
+  line and footer.
+
 - Design polish from BMIC fan feedback (12 Nov 2026, 993 responses: 92 asked for player pick lists, ~30 for less
   clutter / better contrast / fonts / motion / "looks AI generated"): tracker/polish.py is injected into every
   HTML page by web._html: brighter grey text, borderless rounded cards with more space, sideways-scrolling
