@@ -69,7 +69,7 @@ __PANEL_CSS__
 <h1>Top streamers <em>__WHERE__</em></h1>
 <p class="intro" id="intro">Ranked by what people actually watched live. Tap a streamer for their full numbers.</p>
 <div class="filters"><div class="seg" id="mode"></div></div>
-<div class="filters" id="cf" style="display:none"><div class="seg" id="cplat"></div><div class="seg" id="cmetric"></div>
+<div class="filters" id="cf" style="display:none"><div class="seg" id="cplat"></div><div class="seg" id="cmetric"></div><select id="cper" aria-label="Period"></select>
  <select id="ccat"><option value="">All categories</option></select><select id="cgame"><option value="">All games</option></select><select id="cctry"><option value="">All countries</option></select>
  <button class="btn" id="cshare">SHARE TOP 10</button></div>
 <div class="filters" id="lf">
@@ -107,37 +107,48 @@ async function getJ(u,ttl,force){const h=JC.get(u);if(!force&&h&&Date.now()-h.t<
 function pre(u,ttl){const h=JC.get(u);if(h&&Date.now()-h.t<ttl)return;fetch(u).then(r=>r.json()).then(j=>JC.set(u,{t:Date.now(),j})).catch(()=>{})}
 const busy=on=>document.body.classList.toggle('busy',on);
 const Q=new URLSearchParams(location.search);
-let S={period:['day','week','month'].includes(Q.get('period'))?Q.get('period'):'day',metric:Q.get('metric')||'hw',date:Q.get('date')||'',cat:Q.get('cat')||'',country:Q.get('country')||'',platform:Q.get('platform')||'',sec:Q.get('sec')||''};
+let S={period:['day','3d','week','month','3m','6m','ytd','1y','all'].includes(Q.get('period'))?Q.get('period'):'day',metric:Q.get('metric')||'hw',date:Q.get('date')||'',cat:Q.get('cat')||'',country:Q.get('country')||'',platform:Q.get('platform')||'',sec:Q.get('sec')||''};
 let R=null,OPEN=null,ALL=false;
-let MODE=Q.get('mode')==='live'||(!Q.get('mode')&&(Q.get('period')||Q.get('cat')||Q.get('sec')))?'live':'channels',C={platform:['youtube','twitch','kick'].includes(Q.get('platform'))?Q.get('platform'):'youtube',metric:['size','views','vday','v7','growth','live','eng','likes','medv'].includes(Q.get('metric'))?Q.get('metric'):'vday',country:Q.get('country')||(GL?'':'IN'),category:Q.get('category')||'',game:Q.get('game')||''},CR=null;
+let MODE=Q.get('mode')==='live'||(!Q.get('mode')&&(Q.get('period')||Q.get('cat')||Q.get('sec')))?'live':'channels',C={platform:['youtube','twitch','kick'].includes(Q.get('platform'))?Q.get('platform'):'youtube',base:'views',per:'7d',country:Q.get('country')||(GL?'':'IN'),category:Q.get('category')||'',game:Q.get('game')||''},CR=null;
 if(MODE==='channels')S.metric='hw';
+const PERS=[['24h','Last 24 hours','24H'],['3d','Last 3 days','3 DAYS'],['7d','Last 7 days','7 DAYS'],['30d','Last 30 days','30 DAYS'],['3m','Last 3 months','3 MONTHS'],['6m','Last 6 months','6 MONTHS'],['ytd','This year','THIS YEAR'],['1y','Last 12 months','12 MONTHS'],['all','Lifetime','LIFETIME']];
+{const qm=Q.get('metric')||'',LEG={vday:['views','24h'],v7:['views','7d'],growth:['views','30d'],views:['views','all'],size:['subs','all'],live:['live','30d'],eng:['eng','3m'],likes:['likes','3m'],medv:['medv','3m']};
+ const mm=qm.match(/^(views|subs|live|eng|likes|medv)_(24h|3d|7d|30d|3m|6m|ytd|1y|all)$/);if(mm){C.base=mm[1];C.per=mm[2]}else if(LEG[qm]){[C.base,C.per]=LEG[qm]}
+ if(!['youtube'].includes(C.platform)&&!['subs','live'].includes(C.base))C.base='subs';C.metric=C.base+'_'+C.per}
 const YT=()=>C.platform==='youtube';
-const CML=m=>(YT()?{eng:'ENGAGEMENT (MEDIAN)',likes:'LIKE RATE (MEDIAN)',medv:'TYPICAL VIEWS PER VIDEO',vday:'VIEWS, LAST 24H',v7:'VIEWS, 7 DAYS',growth:'VIEWS, 30 DAYS',views:'TOTAL VIEWS',size:'SUBSCRIBERS',live:'LIVE HOURS, 30D'}:{size:'FOLLOWERS',vday:'FOLLOWERS GAINED, DAY',v7:'FOLLOWERS GAINED, 7D',growth:'FOLLOWERS GAINED, 30D',live:'LIVE HOURS, 30D'})[m];
-const CMS=()=>YT()?[['vday','VIEWS 24H'],['v7','VIEWS 7D'],['growth','VIEWS 30D'],['views','TOTAL VIEWS'],['size','SUBSCRIBERS'],['eng','ENGAGEMENT'],['likes','LIKE RATE'],['medv','TYPICAL VIEWS'],['live','LIVE HOURS']]:[['size','FOLLOWERS'],['vday','GAINED TODAY'],['v7','GAINED 7D'],['growth','GAINED 30D'],['live','LIVE HOURS']];
-const CMV=(m,v)=>v==null?'-':m==='eng'||m==='likes'?(v*100).toFixed(v<.1?2:1)+'%':m==='live'?fmt(v)+'h':['vday','v7','growth'].includes(m)?'+'+fmt(v):fmt(v);
+const PLAB=p=>(PERS.find(x=>x[0]===p)||[])[2]||'';
+const CML=m=>{const [b,p]=m.split('_'),L=PLAB(p);if(b==='views')return p==='all'?'TOTAL VIEWS':'VIEWS, '+L;if(b==='subs')return p==='all'?(YT()?'SUBSCRIBERS':'FOLLOWERS'):(YT()?'SUBS GAINED, ':'FOLLOWERS GAINED, ')+L;
+ if(b==='live')return 'HOURS WATCHED LIVE, '+L;return ({eng:'ENGAGEMENT',likes:'LIKE RATE',medv:'TYPICAL VIEWS'})[b]+', '+L};
+const CMS=()=>YT()?[['views','VIEWS'],['subs','SUBSCRIBERS'],['eng','ENGAGEMENT'],['likes','LIKE RATE'],['medv','TYPICAL VIEWS'],['live','LIVE HOURS']]:[['subs','FOLLOWERS'],['live','LIVE HOURS']];
+const CMV=(m,v)=>{if(v==null)return '-';const [b,p]=m.split('_');if(b==='eng'||b==='likes')return (v*100).toFixed(v<.1?2:1)+'%';if(b==='live')return fmt(v)+'h';
+ if((b==='views'||b==='subs')&&p!=='all')return (v>0?'+':'')+fmt(v);return fmt(v)};
+const OTHERS=()=>{const p=C.per,b=C.base;return b==='views'?['subs_'+p,'views_all']:b==='subs'?(YT()?['views_'+p,'subs_all']:['live_'+p,'subs_all']):b==='eng'?['likes_'+p,'medv_'+p]:b==='likes'?['eng_'+p,'medv_'+p]:b==='medv'?['eng_'+p,'subs_all']:['subs_'+p,'subs_all']};
 function setMode(m){MODE=m;document.querySelector('h1').innerHTML=(m==='live'?'Top streamers ':'Top channels ')+`<em>${WHERE}</em>`;document.getElementById('lf').style.display=m==='live'?'':'none';document.getElementById('cf').style.display=m==='channels'?'':'none';document.querySelector('.lth .lc').textContent=m==='live'?'STREAMER':'CHANNEL';
  document.getElementById('intro').textContent=m==='live'?'Ranked by what people actually watched live. Tap a streamer for their full numbers.':'Every YouTube, Twitch and Kick channel this site tracks, uploaders and streamers, ranked by views, subscribers or growth. Tap one for its full stats.';
  seg('mode',[['channels','CHANNELS'],['live','LIVE STREAMERS']],MODE,v=>{setMode(v)});m==='live'?go():goCh()}
-async function goCh(){if(!CMS().some(x=>x[0]===C.metric))C.metric=CMS()[0][0];
+async function goCh(){if(!CMS().some(x=>x[0]===C.base))C.base=CMS()[0][0];C.metric=C.base+'_'+C.per;
  const p=new URLSearchParams({platform:C.platform,metric:C.metric});if(C.country)p.set('country',C.country);if(C.category)p.set('category',C.category);if(C.game)p.set('game',C.game);
  history.replaceState(null,'',location.pathname+'?'+new URLSearchParams({mode:'channels',...Object.fromEntries(p)}));
  if(CN>100)p.set('limit','1000');
  const my=++SEQ;busy(true);let J;try{J=await getJ('/api/topch?'+p,60000)}catch(e){busy(false);return}if(my!==SEQ)return;busy(false);CR=J;
  if(!CR.updated){setTimeout(()=>{if(MODE==='channels'){JC.delete('/api/topch?'+p);goCh()}},15000)}
- setTimeout(()=>CMS().forEach(([m])=>{if(m!==C.metric){const q=new URLSearchParams(p);q.set('metric',m);pre('/api/topch?'+q,60000)}}),600);
- seg('cplat',[['youtube','YOUTUBE'],['twitch','TWITCH'],['kick','KICK']],C.platform,v=>{if(v!==C.platform)C.metric=v==='youtube'?'vday':'size';C.platform=v;C.category='';C.game='';goCh()});
- seg('cmetric',CMS(),C.metric,v=>{C.metric=v;goCh()});
+ setTimeout(()=>CMS().forEach(([b])=>{if(b!==C.base){const q=new URLSearchParams(p);q.set('metric',b+'_'+C.per);pre('/api/topch?'+q,60000)}}),600);
+ seg('cplat',[['youtube','YOUTUBE'],['twitch','TWITCH'],['kick','KICK']],C.platform,v=>{if(v!==C.platform)C.base=v==='youtube'?'views':'subs';C.platform=v;C.category='';C.game='';goCh()});
+ seg('cmetric',CMS(),C.base,v=>{C.base=v;goCh()});
+ const cpe=document.getElementById('cper');cpe.innerHTML=PERS.map(([v,l])=>`<option value="${v}"${v===C.per?' selected':''}>${l}</option>`).join('');cpe.onchange=e=>{C.per=e.target.value;goCh()};
  const cc=document.getElementById('ccat');cc.innerHTML=`<option value="">${YT()?'All YouTube categories':'All sections'}</option>`+(CR.categories||[]).map(x=>`<option${x===C.category?' selected':''}>${esc(x)}</option>`).join('');
- const cg=document.getElementById('cgame');cg.innerHTML='<option value="">All games</option>'+(CR.games||[]).map(x=>`<option${x===C.game?' selected':''}>${esc(x)}</option>`).join('');
+ const cg=document.getElementById('cgame');if(C.game&&!(CR.games||[]).includes(C.game)&&!(CR.games||[]).length){C.game=''}
+ cg.innerHTML='<option value="">All games</option>'+(CR.games||[]).map(x=>`<option${x===C.game?' selected':''}>${esc(x)}</option>`).join('');cg.style.display=(CR.games||[]).length?'':'none';
  const ct=document.getElementById('cctry');ct.innerHTML='<option value="">All countries</option>'+(CR.countries||[]).map(x=>`<option value="${x.code}"${x.code===C.country?' selected':''}>${esc(x.name)}</option>`).join('');
  cc.onchange=e=>{C.category=e.target.value;goCh()};cg.onchange=e=>{C.game=e.target.value;goCh()};ct.onchange=e=>{C.country=e.target.value;goCh()};
- const others=['eng','likes','medv'].includes(C.metric)?['size',C.metric==='medv'?'eng':'medv']:CMS().map(x=>x[0]).filter(m=>m!==C.metric).slice(0,2);
- ['h1c','h2c','h3c'].forEach((id,i)=>document.getElementById(id).textContent=CML([C.metric,...others][i]));
- document.getElementById('span').textContent=`${full(CR.total)} ${NAMES[C.platform]} channels${C.category?' in '+C.category:''}${C.game?' making '+C.game:''}${C.country?' from '+((CR.countries.find(x=>x.code===C.country)||{}).name||C.country):''} · ranked by ${CML(C.metric).toLowerCase()} · updated ${CR.updated?Math.round((Date.now()/1000-CR.updated)/60)+' min ago':'soon'}`;
+ const others=OTHERS();
+ ['h1c','h2c','h3c'].forEach((id,i)=>document.getElementById(id).textContent=CML([C.metric,...others][i]).replace(', '+PLAB(C.per),'').replace('HOURS WATCHED LIVE','LIVE HOURS'));
+ document.getElementById('span').textContent=`${full(CR.total)} ${NAMES[C.platform]} channels${C.category?' in '+C.category:''}${C.game?' making '+C.game:''}${C.country?' from '+((CR.countries.find(x=>x.code===C.country)||{}).name||C.country):''} · ranked by ${CML(C.metric).toLowerCase()} · updated ${CR.updated?Math.round((Date.now()/1000-CR.updated)/60)+' min ago':'soon'}`+(()=>{const H=CR.history_from,need={'3d':3,'7d':7,'30d':30,'3m':90,'6m':180,'1y':365}[C.per]??(C.per==='ytd'?Math.floor((Date.now()-new Date(new Date().getFullYear(),0,1))/864e5):0);
+  if(!H||!['views','subs'].includes(C.base)||!need)return '';const days=Math.floor((Date.now()-new Date(H+'T00:00:00'))/864e5);return days<need?` · tracking began ${new Date(H+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})}, so this shows the gain since then`:''})();
  const L=CR.rows||[],P=L.slice(0,3),ord=P.length===3?[P[1],P[0],P[2]]:P,link=x=>`${RP}/ch/${encodeURIComponent(x.sid)}`;
  document.getElementById('podium').innerHTML=ord.map(x=>`<a class="pd p${x.rank}" href="${link(x)}" style="text-decoration:none"><div class="md">#${x.rank}</div>${x.logo?`<img src="${esc(x.logo)}" alt="" referrerpolicy="no-referrer">`:`<span class="ph">${ini(x.name)}</span>`}<div class="n">${esc(x.name)}</div><div class="v">${CMV(C.metric,x[C.metric])}</div><div class="s">${esc([x.category,x.country_name].filter(Boolean).join(' · '))}</div></a>`).join('');
  document.getElementById('rows').innerHTML=L.slice(3,CN).map(x=>`<a class="row" href="${link(x)}" style="text-decoration:none"><span class="rk">${x.rank}</span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}<span class="pf">${({youtube:'YouTube',kick:'Kick',twitch:'Twitch'})[x.platform]||''}</span></div><div class="ds">${esc([x.category,x.game&&x.game!==x.category?x.game:'',x.country_name].filter(Boolean).join(' · '))}</div></span>`+
-  [C.metric,...others].map((m,i)=>`<span class="c${i===0?' m':''} x${i+1}">${CMV(m,x[m])}</span>`).join('')+'</a>').join('')||(L.length?'':`<div class="empty">${!CR.updated?'Rankings are being calculated after a site update. This fills in by itself in a minute.':['vday','v7','growth'].includes(C.metric)?(YT()?'Views gained':'Followers gained')+' needs two daily readings of a channel, so it fills in from the day after a channel is first read. Try '+(YT()?'TOTAL VIEWS or SUBSCRIBERS':'FOLLOWERS or LIVE HOURS')+' meanwhile.':'No channels match these filters yet.'}</div>`);
+  [C.metric,...others].map((m,i)=>`<span class="c${i===0?' m':''} x${i+1}">${CMV(m,x[m])}</span>`).join('')+'</a>').join('')||(L.length?'':`<div class="empty">${!CR.updated?'Rankings are being calculated after a site update. This fills in by itself in a minute.':['views','subs'].includes(C.base)&&C.per!=='all'?(YT()?'Views and subscribers gained':'Followers gained')+' need two daily readings of a channel, so they fill in from the day after a channel is first read. Try Lifetime meanwhile.':['eng','likes','medv'].includes(C.base)?'No channel posted enough in this period to measure. Try a longer period.':'No channels match these filters yet.'}</div>`);
  const mo=document.getElementById('more'),tot=Math.min(1000,CR.total||L.length),nx=[100,250,500,1000].find(n=>n>CN&&n<=Math.max(100,Math.ceil(tot/100)*100))||0;mo.style.display=tot>25?'block':'none';mo.textContent=nx?`Show top ${Math.min(nx,tot)}`:'Show top 25';mo.onclick=()=>{CN=nx||25;goCh();if(!nx)window.scrollTo(0,0)}}
 function seg(id,opts,cur,on){const e=document.getElementById(id);e.innerHTML=opts.map(([v,l])=>`<button data-v="${v}" class="${v===cur?'on':''}">${l}</button>`).join('');e.onclick=ev=>{const b=ev.target.closest('button');if(b)on(b.dataset.v)}}
 const shift=(d,n)=>{const t=new Date(d+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10)};
@@ -149,7 +160,7 @@ function rowsHTML(){const L=(R.rows||[]).slice(3,ALL?100:25),M=MET[S.metric];
 function cols(x){const order=[S.metric,...['hw','peak','avg','hours'].filter(m=>m!==S.metric)].slice(0,3);return order.map(m=>MET[m][1](x[m]))}
 function render(){if(!R)return;const order=[S.metric,...['hw','peak','avg','hours'].filter(m=>m!==S.metric)].slice(0,3);
  ['h1c','h2c','h3c'].forEach((id,i)=>document.getElementById(id).textContent=MET[order[i]][0]);
- const lab={day:'',week:'7 days to ',month:'30 days to '}[S.period];
+ const lab={day:'',week:'7 days to ',month:'30 days to ','3d':'3 days to ','3m':'3 months to ','6m':'6 months to ',ytd:'this year to ','1y':'12 months to ',all:'all time to '}[S.period];
  document.getElementById('span').textContent=`${R.total} streamers · ${lab}${dshortD(R.date)}${R.date===R.today&&S.period==='day'?' (today, so far)':''} · ranked by ${MET[S.metric][0].toLowerCase()}`;
  const P=(R.rows||[]).slice(0,3),ord=P.length===3?[P[1],P[0],P[2]]:P;
  document.getElementById('podium').innerHTML=ord.map(x=>`<div class="pd p${x.rank}" data-sid="${esc(x.sid)}"><div class="md">#${x.rank} ${dl(x.delta)}</div>${x.logo?`<img src="${esc(x.logo)}" alt="" referrerpolicy="no-referrer">`:`<span class="ph">${ini(x.name)}</span>`}<div class="n">${esc(x.name)}</div><div class="v">${MET[S.metric][1](x[S.metric])}</div><div class="s">${esc(x.game)} · peak ${fmt(x.peak)}</div></div>`).join('');
@@ -158,7 +169,7 @@ function render(){if(!R)return;const order=[S.metric,...['hw','peak','avg','hour
  const top3=(R.rows||[]).slice(0,3).filter(x=>OPEN==='r:'+x.sid).map(x=>rowX('r',x,`<span class="rk" style="color:${MEDAL[x.rank-1]}">${x.rank}${dl(x.delta)}</span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}<span class="pf">${({youtube:'YouTube',kick:'Kick',twitch:'Twitch'})[x.platform]||''}</span></div><div class="ds">${esc(x.game)}</div></span>`+cols(x).map((c,i)=>`<span class="c${i===0?' m':''} x${i+1}">${c}</span>`).join(''))).join('');
  document.getElementById('rows').innerHTML=(top3+rowsHTML())||(R.rows.length>3?'':`<div class="empty">${R.rows.length?'':'Nobody recorded for this '+(S.period==='day'?'day':'period')+' with these filters.'}</div>`);
  const m=document.getElementById('more');m.style.display=(R.rows||[]).length>25?'block':'none';m.textContent=ALL?'Show top 25':`Show top ${Math.min(100,R.rows.length)}`;m.onclick=()=>{ALL=!ALL;render()}}
-function controls(){seg('period',[['day','DAY'],['week','WEEK'],['month','MONTH']],S.period,v=>{S.period=v;go()});
+function controls(){{const el=document.getElementById('period');el.outerHTML='<select id="period" aria-label="Period">'+[['day','Last 24 hours'],['3d','Last 3 days'],['week','Last 7 days'],['month','Last 30 days'],['3m','Last 3 months'],['6m','Last 6 months'],['ytd','This year'],['1y','Last 12 months'],['all','Lifetime']].map(([v,l])=>`<option value="${v}"${v===S.period?' selected':''}>${l}</option>`).join('')+'</select>';document.getElementById('period').onchange=e=>{S.period=e.target.value;S.date='';go()}}
  seg('metric',[['hw','HOURS WATCHED'],['peak','PEAK'],['avg','AVERAGE'],['hours','HOURS LIVE'],['sc','SUPER CHATS'],['vg','VIEWS GAINED']],S.metric,v=>{S.metric=v;go()});
  seg('plat',[['','ALL'],['youtube','YOUTUBE'],['kick','KICK'],['twitch','TWITCH']],S.platform,v=>{S.platform=v;go()});
  const di=document.getElementById('date');if(R){di.max=R.today;di.min=R.first_day||'';di.value=R.date;
@@ -166,8 +177,8 @@ function controls(){seg('period',[['day','DAY'],['week','WEEK'],['month','MONTH'
  const cs=document.getElementById('cat');cs.innerHTML='<option value="">All categories</option>'+((R&&R.categories)||[]).slice().sort((a,b)=>a.game.localeCompare(b.game)).map(g=>`<option value="${esc(g.slug)}"${g.slug===S.cat?' selected':''}>${esc(g.game)}</option>`).join('')+(S.cat&&R&&!R.categories.some(g=>g.slug===S.cat)?`<option value="${esc(S.cat)}" selected>${esc(S.cat)}</option>`:'');
  const co=document.getElementById('country');co.style.display=GL?'':'none';co.innerHTML='<option value="">All countries</option>'+((R&&R.countries)||[]).map(c=>`<option value="${c.code}"${c.code===S.country?' selected':''}>${esc(c.name)}</option>`).join('')}
 document.getElementById('date').onchange=e=>{S.date=e.target.value;go()};
-document.getElementById('prev').onclick=()=>{S.date=shift(R.date,-({day:1,week:7,month:30}[S.period]));go()};
-document.getElementById('next').onclick=()=>{S.date=shift(R.date,{day:1,week:7,month:30}[S.period]);if(S.date>R.today)S.date='';go()};
+document.getElementById('prev').onclick=()=>{S.date=shift(R.date,-({day:1,'3d':3,week:7,month:30,'3m':91,'6m':182,ytd:365,'1y':365,all:3650}[S.period]));go()};
+document.getElementById('next').onclick=()=>{S.date=shift(R.date,({day:1,'3d':3,week:7,month:30,'3m':91,'6m':182,ytd:365,'1y':365,all:3650}[S.period]));if(S.date>R.today)S.date='';go()};
 document.getElementById('cat').onchange=e=>{S.cat=e.target.value;go()};document.getElementById('country').onchange=e=>{S.country=e.target.value;go()};
 document.getElementById('rows').addEventListener('click',e=>{if(e.target.closest('.cx'))return;const r=e.target.closest('.row.x');if(r)toggleRow(r.dataset.k)});
 async function go(force){const p=new URLSearchParams({region:REGION,period:S.period,metric:S.metric});['date','cat','country','platform','sec'].forEach(k=>{if(S[k])p.set(k,S[k])});

@@ -1669,7 +1669,7 @@ def _prev_ranks(c, region, game, sec, period) -> dict:
     return {sid: i + 1 for i, (sid, _) in enumerate(sorted(tot.items(), key=lambda kv: -kv[1]))}
 
 
-RANK_PERIODS = {"day": 1, "week": 7, "month": 30}
+RANK_PERIODS = {"day": 1, "3d": 3, "week": 7, "month": 30, "3m": 91, "6m": 182, "1y": 365, "all": 3650}
 
 
 _RB = {}          # rankings: raw per-channel-per-game rows for a date window, shared by every filter combination
@@ -1718,12 +1718,12 @@ def rankings(region="global", metric="hw", period="day", date="", cat="", countr
     period before."""
     region = _region(region)
     metric = metric if metric in ("hw", "peak", "avg", "hours", "sc", "vg") else "hw"
-    n = RANK_PERIODS.get(period, 1)
     today = datetime.now(events.REPORT_TZ).date()
     try:
         end = min(datetime.strptime(date, "%Y-%m-%d").date(), today) if date else today
     except ValueError:
         end = today
+    n = (end - end.replace(month=1, day=1)).days + 1 if period == "ytd" else RANK_PERIODS.get(period, 1)
     game = category_name(cat) if cat else None
     sec = _sec(sec)
     ctry = country_of(country) if country else None

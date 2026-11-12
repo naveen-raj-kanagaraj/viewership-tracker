@@ -190,6 +190,13 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- Ranking periods (12 Nov 2026): channel rankings are metric (views, subscribers, engagement, like rate, typical
+  views, live hours) x period dropdown (24h, 3d, 7d, 30d, 3m, 6m, this year, 12 months, lifetime). API metric names are
+  `base_period` (ranks.PMETRICS, e.g. views_7d, subs_3m); old URLs (vday, v7, growth, size ...) map to the new ones.
+  Gains for a period longer than tracking show the gain since tracking began (page says so; history_from in
+  /api/topch). Engagement per period comes from deep.period_metrics -> ch_period. Games dropdown lists real games only
+  and hides for non-Gaming YouTube categories. Live streamer rankings take the same periods (scene.RANK_PERIODS, ytd).
+  Test: tests/test_periods.py.
 - Clean look (12 Nov 2026, owner asked for Streams Charts-style type and tables): polish.CLEAN, injected with the
   polish layer: Figtree sentence-case headings, near-black ground, bordered quiet panels, compact segmented
   controls. Previous look kept: footer link "Classic look" / ?theme=classic (remembered per browser), or

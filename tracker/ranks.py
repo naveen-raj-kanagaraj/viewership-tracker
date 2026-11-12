@@ -27,6 +27,24 @@ _YT_FROM_SEC = {"gaming": "Gaming", "esports": "Gaming", "news": "News & Politic
 RATE_METRICS = ("eng", "likes")          # rates rank only channels big enough for them to mean something
 RATE_MIN_SUBS = int(os.getenv("RATE_MIN_SUBS", "10000"))
 METRICS = ("size", "views", "vday", "v7", "growth", "live", "eng", "likes", "medv")
+# Any metric over any period: <base>_<period>. Bases: views (YouTube views gained; "all" = lifetime total), subs
+# (subscribers / followers gained; "all" = current count), live (hours watched live, recorded by this site), and from
+# the channel's posts in the period (deep.period_metrics): eng, likes, medv. Gains can only start at the channel's
+# first daily reading: a period longer than that history shows the change since then (top() reports "history_from").
+PERIODS = ("24h", "3d", "7d", "30d", "3m", "6m", "ytd", "1y", "all")
+PERIOD_DAYS = {"24h": 1, "3d": 3, "7d": 7, "30d": 30, "3m": 90, "6m": 180, "1y": 365}
+BASES = ("views", "subs", "live", "eng", "likes", "medv")
+PMETRICS = tuple(f"{b}_{p}" for b in BASES for p in PERIODS)
+GAIN_BASES = ("views", "subs")
+
+
+def period_start(p: str):
+    today = datetime.now(events.REPORT_TZ).date()
+    if p == "ytd":
+        return today.replace(month=1, day=1)
+    if p == "all":
+        return None
+    return today - timedelta(days=PERIOD_DAYS[p])
 
 
 def _rows():
@@ -45,6 +63,15 @@ def _rows():
                    ON m.sid=s.sid AND m.d=s.day""", (d,))}
         old, old7 = first_since(d30), first_since((today - timedelta(days=7)).strftime("%Y-%m-%d"))
         hw = dict(c.execute("SELECT sid, SUM(hw) FROM sc_daily WHERE day>=? GROUP BY sid", (d30,)).fetchall())
+        starts = {p: period_start(p).strftime("%Y-%m-%d") for p in PERIODS if p not in ("24h", "all")}
+        firsts = {p: first_since(d) for p, d in starts.items() if p not in ("7d", "30d")}
+        firsts["7d"], firsts["30d"] = old7, old
+        pcols = [p for p in PERIODS if p != "all"]
+        sums = ", ".join(f"SUM(CASE WHEN day>=? THEN hw END)" for _ in pcols)
+        hwp = {r[0]: dict(zip(pcols + ["all"], r[1:])) for r in c.execute(
+            f"SELECT sid, {sums}, SUM(hw) FROM sc_daily GROUP BY sid",
+            [(period_start(p) if p != "24h" else today - timedelta(days=1)).strftime("%Y-%m-%d") for p in pcols])}
+        first_day = c.execute("SELECT MIN(day) FROM sc_chstats").fetchone()[0]
         top_game = {}
         for sid, g, h in c.execute("SELECT sid, game, SUM(hw) FROM sc_daily WHERE day>=? GROUP BY sid, game", (d30,)):
             if h and (sid not in top_game or h > top_game[sid][1]):
@@ -52,6 +79,14 @@ def _rows():
         chans = {r["sid"]: dict(r) for r in c.execute(
             "SELECT sid, platform, name, logo, url, country, COALESCE(india,0) india, game, topic, ytcat FROM sc_channels")}
     day1 = ytextra._latest_gains()
+    per = {}                                          # (sid, period) -> (eng, likes, medv) from deep.period_metrics
+    try:
+        from tracker import deep
+        with store._lock:
+            for sid, pp, e, lk, mv in deep._db().execute("SELECT sid, period, eng_rate, like_rate, med_views FROM ch_period"):
+                per[(sid, pp)] = (e, lk, mv)
+    except Exception as ex:
+        print(f"Ranks periods: {str(ex)[:80]}")
     eng = {}                                          # this site's medians from the channel's recent posts (deep.py)
     try:
         from tracker import deep
@@ -87,11 +122,33 @@ def _rows():
             cat = next((x for x in (ch["ytcat"], ch["topic"]) if x and x != "Other"), "") or _YT_FROM_SEC.get(sec, "")
         else:
             cat = scene.SECTION_NAMES.get(sec, "") if sec != "other" else ""
-        rows.append({"sid": sid, "platform": ch["platform"], "name": ch["name"], "logo": ch["logo"], "url": ch["url"],
+        pm = {}
+        for p in PERIODS:
+            A = firsts.get(p, {}).get(sid) if p not in ("24h", "all") else None
+
+            def dg(i, A=A):
+                if not (L and A) or L[i] is None or A[i] is None:
+                    return None
+                d = L[i] - A[i]
+                return d if abs(d) <= .25 * max(L[i], 1000) or i == 1 and d >= 0 else None
+            if p == "24h":
+                pm["views_24h"], pm["subs_24h"] = (g1[0], g1[1]) if g1 else (None, None)
+            elif p == "all":
+                pm["views_all"], pm["subs_all"] = (L[1], L[0]) if L else (None, None)
+            else:
+                pm["views_" + p], pm["subs_" + p] = dg(1), dg(0)
+            if ch["platform"] != "youtube":
+                pm["views_" + p] = None
+            h = (hwp.get(sid) or {}).get(p)
+            pm["live_" + p] = round(h) if h else None
+            e = per.get((sid, p))
+            pm["eng_" + p], pm["likes_" + p], pm["medv_" + p] = e if e else (None, None, None)
+        rows.append({**pm, "sid": sid, "platform": ch["platform"], "name": ch["name"], "logo": ch["logo"], "url": ch["url"],
                      "country": ct[0] if ct else "", "country_name": ct[2] if ct else "", "category": cat or "", "game": g,
                      "size": size, "views": views, "vday": vday, "v7": v7, "growth": growth, "live": round(live),
                      "eng": (eng.get(sid) or (None,))[0], "likes": (eng.get(sid) or (None, None))[1],
                      "medv": (eng.get(sid) or (None, None, None))[2]})
+    _R["first_day"] = first_day
     return rows
 
 
@@ -115,7 +172,7 @@ def compute():
                 for i, r in enumerate(L):
                     rank[(r["sid"], m, gk[1])] = i + 1
     with _lock:
-        _R.update(at=time.time(), rank=rank, tot=tot, rows={r["sid"]: r for r in rows})
+        _R.update(at=time.time(), rank=rank, tot=tot, rows={r["sid"]: r for r in rows}, first_day=_R.get("first_day"))
     try:                                   # kept on disk so a restart (every update) serves rankings instantly
         tmp = CACHE + ".tmp"
         with open(tmp, "wb") as f:
@@ -174,11 +231,24 @@ def for_channel(sid: str) -> list:
     return out
 
 
+def _keep(r, metric):
+    v = r.get(metric)
+    if v is None:
+        return False
+    base = metric.split("_")[0] if "_" in metric else metric
+    if metric in ("growth", "vday", "v7") or (base in GAIN_BASES and "_" in metric and not metric.endswith("_all")):
+        return v > 0
+    if metric in ("live", "views") or base == "live" or metric in ("views_all", "subs_all"):
+        return bool(v)
+    if metric in RATE_METRICS or base in ("eng", "likes"):
+        return (r["size"] or 0) >= RATE_MIN_SUBS
+    return True
+
+
 def top(platform: str = "youtube", metric: str = "size", country: str = "", category: str = "", limit: int = 100, game: str = "") -> dict:
+    from tracker import scene
     with _lock:
-        rows = [r for r in _R["rows"].values() if r["platform"] == platform and r[metric] is not None
-                and (metric not in ("growth", "vday", "v7") or r[metric] > 0) and (metric not in ("live", "views") or r[metric])
-                and (metric not in RATE_METRICS or (r["size"] or 0) >= RATE_MIN_SUBS)
+        rows = [r for r in _R["rows"].values() if r["platform"] == platform and _keep(r, metric)
                 and (not country or r["country"] == country) and (not category or r["category"] == category)
                 and (not game or r["game"] == game)]
         cats = sorted({r["category"] for r in _R["rows"].values() if r["platform"] == platform and r["category"]}, key=str.lower)
@@ -186,7 +256,14 @@ def top(platform: str = "youtube", metric: str = "size", country: str = "", cate
                       key=lambda x: x[1])
         at = _R["at"]
     rows.sort(key=lambda r: -r[metric])
-    games = sorted({r["game"] for r in _R["rows"].values() if r["platform"] == platform and r["game"] and r["game"] != "Other"}, key=str.lower)
+    # games: real games only (not News, Music, Devotional, Cricket ...), and only those of the chosen category
+    with _lock:
+        pool = [r["game"] for r in _R["rows"].values() if r["platform"] == platform and r["game"]
+                and (not category or r["category"] == category) and (not country or r["country"] == country)]
+    games = sorted({g for g in pool if scene.section_of(g) in ("gaming", "esports")}, key=str.lower)
+    if category and category != "Gaming" and platform == "youtube":
+        games = []
     return {"platform": platform, "metric": metric, "total": len(rows), "updated": at, "games": games,
+            "history_from": _R.get("first_day"),
             "rows": [{**r, "rank": i + 1} for i, r in enumerate(rows[:limit])],
             "categories": cats, "countries": [{"code": a, "name": b} for a, b in ctrs]}
