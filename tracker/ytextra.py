@@ -1661,7 +1661,7 @@ def video_stats_once(max_calls: int = 30) -> int:
              time.time() - 2 * 86400, max_calls * 50))]
     done = calls = 0
     for i in range(0, len(ids), 50):
-        if not events.yt_quota_left(.8):
+        if not events.yt_quota_left(.92):
             break
         part = ids[i:i + 50]
         try:

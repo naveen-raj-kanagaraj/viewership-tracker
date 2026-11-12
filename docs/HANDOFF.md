@@ -190,6 +190,11 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- API allowance priority (12 Nov 2026): exact numbers for new videos (video_stats_once) may use up to 92% of the
+  day; top-tier channel refresh 85%; long-tail refresh only below 55%; comments 50%; history backfill 45%;
+  discovery charts 50%, new-channel reads 60%. Seen live: new uploads arriving via the playlist fallback but all
+  still approximate, i.e. the allowance was spent before exact video reads ran.
+
 - Brand tools (12 Nov 2026): tracker/chatstats.py reads every chat the Super Chat reader polls: per stream
   (chat_stream) messages, unique chatters, top words / emotes, language by script (+ Hinglish), mood (word + emoji
   lists, approximate). chat_aud keeps a salted hash (kv chat_salt or CHAT_SALT) of a fixed quarter of chatters per
