@@ -118,7 +118,7 @@ async function makeCard(){const ST=FMT==='story',W=1080,H=ST?1920:1350,c=documen
  const rl=(RN.find(r=>r[0]===RNG)||RN[0])[2];
  x.textBaseline='alphabetic';x.fillStyle='#b6f23a';x.font='700 30px "Barlow Condensed",sans-serif';x.fillText('LETSGROWESPORTS',72,top+86);
  x.fillStyle='#eeeef5';x.font='700 72px "Barlow Condensed",sans-serif';x.fillText(T0?'TRENDING CATEGORIES':'TOP CATEGORIES',72,top+160);
- const WM='For more: '+(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\./,'');x.font='600 22px "Barlow Condensed",sans-serif';const wmW=x.measureText(WM).width;
+ const WM='For more: '+(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\./,'')+RP;x.font='600 22px "Barlow Condensed",sans-serif';const wmW=x.measureText(WM).width;
  x.textAlign='right';x.fillStyle='#a9a8be';x.fillText(WM,W-72,top+204);x.textAlign='left';
  const sub=[REGION==='in'?'INDIA':'WORLDWIDE',SEC?(SECN[SEC]||SEC).toUpperCase():'',T0?'RISE VS 24 HOURS AGO':'WATCHING NOW'].filter(Boolean).join(' · ');
  x.fillStyle='#b6f23a';x.font='600 32px "Barlow Condensed",sans-serif';x.fillText(fit(sub,W-144-wmW-24),72,top+204);
