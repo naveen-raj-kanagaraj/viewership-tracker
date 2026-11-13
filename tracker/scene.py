@@ -873,7 +873,7 @@ def cycle(now: float = None) -> dict:
         elif n:
             _yt_add(found, {"vid": vid, "channel": x["name"], "channel_id": sid[3:], "title": x["title"], "viewers": n},
                     x.get("logo", ""))
-    yt_every = SCENE_YT_SEC * (3 if _event_on_air() else 1)
+    yt_every = SCENE_YT_SEC                   # same pace during tournaments (owner, 13 Nov 2026)
     if now - _STATE["yt"] >= yt_every:
         _STATE["yt"] = now
         res_live = _try(yt_live_page)
@@ -1097,7 +1097,7 @@ def live_now(sid: str) -> dict:
 def yt_fast_once(now: float = None) -> int:
     """Re-count the biggest live YouTube channels from YouTube's live counter (the method the tournament tracker uses
     every 2s). They hold most of the viewers, so totals move every 2 seconds; the rest are re-counted each scan.
-    Slows to every 10s while a tournament broadcast is live (it has priority) and backs off if YouTube refuses."""
+    Every 2 seconds, also during tournaments; backs off only if YouTube refuses."""
     t = now or time.time()
     if t < _YTF["next"]:
         return 0
@@ -1131,7 +1131,7 @@ def yt_fast_once(now: float = None) -> int:
             if f[2] >= 3:                     # no 'watching' count three times running: ended
                 f[1] = 0
     _YTF["slow"] = min(_YTF["slow"] + 1, 4) if jobs and errs > len(jobs) // 2 else max(_YTF["slow"] - 1, 0)
-    base = 10 if _event_on_air() else FAST_SEC
+    base = FAST_SEC                           # every 2 s, tournament or not (owner, 13 Nov 2026); backs off only if YouTube refuses
     _YTF["next"] = t + base * (2 ** _YTF["slow"])
     return len(got)
 
