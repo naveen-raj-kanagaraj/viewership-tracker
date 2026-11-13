@@ -33,7 +33,11 @@ h1{font:700 40px/1.05 "Barlow Condensed",sans-serif;margin:0;text-transform:uppe
 .card{background:var(--card);border:1px solid var(--line);margin-top:14px}
 .dpeer{padding:10px 16px 14px}.dpr{display:grid;grid-template-columns:1fr 2fr 56px;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--line);font-size:13px}
 .dpr small{display:block;color:var(--muted);font-size:11px}.dbar{position:relative;height:10px;background:var(--card2)}.dbar i{position:absolute;top:0;bottom:0;background:rgba(182,242,58,.25)}
-.dbar b{position:absolute;top:-4px;width:3px;height:18px;background:var(--lime)}.dpr .pc{font:700 20px "Barlow Condensed",sans-serif;text-align:right}
+.dbar b{position:absolute;top:-4px;width:3px;height:18px;background:var(--lime)}.dpr{grid-template-columns:1fr 2fr 110px!important}.dpr .pc{font-size:19px!important;padding-right:2px}
+@media(max-width:600px){.dpr{grid-template-columns:1fr 96px!important;row-gap:6px}.dpr .dbar{grid-column:1/-1;grid-row:2}.dpr .pc{grid-row:1;grid-column:2}}
+.dpr .pc{font:700 22px "Barlow Condensed",sans-serif;text-align:right;line-height:1.05;white-space:nowrap}.dpr .pc small{display:block;font:500 11px "Barlow",sans-serif;color:var(--muted);letter-spacing:0;margin-top:2px;white-space:normal}
+.pshare{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 12px;font-size:12px;color:var(--muted)}.pshare span{margin-right:4px}
+.pshare button{background:var(--lime);color:#0b0b12;border:0;font:700 13px "Barlow Condensed",sans-serif;letter-spacing:.05em;padding:6px 11px;cursor:pointer}.pshare button:disabled{opacity:.5}
 .ytab{overflow-x:auto;padding:10px 16px 14px}.ytab table{border-collapse:collapse;width:100%;font-size:13px;min-width:560px}.ytab th{color:var(--muted);font-weight:500;text-align:right;padding:6px 8px;font-size:11px}
 .ytab td{text-align:right;padding:6px 8px;border-top:1px solid var(--line);white-space:nowrap}.ytab th:first-child,.ytab td:first-child{text-align:left}
 .tcm{padding:10px 16px;border-top:1px solid var(--line);font-size:13px}.tcm small{color:var(--muted);display:block;margin-top:3px;font-size:11px}
@@ -117,7 +121,7 @@ __PANEL_CSS__
 <div class="card" id="vcard" style="display:none"><h2>Channel views per day</h2><div class="cap">The channel's public counters on YouTube (total views of all its videos, live and uploaded; subscribers), recorded once a day by this site. Views gained = how much the total grew between two days.</div><div id="views"></div></div>
 <div class="card" id="lcard"><h2>Live stats on this site</h2><div class="cap">Recorded by this site every 2 seconds while the channel is live.</div><div id="stats"></div></div>
 <div class="card" id="mcard" style="display:none"><h2>Moments</h2><div class="cap">Sudden jumps in viewers on this channel, newest first. Opens at the moment.</div><div class="ps" id="moms"></div></div>
-<div class="card"><h2>Streams, last 30 days</h2><div class="cap" id="pcap">From the platform's own list of past streams.</div><div id="past"><div class="empty">Loading...</div></div></div>
+<div class="card"><h2>Streams, last 30 days</h2><div class="cap" id="pcap">From the platform's own list of past streams.</div><div class="pshare" id="pshare"></div><div id="past"><div class="empty">Loading...</div></div></div>
 </div>
 <script>
 const SID=__SID__,REGION=__REGION__,RP=REGION==='in'?'/india':'';
@@ -226,11 +230,56 @@ async function shareCard(withLogo){const c=CDATA,j=VID,S=(c&&c.stats)||{};const 
  x.fillStyle='#8d8ca3';x.font='26px "Barlow Condensed",sans-serif';x.fillText((location.host+location.pathname),72,1290);x.textAlign='right';x.fillText(new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}),1008,1290);x.textAlign='left';
  return new Promise(r=>{try{cv.toBlob(r,'image/png')}catch(e){r(null)}})}
 let SBLOB=null;
-document.getElementById('vshare').onclick=async()=>{if(!VID||!CDATA)return;try{await document.fonts.ready}catch(e){}SBLOB=await shareCard(true)||await shareCard(false);if(!SBLOB)return;
+// a live day as a share card, in the tournament (BMSD) style: peak with every stream at once, the viewer line, totals, each stream
+const cleanT=t=>String(t||'').replace(/^\s*\[[^\]]*\]\s*/,'').replace(/\s*#\S+/g,'').replace(/[|\s]+$/,'').trim();
+const tagOf=t=>{const m=String(t||'').match(/^\s*\[([^\]]+)\]/);return m?m[1].toUpperCase():''};
+async function dayCard(d,withLogo){const c=CDATA||{},W=1080,H=1350,cv=document.createElement('canvas');cv.width=W*2;cv.height=H*2;const x=cv.getContext('2d');x.scale(2,2);
+ const g=x.createRadialGradient(W*.8,0,40,W*.8,0,1200);g.addColorStop(0,'#1f1a3d');g.addColorStop(1,'#0b0b12');x.fillStyle=g;x.fillRect(0,0,W,H);
+ x.fillStyle='rgba(255,255,255,.02)';for(let yy=0;yy<H;yy+=4)x.fillRect(0,yy,W,1);
+ x.strokeStyle='#b6f23a';x.lineWidth=5;x.beginPath();x.moveTo(40,80);x.lineTo(40,40);x.lineTo(80,40);x.stroke();
+ const T=(t,X,Y,font,col,al,mw)=>{x.font=font;if(mw){const w=x.measureText(t).width;if(w>mw){const m=font.match(/(\d+)px/);x.font=font.replace(/\d+px/,Math.max(10,Math.floor(+m[1]*mw/w))+'px')}}x.fillStyle=col;x.textAlign=al||'left';x.textBaseline='top';x.fillText(t,X,Y)};
+ const M=s=>`${s}px "Barlow Condensed",sans-serif`,B=s=>`700 ${s}px "Barlow",sans-serif`;
+ const S=d.streams||[],ttl=cleanT((S[0]||{}).title)||c.name||'',dl=new Date(d.day+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}).toUpperCase();
+ T('letsgrowesports',80,78,M(30),'#b6f23a');
+ T(ttl.toUpperCase(),80,118,B(50),'#eeeef5','left',W-160);
+ const WM='For more: '+(location.host||'live.letsgrowesports.com').replace(/^www\./,'');x.font=M(24);const wmw=x.measureText(WM).width;
+ T(WM,W-80,210,M(24),'#a9a8be','right');T(`// ${String(c.name||'').toUpperCase()} // ${dl}`,80,205,M(30),'#ff4d5e','left',W-160-wmw-30);
+ const im=withLogo&&c.logo?await loadImg(c.logo):null;
+ T('PEAK VIEWERS',80,262,M(26),'#8d8ca3');T(full(d.peak),74,292,B(150),'#ffffff');
+ T((S.length>1?`ALL ${S.length} STREAMS AT ONCE`:'LIVE AT ONCE')+(d.peak_at?' // AT '+ist(d.peak_at,{hour:'numeric',minute:'2-digit'}).toUpperCase()+' IST':''),80,452,M(26),'#b6f23a','left',W-160);
+ if(im){x.save();x.beginPath();x.arc(W-150,350,70,0,7);x.clip();x.drawImage(im,W-220,280,140,140);x.restore();x.beginPath();x.arc(W-150,350,70,0,7);x.lineWidth=4;x.strokeStyle='#b6f23a';x.stroke()}
+ // viewer line
+ const P=(d.series||[]).filter(p=>p[1]>0);const cx0=80,cy0=500,cw=W-160,ch=230;
+ x.fillStyle='rgba(26,26,38,.6)';x.fillRect(cx0,cy0,cw,ch);
+ if(P.length>1){const t0=P[0][0],t1=P[P.length-1][0],mx=Math.max(d.peak||0,...P.map(p=>p[1]))*1.08,X=t=>cx0+14+(cw-28)*(t-t0)/((t1-t0)||1),Y=v=>cy0+ch-12-(ch-36)*v/mx;
+  const gr=x.createLinearGradient(0,cy0,0,cy0+ch);gr.addColorStop(0,'rgba(182,242,58,.35)');gr.addColorStop(1,'rgba(182,242,58,0)');
+  x.beginPath();x.moveTo(X(P[0][0]),cy0+ch-12);P.forEach(p=>x.lineTo(X(p[0]),Y(p[1])));x.lineTo(X(t1),cy0+ch-12);x.closePath();x.fillStyle=gr;x.fill();
+  x.beginPath();P.forEach((p,i)=>i?x.lineTo(X(p[0]),Y(p[1])):x.moveTo(X(p[0]),Y(p[1])));x.strokeStyle='#b6f23a';x.lineWidth=4;x.lineJoin='round';x.stroke();
+  const pk=P.reduce((a,p)=>p[1]>a[1]?p:a,P[0]);x.beginPath();x.arc(X(pk[0]),Y(pk[1]),9,0,7);x.fillStyle='#b6f23a';x.fill();
+  T(ist(t0,{hour:'numeric',minute:'2-digit'}).toUpperCase(),cx0+14,cy0+ch+10,M(22),'#8d8ca3');T(ist(t1,{hour:'numeric',minute:'2-digit'}).toUpperCase(),cx0+cw-14,cy0+ch+10,M(22),'#8d8ca3','right')}
+ // totals
+ const hm_=s=>s?Math.floor(s/3600)+'h '+String(Math.round(s%3600/60)).padStart(2,'0')+'m':'-';
+ const BX=[['TOTAL VIEWS',d.views?fmt(d.views):'-'],['LIKES',d.likes!=null?fmt(d.likes):'-'],['HOURS WATCHED',d.hw?fmt(d.hw)+'h':'-'],['LENGTH',hm_(d.secs||d.live_mins*60)]];
+ const bw=(cw-3*20)/4;BX.forEach(([l,v],i)=>{const X=cx0+i*(bw+20),Y=780;x.fillStyle='rgba(26,26,38,.9)';x.fillRect(X,Y,bw,140);x.strokeStyle='#262636';x.lineWidth=2;x.strokeRect(X,Y,bw,140);
+  T(l,X+20,Y+20,M(24),'#ff4d5e','left',bw-40);T(v,X+20,Y+58,B(52),'#eeeef5','left',bw-40)});
+ // each stream
+ let y=955;T('// '+(S.length>1?'EACH STREAM':'THE STREAM'),80,y,M(26),'#ff4d5e');T('VIEWS',W-80,y,M(22),'#8d8ca3','right');if(S.some(z=>z.peak))T('PEAK',W-300,y,M(22),'#8d8ca3','right');y+=44;
+ S.slice(0,4).forEach((z,i)=>{const tg=tagOf(z.title)||('STREAM '+(i+1));x.fillStyle=i%2?'rgba(255,255,255,.02)':'rgba(255,255,255,.045)';x.fillRect(72,y-6,W-144,52);
+  T(tg,90,y+4,B(30),i?'#eeeef5':'#b6f23a','left',W-480);if(z.peak)T(fmt(z.peak),W-300,y+4,B(30),'#eeeef5','right');T(z.views!=null?fmt(z.views):'-',W-90,y+4,B(30),'#eeeef5','right');y+=56});
+ x.fillStyle='#b6f23a';x.fillRect(0,H-130,W,130);T('LIVE.LETSGROWESPORTS.COM',80,H-108,B(44),'#0a0a14');T('@letsgrowesports',80,H-52,M(24),'#0a0a14');
+ T('Peak and hours watched: this site\'s live readings. Views and likes: YouTube.',W-80,H-50,M(20),'#0a0a14','right',560);
+ return new Promise(r=>{try{cv.toBlob(r,'image/png')}catch(e){r(null)}})}
+async function dayShare(day,btn){if(btn)btn.disabled=true;try{const d=await (await fetch(`/api/streamday?sid=${encodeURIComponent(SID)}&day=${day}`)).json();if(!d||!d.day)return;
+ try{await document.fonts.ready}catch(e){}SBLOB=await dayCard(d,true)||await dayCard(d,false);if(!SBLOB)return;
+ const ttl=cleanT(((d.streams||[])[0]||{}).title)||(CDATA&&CDATA.name)||'';window.SHNAME=(ttl||'live-day').replace(/\W+/g,'-').slice(0,60);
+ window.SHTXT=`${ttl}: peak ${full(d.peak)} watching live${(d.streams||[]).length>1?' across '+d.streams.length+' streams':''}, ${fmt(d.views)} views. ${location.href} @letsgrowesports`;
+ document.getElementById('simg').src=URL.createObjectURL(SBLOB);document.getElementById('smodal').style.display='flex'}catch(e){}finally{if(btn)btn.disabled=false}}
+
+document.getElementById('vshare').onclick=async()=>{if(!VID||!CDATA)return;try{await document.fonts.ready}catch(e){}window.SHNAME=window.SHTXT='';SBLOB=await shareCard(true)||await shareCard(false);if(!SBLOB)return;
  document.getElementById('simg').src=URL.createObjectURL(SBLOB);document.getElementById('smodal').style.display='flex'};
 document.getElementById('sx').onclick=()=>document.getElementById('smodal').style.display='none';
-document.getElementById('sdl').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(SBLOB);a.download=(CDATA.name||'channel').replace(/\W+/g,'-')+'.png';a.click()};
-document.getElementById('sgo').onclick=async()=>{const f=new File([SBLOB],'channel.png',{type:'image/png'}),t=`${CDATA.name}: ${fmt(VID.views)} views on ${VID.count} posts, ${RNAME[VRANGE]}. ${location.href} @letsgrowesports`;
+document.getElementById('sdl').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(SBLOB);a.download=(window.SHNAME||(CDATA.name||'channel').replace(/\W+/g,'-'))+'.png';a.click()};
+document.getElementById('sgo').onclick=async()=>{const f=new File([SBLOB],'channel.png',{type:'image/png'}),t=window.SHTXT||`${CDATA.name}: ${fmt(VID.views)} views on ${VID.count} posts, ${RNAME[VRANGE]}. ${location.href} @letsgrowesports`;
  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],text:t});return}catch(e){}}document.getElementById('sdl').click()};
 function viewsCard(c){const V=c.views,S=c.stats;const box=document.getElementById('vcard');if(!V||!(V.snapshots||[]).length){box.style.display='none';return}box.style.display='';
  if(c.platform!=='youtube')return followersCard(c);
@@ -282,8 +331,11 @@ async function load(){try{const r_=await fetch('/api/channel?sid='+encodeURIComp
 async function past(){try{const j=await (await fetch('/api/past?sid='+encodeURIComponent(SID))).json();const L=j.streams||[];
  const U=[];if(U.length){
   document.getElementById('ups').innerHTML=`<div class="ps"><div class="hdr"><span>POSTED</span><span>VIDEO</span><span>LENGTH</span><span>VIEWS</span><span></span></div>${U.map(x=>`<a href="${esc(x.url)}" target="_blank" rel="noopener"><span class="d">${x.ts?ist(x.ts,{day:'numeric',month:'short'}):''}${x.when?'<br>'+esc(x.when.replace('Streamed ','')):''}</span><span class="t">${esc(x.title)}</span><span class="n">${x.secs?hm(x.secs):'-'}</span><span class="n">${x.views!=null?fmt(x.views):'-'}</span><span></span></a>`).join('')}</div>`}
- document.getElementById('pcap').textContent=(j.source?'From '+j.source+'. Views = total views of the stream, including replays. Peak = the most watching at once that day, recorded by this site.':'')+(j.note?' '+j.note:'');
- document.getElementById('past').innerHTML=L.length?`<div class="ps"><div class="hdr"><span>DATE</span><span>STREAM</span><span>LENGTH</span><span>VIEWS</span><span>PEAK THAT DAY</span></div>${L.map(x=>`<a href="${esc(x.url)}" target="_blank" rel="noopener"><span class="d">${x.ts?ist(x.ts,{day:'numeric',month:'short'}):esc(x.when)}${x.when&&/ago/.test(x.when)?'<br>'+esc(x.when.replace('Streamed ','')):''}</span><span class="t">${esc(x.title)}</span><span class="n">${x.secs?hm(x.secs):'-'}</span><span class="n">${x.views!=null?fmt(x.views):'-'}</span><span class="n">${x.peak_day?fmt(x.peak_day):'-'}</span></a>`).join('')}</div>`:'';document.getElementById('past').closest('.card').style.display=L.length?'':'none'}catch(e){document.getElementById('past').closest('.card').style.display='none'}}
+ document.getElementById('pcap').textContent=(j.source?'From '+j.source+'. Views = total views of the stream, including replays. Peak live = the most watching that stream at once (from 13 Nov 2026), or for earlier days the peak of all the channel streams at once that day. Recorded by this site.':'')+(j.note?' '+j.note:'');
+ document.getElementById('past').innerHTML=L.length?`<div class="ps"><div class="hdr"><span>DATE</span><span>STREAM</span><span>LENGTH</span><span>VIEWS</span><span>PEAK LIVE</span></div>${L.map(x=>`<a href="${esc(x.url)}" target="_blank" rel="noopener"><span class="d">${x.ts?ist(x.ts,{day:'numeric',month:'short'}):esc(x.when)}${x.when&&/ago/.test(x.when)?'<br>'+esc(x.when.replace('Streamed ','')):''}</span><span class="t">${esc(x.title)}</span><span class="n">${x.secs?hm(x.secs):'-'}</span><span class="n">${x.views!=null?fmt(x.views):'-'}</span><span class="n">${x.peak?fmt(x.peak):x.peak_day?fmt(x.peak_day)+(x.same_day>1?'<small>all streams</small>':''):'-'}</span></a>`).join('')}</div>`:'';
+ {const days=[...new Set(L.filter(x=>x.day&&x.peak_day).map(x=>x.day))].slice(0,8),dl=d=>new Date(d+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+  document.getElementById('pshare').innerHTML=days.length?'<span>Share a live day:</span>'+days.map(d=>`<button data-d="${d}">${dl(d)}</button>`).join(''):'';
+  document.getElementById('pshare').onclick=e=>{const b=e.target.closest('button');if(b)dayShare(b.dataset.d,b)}}document.getElementById('past').closest('.card').style.display=L.length?'':'none'}catch(e){document.getElementById('past').closest('.card').style.display='none'}}
 async function moms(){try{const j=await (await fetch('/api/moments?sid='+encodeURIComponent(SID))).json();const L=j.moments||[];if(!L.length)return;
  document.getElementById('mcard').style.display='';
  document.getElementById('moms').innerHTML=L.slice(0,20).map(m=>`<a href="${esc(m.link||c_url)}" target="_blank" rel="noopener"><span class="d">${ist(m.ts,{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}</span><span class="t">${esc(m.title)}</span><span class="n" style="color:var(--lime)">+${fmt(m.peak-m.base)}</span><span class="n">${fmt(m.peak)}<small>peak</small></span><span class="n">${m.embed==='tw_clip'?'clip':m.embed?'replay':'channel'}</span></a>`).join('')}catch(e){}}
@@ -333,9 +385,9 @@ load();past();moms();videos();badges();liveTick();setInterval(()=>{if(!document.
  const pc=x=>x==null?'-':(x*100).toFixed(x<.1?2:1)+'%',F={long:'Videos',short:'Shorts',live:'Live streams'},S=D.standing||{},FM=Object.keys(S.formats||{});
  if(FM.length){let cur=FM.includes('long')?'long':FM[0];const draw=()=>{const f=S.formats[cur];
    document.getElementById('dfmt').innerHTML=FM.map(k=>`<button data-v="${k}" class="${k===cur?'on':''}">${F[k]}</button>`).join('');
-   document.getElementById('dk').innerHTML=[[pc(f.eng_rate),'engagement (likes + comments / views)'],[pc(f.like_rate),'like rate'],[pc(f.comment_rate),'comment rate'],[fmt(f.med_views),'typical views'],[(f.per_week||0).toFixed(1),'posts a week']].map(([v,l])=>`<div><b>${v}</b>${l}</div>`).join('');
+   document.getElementById('dk').innerHTML=[[pc(f.eng_rate),cur==='live'?'engagement (likes / views)':'engagement (likes + comments / views)'],[pc(f.like_rate),'like rate'],[cur==='live'?'-':pc(f.comment_rate),cur==='live'?'comment rate (live chat not counted)':'comment rate'],[fmt(f.med_views),'typical views'],[(f.per_week||0).toFixed(1),'posts a week']].map(([v,l])=>`<div><b>${v}</b>${l}</div>`).join('');
    document.getElementById('dpeer').innerHTML=(f.peers||[]).map(p=>{const mx=Math.max(p.p90*1.25,f.eng_rate*1.1)||1,X=v=>Math.min(100,v/mx*100);
-     return `<div class="dpr"><div>${esc(p.group)}${p.scope==='in'?' · India':''}<small>${esc(p.size)} subscribers · ${p.n} channels · median ${pc(p.p50)}</small></div><div class="dbar"><i style="left:${X(p.p25)}%;width:${X(p.p75)-X(p.p25)}%"></i><b style="left:${X(f.eng_rate)}%"></b></div><div class="pc">${p.pct>=50?'TOP '+(100-p.pct)+'%':'BOTTOM '+(p.pct||1)+'%'}</div></div>`}).join('')||'<div class="cap" style="padding:0">Peer comparison appears once enough channels like this one have been measured.</div>'};
+     return `<div class="dpr"><div>${esc(p.group)}${p.scope==='in'?' · India':''}<small>${esc(p.size)} subscribers · ${p.n} channels · median ${pc(p.p50)}</small></div><div class="dbar"><i style="left:${X(p.p25)}%;width:${X(p.p75)-X(p.p25)}%"></i><b style="left:${X(f.eng_rate)}%"></b></div><div class="pc" style="color:${p.pct>=50?'var(--lime)':'#ffb347'}">Beats ${p.pct||0}%<small>of these channels</small></div></div>`}).join('')||'<div class="cap" style="padding:0">Peer comparison appears once enough channels like this one have been measured.</div>'};
   draw();document.getElementById('dfmt').onclick=e=>{const b=e.target.closest('button');if(b){cur=b.dataset.v;draw()}};document.getElementById('dcard').style.display=''}
  const M=D.monthly||[];if(M.length){const mn=k=>new Date(k+'-01T00:00:00').toLocaleDateString('en-IN',{month:'short',year:'2-digit'});
   document.getElementById('ytab').innerHTML=`<table><tr><th>Month</th><th>Videos</th><th>Shorts</th><th>Streams</th><th>Hours live</th><th>Views</th><th>Likes</th><th>Comments</th><th>Engagement</th></tr>${M.map(m=>`<tr><td>${mn(m.month)}</td><td>${m.videos}</td><td>${m.shorts}</td><td>${m.streams}</td><td>${m.stream_hours||'-'}</td><td>${fmt(m.views)}</td><td>${fmt(m.likes)}</td><td>${fmt(m.comments)}</td><td>${pc(m.eng_rate)}</td></tr>`).join('')}</table>`;

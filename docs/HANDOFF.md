@@ -190,6 +190,14 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- Live-day share card (13 Nov 2026): channel page "Streams, last 30 days" has "Share a live day" buttons. The card
+  (BMSD tournament style) shows the peak with all the channel's streams at once (sc_daily), the viewer line
+  (sc_samples, kept 3 days, so days older than that have no line), total views, likes, hours watched, length and each
+  stream's views (and own peak from sc_vstreams when recorded). Data: /api/streamday?sid=&day= (ytextra.stream_day).
+  Past streams list: per-stream peak when recorded, else the day peak marked "all streams". Benchmarks: "Beats N% of
+  these channels" instead of TOP/BOTTOM; live streams show no comment rate (live chat isn't counted).
+  QA note: chpage's PAGE is a plain Python string; an apostrophe inside a JS '...' string breaks the whole page
+  script. Check every served <script> with node --check after edits.
 - No tournament slowdown (13 Nov 2026, owner): YouTube live counts are read every 2 s and new YouTube streams are
   searched every SCENE_YT_SEC even while a tournament is on air (scene.yt_fast_once, scene.cycle). The only slowdown
   left is the automatic back-off when YouTube refuses requests.
