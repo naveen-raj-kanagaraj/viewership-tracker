@@ -190,6 +190,9 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- No tournament slowdown (13 Nov 2026, owner): YouTube live counts are read every 2 s and new YouTube streams are
+  searched every SCENE_YT_SEC even while a tournament is on air (scene.yt_fast_once, scene.cycle). The only slowdown
+  left is the automatic back-off when YouTube refuses requests.
 - Per-stream live numbers (13 Nov 2026): sc_vstreams (vid, sid, peak, peak_at, hw, first/last seen) is written by
   scene._store for every YouTube stream (2-second peaks via _VPEAK). The channel page video list shows peak CCV, time,
   average, length and hours watched under each LIVE row, plus "Live days" (sc_daily: all the channel's streams at once).
