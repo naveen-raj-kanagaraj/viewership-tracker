@@ -104,7 +104,7 @@ def games() -> list:
     """Subcategories: every game and topic the site classifies streams into (BGMI, PUBG Mobile, Free Fire, GTA V,
     Cricket, News, Devotional ...), from scene.GAMES."""
     from tracker import scene
-    return [g for g in dict.fromkeys(g for g, _ in scene.GAMES) if g not in NOT_GAMES]
+    return [g for g in dict.fromkeys(g for g, _ in scene.GAMES) if g not in NOT_GAMES and scene.shown(g)]
 
 
 def groups() -> list:

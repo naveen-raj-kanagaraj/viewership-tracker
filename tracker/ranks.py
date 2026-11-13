@@ -258,7 +258,7 @@ def top(platform: str = "youtube", metric: str = "size", country: str = "", cate
     rows.sort(key=lambda r: -r[metric])
     # games: real games only (not News, Music, Devotional, Cricket ...), and only those of the chosen category
     with _lock:
-        pool = [r["game"] for r in _R["rows"].values() if r["platform"] == platform and r["game"]
+        pool = [r["game"] for r in _R["rows"].values() if r["platform"] == platform and r["game"] and scene.shown(r["game"])
                 and (not category or r["category"] == category) and (not country or r["country"] == country)]
     games = sorted({g for g in pool if scene.section_of(g) in ("gaming", "esports")}, key=str.lower)
     if category and category != "Gaming" and platform == "youtube":

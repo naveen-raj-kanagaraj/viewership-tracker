@@ -65,7 +65,7 @@ PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta property="og:type" content="website"><meta name="theme-color" content="#07051a">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
-<script>window.__F=fetch('/api/scene?__QS__&period=today&t='+Math.floor(Date.now()/20000),{cache:'no-store'}).then(function(r){return r.json()}).catch(function(){return null});</script>
+<script>const G6=__G6__;window.__F=fetch('/api/scene?__QS__&period=today&t='+Math.floor(Date.now()/20000),{cache:'no-store'}).then(function(r){return r.json()}).catch(function(){return null});</script>
 <style>
 :root{color-scheme:dark;--bg:#0b0b12;--bg2:#121219;--card:#13131c;--card2:#1a1a26;--ink:#eeeef5;--muted:#8d8ca3;--line:#262636;
 --lime:#b6f23a;--purple:#a58bff;--red:#ff4d5e;--yt:#ff4d5e;--kick:#53fc18;--twitch:#a970ff}
@@ -385,7 +385,7 @@ const boardList=()=>{const lm=liveMap();return (D.board||[]).filter(x=>bplat==='
 function render(){if(!D)return;const K=D.kpis||{};
  updLabel();
  const S=D.sections||[];
- setH('secnav',`<a href="${HOME}" class="${!SEC&&!CAT?'on':''}"><i>${svg('overview',14)}</i>Overview<b>${D.fresh?fmt(D.india_total):''}</b></a><a href="${RP}/c/gta-6" class="g6${CAT==='gta-6'?' on':''}"><i>${svg('gaming',14)}</i>GTA 6<b>${(((D.categories||[]).find(g=>g.slug==='gta-6')||{}).viewers)?fmt(D.categories.find(g=>g.slug==='gta-6').viewers):''}</b></a><a href="${RP}/rankings" class="mapl"><i>${svg('rank',14)}</i>Rankings</a><a href="${RP}/categories" class="mapl"><i>${svg('overview',14)}</i>Categories</a><a href="${RP}/moments" class="mapl"><i>${svg('bolt',14)}</i>Moments</a><a href="/map" class="mapl"><i>${svg('globe',14)}</i>World map</a><a href="${RP}/compare" class="mapl"><i>${svg('overview',14)}</i>Compare</a>`+S.slice().sort((a,b)=>b.viewers-a.viewers).map(s=>`<a href="${SU(s.key)}" class="${SEC===s.key?'on':''}${s.viewers?'':' z'}"><i>${svg(s.key,14)}</i>${esc(s.name)}<b>${s.viewers?fmt(s.viewers):''}</b></a>`).join(''));
+ setH('secnav',`<a href="${HOME}" class="${!SEC&&!CAT?'on':''}"><i>${svg('overview',14)}</i>Overview<b>${D.fresh?fmt(D.india_total):''}</b></a>${G6?`<a href="${RP}/c/gta-6" class="g6${CAT==='gta-6'?' on':''}"><i>${svg('gaming',14)}</i>GTA 6<b>${(((D.categories||[]).find(g=>g.slug==='gta-6')||{}).viewers)?fmt(D.categories.find(g=>g.slug==='gta-6').viewers):''}</b></a>`:''}<a href="${RP}/rankings" class="mapl"><i>${svg('rank',14)}</i>Rankings</a><a href="${RP}/categories" class="mapl"><i>${svg('overview',14)}</i>Categories</a><a href="${RP}/moments" class="mapl"><i>${svg('bolt',14)}</i>Moments</a><a href="/map" class="mapl"><i>${svg('globe',14)}</i>World map</a><a href="${RP}/compare" class="mapl"><i>${svg('overview',14)}</i>Compare</a>`+S.slice().sort((a,b)=>b.viewers-a.viewers).map(s=>`<a href="${SU(s.key)}" class="${SEC===s.key?'on':''}${s.viewers?'':' z'}"><i>${svg(s.key,14)}</i>${esc(s.name)}<b>${s.viewers?fmt(s.viewers):''}</b></a>`).join(''));
  if(!window._navScrolled){const on=document.querySelector('.secnav a.on');if(on&&on.scrollIntoView){on.scrollIntoView({inline:'center',block:'nearest'});window._navScrolled=1}}
  setT('k1l','Watching now'+(CAT||SEC?' · '+(CAT?CATNAME:SECNAME[SEC]):''));if(D.fresh)tw('k1',K.watching,full);else setT('k1','-');
  const tot=K.watching||1;setH('pbar',(D.platforms||[]).map(p=>`<div style="width:${100*p.viewers/tot}%;background:${COL[p.platform]}"></div>`).join(''));
@@ -637,10 +637,10 @@ def build_html(cat: str = "", cat_name: str = "", region: str = "in", sec: str =
                   '.evt{position:absolute;left:0;right:0;bottom:0;padding:22px 14px 12px;background:linear-gradient(transparent,rgba(0,0,0,.85));display:flex;flex-direction:column}'
                   '.evt b{font:700 24px "Barlow Condensed",sans-serif;letter-spacing:.04em}.evt span{font-size:14px;color:#e6e6ee}'
                   '@media(max-width:640px){.evb{aspect-ratio:16/9}}</style>')
-    return (PAGE.replace("__EVBANNER__", banner).replace("__QS__", qs).replace("__PANEL_JS__", PANEL_JS).replace("__PANEL_CSS__", PANEL_CSS).replace("__TITLE__", html.escape(title)).replace("__DESC__", html.escape(desc))
+    return (PAGE.replace("__G6__", "true" if __import__("tracker").scene.GTA6_SHOW else "false").replace("__EVBANNER__", banner).replace("__QS__", qs).replace("__PANEL_JS__", PANEL_JS).replace("__PANEL_CSS__", PANEL_CSS).replace("__TITLE__", html.escape(title)).replace("__DESC__", html.escape(desc))
                 .replace("__CATNAME__", json.dumps(cat_name)).replace("__CAT__", json.dumps(cat))
                 .replace("__SEC__", json.dumps(sec)).replace("__REGION__", json.dumps(region))
-                .replace("__SECTIONS__", json.dumps(scene.SECTIONS)).replace("__ALLG__", json.dumps([{"game": g, "slug": scene.slug(g)} for g, _ in scene.GAMES])).replace("__TOPICS__", json.dumps(__import__("tracker.ytextra", fromlist=["x"]).CATEGORIES)).replace("__HOME__", home)
+                .replace("__SECTIONS__", json.dumps(scene.SECTIONS)).replace("__ALLG__", json.dumps([{"game": g, "slug": scene.slug(g)} for g, _ in scene.GAMES if scene.shown(g)])).replace("__TOPICS__", json.dumps(__import__("tracker.ytextra", fromlist=["x"]).CATEGORIES)).replace("__HOME__", home)
                 .replace("__BRAND__", html.escape(eventpage.BRAND)).replace("__SITEURL__", json.dumps(eventpage.SITE_URL))
                 .replace("__SOCIAL__", " · ".join(f'<a href="{html.escape(u, quote=True)}" target="_blank" rel="noopener">{html.escape(h)}</a>'
                                                      for _, u, h in eventpage.SOCIAL)))
