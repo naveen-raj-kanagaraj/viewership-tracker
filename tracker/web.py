@@ -776,6 +776,16 @@ def compare_page():
     return _memo(f"/compare:{region}", 300, lambda: comparepage.build_html(region), "text/html")
 
 
+@app.route("/api/chevents")
+def api_chevents():
+    """Tournaments this channel broadcast officially, and BGMI's history for BGMI organisers: /api/chevents?sid=yt:UC..."""
+    from tracker import eventpage
+    sid = request.args.get("sid", "")
+    if not __import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid):
+        return Response("Not found", status=404, mimetype="text/plain")
+    return _memo(f"/api/chevents:{sid}", 300, _jdump(lambda: eventpage.channel_events(sid)), "application/json")
+
+
 @app.route("/api/streamday")
 def api_streamday():
     """A channel's live day (all its streams) for the share card: /api/streamday?sid=yt:UC...&day=2026-11-12"""
