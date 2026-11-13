@@ -901,7 +901,17 @@ def stream_day(sid: str, day: str) -> dict:
     return {"sid": sid, "day": day, "peak": (D[0] or 0) if D else 0, "peak_at": pat[0] if pat else None,
             "hw": round(D[1] or 0) if D else 0, "live_mins": round(D[2] or 0) if D else 0,
             "views": sum(z["views"] or 0 for z in streams), "likes": sum(lk) if lk else None,
-            "secs": max((z["secs"] for z in streams), default=0), "streams": streams, "series": [[a, b] for a, b in S]}
+            "secs": max((z["secs"] for z in streams), default=0), "streams": streams, "series": [[a, b] for a, b in S],
+            "event": _safe_d(sid, day)}
+
+
+def _safe_d(sid, day):
+    try:
+        from tracker import eventpage
+        return eventpage.day_event(sid, day)
+    except Exception as e:
+        print(f"day_event failed: {str(e)[:120]}")
+        return {}
 
 
 # ---------- any YouTube channel: search, add, track daily ----------

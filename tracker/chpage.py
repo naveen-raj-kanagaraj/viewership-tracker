@@ -37,7 +37,12 @@ h1{font:700 40px/1.05 "Barlow Condensed",sans-serif;margin:0;text-transform:uppe
 @media(max-width:600px){.dpr{grid-template-columns:1fr 96px!important;row-gap:6px}.dpr .dbar{grid-column:1/-1;grid-row:2}.dpr .pc{grid-row:1;grid-column:2}}
 .dpr .pc{font:700 22px "Barlow Condensed",sans-serif;text-align:right;line-height:1.05;white-space:nowrap}.dpr .pc small{display:block;font:500 11px "Barlow",sans-serif;color:var(--muted);letter-spacing:0;margin-top:2px;white-space:normal}
 .pshare{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 12px;font-size:12px;color:var(--muted)}.pshare span{margin-right:4px}
-.pshare button{background:var(--lime);color:#0b0b12;border:0;font:700 13px "Barlow Condensed",sans-serif;letter-spacing:.05em;padding:6px 11px;cursor:pointer}.pshare button:disabled{opacity:.5}.ptop{margin:10px 0 16px}.ptop:empty{display:none}.ptop span{font:700 12px "Barlow Condensed",sans-serif;letter-spacing:.08em;color:var(--muted)}
+.pshare button{background:var(--lime);color:#0b0b12;border:0;font:700 13px "Barlow Condensed",sans-serif;letter-spacing:.05em;padding:6px 11px;cursor:pointer}.pshare button:disabled{opacity:.5}.tl a{display:grid;grid-template-columns:minmax(0,1fr) 120px 120px 120px 70px;gap:10px;align-items:center;padding:12px 0;border-top:1px solid var(--line);color:inherit;text-decoration:none}
+.tl a:hover{background:rgba(255,255,255,.02)}.tl b{font-size:15px}.tl small{display:block;color:var(--muted);font-size:12px;margin-top:2px}.tl .n{text-align:right;font-weight:700}.tl .n small{font-weight:400}
+.tl .go{text-align:right;font:700 13px "Barlow Condensed",sans-serif;letter-spacing:.06em;color:var(--lime)}.tl .hdr{display:grid;grid-template-columns:minmax(0,1fr) 120px 120px 120px 70px;gap:10px;font:600 11px "Barlow Condensed",sans-serif;letter-spacing:.08em;color:var(--muted);padding:6px 0}.tl .hdr span:not(:first-child){text-align:right}
+#tlist,#thist{padding:0 16px 10px}.th{margin-top:18px}.th h3{font-size:14px;margin:0 0 8px}.th .r{display:grid;grid-template-columns:150px minmax(0,1fr) 70px;gap:10px;align-items:center;padding:5px 0;font-size:13px}.th .r i{display:block;height:10px;background:#3d5a1a}.th .r.me i{background:var(--lime)}.th .r.me span{color:var(--lime);font-weight:700}.th .r b{text-align:right}
+@media(max-width:640px){.tl a,.tl .hdr{grid-template-columns:minmax(0,1fr) 84px 60px}.tl a>:nth-child(3),.tl a>:nth-child(4),.tl .hdr>:nth-child(3),.tl .hdr>:nth-child(4){display:none}.th .r{grid-template-columns:110px minmax(0,1fr) 54px}}
+.ptop{margin:10px 0 16px}.ptop:empty{display:none}.ptop span{font:700 12px "Barlow Condensed",sans-serif;letter-spacing:.08em;color:var(--muted)}
 .ytab{overflow-x:auto;padding:10px 16px 14px}.ytab table{border-collapse:collapse;width:100%;font-size:13px;min-width:560px}.ytab th{color:var(--muted);font-weight:500;text-align:right;padding:6px 8px;font-size:11px}
 .ytab td{text-align:right;padding:6px 8px;border-top:1px solid var(--line);white-space:nowrap}.ytab th:first-child,.ytab td:first-child{text-align:left}
 .tcm{padding:10px 16px;border-top:1px solid var(--line);font-size:13px}.tcm small{color:var(--muted);display:block;margin-top:3px;font-size:11px}
@@ -99,6 +104,7 @@ __PANEL_CSS__
 <div class="crumb"><a href="__HOME__">__WHERECAP__</a> / CHANNEL</div>
 <div class="hd" id="hd"><span class="ph">..</span><div><h1>__NAME__</h1><div class="meta">Loading...</div></div></div>
 <div class="pshare ptop" id="pshare_top"></div>
+<div class="card" id="tcard" style="display:none"><h2>Tournaments</h2><div class="cap" id="tcap">Tournaments this channel broadcast officially. Peak = most watching at once, official streams plus watch parties, recorded by this site.</div><div id="tlist" class="tl"></div><div id="thist"></div></div>
 <div class="card lvc" id="lvcard" style="display:none"><div class="vhead"><div><h2><span class="lvdot"></span>Live now</h2><div class="cap" id="lvcap"></div></div><a class="btn red" id="lvwatch" target="_blank" rel="noopener">WATCH</a></div>
  <div class="lvbig"><b id="lvnow">-</b><span id="lvd"></span></div>
  <div class="vk lvk"><div><b id="lvpk">-</b>peak this stream</div><div><b id="lvavg">-</b>average this stream</div><div><b id="lvdur">-</b>live for</div></div>
@@ -116,9 +122,9 @@ __PANEL_CSS__
 <div class="card" id="tccard" style="display:none"><h2>Top comments</h2><div class="cap">YouTube's top comments on this channel's videos from the past week, most liked first. Kept for 30 days.</div><div id="tc"></div></div>
 <div id="smodal" style="position:fixed;inset:0;z-index:60;background:rgba(3,2,12,.85);display:none;align-items:center;justify-content:center;padding:16px"><div style="background:var(--bg2);border:1px solid var(--line);padding:14px;max-width:440px;width:100%;max-height:94vh;overflow:auto">
  <img id="simg" alt="Share card" style="width:100%;display:block;border:1px solid var(--line);margin-bottom:10px"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="sgo">SHARE</button><button class="btn" id="sdl">DOWNLOAD</button><button class="btn" id="sx" style="background:none;color:var(--muted);border:1px solid var(--line)">CLOSE</button></div></div></div>
-<div class="card" id="bcard" style="display:none"><div class="vhead"><div><h2>Creator badge</h2><div class="cap">A live badge for your website, link page or press kit. It updates itself as the rank changes. Pick which rank to show.</div></div></div>
+<div class="card" id="bcard" style="display:none"><div class="vhead"><div><h2>Channel badge</h2><div class="cap">This channel's rankings as an image to post or put in a media kit. Pick which rank to show.</div></div></div>
  <div class="bopts" id="bopts"></div><div class="bprev"><img id="bimg" alt="Badge preview"></div>
- <div class="bcode"><div class="vseg" id="bfmt" style="margin:8px 0 0"></div><textarea id="btxt" readonly rows="3"></textarea><div class="brow"><button class="btn" id="bcopy">COPY CODE</button><button class="btn ghost" id="bpng">DOWNLOAD PNG</button></div></div></div>
+ <div class="bcode"><div class="brow"><button class="btn" id="bpng">DOWNLOAD PNG</button></div></div></div>
 <div class="card" id="vcard" style="display:none"><h2>Channel views per day</h2><div class="cap">The channel's public counters on YouTube (total views of all its videos, live and uploaded; subscribers), recorded once a day by this site. Views gained = how much the total grew between two days.</div><div id="views"></div></div>
 <div class="card" id="lcard"><h2>Live stats on this site</h2><div class="cap">Recorded by this site every 2 seconds while the channel is live.</div><div id="stats"></div></div>
 <div class="card" id="mcard" style="display:none"><h2>Moments</h2><div class="cap">Sudden jumps in viewers on this channel, newest first. Opens at the moment.</div><div class="ps" id="moms"></div></div>
@@ -242,39 +248,45 @@ async function dayCard(d,withLogo){const c=CDATA||{},W=1080,H=1350,cv=document.c
  const T=(t,X,Y,font,col,al,mw)=>{x.font=font;if(mw){const w=x.measureText(t).width;if(w>mw){const m=font.match(/(\d+)px/);x.font=font.replace(/\d+px/,Math.max(10,Math.floor(+m[1]*mw/w))+'px')}}x.fillStyle=col;x.textAlign=al||'left';x.textBaseline='top';x.fillText(t,X,Y)};
  const M=s=>`${s}px "Barlow Condensed",sans-serif`,B=s=>`700 ${s}px "Barlow",sans-serif`;
  const S=d.streams||[],full_t=cleanT((S[0]||{}).title),parts=full_t.split('|').map(z=>z.trim()).filter(Boolean),dp=parts.find(z=>/\bday\s*\d+/i.test(z));
- const name=(parts.length?parts[0]+(dp&&dp!==parts[0]?' '+dp:''):(c.name||'')).toUpperCase();
+ const EV=d.event&&d.event.peak?d.event:null;
+ const name=((EV?EV.name:parts.length?parts[0]:(c.name||''))+(dp&&dp!==parts[0]?' '+dp:'')).toUpperCase();
+ const PEAK=EV?EV.peak:d.peak,PAT=EV?EV.peak_at:d.peak_at;
  const dt=new Date(d.day+'T12:00:00'),dlab=dt.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'}).replace(',','').toUpperCase();
  const SITE=(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\./,'');
  T('letsgrowesports',80,78,M(30),'#b6f23a');
  T(`${name} // ${dlab}`,80,118,B(50),'#eeeef5','left',W-160);
  x.font=M(24);const wmw=x.measureText('For more: '+SITE).width;
  T('// PEAK CONCURRENT VIEWERS',80,205,M(30),'#ff4d5e','left',W-160-wmw-30);T('For more: '+SITE,W-80,210,M(24),'#a9a8be','right');
- x.shadowColor='rgba(182,242,58,.35)';x.shadowBlur=30;T(full(d.peak),72,245,B(170),'#ffffff');x.shadowBlur=0;
+ x.shadowColor='rgba(182,242,58,.35)';x.shadowBlur=30;T(full(PEAK),72,245,B(170),'#ffffff');x.shadowBlur=0;
  const im=withLogo&&c.logo?await loadImg(c.logo):null;
  if(im){const r=64,cx=W-80-r,cy=330;x.save();x.beginPath();x.arc(cx,cy,r,0,7);x.clip();x.drawImage(im,cx-r,cy-r,2*r,2*r);x.restore();x.beginPath();x.arc(cx,cy,r,0,7);x.lineWidth=4;x.strokeStyle='#b6f23a';x.stroke()}
- const P=(d.series||[]).filter(p=>p[1]>0),avg=P.length?Math.round(P.reduce((a,p)=>a+p[1],0)/P.length):0;
+ const P=(EV?EV.series:(d.series||[])).map(p=>[p[0],p[1]]).filter(p=>p[1]>0),avg=P.length?Math.round(P.reduce((a,p)=>a+p[1],0)/P.length):0;
  const box=(X,Y,w,h,lab,val,sub,col)=>{x.fillStyle='rgba(26,26,38,.9)';x.fillRect(X,Y,w,h);x.strokeStyle='#262636';x.lineWidth=2;x.strokeRect(X,Y,w,h);
   T(lab,X+22,Y+20,M(24),'#ff4d5e','left',w-44);T(val,X+22,Y+54,B(56),col,'left',w-44);if(sub)T(sub,X+22,Y+h-44,M(22),'#8d8ca3','left',w-44)};
  const bw=(W-160-40)/3;
  box(80,490,bw,170,'AVERAGE',avg?fmt(avg):'-','while live','#b6f23a');
- box(80+bw+20,490,bw,170,'TOTAL VIEWS',d.views?fmt(d.views):'-',S.length>1?`all ${S.length} streams`:'the stream','#ff8a3d');
- box(80+2*(bw+20),490,bw,170,'HOURS WATCHED',d.hw?fmt(d.hw):'-','live','#4cc9f0');
+ if(EV){box(80+bw+20,490,bw,170,'OFFICIAL AT PEAK',EV.official!=null?fmt(EV.official):'-','official streams','#ff8a3d');
+  box(80+2*(bw+20),490,bw,170,'WATCH PARTIES',EV.watch!=null?fmt(EV.watch):'-','at peak','#4cc9f0')}
+ else{box(80+bw+20,490,bw,170,'TOTAL VIEWS',d.views?fmt(d.views):'-',S.length>1?`all ${S.length} streams`:'the stream','#ff8a3d');
+  box(80+2*(bw+20),490,bw,170,'HOURS WATCHED',d.hw?fmt(d.hw):'-','live','#4cc9f0')}
  // chart: grid, y labels, glowing line, peak marker, end tag
  const X0=60,Y0=730,CW=W-120-130,CH=250;
- if(P.length>1){const t0=P[0][0],t1=P[P.length-1][0],top=Math.max(d.peak||0,...P.map(p=>p[1])),mx=top*1.2,X=t=>X0+CW*(t-t0)/((t1-t0)||1),Y=v=>Y0+CH-CH*v/mx;
+ if(P.length>1){const t0=P[0][0],t1=P[P.length-1][0],top=Math.max(PEAK||0,...P.map(p=>p[1])),mx=top*1.2,X=t=>X0+CW*(t-t0)/((t1-t0)||1),Y=v=>Y0+CH-CH*v/mx;
   x.strokeStyle='rgba(255,255,255,.06)';x.lineWidth=1;for(let k=0;k<=4;k++){const v=mx*k/4,yy=Y(v);x.beginPath();x.moveTo(X0,yy);x.lineTo(X0+CW,yy);x.stroke();T(k?fmt(v):'0',X0+CW+12,yy-12,M(22),'#8d8ca3')}
   const gr=x.createLinearGradient(0,Y0,0,Y0+CH);gr.addColorStop(0,'rgba(182,242,58,.18)');gr.addColorStop(1,'rgba(182,242,58,0)');
   x.beginPath();x.moveTo(X(t0),Y0+CH);P.forEach(p=>x.lineTo(X(p[0]),Y(p[1])));x.lineTo(X(t1),Y0+CH);x.closePath();x.fillStyle=gr;x.fill();
   x.save();x.shadowColor='rgba(182,242,58,.8)';x.shadowBlur=18;x.beginPath();P.forEach((p,k)=>k?x.lineTo(X(p[0]),Y(p[1])):x.moveTo(X(p[0]),Y(p[1])));x.strokeStyle='#b6f23a';x.lineWidth=5;x.lineJoin='round';x.stroke();x.restore();
-  const pk=d.peak_at&&d.peak_at>=t0&&d.peak_at<=t1?[d.peak_at,d.peak]:P.reduce((a,p)=>p[1]>a[1]?p:a,P[0]),px=X(pk[0]),py=Y(Math.min(pk[1],top));
+  const pk=PAT&&PAT>=t0&&PAT<=t1?[PAT,PEAK]:P.reduce((a,p)=>p[1]>a[1]?p:a,P[0]),px=X(pk[0]),py=Y(Math.min(pk[1],top));
   x.setLineDash([6,6]);x.strokeStyle='rgba(255,77,94,.7)';x.lineWidth=2;x.beginPath();x.moveTo(px,py);x.lineTo(px,Y0+CH);x.stroke();x.setLineDash([]);
   x.beginPath();x.arc(px,py,11,0,7);x.fillStyle='#ff4d5e';x.fill();
   const pl='PEAK '+fmt(pk[1]);x.font=B(28);const plw=x.measureText(pl).width;T(pl,Math.min(Math.max(px-plw/2,X0),X0+CW-plw),py-46,B(28),'#ff4d5e');
   const lv=P[P.length-1][1],ly=Y(lv);x.fillStyle='#b6f23a';x.fillRect(X0+CW+4,ly-20,126,40);T(fmt(lv),X0+CW+14,ly-14,B(28),'#0a0a14');
   for(let k=0;k<5;k++){const t=t0+(t1-t0)*k/4;T(ist(t,{hour:'2-digit',minute:'2-digit',hour12:true}).toLowerCase(),X(t),Y0+CH+16,M(24),'#8d8ca3',k===0?'left':k===4?'right':'center')}}
  // each stream, ranked by views
- let ly=1035;T('// '+(S.length>1?'STREAMS (VIEWS)':'THE STREAM (VIEWS)'),80,ly,M(26),'#ff4d5e');ly+=42;
- S.slice(0,3).forEach((z,k)=>{const tg=tagOf(z.title)||(k?'STREAM '+(k+1):(c.name||'').toUpperCase());T(`${k+1}. ${tg}`.slice(0,30),80,ly,B(34),k?'#eeeef5':'#b6f23a','left',W-420);
+ let ly=1035;const WP=EV&&EV.watch_parties&&EV.watch_parties.length?EV.watch_parties:null;
+ if(WP){T('// WATCH PARTY LEADERS (PEAK)',80,ly,M(26),'#ff4d5e');ly+=42;WP.slice(0,3).forEach((w,k)=>{T(`${k+1}. ${String(w.channel).toUpperCase()}`.slice(0,30),80,ly,B(34),k?'#eeeef5':'#b6f23a','left',W-420);T(full(w.peak),W-80,ly,B(34),k?'#eeeef5':'#b6f23a','right');ly+=46})}
+ else{T('// '+(S.length>1?'STREAMS (VIEWS)':'THE STREAM (VIEWS)'),80,ly,M(26),'#ff4d5e');ly+=42}
+ if(!WP)S.slice(0,3).forEach((z,k)=>{const tg=tagOf(z.title)||(k?'STREAM '+(k+1):(c.name||'').toUpperCase());T(`${k+1}. ${tg}`.slice(0,30),80,ly,B(34),k?'#eeeef5':'#b6f23a','left',W-420);
   T(z.views!=null?full(z.views):'-',W-80,ly,B(34),k?'#eeeef5':'#b6f23a','right');ly+=46});
  x.fillStyle='#b6f23a';x.fillRect(0,H-130,W,130);T('LIVE.LETSGROWESPORTS.COM',80,H-108,B(44),'#0a0a14');
  T(`${ist(P.length?P[P.length-1][0]:Date.now()/1000,{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}).replace(',',',').toLowerCase().replace(/^(\d+) (\w)/,(m,a,b)=>a+' '+b.toUpperCase())} IST // @letsgrowesports`,80,H-52,M(24),'#0a0a14');
@@ -282,7 +294,7 @@ async function dayCard(d,withLogo){const c=CDATA||{},W=1080,H=1350,cv=document.c
 async function dayShare(day,btn){if(btn)btn.disabled=true;try{const d=await (await fetch(`/api/streamday?sid=${encodeURIComponent(SID)}&day=${day}`)).json();if(!d||!d.day)return;
  try{await document.fonts.ready}catch(e){}SBLOB=await dayCard(d,true)||await dayCard(d,false);if(!SBLOB)return;
  const ttl=cleanT(((d.streams||[])[0]||{}).title)||(CDATA&&CDATA.name)||'';window.SHNAME=(ttl||'live-day').replace(/\W+/g,'-').slice(0,60);
- window.SHTXT=`${ttl}: peak ${full(d.peak)} watching live${(d.streams||[]).length>1?' across '+d.streams.length+' streams':''}, ${fmt(d.views)} views. ${location.href} @letsgrowesports`;
+ window.SHTXT=`${ttl}: peak ${full(d.event&&d.event.peak?d.event.peak:d.peak)} watching live${(d.streams||[]).length>1?' across '+d.streams.length+' streams':''}, ${fmt(d.views)} views. ${location.href} @letsgrowesports`;
  document.getElementById('simg').src=URL.createObjectURL(SBLOB);document.getElementById('smodal').style.display='flex'}catch(e){}finally{if(btn)btn.disabled=false}}
 
 document.getElementById('vshare').onclick=async()=>{if(!VID||!CDATA)return;try{await document.fonts.ready}catch(e){}window.SHNAME=window.SHTXT='';SBLOB=await shareCard(true)||await shareCard(false);if(!SBLOB)return;
@@ -376,21 +388,29 @@ function drawLive(S){const cv=document.getElementById('lvchart');const dpr=windo
  const l=S[S.length-1];x.beginPath();x.arc(X(l[0]),Y(l[1]),4,0,7);x.fillStyle='#b6f23a';x.fill()}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&LV.on)liveTick()});
 const SITE=__SITEURL__;
+
+// tournaments this channel broadcast (official), BGMI first; BGMI history chart for BGMI organisers
+async function tourneys(){let j;try{j=await (await fetch('/api/chevents?sid='+encodeURIComponent(SID))).json()}catch(e){return}
+ const E=j.events||[],H=j.bgmi_history||[];if(!E.length&&!H.length)return;document.getElementById('tcard').style.display='';
+ const dr=e=>e.start?new Date(e.start*1000).toLocaleDateString('en-IN',{day:'numeric',month:'short',timeZone:'Asia/Kolkata'})+(e.end&&e.end-e.start>86400?' to '+new Date(e.end*1000).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Kolkata'}):''):'not started';
+ document.getElementById('tlist').innerHTML=E.length?`<div class="hdr"><span>TOURNAMENT</span><span>PEAK</span><span>OFFICIAL</span><span>WATCH PARTIES</span><span></span></div>`+E.map(e=>`<a href="${esc(e.url)}"><div><b>${esc(e.name)}</b><small>${esc(e.game)} · ${dr(e)}${e.ended?'':' · tracking'}</small></div><span class="n">${e.peak?full(e.peak):'-'}${e.peak_at?`<small>${ist(e.peak_at,{day:'numeric',month:'short'})}</small>`:''}</span><span class="n">${e.official_at_peak!=null?full(e.official_at_peak):'-'}<small>at peak</small></span><span class="n">${e.watch_at_peak!=null?full(e.watch_at_peak):'-'}<small>${e.watch_parties&&e.watch_parties[0]?esc(e.watch_parties[0].channel)+' top':'at peak'}</small></span><span class="go">OPEN</span></a>`).join(''):'';
+ if(H.length){const mx=Math.max(...H.map(h=>h.peak)),mine=new Set(E.map(e=>e.name.toUpperCase().replace(/\s+/g,'')));
+  document.getElementById('thist').innerHTML=`<div class="th"><h3>BGMI esports, peak viewers by event</h3>${H.map(h=>{const me=mine.has(h.name.toUpperCase().replace(/\s+/g,''));return `<div class="r${me?' me':''}"><span>${esc(h.name)}</span><i style="width:${Math.max(2,100*h.peak/mx)}%"></i><b>${fmt(h.peak)}</b></div>`}).join('')}</div>`}}
 async function badges(){try{const O=await (await fetch('/api/badges?sid='+encodeURIComponent(SID))).json();if(!O.length)return;
  document.getElementById('bcard').style.display='';let k=0,f='html';
  const url=o=>SITE+'/badge/'+SID+'.svg?m='+o.m+'&s='+o.s,page=SITE+RP+'/ch/'+SID,alt=o=>`Ranked #${o.rank} ${o.title} ${o.by}`;
  const code=o=>f==='html'?`<a href="${page}" target="_blank" rel="noopener"><img src="${url(o)}" alt="${esc(alt(o))}" height="80"></a>`:f==='md'?`[![${alt(o)}](${url(o)})](${page})`:page;
  const draw=()=>{const o=O[k];document.getElementById('bopts').innerHTML=O.slice(0,12).map((x,i)=>`<button data-i="${i}" class="${i===k?'on':''}"><b>#${full(x.rank)}</b>${esc(x.title)} · ${esc(x.by)}</button>`).join('');
   document.getElementById('bimg').src='/badge/'+SID+'.svg?m='+o.m+'&s='+o.s;
-  const fe=document.getElementById('bfmt');fe.innerHTML=[['html','HTML'],['md','MARKDOWN'],['link','LINK']].map(([v,l])=>`<button data-v="${v}" class="${v===f?'on':''}">${l}</button>`).join('');
-  document.getElementById('btxt').value=code(o)};
+  const fe=document.getElementById('bfmt');if(fe)fe.innerHTML=[['html','HTML'],['md','MARKDOWN'],['link','LINK']].map(([v,l])=>`<button data-v="${v}" class="${v===f?'on':''}">${l}</button>`).join('');
+  const bt=document.getElementById('btxt');if(bt)bt.value=code(o)};
  document.getElementById('bopts').onclick=e=>{const b=e.target.closest('button');if(b){k=+b.dataset.i;draw()}};
- document.getElementById('bfmt').onclick=e=>{const b=e.target.closest('button');if(b){f=b.dataset.v;draw()}};
- document.getElementById('bcopy').onclick=async e=>{const t=document.getElementById('btxt');try{await navigator.clipboard.writeText(t.value)}catch(_){t.select();document.execCommand('copy')}e.target.textContent='COPIED';setTimeout(()=>e.target.textContent='COPY CODE',1500)};
+ if(document.getElementById('bfmt'))document.getElementById('bfmt').onclick=e=>{const b=e.target.closest('button');if(b){f=b.dataset.v;draw()}};
+ if(document.getElementById('bcopy'))document.getElementById('bcopy').onclick=async e=>{const t=document.getElementById('btxt');try{await navigator.clipboard.writeText(t.value)}catch(_){t.select();document.execCommand('copy')}e.target.textContent='COPIED';setTimeout(()=>e.target.textContent='COPY CODE',1500)};
  document.getElementById('bpng').onclick=()=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),s=3;c.width=im.naturalWidth*s;c.height=im.naturalHeight*s;const x=c.getContext('2d');x.scale(s,s);x.drawImage(im,0,0);
   c.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(CDATA&&CDATA.name||'badge').replace(/[^\w-]+/g,'_')+'_rank.png';a.click()},'image/png')};im.src=document.getElementById('bimg').src};
  draw()}catch(e){}}
-load();past();moms();videos();badges();liveTick();setInterval(()=>{if(!document.hidden){load();if(!LV.on)liveTick()}},15000);
+load();past();moms();videos();badges();tourneys();liveTick();setInterval(()=>{if(!document.hidden){load();if(!LV.on)liveTick()}},15000);
 
 (async function deepLoad(){if(!SID.startsWith('yt:'))return;let D;try{D=await (await fetch('/api/deep?sid='+encodeURIComponent(SID))).json()}catch(e){return}
  const pc=x=>x==null?'-':(x*100).toFixed(x<.1?2:1)+'%',F={long:'Videos',short:'Shorts',live:'Live streams'},S=D.standing||{},FM=Object.keys(S.formats||{});

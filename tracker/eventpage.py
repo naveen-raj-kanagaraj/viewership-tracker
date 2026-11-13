@@ -224,6 +224,79 @@ def _pw_closed() -> bool:
     return predict.game_closed()
 
 
+# BGMI esports peak concurrent viewers in thousands, [series, 2-digit year, peak K]: the history chart. Events this
+# site tracked are added (or raised) from its own numbers by event_peaks().
+HIST_BASE = [["LAUNCH", "21", 540], ["BGIS", "21", 460], ["BMPS", "22", 305], ["BMSD", "22", 315], ["BGIS", "23", 235],
+             ["BMPS", "23", 201], ["INKR", "23", 178], ["BGIS", "24", 275], ["BMPS", "24", 495], ["BGIS", "25", 485],
+             ["BMPS", "25", 320], ["BMSD", "25", 380], ["BMIC", "25", 372], ["BGIS", "26", 578], ["BMPS", "26", 730],
+             ["BMSD", "26", 653]]
+HIST_NAMES = {"LAUNCH": "BGMI Launch Party", "BGIS": "BGIS", "BMPS": "BMPS", "BMSD": "BMSD", "INKR": "INKR Invitational", "BMIC": "BMIC"}
+
+
+def bgmi_history() -> list:
+    """The history chart's events, newest first: [{series, name, year, peak}] (peak = concurrent viewers)."""
+    h = [list(x) for x in HIST_BASE]
+    for sr, y, v in event_peaks():
+        e = next((x for x in h if x[0] == sr and x[1] == y), None)
+        if e:
+            e[2] = max(e[2], v)
+        else:
+            h.append([sr, y, v])
+    order = {k: i for i, k in enumerate(x[0] + x[1] for x in HIST_BASE)}
+    h.sort(key=lambda x: (-int(x[1]), -order.get(x[0] + x[1], 99)))
+    return [{"series": sr, "name": f"{HIST_NAMES.get(sr, sr)} 20{y}", "year": "20" + y, "peak": v * 1000} for sr, y, v in h]
+
+
+def channel_events(sid: str) -> dict:
+    """Tournaments a channel broadcast officially (it's in the preset's official channels), BGMI first, newest first,
+    with the peak (official + watch parties) and the split at that moment; plus BGMI's history for BGMI organisers."""
+    plat, _, ident = (sid or "").partition(":")
+    out = []
+    with events.store._lock:
+        c = events._db()
+        for key, pr in events.PRESETS.items():
+            offs = [x.lower() for x in pr.get("official_channels", [])] if plat == "yt" else \
+                   [x.lower() for x in ((pr.get(plat) or {}).get("official") or [])]
+            if ident.lower() not in offs:
+                continue
+            r = c.execute("SELECT ts, total, official, watch FROM ev_ticks WHERE event=? ORDER BY total DESC LIMIT 1", (key,)).fetchone()
+            span = c.execute("SELECT MIN(ts), MAX(ts), MAX(official), MAX(watch) FROM ev_ticks WHERE event=?", (key,)).fetchone()
+            wp = c.execute("SELECT channel, MAX(peak) FROM ev_streams WHERE event=? AND kind='watch party' GROUP BY channel "
+                           "ORDER BY 2 DESC LIMIT 3", (key,)).fetchall()
+            out.append({"key": key, "name": pr.get("name") or key.upper(), "game": pr.get("game") or "",
+                        "ended": bool(pr.get("ended")), "peak": r[1] if r else 0, "peak_at": r[0] if r else None,
+                        "official_at_peak": r[2] if r else None, "watch_at_peak": r[3] if r else None,
+                        "official_max": span[2] if span else None, "watch_max": span[3] if span else None,
+                        "start": span[0] if span else None, "end": span[1] if span else None,
+                        "watch_parties": [{"channel": a, "peak": b} for a, b in wp], "url": f"/e/{key}/"})
+    out.sort(key=lambda e: (e["game"] != "BGMI", e["start"] is None, -(e["start"] or 0)))
+    hist = bgmi_history() if any(e["game"] == "BGMI" for e in out) else []
+    return {"events": out, "bgmi_history": hist}
+
+
+def day_event(sid: str, day: str) -> dict:
+    """If the channel was the official broadcaster of a tracked tournament that day (IST): the tournament's numbers
+    for the day, official streams plus watch parties, for the live-day share card."""
+    from datetime import datetime
+    d0 = datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=events.REPORT_TZ).timestamp()
+    for e in channel_events(sid)["events"]:
+        with events.store._lock:
+            c = events._db()
+            r = c.execute("SELECT ts, total, official, watch FROM ev_ticks WHERE event=? AND ts>=? AND ts<? ORDER BY total DESC LIMIT 1",
+                          (e["key"], d0, d0 + 86400)).fetchone()
+            if not r or not r[1]:
+                continue
+            ser = c.execute("SELECT ts, total, official, watch FROM ev_ticks WHERE event=? AND ts>=? AND ts<? ORDER BY ts",
+                            (e["key"], d0, d0 + 86400)).fetchall()
+            wp = c.execute("""SELECT s.channel, MAX(x.viewers) FROM ev_samples x JOIN ev_streams s ON s.event=x.event AND s.vid=x.vid
+                              WHERE x.event=? AND x.ts>=? AND x.ts<? AND s.kind='watch party' GROUP BY s.channel ORDER BY 2 DESC LIMIT 3""",
+                           (e["key"], d0, d0 + 86400)).fetchall()
+        step = max(1, len(ser) // 400)
+        return {"key": e["key"], "name": e["name"], "peak": r[1], "peak_at": r[0], "official": r[2], "watch": r[3],
+                "series": [[a, b, o, w] for a, b, o, w in ser[::step]], "watch_parties": [{"channel": a, "peak": b} for a, b in wp]}
+    return {}
+
+
 def event_peaks() -> list:
     """[series, 2-digit year, peak in thousands] of every tracked event with a place in the history chart, measured
     by this site (so a finished event joins the chart by itself)."""
@@ -321,7 +394,7 @@ def build_html(key: str = None, live: bool = False, style: str = None) -> str:
                 .replace("__LIVE__", "true" if live else "false")
                 .replace("__ELOGO__", json.dumps(_elogos(embed=not live)))
                 .replace("__CUR__", json.dumps(_preset(key).get("hist") or []))
-                .replace("__EVPEAKS__", json.dumps(event_peaks()))
+                .replace("__EVPEAKS__", json.dumps(event_peaks())).replace("__HISTBASE__", json.dumps(HIST_BASE))
                 .replace("__GAME__", json.dumps(_preset(key).get("game") or ""))
                 .replace("__NEEDOFF__", "false" if _preset(key).get("need_official") is False else "true")
                 .replace("__ENDED__", "true" if _ended(key) else "false")
@@ -562,7 +635,7 @@ const nowS=()=>Date.now()/1000-skew;
 function tween(el,to){const from=+el.dataset.v||0;el.dataset.v=to;if(from===to){el.textContent=full(to);return}
  const t0=performance.now();const st=t=>{const k=Math.min(1,(t-t0)/600);el.textContent=full(from+(to-from)*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(st)};requestAnimationFrame(st)}
 function isOff(){return !D.official_live&&D.last_broadcast}
-const HIST=[['LAUNCH','21',540],['BGIS','21',460],['BMPS','22',305],['BMSD','22',315],['BGIS','23',235],['BMPS','23',201],['INKR','23',178],['BGIS','24',275],['BMPS','24',495],['BGIS','25',485],['BMPS','25',320],['BMSD','25',380],['BMIC','25',372],['BGIS','26',578],['BMPS','26',730],['BMSD','26',653]];
+const HIST=__HISTBASE__;
 const HNAME={LAUNCH:'BGMI Launch Party',BGIS:'BGIS',BMPS:'BMPS',BMSD:'BMSD',INKR:'INKR Invitational',BMIC:'BMIC'};
 function hist(){const h=HIST.map(x=>x.slice());EVPEAKS.forEach(([s,y,v])=>{const e=h.find(x=>x[0]===s&&x[1]===y);if(e){if(v>e[2])e[2]=v}else h.push([s,y,v])});if(!CUR.length)return h;const cur=Math.round((D.peak||0)/1000);let e=h.find(x=>x[0]===CUR[0]&&x[1]===CUR[1]);
  if(!e&&cur>0){e=[CUR[0],CUR[1],0];h.push(e)}if(e&&cur>e[2])e[2]=cur;return h}

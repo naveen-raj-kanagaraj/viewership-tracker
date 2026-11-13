@@ -190,6 +190,13 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- Channel pages of official broadcasters (13 Nov 2026): a "Tournaments" card near the top lists the tracked events
+  where the channel is in the preset's official channels (BGMI first, newest first) with peak, official and watch
+  parties at the peak, linking to /e/<key>/; BGMI organisers also get the BGMI peak-by-event history
+  (eventpage.HIST_BASE, now the single source for the tournament pages' history chart, + event_peaks()). API:
+  /api/chevents (eventpage.channel_events). The live-day share card uses the tournament's numbers (official + watch
+  parties, watch party leaders) when the day was a tracked tournament day (eventpage.day_event). "Creator badge" is
+  now "Channel badge" with only a PNG download (no embed code).
 - Share cards always print live.letsgrowesports.com (or the letsgrowesports.com host they're on), never localhost or
   a tunnel address. The live-day card on channel pages now uses the tournament card layout (CEGC/BMSD): title //
   date, // PEAK CONCURRENT VIEWERS, glowing number, AVERAGE / TOTAL VIEWS / HOURS WATCHED boxes, chart with peak
