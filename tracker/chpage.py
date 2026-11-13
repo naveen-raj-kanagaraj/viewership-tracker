@@ -220,7 +220,7 @@ async function shareCard(withLogo){const c=CDATA,j=VID,S=(c&&c.stats)||{};const 
  x.fillStyle='#b6f23a';x.font='700 30px "Barlow Condensed",sans-serif';x.fillText('LETSGROWESPORTS',72,96);
  const im=withLogo?await loadImg(c.logo):null;let tx=72;if(im){x.save();x.beginPath();x.arc(132,190,60,0,7);x.clip();x.drawImage(im,72,130,120,120);x.restore();tx=220}
  x.fillStyle='#fff';x.font='700 64px "Barlow Condensed",sans-serif';let n=c.name.toUpperCase();while(x.measureText(n).width>1008-tx&&n.length>3)n=n.slice(0,-2);x.fillText(n,tx,195);
- x.fillStyle='#8d8ca3';x.font='28px "Barlow Condensed",sans-serif';x.fillText(`YOUTUBE · ${RNAME[VRANGE].toUpperCase()}${VKIND!=='all'?' · '+KINDN[VKIND].toUpperCase():''}`,tx,240);x.textAlign='right';x.fillStyle='#a9a8be';x.font='600 22px "Barlow Condensed",sans-serif';x.fillText('For more: '+(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\\./,''),1008,240);x.textAlign='left';
+ x.fillStyle='#8d8ca3';x.font='28px "Barlow Condensed",sans-serif';x.fillText(`YOUTUBE · ${RNAME[VRANGE].toUpperCase()}${VKIND!=='all'?' · '+KINDN[VKIND].toUpperCase():''}`,tx,240);x.textAlign='right';x.fillStyle='#a9a8be';x.font='600 22px "Barlow Condensed",sans-serif';x.fillText('For more: '+(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\\./,'')+RP,1008,240);x.textAlign='left';
  const T=[['LIFETIME VIEWS',S.views!=null?fmt(S.views):'-'],['SUBSCRIBERS',S.subs!=null?fmt(S.subs):'-'],['POSTED',full(j.count)],['VIEWS ON THEM',fmt(j.views)],['AVG PER POST',fmt(j.avg)],['ENGAGEMENT',j.engagement!=null?j.engagement+'%':'-']];
  T.forEach(([l,v],i)=>{const X0=72+(i%3)*316,Y0=290+Math.floor(i/3)*170;x.fillStyle='#13131c';x.fillRect(X0,Y0,300,150);x.fillStyle='#ff4d5e';x.font='22px "Barlow Condensed",sans-serif';x.fillText(l,X0+22,Y0+38);x.fillStyle='#fff';x.font='700 64px "Barlow Condensed",sans-serif';x.fillText(v,X0+22,Y0+112)});
  x.fillStyle='#ff4d5e';x.font='24px "Barlow Condensed",sans-serif';x.fillText(MET[VMET][0].toUpperCase()+' PER POST',72,670);
@@ -252,7 +252,7 @@ async function dayCard(d,withLogo){const c=CDATA||{},W=1080,H=1350,cv=document.c
  const name=((EV?EV.name:parts.length?parts[0]:(c.name||''))+(dp&&dp!==parts[0]?' '+dp:'')).toUpperCase();
  const PEAK=EV?EV.peak:d.peak,PAT=EV?EV.peak_at:d.peak_at;
  const dt=new Date(d.day+'T12:00:00'),dlab=dt.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'}).replace(',','').toUpperCase();
- const SITE=(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\./,'');
+ const SITE=(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\./,'')+RP;
  T('letsgrowesports',80,78,M(30),'#b6f23a');
  T(`${name} // ${dlab}`,80,118,B(50),'#eeeef5','left',W-160);
  x.font=M(24);const wmw=x.measureText('For more: '+SITE).width;
@@ -288,7 +288,7 @@ async function dayCard(d,withLogo){const c=CDATA||{},W=1080,H=1350,cv=document.c
  else{T('// '+(S.length>1?'STREAMS (VIEWS)':'THE STREAM (VIEWS)'),80,ly,M(26),'#ff4d5e');ly+=42}
  if(!WP)S.slice(0,3).forEach((z,k)=>{const tg=tagOf(z.title)||(k?'STREAM '+(k+1):(c.name||'').toUpperCase());T(`${k+1}. ${tg}`.slice(0,30),80,ly,B(34),k?'#eeeef5':'#b6f23a','left',W-420);
   T(z.views!=null?full(z.views):'-',W-80,ly,B(34),k?'#eeeef5':'#b6f23a','right');ly+=46});
- x.fillStyle='#b6f23a';x.fillRect(0,H-130,W,130);T('LIVE.LETSGROWESPORTS.COM',80,H-108,B(44),'#0a0a14');
+ x.fillStyle='#b6f23a';x.fillRect(0,H-130,W,130);T(('LIVE.LETSGROWESPORTS.COM'+RP).toUpperCase(),80,H-108,B(44),'#0a0a14','left',W-160);
  T(`${ist(P.length?P[P.length-1][0]:Date.now()/1000,{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}).replace(',',',').toLowerCase().replace(/^(\d+) (\w)/,(m,a,b)=>a+' '+b.toUpperCase())} IST // @letsgrowesports`,80,H-52,M(24),'#0a0a14');
  return new Promise(r=>{try{cv.toBlob(r,'image/png')}catch(e){r(null)}})}
 async function dayShare(day,btn){if(btn)btn.disabled=true;try{const d=await (await fetch(`/api/streamday?sid=${encodeURIComponent(SID)}&day=${day}`)).json();if(!d||!d.day)return;

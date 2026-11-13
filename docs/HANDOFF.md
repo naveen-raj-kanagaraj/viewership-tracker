@@ -190,6 +190,11 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- Kick / Twitch views (13 Nov 2026): rankings have VIEWS for Kick and Twitch = total views of the channel's past
+  broadcasts streamed in the period (yt_videos rows from their VOD lists; ranks.vod). ytextra.prefetch_once re-reads
+  the VOD lists of Kick/Twitch channels live in the last 3 days every 6 hours (30 per run, free). Twitch keeps VODs
+  7 to 60 days, so long periods only count what is still listed. "LIVE HOURS" is renamed "HOURS WATCHED" (it always
+  was hours watched). Share-card watermarks on regional pages read live.letsgrowesports.com/global or /india.
 - Worldwide pages live under /global (13 Nov 2026, owner), like India's under /india: /global, /global/categories,
   /global/rankings, /global/c/<game>, /global/ch/<sid>, /global/s/<section>, /global/moments, /global/compare,
   /global/kit/<sid>. web._GlobalPaths (WSGI) strips /global and hands the request to the existing handler; old

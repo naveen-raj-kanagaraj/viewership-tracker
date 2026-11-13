@@ -35,4 +35,17 @@ assert all(p in ranks.PERIODS for p in ("24h", "3d", "7d", "30d", "3m", "6m", "y
 # live rankings accept every period
 for p in ("day", "3d", "week", "month", "3m", "6m", "ytd", "1y", "all"):
     scene.rankings(region="global", period=p)
+# Kick / Twitch: views = their past broadcasts' views in the period
+import time as _t
+with store._lock:
+    c = scene._db()
+    row = {k: v for k, v in {"sid": "kick:anshyt", "platform": "kick", "name": "anshyt", "country": "IN", "india": 1, "game": "GTA V"}.items() if k in cols}
+    c.execute(f"INSERT INTO sc_channels ({','.join(row)}) VALUES ({','.join('?' * len(row))})", list(row.values()))
+    c.execute("INSERT INTO sc_chstats (sid, day, subs, views) VALUES ('kick:anshyt', ?, 60000, NULL)", (D(0),))
+    for vid, age, v in (("k1", 2, 30000), ("k2", 20, 50000), ("k3", 200, 70000)):
+        c.execute("INSERT INTO yt_videos (vid, sid, ts, title, views, live, approx) VALUES (?,?,?,?,?,1,0)", (vid, "kick:anshyt", int(_t.time() - age * 86400), vid, v))
+    c.commit()
+ranks.compute()
+k = ranks.top("kick", "views_7d")["rows"][0]
+assert k["views_7d"] == 30000 and ranks.top("kick", "views_30d")["rows"][0]["views_30d"] == 80000 and k["views_all"] == 150000, k
 print("PERIODS OK")

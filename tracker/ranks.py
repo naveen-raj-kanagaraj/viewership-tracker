@@ -97,6 +97,20 @@ def _rows():
                     eng[sid] = (e, lk, mv)
     except Exception as ex:
         print(f"Ranks engagement: {str(ex)[:80]}")
+    vod = {}                                 # Kick / Twitch: total views of past broadcasts per period (their VOD lists)
+    try:
+        with store._lock:
+            c = ytextra._db()
+            for p in PERIODS:
+                d0 = period_start(p)
+                t0 = 0 if p == "all" else time.time() - 86400 if p == "24h" else \
+                    datetime(d0.year, d0.month, d0.day, tzinfo=events.REPORT_TZ).timestamp()
+                for sid, v in c.execute("""SELECT v.sid, SUM(v.views) FROM yt_videos v JOIN sc_channels c ON c.sid=v.sid
+                                           WHERE c.platform IN ('kick','twitch') AND v.ts>=? AND v.views IS NOT NULL
+                                           GROUP BY v.sid""", (t0,)):
+                    vod.setdefault(sid, {})[p] = v
+    except Exception as ex:
+        print(f"Ranks VOD views: {str(ex)[:80]}")
     rows = []
     for sid, ch in chans.items():
         L, O, O7 = latest.get(sid), old.get(sid), old7.get(sid)
@@ -137,8 +151,8 @@ def _rows():
                 pm["views_all"], pm["subs_all"] = (L[1], L[0]) if L else (None, None)
             else:
                 pm["views_" + p], pm["subs_" + p] = dg(1), dg(0)
-            if ch["platform"] != "youtube":
-                pm["views_" + p] = None
+            if ch["platform"] != "youtube":          # Kick / Twitch: views of the past broadcasts streamed in the period
+                pm["views_" + p] = (vod.get(sid) or {}).get(p)
             h = (hwp.get(sid) or {}).get(p)
             pm["live_" + p] = round(h) if h else None
             e = per.get((sid, p))

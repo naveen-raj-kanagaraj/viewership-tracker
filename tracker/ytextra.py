@@ -1519,12 +1519,16 @@ def prefetch_once(n: int = 5) -> int:
             """SELECT c.sid FROM sc_channels c LEFT JOIN (SELECT s.sid, s.subs FROM sc_chstats s JOIN
                (SELECT sid, MAX(day) d FROM sc_chstats GROUP BY sid) m ON m.sid=s.sid AND m.d=s.day) t ON t.sid=c.sid
                WHERE c.platform IN ('youtube','twitch','kick') ORDER BY COALESCE(c.tracked,0) DESC, COALESCE(t.subs,0) DESC LIMIT 2000""")]
+        live_recent = {r[0] for r in _db().execute("SELECT sid FROM sc_channels WHERE platform IN ('twitch','kick') AND last_live>?",
+                                                   (time.time() - 3 * 86400,))}
     done = other = 0
     for sid in cand:
         if done >= n and other >= 30:
             break
         m = store.kv_get(f"vids:{sid}") or {}
-        if m.get("recent") or m.get("full") or sid in _VBUSY or time.time() - _VFAIL.get(sid, 0) < 6 * 3600:
+        stale = not sid.startswith("yt:") and time.time() - max(m.get("recent", 0), m.get("full", 0)) > 6 * 3600 \
+            and sid in live_recent              # Kick / Twitch: their past broadcasts' views feed the rankings
+        if (m.get("recent") or m.get("full")) and not stale or sid in _VBUSY or time.time() - _VFAIL.get(sid, 0) < 6 * 3600:
             continue
         if sid.startswith("yt:"):              # YouTube API units; Twitch and Kick cost none
             if done >= n or not events.yt_quota_left(.6):
