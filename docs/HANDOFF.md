@@ -190,6 +190,13 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- Per-stream live numbers (13 Nov 2026): sc_vstreams (vid, sid, peak, peak_at, hw, first/last seen) is written by
+  scene._store for every YouTube stream (2-second peaks via _VPEAK). The channel page video list shows peak CCV, time,
+  average, length and hours watched under each LIVE row, plus "Live days" (sc_daily: all the channel's streams at once).
+  Only streams from 13 Nov on have per-stream numbers; earlier days have the per-day combined peak only.
+  Video list: TOP / NEWEST / OLDEST sort; scheduled streams (live, 0 views) are tagged UPCOMING and left out of the
+  chart, average and median. Event preset "pic" (PIC 2026, PUBG India Cup, KRAFTON INDIA ESPORTS) is auto-created
+  on restart at /e/pic/ (not the home page). Test: tests/test_vstreams.py.
 - GTA 6 hidden until release (12 Nov 2026, owner): no nav tab, chip, pin, category row, game option or /c/gta-6
   page (404). Titles saying "GTA 6" count as GTA V; the Twitch/Kick "Grand Theft Auto VI" category counts as Other and
   is not scanned. Old GTA 6 rows stay in the database, just not shown. On release day add GTA6_SHOW=1 to .env and

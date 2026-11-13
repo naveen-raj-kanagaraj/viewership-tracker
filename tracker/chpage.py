@@ -59,6 +59,7 @@ h1{font:700 40px/1.05 "Barlow Condensed",sans-serif;margin:0;text-transform:uppe
 #vidchart{display:block;width:calc(100% - 32px);height:260px;margin:12px 16px 0;cursor:crosshair}
 .vtip{position:fixed;pointer-events:none;background:rgba(18,18,25,.96);border:1px solid var(--line);padding:6px 9px;font-size:12px;max-width:280px;display:none;z-index:50}
 .vtip b{font:700 15px "Barlow Condensed",sans-serif}
+.vl .lvs{display:block;color:var(--lime);font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vl a,.vl .hdr{grid-template-columns:70px minmax(0,1fr) 70px 64px 70px 60px 60px!important}
 .vhead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding-right:16px}.vhead .btn{margin-top:14px;flex:none}
 .vk.life div{background:linear-gradient(160deg,rgba(124,92,255,.16),var(--card2) 70%)}.vk.life b{font-size:28px}
@@ -99,7 +100,7 @@ __PANEL_CSS__
  <canvas id="lvchart"></canvas></div>
 <div class="card" id="vidcard" style="display:none"><div class="vhead"><div><h2>Channel performance</h2><div class="cap" id="vidcap"></div></div><button class="btn" id="vshare">SHARE</button></div>
  <div class="vk life" id="lifek"></div>
- <div class="vtools"><div class="vseg" id="vrange"></div><div class="vseg" id="vkind"></div><div class="vseg" id="vmetric"></div></div>
+ <div class="vtools"><div class="vseg" id="vrange"></div><div class="vseg" id="vkind"></div><div class="vseg" id="vmetric"></div><div class="vseg" id="vsort"></div></div>
  <div class="vk" id="vidk"></div><canvas id="vidchart"></canvas><div class="vtip" id="vtip"></div>
  <div class="ins" id="vins"></div>
  <div class="ps" id="vidlist"></div></div>
@@ -130,7 +131,7 @@ const ini=s=>esc(String(s||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCa
 const av=x=>x.logo?`<img src="${esc(x.logo)}" alt="" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=ph>${ini(x.name)}</span>'">`:`<span class="ph">${ini(x.name)}</span>`;
 const liveMap=()=>({});let OPEN=null;function render(){}
 __PANEL_JS__
-let VR=30,VRANGE='30d',VKIND='all',VMET='views',VID=null,CDATA=null;
+let VR=30,VRANGE='30d',VKIND='all',VMET='views',VSORT='top',VID=null,CDATA=null;
 const RANGES=[['7d','7D'],['30d','30D'],['90d','90D'],['6m','6M'],['ytd','YTD'],['1y','1Y'],['all','ALL TIME']];
 const KINDC={uploads:'#a58bff',shorts:'#4cc9f0',live:'#ff4d5e'},kindOf=v=>v.live?'live':v.short?'shorts':'uploads',KINDN={uploads:'Videos',shorts:'Shorts',live:'Live'};
 const engOf=v=>v.likes!=null&&v.views?100*((v.likes||0)+(v.comments||0))/v.views:null;
@@ -151,15 +152,19 @@ async function videos(){try{const j=await (await fetch(`/api/videos?sid=${encode
  const sg=(id,opts,cur,on)=>{const e=document.getElementById(id);e.innerHTML=opts.map(([v,l])=>`<button data-v="${v}" class="${v===cur?'on':''}">${l}</button>`).join('');e.onclick=ev=>{const b=ev.target.closest('button');if(b)on(b.dataset.v)}};
  sg('vrange',RANGES,VRANGE,v=>{VRANGE=v;videos()});
  sg('vkind',YT?[['all','ALL'],['uploads','VIDEOS'],['shorts','SHORTS'],['live','LIVE']]:[['all','ALL'],['live','PAST BROADCASTS'],['uploads','HIGHLIGHTS & UPLOADS']],VKIND,v=>{VKIND=v;videos()});
+ sg('vsort',[['top','TOP'],['new','NEWEST'],['old','OLDEST']],VSORT,v=>{VSORT=v;topList()});
  if(YT)sg('vmetric',[['views','VIEWS'],['likes','LIKES'],['comments','COMMENTS'],['eng','ENGAGEMENT']],VMET,v=>{VMET=v;drawVids();topList()});else{VMET='views';document.getElementById('vmetric').style.display='none'}
  document.getElementById('vidk').innerHTML=`<div><b>${full(j.count)}</b>posted, ${RNAME[VRANGE]} · ${j.per_week}/week</div><div><b class="up">${fmt(j.views)}</b>views on them</div><div><b>${fmt(j.avg)}</b>average per post</div><div><b>${fmt(j.median)}</b>median per post</div><div><b>${j.engagement!=null?j.engagement+'%':'-'}</b>engagement${j.likes!=null?` · ${fmt(j.likes)} likes · ${fmt(j.comments)} comments`:''}</div>`;
  document.getElementById('vidk').insertAdjacentHTML('beforeend',`<div style="grid-column:1/-1;background:none;padding:0 2px">${j.bucket&&j.bucket!=='post'?`Chart: average per post, by ${j.bucket}; purple bars = posts that ${j.bucket}.`:'Chart: one point per post.'}${j.loading?' <span style="color:var(--lime)">Pulling the full history from '+(YT?'YouTube':NAMES[CDATA?CDATA.platform:'twitch'])+'... updates by itself.</span>':''}</div>`);
+ {const LD=j.live_days||[];if(YT&&LD.length&&(VKIND==='live'||VKIND==='all')&&j.lives){const b=LD.reduce((a,d)=>d.peak>a.peak?d:a,LD[0]),dl=d=>new Date(d+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+  document.getElementById('vidk').insertAdjacentHTML('beforeend',`<div><b class="up">${full(b.peak)}</b>peak live viewers, all streams at once (${dl(b.day)})</div><div><b>${fmt(LD.reduce((a,d)=>a+d.hw,0))}h</b>hours watched live, ${RNAME[VRANGE]}</div>`+
+  `<div style="grid-column:1/-1;background:none;padding:0 2px">Live days: ${LD.slice(0,10).map(d=>`${dl(d.day)} <span style="color:var(--ink);font-weight:600">${full(d.peak)}</span> peak, ${fmt(d.hw)}h watched`).join(' · ')}</div>`)}}
  drawVids();insights();topList();
  clearTimeout(window._vpoll);if(j.loading)window._vpoll=setTimeout(videos,6000)}catch(e){}}
 function topList(){const j=VID;if(!j)return;const m=MET[VMET],med=j.median||1;
- const L=(j.videos||[]).slice().sort((a,b)=>m[1](b)-m[1](a)).slice(0,15);
+ const L=VSORT==='top'?(j.videos||[]).slice().sort((a,b)=>m[1](b)-m[1](a)).slice(0,15):[...(VSORT==='new'?(j.upcoming||[]):[]),...(j.videos||[]).slice().sort((a,b)=>VSORT==='new'?(b.ts||0)-(a.ts||0):(a.ts||0)-(b.ts||0))].slice(0,VSORT==='new'?20:15);
  document.getElementById('vidlist').className='ps vl';
- document.getElementById('vidlist').innerHTML=L.length?`<div class="hdr"><span>POSTED</span><span>TOP BY ${m[0].toUpperCase()}</span><span>VIEWS</span><span>LIKES</span><span>COMMENTS</span><span>ENGAGE</span><span>VS MEDIAN</span></div>${L.map(v=>`<a href="${esc(VURL(v))}" target="_blank" rel="noopener"><span class="d">${v.ts?(v.approx?'~':'')+ist(v.ts,{day:'numeric',month:'short'}):''}</span><span class="t"><span class="lvtag" style="color:${KINDC[kindOf(v)]}">${KINDN[kindOf(v)].toUpperCase()}</span>${esc(v.title)}</span><span class="n">${fmt(v.views)}</span><span class="n">${v.likes!=null?fmt(v.likes):'-'}</span><span class="n">${v.comments!=null?fmt(v.comments):'-'}</span><span class="n">${engOf(v)!=null?engOf(v).toFixed(1)+'%':'-'}</span><span class="n ${(v.views||0)>=2*med?'xm':''}">${((v.views||0)/med).toFixed(1)}x</span></a>`).join('')}`:'<div class="empty">Nothing posted in this range.</div>'}
+ document.getElementById('vidlist').innerHTML=L.length?`<div class="hdr"><span>POSTED</span><span>${VSORT==='top'?'TOP BY '+m[0].toUpperCase():VSORT==='new'?'NEWEST FIRST':'OLDEST FIRST'}</span><span>VIEWS</span><span>LIKES</span><span>COMMENTS</span><span>ENGAGE</span><span>VS MEDIAN</span></div>${L.map(v=>`<a href="${esc(VURL(v))}" target="_blank" rel="noopener"><span class="d">${v.ts?(v.approx?'~':'')+ist(v.ts,{day:'numeric',month:'short'}):''}</span><span class="t"><span class="lvtag" style="color:${v.upcoming?'#8d8ca3':KINDC[kindOf(v)]}">${v.upcoming?'UPCOMING':KINDN[kindOf(v)].toUpperCase()}</span>${esc(v.title)}${v.peak?`<small class="lvs">Peak ${full(v.peak)} live${v.peak_at?' at '+ist(v.peak_at,{hour:'numeric',minute:'2-digit'}):''} · avg ${fmt(v.avg_ccv)} · ${v.live_hours}h live · ${fmt(v.hw)} hours watched</small>`:''}</span><span class="n">${v.upcoming?'-':fmt(v.views)}</span><span class="n">${v.likes!=null&&!v.upcoming?fmt(v.likes):'-'}</span><span class="n">${v.comments!=null?fmt(v.comments):'-'}</span><span class="n">${engOf(v)!=null?engOf(v).toFixed(1)+'%':'-'}</span><span class="n ${(v.views||0)>=2*med?'xm':''}">${v.upcoming?'-':((v.views||0)/med).toFixed(1)+'x'}</span></a>`).join('')}`:'<div class="empty">Nothing posted in this range.</div>'}
 function insights(){const I=(VID&&VID.insights)||{},el=document.getElementById('vins');if(!I.weekday){el.innerHTML='';return}
  const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],wd=I.weekday,mxw=Math.max(1,...DAYS.map(d=>(wd[d]||{}).avg||0)),bestD=DAYS.reduce((a,d)=>((wd[d]||{}).avg||0)>((wd[a]||{}).avg||0)?d:a,'Mon');
  const hs=Object.entries(I.time||{}).sort((a,b)=>b[1].avg-a[1].avg),fm=I.format||{};
