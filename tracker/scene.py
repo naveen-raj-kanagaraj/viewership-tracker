@@ -531,8 +531,10 @@ def resolve_art(game: str):
 
 def cat_art(game: str) -> str:
     """Cover art URL for a game or platform category (cached; looked up in the background the first time)."""
+    from tracker import caticon
+    fb = caticon.url(section_of(game)) if game else ""      # icon tile, never initials
     if not game or game in NO_ART or game in NON_GAMING - {"Just Chatting", "IRL", "Music"}:
-        return ""
+        return fb
     local = _local_art(game)
     if local:
         return local
@@ -551,7 +553,7 @@ def cat_art(game: str) -> str:
                 print(f"Cover art for {game} failed: {str(e)[:100]}")
             _ART_BUSY.discard(game)
         _pool.submit(fetch)
-    return v or ""
+    return v or fb
 
 
 def is_gaming(game: str) -> bool:

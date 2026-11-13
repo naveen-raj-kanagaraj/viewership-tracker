@@ -190,6 +190,10 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- Category tiles and share cards (12 Nov 2026): categories without box art (News, Devotional, Music, Other ...) get
+  an icon tile (tracker/caticon.py, /caticon/<section>.svg) from scene.cat_art instead of two-letter initials.
+  /categories has SHARE on Trending and Top categories: a 4:5 or 9:16 card with art, watching now, 24h change and
+  the same bars / 48-hour line as the page, filtered by the chosen section and search.
 - Ranking periods (12 Nov 2026): channel rankings are metric (views, subscribers, engagement, like rate, typical
   views, live hours) x period dropdown (24h, 3d, 7d, 30d, 3m, 6m, this year, 12 months, lifetime). API metric names are
   `base_period` (ranks.PMETRICS, e.g. views_7d, subs_3m); old URLs (vday, v7, growth, size ...) map to the new ones.
