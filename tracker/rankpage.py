@@ -63,7 +63,7 @@ __PANEL_CSS__
 .row{grid-template-columns:34px 34px minmax(0,1fr) 72px;gap:8px;padding:8px 10px}.row .c.x2,.row .c.x3{display:none}.av,.av img,.av .ph{width:34px;height:34px}
 .cx{padding:10px 12px 12px}.cxc{grid-template-columns:1fr}.cxt td{font-size:14px;padding:4px 3px}.cxt th{padding:4px 3px;font-size:10px}.cxd div{grid-template-columns:52px minmax(0,1fr) 64px 50px}.cxd div span:nth-child(5){display:none}}
 </style></head><body>
-<div class="top"><div class="in"><a class="brand" href="__HOME__">__BRAND__</a><span class="beta">BETA</span><span class="rg"><a href="/rankings" class="__GON__">GLOBAL</a><a href="/india/rankings" class="__ION__">INDIA</a></span></div></div>
+<div class="top"><div class="in"><a class="brand" href="__HOME__">__BRAND__</a><span class="beta">BETA</span><span class="rg"><a href="/global/rankings" class="__GON__">GLOBAL</a><a href="/india/rankings" class="__ION__">INDIA</a></span></div></div>
 <div class="wrap">
 <div class="crumb"><a href="__HOME__">__WHERECAP__</a> / RANKINGS</div>
 <h1>Top streamers <em>__WHERE__</em></h1>
@@ -89,7 +89,7 @@ __PANEL_CSS__
 <div class="modal" id="modal" style="position:fixed;inset:0;z-index:60;background:rgba(3,2,12,.82);display:none;align-items:center;justify-content:center;padding:16px"><div style="background:var(--bg2);border:1px solid var(--line);padding:14px;max-width:440px;width:100%;max-height:94vh;overflow:auto">
  <div class="seg" id="mfmt" style="margin-bottom:8px"><button data-f="post" class="on">POST 4:5</button><button data-f="story">STORY 9:16</button></div><img id="mimg" alt="Share card" style="width:100%;max-height:70vh;object-fit:contain;display:block;border:1px solid var(--line);margin-bottom:10px"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="mshare">SHARE</button><button class="btn" id="mdl">DOWNLOAD</button><button class="btn" id="mcopy">COPY LINK</button><button class="btn" id="mclose" style="background:none;color:var(--muted);border:1px solid var(--line)">CLOSE</button></div></div></div>
 <script>
-const REGION=__REGION__,GL=REGION==='global',RP=GL?'':'/india',SITE=__SITEURL__,WHERE=GL?'worldwide':'in India';
+const REGION=__REGION__,GL=REGION==='global',RP=GL?'/global':'/india',SITE=__SITEURL__,WHERE=GL?'worldwide':'in India';
 const NAMES={youtube:'YouTube',kick:'Kick',twitch:'Twitch'},COL={youtube:'#ff4d5e',kick:'#53fc18',twitch:'#a970ff'},MEDAL=['#ffd23f','#d9dde8','#ff9f5a'];
 const MET={hw:['HOURS WATCHED',v=>fmt(v)+'h'],peak:['PEAK VIEWERS',v=>fmt(v)],avg:['AVG VIEWERS',v=>fmt(v)],hours:['HOURS LIVE',v=>v+'h'],
  sc:['SUPER CHATS',v=>money(v)],vg:['VIEWS GAINED',v=>'+'+fmt(v)]};
@@ -255,5 +255,5 @@ def build_html(region: str = "global") -> str:
             .replace("__TITLE__", f"Top streamers {where}: daily, weekly, monthly rankings")
             .replace("__BRAND__", html.escape(eventpage.BRAND)).replace("__REGION__", json.dumps(region))
             .replace("__SITEURL__", json.dumps(eventpage.SITE_URL)).replace("__WHERECAP__", "WORLDWIDE" if region == "global" else "INDIA")
-            .replace("__WHERE__", where).replace("__HOME__", "/" if region == "global" else "/india")
+            .replace("__WHERE__", where).replace("__HOME__", "/global" if region == "global" else "/india")
             .replace("__GON__", "on" if region == "global" else "").replace("__ION__", "on" if region == "in" else ""))

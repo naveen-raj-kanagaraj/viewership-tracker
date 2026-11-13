@@ -11,5 +11,5 @@ assert "Grand Theft Auto VI" not in scene.INDIA_CATS["twitch"] + scene.INDIA_CAT
 assert not scene.shown("GTA 6") and scene.shown("GTA V")
 assert "const G6=false" in catpage.build_html("in") and "const G6=false" in scenepage.build_html()
 from tracker.web import app
-assert app.test_client().get("/c/gta-6").status_code == 404
+assert app.test_client().get("/global/c/gta-6").status_code == 404
 print("GTA6 HIDDEN OK")

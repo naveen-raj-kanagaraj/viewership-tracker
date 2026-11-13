@@ -131,7 +131,7 @@ __PANEL_CSS__
 <div class="card"><h2>Streams, last 30 days</h2><div class="cap" id="pcap">From the platform's own list of past streams.</div><div class="pshare" id="pshare"></div><div id="past"><div class="empty">Loading...</div></div></div>
 </div>
 <script>
-const SID=__SID__,REGION=__REGION__,RP=REGION==='in'?'/india':'';
+const SID=__SID__,REGION=__REGION__,RP=REGION==='in'?'/india':'/global';
 const NAMES={youtube:'YouTube',kick:'Kick',twitch:'Twitch'},COL={youtube:'#ff4d5e',kick:'#53fc18',twitch:'#a970ff'};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>{n=+n||0;return n>=1e9?(n/1e9).toFixed(2)+'B':n>=1e7?(n/1e6).toFixed(1)+'M':n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e4?(n/1e3).toFixed(1)+'K':Math.round(n).toLocaleString('en-IN')};
@@ -434,5 +434,5 @@ def build_html(sid: str, name: str, region: str = "global") -> str:
     return (PAGE.replace("__PANEL_JS__", scenepage.PANEL_JS).replace("__PANEL_CSS__", scenepage.PANEL_CSS)
             .replace("__NAME__", html.escape(name)).replace("__BRAND__", html.escape(eventpage.BRAND))
             .replace("__SID__", json.dumps(sid)).replace("__SITEURL__", json.dumps(eventpage.SITE_URL)).replace("__REGION__", json.dumps(region))
-            .replace("__RP__", "/india" if region == "in" else "").replace("__HOME__", "/india" if region == "in" else "/")
+            .replace("__RP__", "/india" if region == "in" else "/global").replace("__HOME__", "/india" if region == "in" else "/global")
             .replace("__WHERECAP__", "INDIA" if region == "in" else "WORLDWIDE"))

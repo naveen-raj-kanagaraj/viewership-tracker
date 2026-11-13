@@ -190,6 +190,13 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- Worldwide pages live under /global (13 Nov 2026, owner), like India's under /india: /global, /global/categories,
+  /global/rankings, /global/c/<game>, /global/ch/<sid>, /global/s/<section>, /global/moments, /global/compare,
+  /global/kit/<sid>. web._GlobalPaths (WSGI) strips /global and hands the request to the existing handler; old
+  worldwide links (/categories, /c/..., /ch/..., /s/..., /kit/..., /rankings, /moments, /compare) 301 to /global/....
+  "/" still serves the worldwide page (or the home event) and the browser shows /global (history.replaceState), so old
+  cached /global -> / redirects can't loop. India time-zone visitors arriving at /global from outside go to /india.
+  /map, /e/, /predict, /api and other non-regional pages are unchanged. Pages use RP='/global' for worldwide links.
 - Channel pages of official broadcasters (13 Nov 2026): a "Tournaments" card near the top lists the tracked events
   where the channel is in the preset's official channels (BGMI first, newest first) with peak, official and watch
   parties at the peak, linking to /e/<key>/; BGMI organisers also get the BGMI peak-by-event history

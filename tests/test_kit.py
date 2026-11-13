@@ -90,8 +90,8 @@ assert d["name"] == "Alpha Gaming" and d["chat_30d"]["spending"]["gifted"] == 5 
 # pages and data API through the web app
 from tracker import web  # noqa: E402
 cl = web.app.test_client()
-assert cl.get(f"/kit/{A}").status_code == 200 and b"media kit" in cl.get(f"/kit/{A}").data
-assert cl.get("/kit/yt:UCnope").status_code == 404
+assert cl.get(f"/global/kit/{A}").status_code == 200 and b"media kit" in cl.get(f"/global/kit/{A}").data
+assert cl.get("/global/kit/yt:UCnope").status_code == 404
 assert cl.get("/shortlist").status_code == 200 and cl.get("/api/docs").status_code == 200
 assert json.loads(cl.get(f"/api/kit?sid={A}").data)["name"] == "Alpha Gaming"
 assert cl.get(f"/api/v1/creator?sid={A}").status_code == 401
