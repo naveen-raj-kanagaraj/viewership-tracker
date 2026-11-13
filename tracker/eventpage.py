@@ -848,7 +848,7 @@ function wpByPeak(){const live={};(D.live||[]).forEach(s=>live[s.vid]=s.viewers)
 function histCard(){const W=1080,H=1350,SC=2,c=document.createElement('canvas');c.width=W*SC;c.height=H*SC;const x=c.getContext('2d');x.scale(SC,SC);
  const g=x.createRadialGradient(W*.8,0,40,W*.8,0,1200);g.addColorStop(0,'#2a1d5c');g.addColorStop(1,'#0b0b12');x.fillStyle=g;x.fillRect(0,0,W,H);
  const T=(t,X,Y,f,c,a)=>{x.font=f;x.fillStyle=c;x.textAlign=a||'left';x.textBaseline='top';x.fillText(t,X,Y)};const h=hist(),top=[...h].sort((a,b)=>b[2]-a[2]);
- T('letsgrowesports',80,70,'30px "Barlow Condensed",sans-serif','#b6f23a');T('For more: '+(location.host||'live.letsgrowesports.com').replace(/^www\\./,''),W-80,206,'600 24px "Barlow Condensed",sans-serif','#a9a8be','right');T('BGMI VIEWERSHIP TILL DATE',80,110,'700 64px "Barlow",sans-serif','#ffffff');
+ T('letsgrowesports',80,70,'30px "Barlow Condensed",sans-serif','#b6f23a');T('For more: '+(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\\./,''),W-80,206,'600 24px "Barlow Condensed",sans-serif','#a9a8be','right');T('BGMI VIEWERSHIP TILL DATE',80,110,'700 64px "Barlow",sans-serif','#ffffff');
  T(`// ALL-TIME HIGH // ${HNAME[top[0][0]].toUpperCase()} 20${top[0][1]}`,80,200,'30px "Barlow Condensed",sans-serif','#ff4d5e');T(top[0][2]+'K',72,240,'700 150px "Barlow",sans-serif','#ffffff');
  T(`${h.length} EVENTS // 2021 TO 2026`,W-80,300,'30px "Barlow Condensed",sans-serif','#b6f23a','right');
  x.save();x.translate(40,420);x._keep=1;drawHist(x,W-80,420,2);x._keep=0;x.restore();
@@ -871,7 +871,7 @@ function card(type,vid,avatar){if(type==='history')return histCard();
  const M=s=>`${s}px "Barlow Condensed",sans-serif`,B=s=>`700 ${s}px "Barlow",sans-serif`;
  x.textBaseline='top';
  T('letsgrowesports',80,78,M(30),'#b6f23a');
- T(`${TITLE} // ${LB.date||''}`.toUpperCase(),80,118,B(50),'#eeeef5');T('For more: '+(location.host||'live.letsgrowesports.com').replace(/^www\\./,''),W-80,210,M(24),'#a9a8be','right');
+ T(`${TITLE} // ${LB.date||''}`.toUpperCase(),80,118,B(50),'#eeeef5');T('For more: '+(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\\./,''),W-80,210,M(24),'#a9a8be','right');
  const box=(X,Y,w,h,lab,val,sub,col)=>{x.fillStyle='rgba(26,26,38,.9)';x.fillRect(X,Y,w,h);x.strokeStyle='#262636';x.lineWidth=2;x.strokeRect(X,Y,w,h);
   T(lab,X+22,Y+20,M(24),'#ff4d5e','left',w-44);T(val,X+22,Y+54,B(56),col||'#eeeef5','left',w-44);if(sub)T(sub,X+22,Y+h-44,M(22),'#8d8ca3','left',w-44)};
  let L,y0;

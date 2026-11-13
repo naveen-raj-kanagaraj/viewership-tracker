@@ -190,6 +190,10 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- Share cards always print live.letsgrowesports.com (or the letsgrowesports.com host they're on), never localhost or
+  a tunnel address. The live-day card on channel pages now uses the tournament card layout (CEGC/BMSD): title //
+  date, // PEAK CONCURRENT VIEWERS, glowing number, AVERAGE / TOTAL VIEWS / HOURS WATCHED boxes, chart with peak
+  marker and end tag, streams ranked by views, lime footer with time IST // @letsgrowesports.
 - Live-day share card (13 Nov 2026): channel page "Streams, last 30 days" has "Share a live day" buttons. The card
   (BMSD tournament style) shows the peak with all the channel's streams at once (sc_daily), the viewer line
   (sc_samples, kept 3 days, so days older than that have no line), total views, likes, hours watched, length and each
