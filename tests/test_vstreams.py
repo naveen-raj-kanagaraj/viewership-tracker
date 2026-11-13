@@ -26,3 +26,10 @@ assert j["live_days"][0]["peak"] == 780000, j["live_days"]
 assert "pic" in events.PRESETS and events.PRESETS["pic"]["auto"]
 assert scene.classify("", "[HINDI] PIC 2026 | League Stage | Group A & B") == "PUBG: Battlegrounds"
 print("VSTREAMS OK")
+# live-day share card data
+ytextra.past_streams = lambda s: {"streams": [{"id": "hin", "title": "[HINDI] PIC 2026 | DAY 1", "views": 799000, "secs": 14940, "day": scene.datetime.fromtimestamp(now, events.REPORT_TZ).strftime("%Y-%m-%d"), "peak": 812000, "url": ""},
+                                              {"id": "eng", "title": "[ENGLISH] PIC 2026 | DAY 1", "views": 85000, "secs": 14880, "day": scene.datetime.fromtimestamp(now, events.REPORT_TZ).strftime("%Y-%m-%d"), "peak": None, "url": ""}]}
+day = scene.datetime.fromtimestamp(now, events.REPORT_TZ).strftime("%Y-%m-%d")
+d = ytextra.stream_day(sid, day)
+assert d["peak"] == 780000 and d["views"] == 884000 and len(d["series"]) == 2 and d["streams"][0]["vid"] == "hin", d
+print("STREAMDAY OK")

@@ -858,14 +858,50 @@ def past_streams(sid: str) -> dict:
     res["streams"] = [x for x in res["streams"] if not x["ts"] or x["ts"] >= cut][:40]
     with store._lock:
         peaks = dict(_db().execute("SELECT day, MAX(peak) FROM sc_daily WHERE sid=? GROUP BY day", (sid,)).fetchall())
+        from tracker import scene
+        ids = [x.get("id") for x in res["streams"] if x.get("id")]
+        vp = dict(scene._db().execute(f"SELECT vid, peak FROM sc_vstreams WHERE vid IN ({','.join('?' * len(ids))})", ids).fetchall()) if ids else {}
+    per_day = {}
     for x in res["streams"]:
         x["day"] = _day(x["ts"]) if x["ts"] else ""
         x["peak_day"] = peaks.get(x["day"]) if x["day"] else None
+        x["peak"] = vp.get(x.get("id"))                   # this stream alone (recorded from 13 Nov 2026)
+        per_day[x["day"]] = per_day.get(x["day"], 0) + 1
+    for x in res["streams"]:
+        x["same_day"] = per_day.get(x["day"], 1)          # streams that day: the day peak is all of them at once
     _PAST[sid] = (time.time(), res)
     if len(_PAST) > 2000:
         for k in sorted(_PAST, key=lambda k: _PAST[k][0])[:500]:
             _PAST.pop(k, None)
     return res
+
+
+def stream_day(sid: str, day: str) -> dict:
+    """One channel's live day for a share card: every stream that day (title, views, likes, length, own peak when
+    recorded), the peak with all streams at once, hours watched, and the viewer line (this site's readings)."""
+    from tracker import scene
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day or ""):
+        return {}
+    P = [x for x in (past_streams(sid).get("streams") or []) if x.get("day") == day]
+    likes = {v["vid"]: v for v in _safe(channel_videos, sid) or []}
+    d0 = datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=events.REPORT_TZ).timestamp()
+    with store._lock:
+        c = scene._db()
+        D = c.execute("SELECT MAX(peak), SUM(hw), SUM(mins) FROM sc_daily WHERE sid=? AND day=?", (sid, day)).fetchone()
+        pat = c.execute("SELECT peak_at FROM sc_daily WHERE sid=? AND day=? ORDER BY peak DESC LIMIT 1", (sid, day)).fetchone()
+        S = c.execute("SELECT ts, MAX(viewers) FROM sc_samples WHERE sid=? AND ts>=? AND ts<? GROUP BY ts ORDER BY ts",
+                      (sid, d0, d0 + 86400)).fetchall()
+    streams = []
+    for x in P:
+        v = likes.get(x.get("id")) or {}
+        streams.append({"vid": x.get("id"), "title": x["title"], "views": x.get("views") if x.get("views") is not None else v.get("views"),
+                        "likes": v.get("likes"), "secs": x.get("secs") or 0, "peak": x.get("peak"), "url": x.get("url")})
+    streams.sort(key=lambda z: -(z["views"] or 0))
+    lk = [z["likes"] for z in streams if z["likes"] is not None]
+    return {"sid": sid, "day": day, "peak": (D[0] or 0) if D else 0, "peak_at": pat[0] if pat else None,
+            "hw": round(D[1] or 0) if D else 0, "live_mins": round(D[2] or 0) if D else 0,
+            "views": sum(z["views"] or 0 for z in streams), "likes": sum(lk) if lk else None,
+            "secs": max((z["secs"] for z in streams), default=0), "streams": streams, "series": [[a, b] for a, b in S]}
 
 
 # ---------- any YouTube channel: search, add, track daily ----------

@@ -776,6 +776,16 @@ def compare_page():
     return _memo(f"/compare:{region}", 300, lambda: comparepage.build_html(region), "text/html")
 
 
+@app.route("/api/streamday")
+def api_streamday():
+    """A channel's live day (all its streams) for the share card: /api/streamday?sid=yt:UC...&day=2026-11-12"""
+    from tracker import ytextra
+    sid, day = request.args.get("sid", ""), request.args.get("day", "")
+    if not __import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid) or not __import__("re").fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+        return Response("Not found", status=404, mimetype="text/plain")
+    return _memo(f"/api/streamday:{sid}:{day}", 120, _jdump(lambda: ytextra.stream_day(sid, day)), "application/json")
+
+
 @app.route("/api/past")
 def scene_past():
     """A channel's streams in the last 30 days from the platform itself: /api/past?sid=yt:UC..."""
