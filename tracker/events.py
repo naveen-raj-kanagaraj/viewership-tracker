@@ -98,6 +98,17 @@ PRESETS = {
                     "BMIC watch party"],
         "official": ["krafton india esports", "battlegrounds mobile india"],
     },
+    "pic": {
+        "name": "PIC 2026",                     # PUBG India Cup (PUBG: Battlegrounds, PC), KRAFTON India Esports
+        "game": "PUBG: Battlegrounds",
+        "auto": True,                           # created on startup; tracking began Day 2 (13 Nov 2026)
+        "official_channels": ["UCugG6-k5QGbq_iDEPAnG4NQ"],   # KRAFTON INDIA ESPORTS: Hindi, English and map streams
+        "allowed": [],                          # no watch parties listed yet: only the official broadcast counts
+        "next_start": None,
+        "match": ["pic 2026", "pic26", "pubg india cup"],
+        "queries": ["PIC 2026", "PUBG India Cup", "PUBG India Cup 2026"],
+        "official": ["krafton india esports"],
+    },
     "cegc": {
         "name": "CEGC",
         "auto": True,                           # created on startup if missing (no command needed)

@@ -244,7 +244,7 @@ GAMES = [
     ("PUBG Mobile", ["pubg mobile", "pmgc", "pmwi", "pmsl", "pmpl", "pmrc", "battlegrounds mobile"]),
     # a bare "PUBG" (no "mobile", no "BGMI") is the PC game: CarryMinati's "PUBG ME DIWALI CELEBRATION" is
     # PLAYERUNKNOWN'S BATTLEGROUNDS on PC, and BGMI streamers write BGMI
-    ("PUBG: Battlegrounds", ["pubg"]),
+    ("PUBG: Battlegrounds", ["pubg", "pubg india cup", " pic 2026", "|pic 2026", "pic26"]),
     ("Mobile Legends", ["mobile legends", "mlbb", "mpl ", "msc "]),
     ("Rocket League", ["rocket league", "rlcs"]),
     ("Overwatch 2", ["overwatch", "owcs"]),
@@ -375,6 +375,9 @@ def _db():
     CREATE TABLE IF NOT EXISTS sc_channels (sid TEXT PRIMARY KEY, platform TEXT, name TEXT, url TEXT, logo TEXT,
         first_seen REAL, last_live REAL, title TEXT, game TEXT);
     CREATE TABLE IF NOT EXISTS sc_samples (ts INTEGER, sid TEXT, viewers INTEGER, game TEXT);
+    CREATE TABLE IF NOT EXISTS sc_vstreams (vid TEXT PRIMARY KEY, sid TEXT, first_ts INTEGER, last_ts INTEGER,
+        peak INTEGER, peak_at INTEGER, hw REAL, n INTEGER);
+    CREATE INDEX IF NOT EXISTS sc_vstreams_sid ON sc_vstreams(sid, first_ts);
     CREATE INDEX IF NOT EXISTS sc_samples_ix ON sc_samples(ts);
     CREATE TABLE IF NOT EXISTS sc_daily (day TEXT, sid TEXT, game TEXT, peak INTEGER, peak_at INTEGER, mins REAL,
         hw REAL, PRIMARY KEY (day, sid, game));
@@ -974,6 +977,8 @@ def _store(rows, now, last):
     day = datetime.fromtimestamp(now, events.REPORT_TZ).strftime("%Y-%m-%d")
     fpk = dict(_FPEAK)                        # 2-second readings since the last scan: the true peak in between
     _FPEAK.clear()
+    vpk = dict(_VPEAK)
+    _VPEAK.clear()
     with store._lock:
         c = _db()
         c.executemany("INSERT INTO sc_samples VALUES (?,?,?,?)", [(int(now), x["sid"], x["viewers"], x["game"]) for x in rows])
@@ -992,6 +997,18 @@ def _store(rows, now, last):
                          peak=MAX(sc_daily.peak, excluded.peak), mins=sc_daily.mins+excluded.mins, hw=sc_daily.hw+excluded.hw""",
                       (day, x["sid"], x["game"], max(x["viewers"], fpk.get(x["sid"], 0)), int(now), dt / 60,
                        x["viewers"] * dt / 3600))
+        for x in rows:                        # each YouTube stream on its own: peak CCV, hours watched, duration
+            if not x["sid"].startswith("yt:"):
+                continue
+            for vid, v in (x.get("streams") or {}).items():
+                pk = max(int(v or 0), vpk.get(vid, 0))
+                if pk <= 0:
+                    continue
+                c.execute("""INSERT INTO sc_vstreams VALUES (?,?,?,?,?,?,?,1) ON CONFLICT(vid) DO UPDATE SET
+                             last_ts=excluded.last_ts, n=sc_vstreams.n+1, hw=sc_vstreams.hw+excluded.hw,
+                             peak_at=CASE WHEN excluded.peak > sc_vstreams.peak THEN excluded.peak_at ELSE sc_vstreams.peak_at END,
+                             peak=MAX(sc_vstreams.peak, excluded.peak)""",
+                          (vid, x["sid"], int(now), int(now), pk, int(now), int(v or 0) * dt / 3600))
         def totals(rs, key):
             out = {}
             for x in rs:
@@ -1023,6 +1040,7 @@ def _store(rows, now, last):
 FAST_SEC = float(os.getenv("SCENE_FAST_SEC", "2"))
 _FASTV = {}          # sid -> [ts, viewers or None, misses]: Kick/Twitch re-read every FAST_SEC between scans
 _FPEAK = {}          # sid -> highest 2-second reading since the last scan was stored (so daily peaks catch short spikes)
+_VPEAK = {}          # YouTube video id -> highest 2-second reading since the last scan (per-stream peak CCV)
 
 
 def _fast_seen(sid: str, v: int):
@@ -1098,6 +1116,8 @@ def yt_fast_once(now: float = None) -> int:
             errs += 1
             got.setdefault(sid, None)
             continue
+        if n and n > _VPEAK.get(vid, 0):
+            _VPEAK[vid] = n
         got[sid] = (got.get(sid) or 0) + (n or 0)
     for sid, v in got.items():
         f = _FASTV.setdefault(sid, [t, None, 0])

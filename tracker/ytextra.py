@@ -1726,7 +1726,12 @@ def videos_summary(sid: str, rng: str = "3m", kind: str = "all") -> dict:
     t0 = (datetime(now.year, 1, 1, tzinfo=events.REPORT_TZ).timestamp() if days is None else
           min((v["ts"] for v in vids if v["ts"]), default=time.time()) if days == 0 else time.time() - days * 86400)
     kind_of = lambda v: "live" if v["live"] else "shorts" if v.get("short") else "uploads"
-    L = [v for v in vids if (v["ts"] or 0) >= t0 and (kind == "all" or kind_of(v) == kind)]
+    L = [dict(v) for v in vids if (v["ts"] or 0) >= t0 and (kind == "all" or kind_of(v) == kind)]
+    up = [v for v in L if v["live"] and not v["views"]]          # scheduled streams: not started, no numbers yet
+    for v in up:
+        v["upcoming"] = True
+    L = [v for v in L if not v.get("upcoming")]
+    live_days = _live_stats(sid, L, t0)
     views = [v["views"] or 0 for v in L]
     lk = [v for v in L if v["likes"] is not None]
     eng = (sum((v["likes"] or 0) + (v["comments"] or 0) for v in lk) / max(1, sum(v["views"] or 0 for v in lk))) if lk else None
@@ -1740,7 +1745,32 @@ def videos_summary(sid: str, rng: str = "3m", kind: str = "all") -> dict:
             "per_week": round(len(L) / max(1, (time.time() - t0) / 604800), 1),
             "best": max(L, key=lambda v: v["views"] or 0) if L else None,
             "exact": bool(os.getenv("YOUTUBE_API_KEY")), "oldest": min((v["ts"] for v in vids if v["ts"]), default=None),
-            "loading": history_loading(sid), "insights": _insights(L, kind_of), **_chart(L, t0)}
+            "loading": history_loading(sid), "insights": _insights(L, kind_of), "upcoming": up, "live_days": live_days,
+            **_chart(L, t0)}
+
+
+def _live_stats(sid: str, L: list, t0: float) -> list:
+    """Live numbers this site recorded: per stream (peak CCV, average, hours watched, length; from 12 Nov 2026) added
+    to each live video, and per day for the channel (all its streams at once: the peak of the sum)."""
+    from tracker import scene
+    with store._lock:
+        c = scene._db()
+        vids = [v["vid"] for v in L if v["live"]]
+        S = {}
+        for i in range(0, len(vids), 400):
+            q = vids[i:i + 400]
+            S.update({r[0]: r[1:] for r in c.execute(f"SELECT vid, peak, peak_at, hw, first_ts, last_ts FROM sc_vstreams "
+                                                      f"WHERE vid IN ({','.join('?' * len(q))})", q)})
+        d0 = datetime.fromtimestamp(t0, events.REPORT_TZ).strftime("%Y-%m-%d")
+        D = c.execute("SELECT day, MAX(peak), SUM(hw), SUM(mins) FROM sc_daily WHERE sid=? AND day>=? GROUP BY day ORDER BY day DESC",
+                      (sid, d0)).fetchall()
+    for v in L:
+        r = S.get(v["vid"])
+        if r:
+            pk, pat, hw, a, b = r
+            hrs = max((b - a) / 3600, 0.05)
+            v.update(peak=pk, peak_at=pat, hw=round(hw), live_hours=round(hrs, 1), avg_ccv=round(hw / hrs))
+    return [{"day": d, "peak": pk or 0, "hw": round(hw or 0), "hours": round((m or 0) / 60, 1)} for d, pk, hw, m in D if pk]
 
 
 def _insights(L: list, kind_of) -> dict:
@@ -1784,6 +1814,8 @@ def _chart(L: list, t0: float) -> dict:
                 lambda v: ((v["likes"] or 0) + (v["comments"] or 0)) / v["views"] if v["views"] and v["likes"] is not None and v["views"] > 1000 else 0):
         for v in sorted(L, key=key, reverse=True)[:30]:
             keep[v["vid"]] = v
+    for v in sorted(L, key=lambda v: -(v["ts"] or 0))[:30]:          # and the newest, for sorting by date
+        keep[v["vid"]] = v
     return {"bucket": "month" if size > 7 * 86400 else "week", "series": series,
             "videos": sorted(keep.values(), key=lambda v: -(v["ts"] or 0))}
 
