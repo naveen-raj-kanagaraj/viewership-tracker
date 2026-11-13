@@ -574,6 +574,12 @@ def scene_catmonths():
     return _memo(f"/api/catmonths:{region}:{game}", 600, _jdump(lambda: scene.category_months(game, region)), "application/json")
 
 
+@app.route("/caticon/<sec>.svg")
+def caticon_svg(sec):
+    from tracker import caticon
+    return Response(caticon.svg(sec), mimetype="image/svg+xml", headers={"Cache-Control": "public, max-age=604800"})
+
+
 @app.route("/categories")
 @app.route("/india/categories")
 def categories_page():
