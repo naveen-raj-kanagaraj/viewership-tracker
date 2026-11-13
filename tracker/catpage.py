@@ -118,7 +118,7 @@ async function makeCard(){const ST=FMT==='story',W=1080,H=ST?1920:1350,c=documen
  const rl=(RN.find(r=>r[0]===RNG)||RN[0])[2];
  x.textBaseline='alphabetic';x.fillStyle='#b6f23a';x.font='700 30px "Barlow Condensed",sans-serif';x.fillText('LETSGROWESPORTS',72,top+86);
  x.fillStyle='#eeeef5';x.font='700 72px "Barlow Condensed",sans-serif';x.fillText(T0?'TRENDING CATEGORIES':'TOP CATEGORIES',72,top+160);
- const WM='For more: '+(location.host||'live.letsgrowesports.com').replace(/^www\./,'');x.font='600 22px "Barlow Condensed",sans-serif';const wmW=x.measureText(WM).width;
+ const WM='For more: '+(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\./,'');x.font='600 22px "Barlow Condensed",sans-serif';const wmW=x.measureText(WM).width;
  x.textAlign='right';x.fillStyle='#a9a8be';x.fillText(WM,W-72,top+204);x.textAlign='left';
  const sub=[REGION==='in'?'INDIA':'WORLDWIDE',SEC?(SECN[SEC]||SEC).toUpperCase():'',T0?'RISE VS 24 HOURS AGO':'WATCHING NOW'].filter(Boolean).join(' · ');
  x.fillStyle='#b6f23a';x.font='600 32px "Barlow Condensed",sans-serif';x.fillText(fit(sub,W-144-wmW-24),72,top+204);
@@ -137,7 +137,7 @@ async function makeCard(){const ST=FMT==='story',W=1080,H=ST?1920:1350,c=documen
     else{x.strokeStyle='#b6f23a';x.lineWidth=3;x.lineJoin='round';x.beginPath();let on=false;pts.forEach((v,k)=>{if(!v)return;const px=X+k/Math.max(1,pts.length-1)*w,py=Y+h-(h-4)*(v-mn)/((mx-mn)||1)-2;on?x.lineTo(px,py):(x.moveTo(px,py),on=true)});x.stroke()}}}
   x.textAlign='right';x.fillStyle='#eeeef5';x.font='700 36px "Barlow Condensed",sans-serif';x.fillText(full(r.viewers),W-72,cy+4);
   if(r.change!=null){x.fillStyle=r.change>=0?'#b6f23a':'#ff4d5e';x.font='600 21px "Barlow Condensed",sans-serif';x.fillText((r.change>=0?'+':'')+r.change.toLocaleString('en-IN')+'% in 24h',W-72,cy+30)}x.textAlign='left'});
- x.fillStyle='#8d8ca3';x.font='24px "Barlow Condensed",sans-serif';x.fillText((location.host+location.pathname).replace(/^www\./,'')+'  ·  '+new Date().toLocaleString('en-IN',{day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'}),72,H-(ST?200:34));
+ x.fillStyle='#8d8ca3';x.font='24px "Barlow Condensed",sans-serif';x.fillText(((location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com')+location.pathname).replace(/^www\./,'')+'  ·  '+new Date().toLocaleString('en-IN',{day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'}),72,H-(ST?200:34));
  return new Promise(r=>c.toBlob(r,'image/png'))}
 async function openCard(){try{await document.fonts.ready}catch(e){}BLOB=await makeCard();document.getElementById('mimg').src=URL.createObjectURL(BLOB);document.getElementById('modal').style.display='flex'}
 document.querySelectorAll('.shb').forEach(b=>b.onclick=()=>{if(!J)return;KIND=b.dataset.k;openCard()});

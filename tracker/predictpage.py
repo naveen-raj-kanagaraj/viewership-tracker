@@ -398,7 +398,7 @@ function cardBase(){const W=1080,H=1350,c=document.createElement('canvas');c.wid
  x.strokeStyle='#b6f23a';x.lineWidth=5;x.beginPath();x.moveTo(40,80);x.lineTo(40,40);x.lineTo(80,40);x.stroke();x.beginPath();x.moveTo(W-40,H-210);x.lineTo(W-40,H-170);x.lineTo(W-80,H-170);x.stroke();
  x.textBaseline='top';const T=(t,X,Y,f,col,al,mw)=>{x.font=f;if(mw){const w=x.measureText(t).width;if(w>mw){const m=f.match(/(\d+)px/);x.font=f.replace(/\d+px/,Math.max(10,Math.floor(+m[1]*mw/w))+'px')}}x.fillStyle=col;x.textAlign=al||'left';x.fillText(t,X,Y)};
  const M=s=>`${s}px "Barlow Condensed",sans-serif`,F=s=>`700 ${s}px "Barlow",sans-serif`;
- T('letsgrowesports',80,78,M(30),'#b6f23a');T('BMIC 2026 · PREDICT & WIN',80,118,F(54),'#eeeef5',null,W-160);T('For more: '+(location.host||'live.letsgrowesports.com').replace(/^www\\./,''),W-80,210,M(24),'#a9a8be','right');
+ T('letsgrowesports',80,78,M(30),'#b6f23a');T('BMIC 2026 · PREDICT & WIN',80,118,F(54),'#eeeef5',null,W-160);T('For more: '+(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\\./,''),W-80,210,M(24),'#a9a8be','right');
  x.fillStyle='#b6f23a';x.fillRect(0,H-130,W,130);T('LIVE.LETSGROWESPORTS.COM/PREDICT',80,H-108,F(44),'#0a0a14',null,W-160);T('Free to play · win free UC & gift cards · @letsgrowesports.igc',80,H-52,M(24),'#0a0a14',null,W-160);
  return{c,x,T,M,F,W,H}}
 function lbCard(){const {c,x,T,M,F,W}=cardBase(),rows=(B.boards[lbTab]||[]).slice(0,10);
