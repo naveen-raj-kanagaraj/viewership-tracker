@@ -64,7 +64,7 @@ canvas.mob{display:none}@media(max-width:700px){canvas.mob{display:block;margin-
 </div>
 <div class="modal" id="modal"><div class="bx"><div class="fm" id="mfmt"><button data-f="post" class="on">POST 4:5</button><button data-f="story">STORY 9:16</button></div>
 <img id="mimg" alt="Share card"><div class="mb"><button class="p" id="mshare">SHARE</button><button id="mdl">DOWNLOAD</button><button id="mclose">CLOSE</button></div></div></div>
-<script>
+<script>const G6=__G6__;
 const RP=__RPJ__,REGION=__REGION__,SECN=__SECN__;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const full=n=>Math.round(+n||0).toLocaleString('en-IN');
@@ -84,7 +84,7 @@ function render(){const T=J.rows.filter(r=>J.trending.includes(r.game)&&r.game!=
  const tr=document.getElementById('tr');tr.innerHTML='';document.getElementById('trcard').style.display=T.length?'':'none';
  T.forEach(r=>{const e=document.createElement('tr');e.className='rw';e.onclick=()=>go(r);e.innerHTML=`<td class="l"><div class="g">${art(r)}<b>${esc(r.game)}</b></div></td><td class="up">+${r.change.toLocaleString('en-IN')}%</td><td class="hide"></td><td>${full(r.viewers)}</td>`;e.children[2].appendChild(spark(r.h48,170,30,false,'#b6f23a',r.viewers));{const mb=spark(r.h48,110,18,false,'#b6f23a',r.viewers);mb.classList.add('mob');e.querySelector('.g').appendChild(mb)}tr.appendChild(e)});
  const secs=[...new Set(J.rows.map(r=>r.section).filter(Boolean))];
- document.getElementById('chips').innerHTML=`<a class="g6" href="${RP}/c/gta-6">GTA 6</a>`+[['','ALL']].concat(secs.map(s=>[s,(SECN[s]||s).toUpperCase()])).map(([v,l])=>`<button data-v="${v}" class="${v===SEC?'on':''}">${esc(l)}</button>`).join('');
+ document.getElementById('chips').innerHTML=(G6?`<a class="g6" href="${RP}/c/gta-6">GTA 6</a>`:'')+[['','ALL']].concat(secs.map(s=>[s,(SECN[s]||s).toUpperCase()])).map(([v,l])=>`<button data-v="${v}" class="${v===SEC?'on':''}">${esc(l)}</button>`).join('');
  const QQ=document.getElementById('cq').value.trim().toLowerCase(),L=J.rows.filter(r=>(!SEC||r.section===SEC)&&(!QQ||r.game.toLowerCase().includes(QQ))),show=ALL||QQ?L:L.slice(0,25),tg=document.getElementById('tg');tg.innerHTML='';
  show.forEach((r,i0)=>{const i=J.rows.indexOf(r);const e=document.createElement('tr');e.className='rw';e.onclick=()=>go(r);
   const ch=r.change==null?'':`<div class="${r.change>=0?'up':'dn'}" style="font-size:12px">${r.change>=0?'+':''}${r.change}% 24h</div>`;
@@ -153,7 +153,7 @@ load();setInterval(()=>{if(!document.hidden)load()},60000);
 def build_html(region: str = "global") -> str:
     region = "in" if region == "in" else "global"
     rp = "/india" if region == "in" else ""
-    return (PAGE.replace("__BRAND__", html.escape(eventpage.BRAND)).replace("__RPJ__", json.dumps(rp))
+    return (PAGE.replace("__G6__", "true" if __import__("tracker").scene.GTA6_SHOW else "false").replace("__BRAND__", html.escape(eventpage.BRAND)).replace("__RPJ__", json.dumps(rp))
             .replace("__REGION__", json.dumps(region)).replace("__SECN__", json.dumps(scene.SECTION_NAMES))
             .replace("__HOME__", rp or "/").replace("__RP__", rp)
             .replace("__WHERECAP__", "INDIA" if region == "in" else "WORLDWIDE")

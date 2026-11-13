@@ -317,7 +317,7 @@ def _cat_page(cat, region):
     if not __import__("re").fullmatch(r"[a-z0-9-]{1,40}", cat or ""):
         return Response("Not found", status=404, mimetype="text/plain")
     name = scene.category_name(cat)
-    if not name:
+    if not name or not scene.shown(name):
         return Response("Not found", status=404, mimetype="text/plain")
     return _memo(f"/c/{region}/{cat}", 300, lambda: scenepage.build_html(cat, name, region), "text/html")
 
@@ -1134,9 +1134,10 @@ WARM = ["/", "/india", "/api/cats?region=global&range=24h", "/api/cats?region=in
         "/api/scene/live?region=global", "/api/scene/live?region=in", "/rankings", "/api/rank?region=global&period=day&metric=hw",
         "/api/rank?region=in&period=day&metric=hw", "/map", "/api/geo", "/moments", "/api/moments?region=global&period=7d",
         "/india/rankings", "/api/rank?region=in&period=week&metric=peak", "/api/rank?region=global&period=week&metric=hw",
-        "/api/topch?platform=youtube&metric=vday", "/api/topch?platform=youtube&metric=vday&country=IN",
-        "/api/topch?platform=twitch&metric=size&country=IN", "/api/topch?platform=kick&metric=size&country=IN",
-        "/c/gta-6", "/india/c/gta-6", "/api/scene?region=global&cat=gta-6&period=today", "/api/scene?region=in&cat=gta-6&period=today"]
+        "/api/topch?platform=youtube&metric=views_7d", "/api/topch?platform=youtube&metric=views_7d&country=IN",
+        "/api/topch?platform=twitch&metric=subs_7d&country=IN", "/api/topch?platform=kick&metric=subs_7d&country=IN"] + (
+        ["/c/gta-6", "/india/c/gta-6", "/api/scene?region=global&cat=gta-6&period=today", "/api/scene?region=in&cat=gta-6&period=today"]
+        if os.getenv("GTA6_SHOW", "0") == "1" else [])
 
 
 def _warm_forever():

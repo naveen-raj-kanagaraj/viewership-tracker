@@ -190,6 +190,10 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- GTA 6 hidden until release (12 Nov 2026, owner): no nav tab, chip, pin, category row, game option or /c/gta-6
+  page (404). Titles saying "GTA 6" count as GTA V; the Twitch/Kick "Grand Theft Auto VI" category counts as Other and
+  is not scanned. Old GTA 6 rows stay in the database, just not shown. On release day add GTA6_SHOW=1 to .env and
+  restart: everything comes back (tab, countdown page, pin). Test: tests/test_gta6.py.
 - Category tiles and share cards (12 Nov 2026): categories without box art (News, Devotional, Music, Other ...) get
   an icon tile (tracker/caticon.py, /caticon/<section>.svg) from scene.cat_art instead of two-letter initials.
   /categories has SHARE on Trending and Top categories: a 4:5 or 9:16 card with art, watching now, 24h change and

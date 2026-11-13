@@ -44,10 +44,19 @@ INDIA_MARK = re.compile(r"[\u0900-\u0D7F]|\b(hindi|india|indian|desi|bharat|hing
                         r"marathi|bengali|bangla|punjabi|gujarati|odia|assamese|bgmi|bmps|bgis|bmsd|bmic|"
                         r"soulcity|mumbai|delhi|bangalore|bengaluru|hyderabad|chennai|kolkata|pune)\b", re.I)
 INDIA_CATS = {"kick": [x.strip() for x in os.getenv("SCENE_KICK_CATS", "PUBG Mobile,Free Fire,Grand Theft Auto V,"
-                                                   "Valorant,Just Chatting,Battlegrounds Mobile India,Grand Theft Auto VI").split(",") if x.strip()],
+                                                   "Valorant,Just Chatting,Battlegrounds Mobile India" + (",Grand Theft Auto VI" if os.getenv("GTA6_SHOW", "0") == "1" else "")).split(",") if x.strip()],
               "twitch": [x.strip() for x in os.getenv("SCENE_TWITCH_CATS", "PUBG MOBILE,Garena Free Fire,Grand Theft Auto V,"
-                                                     "VALORANT,Just Chatting,Battlegrounds Mobile India,Grand Theft Auto VI").split(",") if x.strip()]}
-PINNED = [g.strip() for g in os.getenv("SCENE_PINNED", "GTA 6").split(",") if g.strip()]   # always first in Categories
+                                                     "VALORANT,Just Chatting,Battlegrounds Mobile India" + (",Grand Theft Auto VI" if os.getenv("GTA6_SHOW", "0") == "1" else "")).split(",") if x.strip()]}
+# GTA 6 is hidden everywhere until it releases (owner, 12 Nov 2026). Set GTA6_SHOW=1 in .env on release day.
+GTA6_SHOW = os.getenv("GTA6_SHOW", "0") == "1"
+HIDDEN_GAMES = set() if GTA6_SHOW else {"GTA 6", "Grand Theft Auto VI"}
+
+
+def shown(g) -> bool:
+    return (g if isinstance(g, str) else (g or {}).get("game")) not in HIDDEN_GAMES
+
+
+PINNED = [g.strip() for g in os.getenv("SCENE_PINNED", "GTA 6" if GTA6_SHOW else "").split(",") if g.strip()]   # always first in Categories
 
 
 # Titles in Chinese, Japanese, Korean, Thai, Arabic or Cyrillic script are not Indian streams even when the
@@ -571,10 +580,12 @@ def classify(category: str, title: str) -> str:
     if cat:
         for g, words in GAMES:
             if any(w in cat for w in words):
-                return g
+                return g if g not in HIDDEN_GAMES else "Other"      # GTA VI category before release: reaction streams
         return category.strip()[:40]        # the platform's own category name
     t = f" {(title or '').lower()} "
     for g, words in GAMES:
+        if g in HIDDEN_GAMES:
+            continue                        # "GTA 6 soon" titles before release are GTA V
         if any(w in t for w in words):
             return g
     return "Other"
@@ -1544,7 +1555,7 @@ def _common(lv: dict, region: str) -> dict:
             "live_total": lv["live_total"], "live_count": len(lv["_live"]), "now": lv["now"], "sections": lv["sections"],
             "platforms": [{"platform": k, "name": platforms.NAMES[k], "viewers": v}
                           for k, v in sorted(lv["_by_plat"].items(), key=lambda kv: -kv[1])],
-            "categories": sorted(lv["_by_game"].values(), key=lambda g: -g["viewers"])[:200],
+            "categories": sorted(filter(shown, lv["_by_game"].values()), key=lambda g: -g["viewers"])[:200],
             "tournaments": _tour_list(lv["_tours"], region),
             "live": [{k: x.get(k) for k in ("sid", "platform", "name", "url", "logo", "game", "title", "viewers", "section", "peak")}
                      for x in lv["_live"][:300]]}
@@ -1824,7 +1835,7 @@ def rankings(region="global", metric="hw", period="day", date="", cat="", countr
     return {"region": region, "metric": metric, "period": period, "date": end.strftime("%Y-%m-%d"),
             "start": (end - timedelta(days=n - 1)).strftime("%Y-%m-%d"), "first_day": first, "today": today.strftime("%Y-%m-%d"),
             "total": len(cur), "rows": cur[:limit],
-            "categories": [{"game": g, "slug": slug(g), "hw": round(v)} for g, v in sorted(games.items(), key=lambda kv: -kv[1])[:80]],
+            "categories": [{"game": g, "slug": slug(g), "hw": round(v)} for g, v in sorted(games.items(), key=lambda kv: -kv[1]) if shown(g)][:80],
             "countries": [{"code": k, "name": v} for k, v in sorted(ctrs.items(), key=lambda kv: kv[1])],
             "totals": {"hw": sum(x["hw"] for x in cur), "channels": len(cur)}, "money": "INR" if region == "in" else "USD"}
 
@@ -1896,6 +1907,8 @@ def categories(region: str = "global", limit: int = 60, rng: str = "1m") -> dict
     rows = []
     for x in top:
         g = x["game"]
+        if not shown(g):
+            continue
         b = ago.get(g)
         rows.append({"game": g, "slug": x["slug"], "art": x.get("art", ""), "section": x.get("section", ""),
                      "viewers": x["viewers"], "streams": x["streams"], "ago": b,
@@ -2010,7 +2023,7 @@ def search(q: str, region: str = "in", limit: int = 20) -> dict:
                     "logo": _logo({"sid": r["sid"], "logo": r["logo"]}), "last_live": r["last_live"], "game": r["game"],
                     "title": title, "by": "name" if q in r["name"].lower() else "title",
                     "peak": r["peak"] or 0, "now": now.get(r["sid"], 0)})
-    return {"channels": out[:limit * 2], "categories": [{"game": g, "slug": slug(g), "art": cat_art(g)} for g in games]}
+    return {"channels": out[:limit * 2], "categories": [{"game": g, "slug": slug(g), "art": cat_art(g)} for g in games if shown(g)]}
 
 
 def channel(sid: str) -> dict:

@@ -2,6 +2,7 @@
 import os, sys, time, json
 import tempfile; T = tempfile.mkdtemp()
 os.environ["TRACKER_DB"] = T + "/sc.db"
+os.environ["GTA6_SHOW"] = "1"        # these tests cover the GTA 6 tab; tests/test_gta6.py covers it hidden
 for f in ("sc.db", "sc.db-wal", "sc.db-shm"):
     try: os.remove(T + "/" + f)
     except FileNotFoundError: pass
