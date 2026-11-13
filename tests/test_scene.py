@@ -99,9 +99,9 @@ assert d["cat_name"] == "BGMI" and all(x["game"] == "BGMI" for x in d["live"]) a
 assert all(x["game"] == "BGMI" for x in d["board"]) and len(d["series"]) == 2 and d["india_total"] >= d["live_total"]
 h = sc.data("today"); assert h["series"] and {c["slug"] for c in h["categories"]} >= {"bgmi", "free-fire"}
 c = web.app.test_client()
-for u, code in [("/", 200), ("/c/bgmi", 200), ("/c/free-fire", 200), ("/c/nonexistent", 404), ("/c/../x", 404), ("/api/scene?cat=bgmi", 200), ("/india", 200)]:
+for u, code in [("/", 200), ("/global", 200), ("/categories", 301), ("/global/categories", 200), ("/global/c/bgmi", 200), ("/global/c/free-fire", 200), ("/global/c/nonexistent", 404), ("/global/c/../x", 404), ("/api/scene?cat=bgmi", 200), ("/india", 200)]:
     r = c.get(u); assert r.status_code == code, (u, r.status_code)
-assert b"Live Streaming Worldwide" in c.get("/").data and b"Live Streaming in India" in c.get("/india").data
+assert b"Live Streaming Worldwide" in c.get("/global").data and b"Live Streaming in India" in c.get("/india").data
 store.kv_set("site_home", "nope"); assert c.get("/").status_code == 200
 print("HUB OK")
 # Kick/Twitch India detection: Hindi-language streams plus Indian-titled streams from top/category lists
@@ -160,7 +160,7 @@ assert "VALORANT Esports" in gn and "Citizen TV Kenya" in gn and "VALORANT Espor
 assert g["live_total"] > i_["live_total"] and g["tournaments"][0]["name"] == "VCT", g["tournaments"][:1]
 print("tournaments:", [(t["name"], t["viewers"], t["streams"]) for t in g["tournaments"]])
 c = web.app.test_client()
-for u in ["/", "/c/valorant", "/india/c/bgmi", "/api/scene?region=global", "/api/scene/live?region=global&cat=valorant"]:
+for u in ["/", "/global/c/valorant", "/india/c/bgmi", "/api/scene?region=global", "/api/scene/live?region=global&cat=valorant"]:
     assert c.get(u).status_code == 200, u
 lv = json.loads(c.get("/api/scene/live?region=global", headers={"Accept-Encoding": ""}).data)
 assert lv["tournaments"] and lv["live_total"] >= 250000
@@ -179,7 +179,7 @@ assert e["board"] == [] and e["tour_day"] and e["tour_day"][0]["name"] == "VCT"
 lvd = sc.live_data(region="in", sec="news"); assert all(x["section"] == "news" for x in lvd["live"]) and "kpis" in lvd
 assert all("last_live" in x for x in sc.data("7d")["board"])
 c = web.app.test_client()
-for u, code in [("/s/gaming", 200), ("/s/esports", 200), ("/india/s/gaming", 200), ("/global/s/esports", 301), ("/global", 301), ("/s/nope", 404), ("/api/scene?sec=irl", 200), ("/api/scene/live?region=global&sec=esports", 200)]:
+for u, code in [("/global/s/gaming", 200), ("/global/s/esports", 200), ("/india/s/gaming", 200), ("/s/esports", 301), ("/global/s/nope", 404), ("/api/scene?sec=irl", 200), ("/api/scene/live?region=global&sec=esports", 200)]:
     assert c.get(u).status_code == code, u
 print("SECTIONS OK")
 # cover art: exact names only, BGMI never gets PUBG's cover
@@ -199,7 +199,7 @@ assert sc.resolve_art("PUBG: Battlegrounds")[0] == "https://tw/PUBG: BATTLEGROUN
 assert sc.resolve_art("Hollow Knight") == ("", "none")          # inexact search results are never used
 assert sc.cat_art("Call of Duty") == "/caticon/gaming.svg" and sc.cat_art("Cricket") == "/caticon/sports.svg" and sc.section_of("Cricket", tour="ipl") == "sports" and sc.section_of("Cricket 24") == "sports"
 print("ART OK")
-r = web.app.test_client().get("/global/c/bgmi"); assert r.status_code == 301 and r.headers["Location"].endswith("/c/bgmi")
+r = web.app.test_client().get("/c/bgmi"); assert r.status_code == 301 and r.headers["Location"].endswith("/global/c/bgmi")
 print("ROUTES OK")
 # biggest YouTube channels re-counted every 2s
 sc._YTF["next"] = 0
@@ -237,7 +237,7 @@ rk = c.get("/api/rank?region=global&period=day&metric=hw").get_json()
 assert rk["rows"] and rk["rows"][0]["rank"] == 1 and "delta" in rk["rows"][0] and rk["countries"], rk
 assert c.get("/api/rank?region=in&period=week&metric=peak&cat=bgmi").get_json()["rows"][0]["game"] == "BGMI"
 assert c.get("/api/rank?country=IN&region=global").get_json()["rows"]
-for u in ("/rankings", "/india/rankings"):
+for u in ("/global/rankings", "/india/rankings"):
     assert c.get(u).status_code == 200, u
 assert all("delta" in b for b in sc.data("today", region="global")["board"])
 print("RANK OK")
@@ -273,8 +273,8 @@ print("SUPERCHAT/STATS OK")
 # search by stream title opens the channel page; past streams from the platform
 j = c.get("/api/search?q=scrims&region=global").get_json()
 assert any(x["sid"] == "yt:UCaman" and x["by"] == "title" for x in j["channels"]), j
-assert c.get("/ch/yt:UCaman").status_code == 200 and c.get("/india/ch/yt:UCaman").status_code == 200
-assert c.get("/ch/yt:nobody").status_code == 404 and c.get("/ch/bad").status_code == 404
+assert c.get("/global/ch/yt:UCaman").status_code == 200 and c.get("/india/ch/yt:UCaman").status_code == 200
+assert c.get("/global/ch/yt:nobody").status_code == 404 and c.get("/global/ch/bad").status_code == 404
 yt_html = 'var ytInitialData = ' + json.dumps({"contents": {"x": [
     {"videoRenderer": {"videoId": "old1", "title": {"runs": [{"text": "BGMI scrims finals"}]}, "publishedTimeText": {"simpleText": "Streamed 2 days ago"},
                        "viewCountText": {"simpleText": "123,456 views"}, "lengthText": {"simpleText": "3:05:10"}}},
@@ -320,7 +320,7 @@ about = '<meta property="og:title" content="Garena Free Fire India"><meta proper
 events._http.get = lambda url, **k: RJ(t=about) if "/about" in url else _og(url, **k)
 yj = c.get("/api/ytsearch?q=garena free fire india").get_json()
 assert yj["channels"][0]["sid"] == "yt:UCffindia000000000000000" and yj["channels"][0]["subs_text"] == "5.2M subscribers" and not yj["channels"][0]["known"], yj
-assert c.get("/ch/yt:UCffindia000000000000000").status_code == 200
+assert c.get("/global/ch/yt:UCffindia000000000000000").status_code == 200
 with store._lock:
     rw = sc._db().execute("SELECT name, india, tracked FROM sc_channels WHERE sid='yt:UCffindia000000000000000'").fetchone()
     vv = sc._db().execute("SELECT views, subs FROM sc_chstats WHERE sid='yt:UCffindia000000000000000'").fetchone()
@@ -387,7 +387,7 @@ with store._lock:
     tw = dict(mo._db().execute("SELECT * FROM moments WHERE sid='twitch:spiker'").fetchone())
 assert tw["kind"] == "chat" and tw["chat_peak"] > 5 * tw["chat_base"] and tw["embed"] == "tw_vod" and "?t=" in tw["link"], tw
 
-assert c.get("/api/moments?region=global&period=7d").get_json()["moments"] and c.get("/moments").status_code == 200 and c.get("/india/moments").status_code == 200
+assert c.get("/api/moments?region=global&period=7d").get_json()["moments"] and c.get("/global/moments").status_code == 200 and c.get("/india/moments").status_code == 200
 # compaction keeps the highest reading per 10 minutes for old days
 with store._lock:
     cc = sc._db(); old = int(time.time()) - 40 * 86400
@@ -427,7 +427,7 @@ class FG:
     def json(s): return {"total": 12345, "data": []}
 _hg = platforms._http.get
 platforms._http.get = lambda url, **k: FG() if "channels/followers" in url else _hg(url, **k)
-assert yx.ensure_any("twitch:newguy") and c.get("/ch/twitch:newguy").status_code == 200
+assert yx.ensure_any("twitch:newguy") and c.get("/global/ch/twitch:newguy").status_code == 200
 with store._lock:
     assert sc._db().execute("SELECT subs FROM sc_chstats WHERE sid='twitch:newguy'").fetchone()[0] == 12345
 platforms._http.get = _hg; yx.yt_channel_search = _yxs
@@ -500,7 +500,7 @@ mine = {(r["metric"], r["scope"]): (r["rank"], r["of"]) for r in rk.for_channel(
 assert mine[("size", "world")][0] == 2 and mine[("size", "country")] == mine[("size", "world")] and mine[("size", "category")][0] == 2, mine
 tp = c.get("/api/topch?platform=youtube&metric=size&country=IN&category=Gaming").get_json()
 assert [r["sid"] for r in tp["rows"][:3]] == ["yt:UCtg", "yt:UCaman", "yt:UCffindia000000000000000"], tp["rows"][:3]
-assert sc.channel("yt:UCaman")["ranks"] and c.get("/rankings?mode=channels").status_code == 200
+assert sc.channel("yt:UCaman")["ranks"] and c.get("/global/rankings?mode=channels").status_code == 200
 def _pg3(p, url, params):
     if url.endswith("/helix/users"): return {"data": [{"id": "9"}]}
     if url.endswith("/helix/videos"): return {"data": [{"id": "111", "title": "big stream", "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -533,7 +533,7 @@ assert {x["sid"]: x["views_day"] for x in hl["channels_today"]}.get("yt:UCaman")
 assert c.get("/api/home?region=global").get_json()["channels_today"]
 cp = c.get("/api/compare?c=yt:UCffindia000000000000000,twitch:newguy,bad id&range=1y").get_json()
 assert [x["sid"] for x in cp["channels"]] == ["yt:UCffindia000000000000000", "twitch:newguy"] and cp["channels"][0]["posts"]["count"] == 4, cp["channels"][0]["posts"]
-for u in ("/compare?c=yt:UCaman", "/india/compare", "/", "/india", "/moments?id=1"):
+for u in ("/global/compare?c=yt:UCaman", "/india/compare", "/", "/india", "/global/moments?id=1"):
     r_ = c.get(u); assert r_.status_code == 200 and b"__" not in r_.data.replace(b"__F", b"").replace(b"__name__", b""), u
 from tracker import moments as mo
 with store._lock:
@@ -571,7 +571,7 @@ assert any(o["rank"] == 2 and o["s"] == "category" and o["m"] == "vday" for o in
 sv = c.get(f"/badge/{F11}.svg?m=vday&s=category").data.decode()
 assert sv.startswith("<svg") and "#2" in sv and "People &amp; Blogs" in sv and "letsgrowesports".upper() in sv.upper(), sv[:200]
 assert c.get("/badge/bad.svg").status_code == 404 and c.get(f"/api/badges?sid={F11}").get_json()
-assert "badges()" in c.get(f"/ch/{F11}").data.decode()
+assert "badges()" in c.get(f"/global/ch/{F11}").data.decode()
 print("BADGES OK")
 # owner-only visitors page, site-wide visit ping, India redirect script, intraday views, lookup follows channels
 os.environ.pop("ADMIN_KEY", None)
@@ -636,7 +636,7 @@ _r = c.get("/api/chlive?sid=kick:livey"); lv_ = sc.live_now("kick:livey")
 assert lv_["live"] and lv_["now"] == 5200 and lv_["series"][-1][1] == 5200 and "kick:livey" in sc.HOT, lv_
 assert not c.get("/api/chlive?sid=kick:nobodyhere").get_json()["live"]
 _h = c.get("/india").data; assert b"UNDER CONSTRUCTION" in _h, _h[:300]
-assert b"liveTick" in c.get("/ch/kick:soulaman").data
+assert b"liveTick" in c.get("/global/ch/kick:soulaman").data
 print("LIVE CARD OK")
 # privacy and terms pages, footer on every page
 pv = c.get("/privacy").data.decode()
@@ -652,7 +652,7 @@ print("NO OTHER OK")
 # categories page data (player-chart style) and month by month
 cj = c.get("/api/cats?region=global").get_json()
 assert cj["rows"] and all(len(r["h48"]) == 49 and 1 <= len(r["d30"]) <= 31 for r in cj["rows"]) and "trending" in cj, cj["rows"][:1]
-assert c.get("/categories").status_code == 200 and c.get("/india/categories").status_code == 200
+assert c.get("/global/categories").status_code == 200 and c.get("/india/categories").status_code == 200
 assert cj["rows"][0]["game"] == "GTA 6" and cj["rows"][0]["pinned"]          # pinned on top
 slug0 = next(r for r in cj["rows"] if not r.get("pinned"))["slug"]
 cm = c.get(f"/api/catmonths?cat={slug0}&region=global").get_json()

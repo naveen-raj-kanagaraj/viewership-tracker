@@ -112,5 +112,5 @@ load();
 
 def build_html(region: str = "global") -> str:
     region = "in" if region == "in" else "global"
-    return (PAGE.replace("__BRAND__", html.escape(eventpage.BRAND)).replace("__RPJ__", json.dumps("/india" if region == "in" else ""))
-            .replace("__HOME__", "/india" if region == "in" else "/").replace("__RP__", "/india" if region == "in" else ""))
+    return (PAGE.replace("__BRAND__", html.escape(eventpage.BRAND)).replace("__RPJ__", json.dumps("/india" if region == "in" else "/global"))
+            .replace("__HOME__", "/india" if region == "in" else "/global").replace("__RP__", "/india" if region == "in" else "/global"))

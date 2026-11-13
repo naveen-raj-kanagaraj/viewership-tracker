@@ -70,12 +70,12 @@ body.emb .wrap{padding:0;max-width:none}body.emb .stage{display:block;margin:0}b
 body.emb .mini{display:block;position:absolute;left:8px;bottom:8px;font:600 12px "Barlow Condensed",sans-serif;letter-spacing:.03em;background:rgba(11,11,18,.7);padding:6px 9px;border:1px solid var(--line);pointer-events:none}
 body.emb .mini div{display:flex;gap:6px;white-space:nowrap}body.emb .mini span{color:var(--lime);margin-left:auto;padding-left:8px}
 @media(max-width:900px){.stage{grid-template-columns:1fr}#gl{height:min(62vh,460px)}}
-@media(max-width:600px){.wrap{padding:0 12px 20px}.top .in{padding:9px 12px;gap:10px}.brand{font-size:15px}.upd{display:none}.rg a[href="/"],.rg a[href="/india"]{display:none}h1{font-size:26px}.intro{font-size:13px;color:var(--muted)}
+@media(max-width:600px){.wrap{padding:0 12px 20px}.top .in{padding:9px 12px;gap:10px}.brand{font-size:15px}.upd{display:none}.rg a[href="/global"],.rg a[href="/india"]{display:none}h1{font-size:26px}.intro{font-size:13px;color:var(--muted)}
 .crumb{margin-top:12px;font-size:11px}#gl{height:380px}.big{font-size:36px}.legend .bar{width:100px}}
 </style></head><body>
-<div class="top"><div class="in"><a class="brand" href="/">__BRAND__</a><span class="beta">BETA</span><span class="rg"><a href="/">GLOBAL</a><a href="/india">INDIA</a><a href="/map" class="on">MAP</a><a href="/rankings">RANKS</a></span><span class="upd"><span class="dot"></span><span>LIVE </span><b id="upd">-</b></span></div></div>
+<div class="top"><div class="in"><a class="brand" href="/">__BRAND__</a><span class="beta">BETA</span><span class="rg"><a href="/global">GLOBAL</a><a href="/india">INDIA</a><a href="/map" class="on">MAP</a><a href="/global/rankings">RANKS</a></span><span class="upd"><span class="dot"></span><span>LIVE </span><b id="upd">-</b></span></div></div>
 <div class="wrap">
-<div class="crumb"><a href="/">WORLDWIDE</a> / WORLD MAP</div>
+<div class="crumb"><a href="/global">WORLDWIDE</a> / WORLD MAP</div>
 <h1>Where the <em>streamers</em> are from</h1>
 <p class="intro">Everyone watching live on YouTube, Kick and Twitch right now, placed on the streamer's home country (not the viewer's). Grey countries have no located streamer live at the moment. Drag to spin, tap a country for its categories and streamers.</p>
 <div class="stage">
@@ -166,7 +166,7 @@ function showTip(f,p){if(!f){tip.style.display='none';return}const d=BY[f.id];
 function flyTo(id){const f=FEATS.find(f=>f.id===id);if(!f)return;const to=[-f.c[0],Math.max(-60,Math.min(60,-f.c[1])),0];
  const from=rot.slice();if(to[0]-from[0]>180)to[0]-=360;if(from[0]-to[0]>180)to[0]+=360;anim={t0:performance.now(),i:d3.interpolate(from,to)};idleT=performance.now()+15000}
 function select(id){sel=id;selCat='';flyTo(id);renderSide();renderRank();if(window.innerWidth<900){const s=document.getElementById('sel');if(s)s.scrollIntoView({behavior:'smooth',block:'start'})}}
-const catLink=(d,g)=>d.country==='IN'?'/india/c/'+g.slug:'/c/'+g.slug;
+const catLink=(d,g)=>d.country==='IN'?'/india/c/'+g.slug:'/global/c/'+g.slug;
 function renderSide(){const box=document.getElementById('sel');if(!box)return;if(!G){box.innerHTML='<div class="empty">Loading...</div>';return}
  const d=sel&&BY[sel],f=sel&&FEATS.find(f=>f.id===sel),tot=G.known+G.unknown;
  if(!d){box.innerHTML=`<div class="lbl">Worldwide</div><h2>${f?esc(f.properties.name)+': nothing live tracked':'Everyone we track'}</h2>

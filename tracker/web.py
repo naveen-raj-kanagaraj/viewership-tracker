@@ -15,7 +15,7 @@ import threading
 import time
 import queue
 
-from flask import Flask, Response, request
+from flask import Flask, Response, redirect, request
 
 from tracker import eventpage, predict, predictpage, visitors
 
@@ -23,7 +23,33 @@ PORT = int(os.getenv("EVENT_WEB_PORT", "8092"))
 app = Flask(__name__)
 
 
-CACHE = {"/api/cats": 60, "/api/catmonths": 600, "/categories": 300, "/india/categories": 300, "/privacy": 3600, "/terms": 3600, "/api/chlive": 2, "/badge": 1800, "/api/badges": 600, "/api/home": 120, "/api/compare": 30, "/compare": 300, "/india/compare": 300, "/api/topch": 120, "/api/videos": 300, "/api/lookup": 600, "/api/moments": 20, "/moments": 300, "/india/moments": 300, "/api/ytsearch": 600, "/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
+class _GlobalPaths:
+    """Worldwide pages live under /global, like India's under /india: /global/categories is served by the
+    /categories handler. Old worldwide links (/categories, /c/bgmi, /ch/yt:...) redirect to their /global address."""
+    OLD = ("/categories", "/rankings", "/moments", "/compare")    # /map stays: it shows the whole world
+    OLD_PRE = ("/c/", "/ch/", "/s/", "/kit/")
+
+    def __init__(self, wsgi):
+        self.wsgi = wsgi
+
+    def __call__(self, environ, start):
+        p = environ.get("PATH_INFO", "")
+        if p == "/global/":
+            environ["PATH_INFO"] = "/global"
+        elif p.startswith("/global/"):
+            environ["PATH_INFO"] = p[len("/global"):]
+        elif environ.get("REQUEST_METHOD") in ("GET", "HEAD") and (p in self.OLD or p.startswith(self.OLD_PRE)):
+            qs = environ.get("QUERY_STRING", "")
+            start("301 Moved Permanently", [("Location", "/global" + p + ("?" + qs if qs else "")),
+                                            ("Cache-Control", "public, max-age=3600"), ("Content-Length", "0")])
+            return [b""]
+        return self.wsgi(environ, start)
+
+
+app.wsgi_app = _GlobalPaths(app.wsgi_app)
+
+
+CACHE = {"/global": 5, "/api/cats": 60, "/api/catmonths": 600, "/categories": 300, "/india/categories": 300, "/privacy": 3600, "/terms": 3600, "/api/chlive": 2, "/badge": 1800, "/api/badges": 600, "/api/home": 120, "/api/compare": 30, "/compare": 300, "/india/compare": 300, "/api/topch": 120, "/api/videos": 300, "/api/lookup": 600, "/api/moments": 20, "/moments": 300, "/india/moments": 300, "/api/ytsearch": 600, "/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
 
 
 
@@ -134,7 +160,7 @@ LEGAL = """<div id="legal" style="max-width:1100px;margin:0 auto;padding:14px 16
 
 # India visitors land on /india (device time zone = India, unless they chose Global on the site). Runs before the page
 # draws, and works with the CDN cache (the same cached page for everyone; the choice is made in the browser).
-REGIONJS = """<script>(function(){try{if(location.pathname!=='/'||location.search||localStorage.getItem('lge_region'))return;
+REGIONJS = """<script>(function(){try{if(location.pathname==='/'&&!location.search&&history.replaceState)history.replaceState(null,'','/global'+location.hash)}catch(e){}})()</script><script>(function(){try{if(location.pathname!=='/global'||location.search||localStorage.getItem('lge_region')||(document.referrer||'').indexOf(location.host)>-1)return;
 var z=Intl.DateTimeFormat().resolvedOptions().timeZone||'';if(z==='Asia/Kolkata'||z==='Asia/Calcutta')location.replace('/india')}catch(e){}})()</script>"""
 
 
@@ -208,6 +234,11 @@ def index():
     home = store.kv_get("site_home") or "hub"
     if home != "hub" and events.get(home):
         return _memo("/:" + home, 5, lambda: eventpage.build_html(live=True), "text/html")
+    return global_hub()          # same page as /global; the address bar is switched to /global in the browser
+
+
+@app.route("/global")
+def global_home():
     return global_hub()
 
 
@@ -301,15 +332,6 @@ def global_hub():
     """Everything live worldwide on YouTube, Kick and Twitch (the front page)."""
     from tracker import scenepage
     return _memo("/global", 300, lambda: scenepage.build_html(region="global"), "text/html")
-
-
-@app.route("/global")
-@app.route("/global/")
-@app.route("/global/<path:rest>")
-def global_old(rest=""):
-    """Old /global links: worldwide is the front page now."""
-    from flask import redirect
-    return redirect("/" + rest, code=301)
 
 
 def _cat_page(cat, region):
@@ -1150,13 +1172,13 @@ def robots():
     return Response("User-agent: *\nDisallow: /\n", mimetype="text/plain")
 
 
-WARM = ["/", "/india", "/api/cats?region=global&range=24h", "/api/cats?region=in&range=24h", "/categories", "/india/categories", "/api/home?region=global", "/api/home?region=in", "/api/scene?region=global&period=today", "/api/scene?region=in&period=today",
-        "/api/scene/live?region=global", "/api/scene/live?region=in", "/rankings", "/api/rank?region=global&period=day&metric=hw",
-        "/api/rank?region=in&period=day&metric=hw", "/map", "/api/geo", "/moments", "/api/moments?region=global&period=7d",
+WARM = ["/global", "/india", "/api/cats?region=global&range=24h", "/api/cats?region=in&range=24h", "/global/categories", "/india/categories", "/api/home?region=global", "/api/home?region=in", "/api/scene?region=global&period=today", "/api/scene?region=in&period=today",
+        "/api/scene/live?region=global", "/api/scene/live?region=in", "/global/rankings", "/api/rank?region=global&period=day&metric=hw",
+        "/api/rank?region=in&period=day&metric=hw", "/map", "/api/geo", "/global/moments", "/api/moments?region=global&period=7d",
         "/india/rankings", "/api/rank?region=in&period=week&metric=peak", "/api/rank?region=global&period=week&metric=hw",
         "/api/topch?platform=youtube&metric=views_7d", "/api/topch?platform=youtube&metric=views_7d&country=IN",
         "/api/topch?platform=twitch&metric=subs_7d&country=IN", "/api/topch?platform=kick&metric=subs_7d&country=IN"] + (
-        ["/c/gta-6", "/india/c/gta-6", "/api/scene?region=global&cat=gta-6&period=today", "/api/scene?region=in&cat=gta-6&period=today"]
+        ["/global/c/gta-6", "/india/c/gta-6", "/api/scene?region=global&cat=gta-6&period=today", "/api/scene?region=in&cat=gta-6&period=today"]
         if os.getenv("GTA6_SHOW", "0") == "1" else [])
 
 

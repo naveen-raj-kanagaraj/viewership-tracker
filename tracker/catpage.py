@@ -48,7 +48,7 @@ canvas.mob{display:none}@media(max-width:700px){canvas.mob{display:block;margin-
 .mb button.p{background:var(--lime);color:#0b0b12;border-color:var(--lime)}.fm{display:flex;gap:6px}.fm button.on{background:var(--lime);color:#0b0b12}
 </style></head><body>
 <div class="top"><div class="in"><a class="brand" href="__HOME__">__BRAND__</a><span class="beta">BETA</span>
-<span class="rg"><a href="/categories" class="__GON__">GLOBAL</a><a href="/india/categories" class="__ION__">INDIA</a></span>
+<span class="rg"><a href="/global/categories" class="__GON__">GLOBAL</a><a href="/india/categories" class="__ION__">INDIA</a></span>
 <span class="nav"><a href="__HOME__">DASHBOARD</a><a href="__RP__/rankings">RANKINGS</a><a href="__RP__/moments">MOMENTS</a><a href="/map">MAP</a></span></div></div>
 <div class="wrap">
 <div class="crumb"><a href="__HOME__">__WHERECAP__</a> / CATEGORIES</div>
@@ -152,10 +152,10 @@ load();setInterval(()=>{if(!document.hidden)load()},60000);
 
 def build_html(region: str = "global") -> str:
     region = "in" if region == "in" else "global"
-    rp = "/india" if region == "in" else ""
+    rp = "/india" if region == "in" else "/global"
     return (PAGE.replace("__G6__", "true" if __import__("tracker").scene.GTA6_SHOW else "false").replace("__BRAND__", html.escape(eventpage.BRAND)).replace("__RPJ__", json.dumps(rp))
             .replace("__REGION__", json.dumps(region)).replace("__SECN__", json.dumps(scene.SECTION_NAMES))
-            .replace("__HOME__", rp or "/").replace("__RP__", rp)
+            .replace("__HOME__", rp).replace("__RP__", rp)
             .replace("__WHERECAP__", "INDIA" if region == "in" else "WORLDWIDE")
             .replace("__WHERE__", "in India" if region == "in" else "worldwide")
             .replace("__GON__", "" if region == "in" else "on").replace("__ION__", "on" if region == "in" else ""))

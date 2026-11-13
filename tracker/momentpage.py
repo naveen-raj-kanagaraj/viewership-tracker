@@ -56,7 +56,7 @@ select{background:var(--card);border:1px solid var(--line);color:var(--ink);font
  .grid{grid-template-columns:1fr;gap:6px}.m{border:0;background:none}.m:hover{transform:none}.th .jmp{font-size:16px;left:8px;bottom:8px;padding:2px 7px;border-radius:4px}.th .jmp small{display:none}.th .pl{display:none}.th .tag{top:8px;left:8px;border-radius:4px}.filters{margin-top:10px}.filters .seg{display:none}}
 @media(min-width:641px){.chips .mob{display:none}}
 </style></head><body>
-<div class="top"><div class="in"><a class="brand" href="__HOME__">__BRAND__</a><span class="beta">BETA</span><span class="rg"><a href="/moments" class="__GON__">GLOBAL</a><a href="/india/moments" class="__ION__">INDIA</a></span><span class="nav"><a href="__HOME__">DASHBOARD</a><a href="__RP__/rankings">RANKINGS</a><a href="/map">MAP</a></span></div></div>
+<div class="top"><div class="in"><a class="brand" href="__HOME__">__BRAND__</a><span class="beta">BETA</span><span class="rg"><a href="/global/moments" class="__GON__">GLOBAL</a><a href="/india/moments" class="__ION__">INDIA</a></span><span class="nav"><a href="__HOME__">DASHBOARD</a><a href="__RP__/rankings">RANKINGS</a><a href="/map">MAP</a></span></div></div>
 <div class="wrap">
 <div class="crumb"><a href="__HOME__">__WHERECAP__</a> / MOMENTS</div>
 <h1>Moments <em>__WHERE__</em></h1>
@@ -67,7 +67,7 @@ select{background:var(--card);border:1px solid var(--line);color:var(--ink);font
 <div class="note" id="note"></div>
 </div>
 <script>
-const REGION=__REGION__,RP=REGION==='in'?'/india':'',HOST=location.hostname;
+const REGION=__REGION__,RP=REGION==='in'?'/india':'/global',HOST=location.hostname;
 const NAMES={youtube:'YouTube',kick:'Kick',twitch:'Twitch'},COL={youtube:'#ff4d5e',kick:'#53fc18',twitch:'#a970ff'};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>{n=+n||0;return n>=1e9?(n/1e9).toFixed(2)+'B':n>=1e7?(n/1e6).toFixed(1)+'M':n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e4?(n/1e3).toFixed(1)+'K':Math.round(n).toLocaleString('en-IN')};
@@ -116,5 +116,5 @@ def build_html(region: str = "global") -> str:
     where = "worldwide" if region == "global" else "in India"
     return (PAGE.replace("__BRAND__", html.escape(eventpage.BRAND)).replace("__REGION__", json.dumps(region))
             .replace("__WHERECAP__", "WORLDWIDE" if region == "global" else "INDIA").replace("__WHERE__", where)
-            .replace("__HOME__", "/" if region == "global" else "/india").replace("__RP__", "/india" if region == "in" else "")
+            .replace("__HOME__", "/global" if region == "global" else "/india").replace("__RP__", "/india" if region == "in" else "/global")
             .replace("__GON__", "on" if region == "global" else "").replace("__ION__", "on" if region == "in" else ""))
