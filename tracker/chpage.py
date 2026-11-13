@@ -37,7 +37,7 @@ h1{font:700 40px/1.05 "Barlow Condensed",sans-serif;margin:0;text-transform:uppe
 @media(max-width:600px){.dpr{grid-template-columns:1fr 96px!important;row-gap:6px}.dpr .dbar{grid-column:1/-1;grid-row:2}.dpr .pc{grid-row:1;grid-column:2}}
 .dpr .pc{font:700 22px "Barlow Condensed",sans-serif;text-align:right;line-height:1.05;white-space:nowrap}.dpr .pc small{display:block;font:500 11px "Barlow",sans-serif;color:var(--muted);letter-spacing:0;margin-top:2px;white-space:normal}
 .pshare{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 12px;font-size:12px;color:var(--muted)}.pshare span{margin-right:4px}
-.pshare button{background:var(--lime);color:#0b0b12;border:0;font:700 13px "Barlow Condensed",sans-serif;letter-spacing:.05em;padding:6px 11px;cursor:pointer}.pshare button:disabled{opacity:.5}
+.pshare button{background:var(--lime);color:#0b0b12;border:0;font:700 13px "Barlow Condensed",sans-serif;letter-spacing:.05em;padding:6px 11px;cursor:pointer}.pshare button:disabled{opacity:.5}.ptop{margin:10px 0 16px}.ptop:empty{display:none}.ptop span{font:700 12px "Barlow Condensed",sans-serif;letter-spacing:.08em;color:var(--muted)}
 .ytab{overflow-x:auto;padding:10px 16px 14px}.ytab table{border-collapse:collapse;width:100%;font-size:13px;min-width:560px}.ytab th{color:var(--muted);font-weight:500;text-align:right;padding:6px 8px;font-size:11px}
 .ytab td{text-align:right;padding:6px 8px;border-top:1px solid var(--line);white-space:nowrap}.ytab th:first-child,.ytab td:first-child{text-align:left}
 .tcm{padding:10px 16px;border-top:1px solid var(--line);font-size:13px}.tcm small{color:var(--muted);display:block;margin-top:3px;font-size:11px}
@@ -98,6 +98,7 @@ __PANEL_CSS__
 <div class="wrap">
 <div class="crumb"><a href="__HOME__">__WHERECAP__</a> / CHANNEL</div>
 <div class="hd" id="hd"><span class="ph">..</span><div><h1>__NAME__</h1><div class="meta">Loading...</div></div></div>
+<div class="pshare ptop" id="pshare_top"></div>
 <div class="card lvc" id="lvcard" style="display:none"><div class="vhead"><div><h2><span class="lvdot"></span>Live now</h2><div class="cap" id="lvcap"></div></div><a class="btn red" id="lvwatch" target="_blank" rel="noopener">WATCH</a></div>
  <div class="lvbig"><b id="lvnow">-</b><span id="lvd"></span></div>
  <div class="vk lvk"><div><b id="lvpk">-</b>peak this stream</div><div><b id="lvavg">-</b>average this stream</div><div><b id="lvdur">-</b>live for</div></div>
@@ -344,7 +345,8 @@ async function past(){try{const j=await (await fetch('/api/past?sid='+encodeURIC
  document.getElementById('past').innerHTML=L.length?`<div class="ps"><div class="hdr"><span>DATE</span><span>STREAM</span><span>LENGTH</span><span>VIEWS</span><span>PEAK LIVE</span></div>${L.map(x=>`<a href="${esc(x.url)}" target="_blank" rel="noopener"><span class="d">${x.ts?ist(x.ts,{day:'numeric',month:'short'}):esc(x.when)}${x.when&&/ago/.test(x.when)?'<br>'+esc(x.when.replace('Streamed ','')):''}</span><span class="t">${esc(x.title)}</span><span class="n">${x.secs?hm(x.secs):'-'}</span><span class="n">${x.views!=null?fmt(x.views):'-'}</span><span class="n">${x.peak?fmt(x.peak):x.peak_day?fmt(x.peak_day)+(x.same_day>1?'<small>all streams</small>':''):'-'}</span></a>`).join('')}</div>`:'';
  {const days=[...new Set(L.filter(x=>x.day&&x.peak_day).map(x=>x.day))].slice(0,8),dl=d=>new Date(d+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'});
   document.getElementById('pshare').innerHTML=days.length?'<span>Share a live day:</span>'+days.map(d=>`<button data-d="${d}">${dl(d)}</button>`).join(''):'';
-  document.getElementById('pshare').onclick=e=>{const b=e.target.closest('button');if(b)dayShare(b.dataset.d,b)}}document.getElementById('past').closest('.card').style.display=L.length?'':'none'}catch(e){document.getElementById('past').closest('.card').style.display='none'}}
+  document.getElementById('pshare').onclick=e=>{const b=e.target.closest('button');if(b)dayShare(b.dataset.d,b)};
+  const pt=document.getElementById('pshare_top');pt.innerHTML=days.length?'<span>SHARE CARD, LIVE DAY:</span>'+days.slice(0,4).map(d=>`<button data-d="${d}">${dl(d)}</button>`).join(''):'';pt.onclick=document.getElementById('pshare').onclick}document.getElementById('past').closest('.card').style.display=L.length?'':'none'}catch(e){document.getElementById('past').closest('.card').style.display='none'}}
 async function moms(){try{const j=await (await fetch('/api/moments?sid='+encodeURIComponent(SID))).json();const L=j.moments||[];if(!L.length)return;
  document.getElementById('mcard').style.display='';
  document.getElementById('moms').innerHTML=L.slice(0,20).map(m=>`<a href="${esc(m.link||c_url)}" target="_blank" rel="noopener"><span class="d">${ist(m.ts,{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}</span><span class="t">${esc(m.title)}</span><span class="n" style="color:var(--lime)">+${fmt(m.peak-m.base)}</span><span class="n">${fmt(m.peak)}<small>peak</small></span><span class="n">${m.embed==='tw_clip'?'clip':m.embed?'replay':'channel'}</span></a>`).join('')}catch(e){}}
