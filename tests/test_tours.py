@@ -101,4 +101,16 @@ with store._lock:
 events.get = lambda k=None: {"key": "pic"}
 events.backfill_pic_day1()
 assert events._db().execute("SELECT MAX(total) FROM ev_ticks WHERE event='pic'").fetchone()[0] == 17448
+# a league name is the edition on now: no second card for the same event, and old readings move onto it
+assert scene._canon("FFWS", "FFWS live", "Free Fire") == "FFWS Global Finals 2026"
+with store._lock:
+    c_ = scene._db()
+    c_.execute("INSERT INTO sc_reg VALUES (?,?,?,?,?)", (int(now + 120), "tour:global", "FFWS", 9000, 2))
+    c_.execute("INSERT INTO sc_tour VALUES ('FFWS','global',9000,?,?,?,10)", (int(now + 120), int(now + 120), int(now + 120)))
+    c_.execute("INSERT INTO sc_tour_ch VALUES ('FFWS','yt:ffx','2026-11-14',9000,?,2,10,0)", (int(now + 120),))
+    c_.commit()
+assert scene.merge_aliases() == 1
+d2 = scene.tour_data("FFWS Global Finals 2026", "global")
+assert d2["peak"] == 85000 + 9000 and any(c["sid"] == "yt:ffx" for c in d2["channels"]), d2["peak"]
+assert not any(t["name"] == "FFWS" for t in scene.tours_overview("global")["tournaments"])
 print("TOURS OK")

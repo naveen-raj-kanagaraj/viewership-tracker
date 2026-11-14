@@ -190,6 +190,11 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 14 Nov 2026 (4): one card per event. A known league name (FFWS, CEGC, LoL Worlds, VCT, MPL ...) resolves to the
+  edition on now (scene._canon: 'FFWS' -> 'FFWS Global Finals 2026'); readings already stored under the league name are
+  merged onto it (scene.merge_aliases: per-scan totals added, channel rows merged; runs at start and after every
+  tournament list refresh). On India's esports page this site's own trackers (PIC 2026, CEGC) absorb the matching
+  tournament card. Owner: no Liquipedia mention on the pages (removed the links and credit lines).
 - 14 Nov 2026 (3): kv_get never takes the write lock (thread's read-only connection), so pages no longer stall
   behind long background writes; events.stats/stream_series/day_streams, the remaining read-only blocks in web.py and
   moments read in parallel too. store._Lock logs "Slow write lock: Ns held by file:line function" when a writer holds

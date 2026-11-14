@@ -122,6 +122,11 @@ def fetch_once() -> int:
     if tours:
         store.kv_set("lp_tours", {"ts": time.time(), "tours": tours})
         _CACHE["ts"] = 0
+        try:
+            from tracker import scene
+            scene.merge_aliases()          # readings filed under a league name move onto the edition on now
+        except Exception as e:
+            print(f"Tournament merge: {str(e)[:120]}")
     return n
 
 

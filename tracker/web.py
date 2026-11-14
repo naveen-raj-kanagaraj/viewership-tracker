@@ -1329,6 +1329,10 @@ def run():
         time.sleep(20)
         ev_.backfill_pic_day1()
         sc_.backfill_reg_day()
+        try:
+            sc_.merge_aliases()
+        except Exception as e:
+            print(f"Tournament merge: {str(e)[:120]}")
     threading.Thread(target=once, daemon=True).start()
     threading.Thread(target=_warm_forever, daemon=True).start()
     threading.Thread(target=_warm_more, daemon=True).start()

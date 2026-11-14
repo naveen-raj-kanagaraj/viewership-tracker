@@ -395,7 +395,7 @@ async function otLoad(){let j;try{j=await (await fetch('/api/tours?region='+REGI
  setH('otchips',K.map(e=>`<a class="tk" href="${esc(e.url)}">${e.live?'<i></i>':''}${esc(e.name.toUpperCase())}</a>`).join('')+T.filter(t=>t.live).slice(0,12).map(t=>`<a href="${RP}/t/${esc(t.slug)}"><i></i>${esc(t.name.toUpperCase())}</a>`).join(''));
  const card=(href,t,extra)=>`<a href="${href}">${art(t.game,t.art,'')}<span style="min-width:0"><div class="n">${esc(t.name)}</div><div class="m">${t.live?'<span class="lvb">LIVE</span>':''}${esc(t.game||'')}${t.start?' · '+dd(t.start)+(t.end&&t.end!==t.start?' to '+dd(t.end):''):''}${extra||''}</div></span><span class="v">${t.live?fmt(t.viewers):fmt(t.peak)}<small>${t.live?'watching now':'peak'}</small></span></a>`;
  setH('otg',K.map(e=>card(esc(e.url),e,' · official tracker')).join('')+T.slice(0,24).map(t=>card(`${RP}/t/${esc(t.slug)}`,t,t.streams?` · ${t.streams} channel${t.streams>1?'s':''}`:'')).join(''));
- setH('otmore',(O.length?'Also on now, no stream seen yet: '+O.slice(0,25).map(t=>`<a href="${esc(t.liquipedia)}" target="_blank" rel="noopener">${esc(t.name)}</a>`).join(', ')+'. ':'')+'Tournament list from <a href="https://liquipedia.net" target="_blank" rel="noopener">Liquipedia</a> (CC-BY-SA).')}
+ setH('otmore',O.length?'Also on now, no stream seen yet: '+O.slice(0,25).map(t=>esc(t.name)).join(', ')+'.':'')}
 function render(){if(!D)return;const K=D.kpis||{};
  updLabel();
  const S=D.sections||[];

@@ -404,6 +404,63 @@ def _lp_match(title: str, game: str):
     return best
 
 
+def _canon(name: str, title: str = "", game: str = "") -> str:
+    """A known league name ('FFWS', 'CEGC', 'LoL Worlds', 'VCT') is the same tournament as the edition on now
+    ('FFWS Global Finals 2026', 'CEGC 2026', 'Worlds 2026'): use that one, so one event never shows twice. When
+    several editions are on (MPL Indonesia, MPL Philippines ...), the one whose words the title shares most wins;
+    if none stands out, the league name stays."""
+    from tracker import liquipedia
+    rx = next((r for r, n, _ in _T_RX if n == name), None)
+    if rx is None:
+        return name
+    cands = [t for t in liquipedia.active() if rx.search(t["name"] + " " + t["full"]) and liquipedia.game_ok(t, game)]
+    if not cands:
+        return name
+    if len(cands) == 1:
+        return cands[0]["name"]
+    nt = _norm(title)
+    sc = sorted(((sum(1 for k in set(_norm(t["name"]).split()) - _LP_GENERIC if f" {k} " in nt), t) for t in cands),
+                key=lambda x: -x[0])
+    return sc[0][1]["name"] if sc[0][0] > 1 and sc[0][0] > sc[1][0] else name
+
+
+def merge_aliases() -> int:
+    """Readings already filed under a league name that is really the edition on now ('FFWS' -> 'FFWS Global Finals
+    2026', 'CEGC' -> 'CEGC 2026') are moved onto that edition: per-scan totals added together, channel peaks merged,
+    all-time numbers recomputed. Safe to run again (it is, after every tournament list refresh)."""
+    with store.reading():
+        names = [n for (n,) in _db().execute("SELECT DISTINCT tour FROM sc_tour")]
+    moved = 0
+    for old in names:
+        new = _canon(old, "", TOUR_GAME.get(old, ""))
+        if new == old:
+            continue
+        with store._lock:
+            c = _db()
+            for region in ("global", "in"):
+                rg = f"tour:{region}"
+                c.execute("""INSERT INTO sc_reg (ts, region, game, viewers, streams)
+                             SELECT ts, region, ?, viewers, streams FROM sc_reg WHERE region=? AND game=? AND true
+                             ON CONFLICT(region, game, ts) DO UPDATE SET viewers=sc_reg.viewers+excluded.viewers,
+                             streams=sc_reg.streams+excluded.streams""", (new, rg, old))
+                c.execute("DELETE FROM sc_reg WHERE region=? AND game=?", (rg, old))
+                pk = c.execute("SELECT ts, viewers FROM sc_reg WHERE region=? AND game=? ORDER BY viewers DESC LIMIT 1", (rg, new)).fetchone()
+                span = c.execute("SELECT MIN(ts), MAX(ts) FROM sc_reg WHERE region=? AND game=?", (rg, new)).fetchone()
+                hw = sum((r[0] or 0) for r in c.execute("SELECT hw FROM sc_tour WHERE region=? AND tour IN (?,?)", (region, old, new)))
+                c.execute("DELETE FROM sc_tour WHERE region=? AND tour IN (?,?)", (region, old, new))
+                if pk:
+                    c.execute("INSERT INTO sc_tour VALUES (?,?,?,?,?,?,?)", (new, region, pk[1], pk[0], span[0], span[1], hw))
+            c.execute("""INSERT INTO sc_tour_ch (tour, sid, day, peak, peak_at, mins, hw, india)
+                         SELECT ?, sid, day, peak, peak_at, mins, hw, india FROM sc_tour_ch WHERE tour=? AND true
+                         ON CONFLICT(tour, sid, day) DO UPDATE SET peak=MAX(sc_tour_ch.peak, excluded.peak),
+                         mins=sc_tour_ch.mins+excluded.mins, hw=sc_tour_ch.hw+excluded.hw""", (new, old))
+            c.execute("DELETE FROM sc_tour_ch WHERE tour=?", (old,))
+            c.commit()
+        moved += 1
+        print(f"Tournament {old!r} merged into {new!r}")
+    return moved
+
+
 def tournament_info(name: str):
     """The Liquipedia entry behind a tournament name, if any."""
     from tracker import liquipedia
@@ -437,7 +494,7 @@ def _tour_cached(title: str, game: str, _ts):
     low = t.lower()
     for rx, name, g in _T_RX:
         if rx.search(t) and (not g or g == game or g.lower() in low or g == "League of Legends" and re.search(r"\blol\b", low)):
-            return name
+            return _canon(name, t, game or TOUR_GAME.get(name, ""))
     if _T_GENERIC.search(t) and _T_MATCH.search(t) and esports_game(game):
         return f"{game} tournaments"
     return None
@@ -1678,8 +1735,19 @@ def tours_overview(region: str = "global") -> dict:
                      "peak": max(r[1] if r else 0, t["viewers"] if t else 0), "peak_at": r[2] if r else None,
                      "hw": round(r[5]) if r else 0, "start": info.get("start"), "end": info.get("end"),
                      "liquipedia": info.get("url")})
+    trk = [dict(e) for e in _tracked_events(region)]
+    tag = lambda n: (_norm(n).split() or [""])[0]
+    for e in trk:                        # this site's own tracker is the same event: one card, with the edition's game/dates
+        same = [x for x in rows if tag(x["name"]) == tag(e["name"])]
+        for x in same:
+            rows.remove(x)
+            e["game"] = e.get("game") or x["game"]
+            e["art"] = e.get("art") or x["art"]
+            e["start"], e["end"] = x.get("start"), x.get("end")
+        if not e.get("art") or e["art"].startswith("/caticon/"):
+            e["art"] = cat_art(e["game"]) if e.get("game") else e.get("art")
     rows.sort(key=lambda x: (not x["live"], -(x["viewers"] if x["live"] else x["peak"])))
-    have = {x["name"] for x in rows}
+    have = {x["name"] for x in rows} | {e["name"] for e in trk}
     other = []
     if region == "global":
         for t in liquipedia.active():
@@ -1688,8 +1756,8 @@ def tours_overview(region: str = "global") -> dict:
                               "end": t["end"], "liquipedia": t["url"]})
     comp = sorted(({"name": k, "viewers": t["viewers"], "streams": len(t["streams"])} for k, t in live.items()
                    if not named_tour(k)), key=lambda x: -x["viewers"])
-    return {"tracked": _tracked_events(region), "tournaments": rows, "ongoing_no_streams": other[:60],
-            "other_matches": comp[:20], "source": "Liquipedia (CC-BY-SA)"}
+    return {"tracked": trk, "tournaments": rows, "ongoing_no_streams": other[:60],
+            "other_matches": comp[:20]}
 
 
 def tour_name(sl: str):
