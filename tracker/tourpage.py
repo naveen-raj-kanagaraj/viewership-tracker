@@ -62,7 +62,7 @@ canvas{display:block;width:100%}
 <div class="card"><h2>Live now <small id="lvn"></small></h2><table><thead><tr><th class="l">Channel</th><th class="hide">Language</th><th>Watching</th></tr></thead><tbody id="lv"></tbody></table></div>
 <div class="card"><h2>Every channel <small>its own peak while showing this tournament</small></h2><table><thead><tr><th class="l">Channel</th><th class="hide">Language</th><th class="hide">Hours watched</th><th class="hide">Days</th><th>Peak</th></tr></thead><tbody id="chs"></tbody></table></div>
 <div class="card" id="lgc"><h2>Languages <small>share of hours watched</small></h2><div class="bars" id="lg"></div></div>
-<p class="note" id="src">A stream counts when its title names the tournament. Numbers are this site's readings of YouTube, Twitch and Kick. Tournament list: <a href="https://liquipedia.net" target="_blank" rel="noopener">Liquipedia</a> (CC-BY-SA).</p>
+<p class="note" id="src">A stream counts when its title names the tournament. Numbers are this site's readings of YouTube, Twitch and Kick.</p>
 </div>
 <div class="modal" id="modal"><div class="bx"><img id="mimg" alt="Share card"><div class="mb"><button class="p" id="msh">SHARE</button><button id="mdl">DOWNLOAD</button><button id="mcl">CLOSE</button></div></div></div>
 <script>
@@ -85,7 +85,7 @@ function draw(){const cv=document.getElementById('ch'),W=cv.clientWidth||900,H=2
  x.fillStyle='#8d8ca3';for(let k=0;k<4;k++){const t=t0+(t1-t0)*k/3;x.textAlign=k===0?'left':k===3?'right':'center';x.fillText(ist(t,{hour:'numeric',minute:'2-digit'}),Math.min(X(t),W-62),H-6)}x.textAlign='left'}
 function render(){const d=D;document.title=d.name+' live viewers | letsgrowesports (beta)';
  if(d.art){const a=document.getElementById('art');a.src=d.art;a.hidden=false}
- document.getElementById('sub').innerHTML=[d.live_count?`<span class="lv">LIVE</span>${d.live_count} channel${d.live_count>1?'s':''} streaming now`:'',esc(d.game),d.start?dd(d.start)+(d.end&&d.end!==d.start?' to '+dd(d.end):''):'',d.liquipedia?`<a href="${esc(d.liquipedia)}" target="_blank" rel="noopener">Liquipedia</a>`:''].filter(Boolean).join(' · ');
+ document.getElementById('sub').innerHTML=[d.live_count?`<span class="lv">LIVE</span>${d.live_count} channel${d.live_count>1?'s':''} streaming now`:'',esc(d.game),d.start?dd(d.start)+(d.end&&d.end!==d.start?' to '+dd(d.end):''):''].filter(Boolean).join(' · ');
  if(d.tracker){const t=document.getElementById('trk');t.href=d.tracker.url;t.textContent='OFFICIAL AND WATCH PARTY TRACKER: '+d.tracker.name.toUpperCase()+' >';t.hidden=false}
  document.getElementById('k1').textContent=d.peak?full(d.peak):'-';document.getElementById('k2').textContent=d.now?full(d.now):'0';
  document.getElementById('k3').textContent=d.peak_today?full(d.peak_today):'-';document.getElementById('k4').textContent=d.hw?fmt(d.hw):'-';document.getElementById('k5').textContent=(d.channels||[]).length||'-';
