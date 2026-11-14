@@ -1000,7 +1000,7 @@ def run_all():
 def stats(key: str, since: float = 0, until: float = None) -> dict:
     """Peak, average, hours watched, airtime, by kind, by day, by channel, live now."""
     until = until or time.time() + 1
-    with store._lock:
+    with store.reading():
         c = _db()
         ticks = [dict(r) for r in c.execute("SELECT * FROM ev_ticks WHERE event=? AND ts>=? AND ts<=? ORDER BY ts",
                                              (key, since, until))]
@@ -1153,7 +1153,7 @@ def stats(key: str, since: float = 0, until: float = None) -> dict:
         [platforms.NAMES[p] for p in pl_used]
     out["method"] = (f"{_FASTSTATE['method']}, every {FAST_SEC * 2 ** _FASTSTATE.get('slow', 0):g}s" if fast_healthy()
                      else f"search results, every {POLL_SEC}s")
-    with store._lock:
+    with store.reading():
         out["stream_peaks"] = [dict(r) for r in _db().execute(
             "SELECT vid, channel, title, kind, peak, peak_at FROM ev_streams WHERE event=? AND peak>0 ORDER BY peak DESC",
             (key,))]
@@ -1210,7 +1210,7 @@ def stream_series(key: str, vids: list, t0: float, t1: float, limit: int = 600) 
     """Per-stream viewer history (stored every ~30s) for the given streams."""
     if not vids:
         return {}
-    with store._lock:
+    with store.reading():
         rows = _db().execute(f"SELECT vid, ts, viewers FROM ev_samples WHERE event=? AND ts BETWEEN ? AND ? "
                              f"AND vid IN ({','.join('?' * len(vids))}) ORDER BY ts", (key, t0, t1, *vids)).fetchall()
     out = {}
@@ -1237,7 +1237,7 @@ def day_streams(key: str, date: str) -> dict:
     if hit and (date != today or time.time() - hit[0] < 30):
         return hit[1]
     d1 = d0 + 86400
-    with store._lock:
+    with store.reading():
         c = _db()
         table = "ev_fine" if c.execute("SELECT 1 FROM ev_fine WHERE event=? AND ts BETWEEN ? AND ? LIMIT 1",
                                        (key, d0, d1)).fetchone() else "ev_samples"

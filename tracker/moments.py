@@ -372,7 +372,7 @@ def twitch_login() -> str:
 def _est_start(sid: str, ts: int) -> int:
     """When this channel's stream began, from the site's own readings: walk back from the moment while the readings
     continue (gaps under 6 minutes). Within about 2 minutes of the real start."""
-    with store._lock:
+    with store.reading():
         rows = [t for (t,) in _db().execute("SELECT DISTINCT ts FROM sc_samples WHERE sid=? AND ts BETWEEN ? AND ? ORDER BY ts DESC",
                                              (sid, ts - 12 * 3600, ts))]
     if not rows:
@@ -401,7 +401,7 @@ def recent(region: str = "global", period: str = "today", game: str = "", sid: s
     if sid:
         q = "SELECT * FROM moments WHERE sid=?"
         a = [sid]
-    with store._lock:
+    with store.reading():
         order = {"views": "peak DESC", "jump": "(peak - base) DESC", "hype": "COALESCE(score, 0) DESC", "new": "ts DESC"}.get(sort, "peak DESC")
         rows = [dict(r) for r in _db().execute(q + f" ORDER BY {order}, ts DESC LIMIT ?", (*a, limit * 3))]
         games = [g for (g,) in _db().execute("SELECT game FROM moments WHERE ts>=? GROUP BY game ORDER BY COUNT(*) DESC LIMIT 30", (t0,))]

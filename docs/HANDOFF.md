@@ -190,6 +190,10 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 14 Nov 2026 (3): kv_get never takes the write lock (thread's read-only connection), so pages no longer stall
+  behind long background writes; events.stats/stream_series/day_streams, the remaining read-only blocks in web.py and
+  moments read in parallel too. store._Lock logs "Slow write lock: Ns held by file:line function" when a writer holds
+  it over 2 s: check `journalctl -u tracker | grep "Slow write lock"` to find what makes the site wait.
 - 14 Nov 2026 (2): category bars come from sc_reg_day (each category's peak per IST day and region, kept by every
   scan; backfilled once at start by scene.backfill_reg_day, kv reg_day_v1): /api/cats 5-11 s -> under 0.2 s.
   The region's first-reading time is remembered for an hour. Readers are autocommit (isolation_level=None) so a
