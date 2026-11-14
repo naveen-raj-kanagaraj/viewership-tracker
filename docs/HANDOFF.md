@@ -190,6 +190,16 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- GTA 6 launch (14 Nov 2026; owner launches the site with GTA 6, 19 Nov): scene.gta6_on() switches GTA 6 on by itself
+  at scene.GTA6_RELEASE (18 Nov 2026 10:00 UTC, an hour before New Zealand's midnight); GTA6_SHOW=1/0 in .env forces
+  it. From then the worldwide sweep runs every scan (scene.sweep_games, SWEEP_GAMES): every Twitch page of "Grand Theft
+  Auto VI" (up to 40,000 streams), Kick by viewers, newest and 16 languages, and 32 YouTube searches in the main
+  languages/countries with up to 6 pages each; all in their own threads (_SPOOL/_YPOOL) so the scan doesn't wait.
+  GTA 6 streams count from 1 viewer (MIN_VIEWERS/GLOBAL_MIN don't apply). Streams under SAMPLE_MIN (10) are not
+  written scan-by-scan to sc_samples (disk), but count in every total, daily peak and live list: pages read the latest
+  scan from memory (_SCANMEM). Twitch 429s wait for the reset. Load test: 30,000 GTA 6 streams per scan -> store 0.2 s,
+  live list 0.2 s per page build (cat_art / slug / section_of are now cached). GTA6_SWEEP=1 starts the sweep early
+  (a dry run on the pre-release category); GTA6_SWEEP=0 stops it.
 - 14 Nov 2026 (4): one card per event. A known league name (FFWS, CEGC, LoL Worlds, VCT, MPL ...) resolves to the
   edition on now (scene._canon: 'FFWS' -> 'FFWS Global Finals 2026'); readings already stored under the league name are
   merged onto it (scene.merge_aliases: per-scan totals added, channel rows merged; runs at start and after every

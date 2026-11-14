@@ -119,7 +119,7 @@ def _token(p):
 
 
 def _get(p, url, params):
-    for attempt in (0, 1):
+    for attempt in (0, 1, 2):
         h = {"Authorization": f"Bearer {_token(p)}"}
         if p == "twitch":
             h["Client-Id"] = _keys(p)[0]
@@ -127,6 +127,19 @@ def _get(p, url, params):
         if r.status_code == 401 and not attempt:
             _tok.pop(p, None)            # expired or revoked: fetch a new app token once
             continue
+        if r.status_code == 429 and attempt < 2:   # Twitch's per-minute budget: wait for its reset, then try again
+            try:
+                wait = float((getattr(r, "headers", None) or {}).get("Ratelimit-Reset") or 0) - time.time()
+            except ValueError:
+                wait = 2
+            time.sleep(min(15, max(1, wait)))
+            continue
+        if p == "twitch":                # nearly out of budget: slow down a little instead of being refused
+            try:
+                if int((getattr(r, "headers", None) or {}).get("Ratelimit-Remaining") or 999) < 40:
+                    time.sleep(1)
+            except ValueError:
+                pass
         if r.status_code >= 400:          # keep the platform's own reason in the error (shown by scene probe)
             raise RuntimeError(f"HTTP {r.status_code} from {url.split('/')[2]}: {r.text[:160]}")
         return r.json()

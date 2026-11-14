@@ -22,7 +22,7 @@ import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from tracker import events, platforms, store
 
@@ -45,19 +45,33 @@ INDIA_MARK = re.compile(r"[\u0900-\u0D7F]|\b(hindi|india|indian|desi|bharat|hing
                         r"marathi|bengali|bangla|punjabi|gujarati|odia|assamese|bgmi|bmps|bgis|bmsd|bmic|"
                         r"soulcity|mumbai|delhi|bangalore|bengaluru|hyderabad|chennai|kolkata|pune)\b", re.I)
 INDIA_CATS = {"kick": [x.strip() for x in os.getenv("SCENE_KICK_CATS", "PUBG Mobile,Free Fire,Grand Theft Auto V,"
-                                                   "Valorant,Just Chatting,Battlegrounds Mobile India" + (",Grand Theft Auto VI" if os.getenv("GTA6_SHOW", "0") == "1" else "")).split(",") if x.strip()],
+                                                   "Valorant,Just Chatting,Battlegrounds Mobile India").split(",") if x.strip()],
               "twitch": [x.strip() for x in os.getenv("SCENE_TWITCH_CATS", "PUBG MOBILE,Garena Free Fire,Grand Theft Auto V,"
-                                                     "VALORANT,Just Chatting,Battlegrounds Mobile India" + (",Grand Theft Auto VI" if os.getenv("GTA6_SHOW", "0") == "1" else "")).split(",") if x.strip()]}
-# GTA 6 is hidden everywhere until it releases (owner, 12 Nov 2026). Set GTA6_SHOW=1 in .env on release day.
-GTA6_SHOW = os.getenv("GTA6_SHOW", "0") == "1"
-HIDDEN_GAMES = set() if GTA6_SHOW else {"GTA 6", "Grand Theft Auto VI"}
+                                                     "VALORANT,Just Chatting,Battlegrounds Mobile India").split(",") if x.strip()]}
+# GTA 6: hidden until it releases (owner, 12 Nov 2026), then shown everywhere and swept worldwide (every stream on
+# Twitch, Kick and YouTube). It releases at midnight local time, first in New Zealand: 18 Nov 2026, 11:00 UTC.
+# GTA6_SHOW=1 shows it now, GTA6_SHOW=0 keeps it hidden; unset = automatic at release.
+GTA6_RELEASE = datetime(2026, 11, 18, 10, 0, tzinfo=timezone.utc).timestamp()   # an hour early: nobody is missed
+
+
+def gta6_on() -> bool:
+    v = os.getenv("GTA6_SHOW", "")
+    return v == "1" or (v != "0" and time.time() >= GTA6_RELEASE)
+
+
+GTA6_SHOW = gta6_on()                     # at start (old name, kept for callers)
+
+
+def _hidden() -> set:
+    return set() if gta6_on() else {"GTA 6", "Grand Theft Auto VI"}
 
 
 def shown(g) -> bool:
-    return (g if isinstance(g, str) else (g or {}).get("game")) not in HIDDEN_GAMES
+    return (g if isinstance(g, str) else (g or {}).get("game")) not in _hidden()
 
 
-PINNED = [g.strip() for g in os.getenv("SCENE_PINNED", "GTA 6" if GTA6_SHOW else "").split(",") if g.strip()]   # always first in Categories
+def pinned() -> list:                     # always first in Categories
+    return [g.strip() for g in os.getenv("SCENE_PINNED", "GTA 6" if gta6_on() else "").split(",") if g.strip()]
 
 
 # Titles in Chinese, Japanese, Korean, Thai, Arabic or Cyrillic script are not Indian streams even when the
@@ -215,6 +229,110 @@ def platform_global(p: str, errors: dict) -> list:
     return rows
 
 
+# ---------- worldwide sweep: every stream of a launch game ----------
+# For a game everyone streams at once (GTA 6 at release), the usual "biggest streams" reads would miss most of them.
+# The sweep reads the game's whole category on Twitch (every page) and Kick (by viewers, newest, and per language),
+# and YouTube searches in the main languages and countries with several pages each. Every stream with a viewer
+# counts, whatever its size or country.
+SWEEP_YT = [("GTA 6", "US", 6), ("GTA 6 live", "US", 6), ("GTA VI", "US", 4), ("Grand Theft Auto VI", "US", 3),
+            ("GTA 6 live", "IN", 5), ("GTA 6 live hindi", "IN", 4), ("GTA 6 live tamil", "IN", 2), ("GTA 6 live telugu", "IN", 2),
+            ("GTA 6 live bangla", "BD", 2), ("GTA 6 live", "PK", 2), ("GTA 6 en vivo", "MX", 4), ("GTA 6 en directo", "ES", 2),
+            ("GTA 6 en vivo", "AR", 2), ("GTA 6 ao vivo", "BR", 5), ("GTA 6 canlı", "TR", 3), ("GTA 6 стрим", "RU", 3),
+            ("GTA 6 live deutsch", "DE", 2), ("GTA 6 live français", "FR", 2), ("GTA 6 live italiano", "IT", 2),
+            ("GTA 6 live polska", "PL", 2), ("GTA 6 live", "ID", 3), ("GTA 6 live", "PH", 3), ("GTA 6 trực tiếp", "VN", 2),
+            ("GTA 6 ไลฟ์", "TH", 2), ("GTA 6 ライブ", "JP", 2), ("GTA 6 생방송", "KR", 2), ("GTA 6 بث مباشر", "SA", 2),
+            ("GTA 6 live", "GB", 3), ("GTA 6 live", "CA", 2), ("GTA 6 live", "AU", 2), ("GTA 6 live", "NG", 2), ("GTA 6 live", "EG", 2)]
+SWEEP_GAMES = {"GTA 6": {"twitch": ["Grand Theft Auto VI"], "kick": ["Grand Theft Auto VI", "GTA VI", "GTA 6"], "yt": SWEEP_YT}}
+SWEEP_TW_PAGES = int(os.getenv("SCENE_SWEEP_TW_PAGES", "400"))     # up to 40,000 Twitch streams of the game
+SWEEP_KICK_LANGS = ["en", "es", "pt", "tr", "ar", "ru", "de", "fr", "it", "pl", "id", "hi", "ja", "ko", "th", "vi"]
+_SWEEP = {"yt_cool": 0.0, "stats": {}}
+
+
+def sweep_games() -> list:
+    """Games being swept now: GTA 6 from its release (or GTA6_SWEEP=1)."""
+    on = os.getenv("GTA6_SWEEP", "") == "1" or (os.getenv("GTA6_SWEEP", "") != "0" and gta6_on() and time.time() >= GTA6_RELEASE)
+    return ["GTA 6"] if on else []
+
+
+def sweep_platform(p: str, game: str, errors: dict) -> list:
+    """Every live stream of the game on Twitch (all pages) or Kick (several orderings and languages)."""
+    cfg, rows = SWEEP_GAMES[game], []
+    if p == "twitch":
+        cid = next((c for c in (_category_id("twitch", n) for n in cfg["twitch"]) if c), "")
+        if not cid:
+            errors[f"sweep twitch {game}"] = "category not found"
+            return rows
+        after = None
+        for _ in range(SWEEP_TW_PAGES):
+            j = platforms._get("twitch", "https://api.twitch.tv/helix/streams", {"first": 100, "game_id": cid, **({"after": after} if after else {})})
+            d = j.get("data") or []
+            for s_ in d:
+                login = (s_.get("user_login") or "").lower()
+                rows.append({"vid": f"twitch:{login}", "channel": s_.get("user_name") or login, "title": s_.get("title") or "",
+                             "viewers": int(s_.get("viewer_count") or 0), "category": s_.get("game_name") or "",
+                             "language": s_.get("language") or ""})
+            after = (j.get("pagination") or {}).get("cursor")
+            if not after or not d:
+                break
+            time.sleep(0.05)
+    else:
+        if time.time() < _KICK_COOL[0]:
+            return rows
+        cids = [c for c in dict.fromkeys(_category_id("kick", n) for n in cfg["kick"]) if c]
+        for cid in cids:
+            for prm in [{}, {"sort": "started_at"}] + [{"language": lg} for lg in SWEEP_KICK_LANGS]:
+                try:
+                    rows += _kick_live({"category_id": cid, **prm})
+                    time.sleep(0.35)
+                except Exception as e:
+                    if "429" in str(e):
+                        _KICK_COOL[0] = time.time() + 300
+                        errors["sweep kick"] = "Kick rate limit: sweep resumes in 5 minutes"
+                        return rows
+                    errors[f"sweep kick {prm}"] = str(e)[:80]
+    _SWEEP["stats"][f"{p}:{game}"] = (time.time(), len(rows))
+    return rows
+
+
+def yt_search_pages(query: str, gl: str, pages: int) -> list:
+    """A live search and its next pages (each about 20 streams)."""
+    hdr = {"User-Agent": events._UA, "Content-Type": "application/json", "Origin": "https://www.youtube.com"}
+    r = events._http.post("https://www.youtube.com/youtubei/v1/search?prettyPrint=false",
+                          json={"context": {"client": _itv(gl)}, "query": query, "params": _SEARCH_LIVE}, headers=hdr, timeout=10)
+    r.raise_for_status()
+    j = r.json()
+    items = _renderers(j)
+    for _ in range(pages - 1):
+        tok = _continuation(j)
+        if not tok:
+            break
+        r = events._http.post("https://www.youtube.com/youtubei/v1/search?prettyPrint=false",
+                              json={"context": {"client": _itv(gl)}, "continuation": tok}, headers=hdr, timeout=10)
+        if r.status_code >= 400:
+            break
+        j = r.json()
+        got = _renderers(j)
+        if not got:
+            break
+        items += got
+    return _parse(items)
+
+
+def sweep_youtube(game: str, errors: dict) -> list:
+    """YouTube: the game's searches in the main languages and countries, several pages each, in parallel."""
+    if time.time() < _SWEEP["yt_cool"]:
+        return []
+    jobs = SWEEP_GAMES[game]["yt"]
+    res = list(_YPOOL.map(lambda a: _try(yt_search_pages, *a), jobs))
+    bad = sum(1 for r_ in res if r_ == "err")
+    if bad > len(jobs) // 2:                  # YouTube is refusing: rest 5 minutes rather than get blocked
+        _SWEEP["yt_cool"] = time.time() + 300
+        errors[f"sweep youtube {game}"] = f"{bad}/{len(jobs)} searches failed; resting 5 minutes"
+    out = [s_ for r_ in res if r_ != "err" for s_ in r_]
+    _SWEEP["stats"][f"youtube:{game}"] = (time.time(), len(out))
+    return out
+
+
 def platform_india(p: str, errors: dict) -> list:
     """Indian live streams on Kick or Twitch: the India languages, plus the top streams overall and in the main
     Indian categories whose language or title marks them as Indian."""
@@ -229,7 +347,7 @@ def platform_india(p: str, errors: dict) -> list:
         wide += get({})
     except Exception as e:
         errors[f"{p} top streams"] = str(e)[:120]
-    for name in INDIA_CATS[p]:
+    for name in INDIA_CATS[p] + (["Grand Theft Auto VI"] if gta6_on() else []):
         try:
             cid = _category_id(p, name)
             if cid:
@@ -250,7 +368,8 @@ GAMES = [
     ("Rocket League", ["rocket league", "rlcs"]),
     ("Overwatch 2", ["overwatch", "owcs"]),
     ("Free Fire", ["free fire", "freefire", "ff max", "garena"]),
-    ("GTA 6", ["gta 6", "gta6", "gta vi ", "gta vi:", "gta vi|", "grand theft auto vi", "grand theft auto 6"]),  # before GTA V
+    ("GTA 6", ["gta 6", "gta6", "gta vi ", "gta vi:", "gta vi|", "gta vi!", "gta vi,", "gta vi.", "gta vi-", "gta vi)",
+               "#gtavi ", "grand theft auto vi", "grand theft auto 6"]),  # before GTA V
     ("GTA V", ["gta", "grand theft auto", "soulcity", "soul city rp"]),
     ("Valorant", ["valorant", "valo "]),
     ("Minecraft", ["minecraft"]),
@@ -512,6 +631,10 @@ _LIVE = {}            # sid -> {"sid","platform","name","url","logo","game","tit
 _STATE = {"last": 0.0, "yt": 0.0, "seeds": 0.0, "errors": {}, "running": False}
 _lock = threading.Lock()
 _pool = ThreadPoolExecutor(max_workers=8)
+_YPOOL = ThreadPoolExecutor(max_workers=6)   # sweep searches on YouTube
+_SCANMEM = {"ts": 0, "rows": None}        # the latest scan, as stored (pages read it from here, not the database)
+SAMPLE_MIN = int(os.getenv("SCENE_SAMPLE_MIN", "10"))   # swept streams below this aren't written to the per-scan table
+_SPOOL = ThreadPoolExecutor(max_workers=4)   # the launch-game sweep (its own threads, so scans don't wait)
 
 
 
@@ -624,6 +747,7 @@ def _move_game(c, sid: str, old: str, new: str):
     c.execute("UPDATE sc_channels SET game=? WHERE sid=? AND game=?", (new, sid, old))
 
 
+@functools.lru_cache(maxsize=100000)
 def slug(game: str) -> str:
     """URL name of a category: 'Free Fire' -> 'free-fire'."""
     return re.sub(r"[^a-z0-9]+", "-", (game or "").lower()).strip("-") or "other"
@@ -644,6 +768,7 @@ _SEC_WORDS = [("irl", ("irl", "travel", "outdoor", "food", "cooking", "vlog")), 
               ("news", ("news", "politic")), ("other", ("slots", "casino", "pools", "asmr", "art", "special events"))]
 
 
+@functools.lru_cache(maxsize=100000)
 def section_of(game: str, tour=None) -> str:
     if game == "Cricket" or "cricket" in (game or "").lower():
         return "sports"                  # never Gaming or Esports, even inside a tournament
@@ -706,7 +831,22 @@ def resolve_art(game: str):
     return "", "none"
 
 
+_ARTC = {}
+
+
 def cat_art(game: str) -> str:
+    """Cover art URL for a game or platform category, remembered for 10 minutes (pages ask for it once per stream)."""
+    hit = _ARTC.get(game)
+    if hit and time.time() - hit[1] < 600:
+        return hit[0]
+    v = _cat_art(game)
+    if len(_ARTC) > 20000:
+        _ARTC.clear()
+    _ARTC[game] = (v, time.time() if v and not v.startswith("/caticon/") else time.time() - 540)   # no art yet: ask again in a minute
+    return v
+
+
+def _cat_art(game: str) -> str:
     """Cover art URL for a game or platform category (cached; looked up in the background the first time)."""
     from tracker import caticon
     fb = caticon.url(section_of(game)) if game else ""      # icon tile, never initials
@@ -748,11 +888,11 @@ def classify(category: str, title: str) -> str:
     if cat:
         for g, words in GAMES:
             if any(w in cat for w in words):
-                return g if g not in HIDDEN_GAMES else "Other"      # GTA VI category before release: reaction streams
+                return g if g not in _hidden() else "Other"      # GTA VI category before release: reaction streams
         return category.strip()[:40]        # the platform's own category name
     t = f" {(title or '').lower()} "
     for g, words in GAMES:
-        if g in HIDDEN_GAMES:
+        if g in _hidden():
             continue                        # "GTA 6 soon" titles before release are GTA V
         if any(w in t for w in words):
             return g
@@ -997,6 +1137,9 @@ def cycle(now: float = None) -> dict:
     found, errors = {}, {}
     blk = blocked()
     sd = seeds()
+    sw_jobs = [(p_, g_, _SPOOL.submit(sweep_platform, p_, g_, errors)) for g_ in sweep_games()
+               for p_ in ("twitch", "kick") if platforms._keys(p_)] + \
+              [("youtube", g_, _SPOOL.submit(sweep_youtube, g_, errors)) for g_ in sweep_games()]   # in parallel
 
     # Kick / Twitch: the whole language, plus hand-added channels
     for p in ("kick", "twitch"):
@@ -1056,6 +1199,29 @@ def cycle(now: float = None) -> dict:
             for s in res:
                 if f"yt:{s['channel_id']}" not in found or s["vid"] not in found[f"yt:{s['channel_id']}"]["streams"]:
                     _yt_add(found, s)
+    for p_, g_, fu in sw_jobs:               # the launch-game sweep, read in parallel with all of the above
+        try:
+            got = fu.result(timeout=SCENE_SEC)
+        except Exception as e:
+            errors[f"sweep {p_} {g_}"] = str(e)[:100]
+            continue
+        if p_ == "youtube":
+            for s_ in got:
+                if f"yt:{s_['channel_id']}" not in found or s_["vid"] not in found[f"yt:{s_['channel_id']}"]["streams"]:
+                    _yt_add(found, s_)
+            continue
+        if p_ == "twitch":                   # pictures for the bigger ones only (one call per 100 channels)
+            try:
+                platforms._tw_logos(sorted({platforms.split(r["vid"])[1] for r in sorted(got, key=lambda r: -r["viewers"])[:1000]}))
+            except Exception:
+                pass
+        for r in sorted(got, key=lambda r: r["viewers"]):
+            sid = r["vid"]
+            if sid in found and found[sid]["streams"].get(sid, 0) >= r["viewers"]:
+                continue
+            found[sid] = {"sid": sid, "platform": p_, "name": r["channel"], "url": platforms.link(sid),
+                          "logo": platforms.logo(sid), "title": r["title"], "category": r.get("category", ""),
+                          "streams": {sid: r["viewers"]}, "language": r.get("language", ""), "seeded": False}
     if now - _STATE.get("watch", 0) >= WATCH_SEC:
         _STATE["watch"] = now
         try:
@@ -1078,15 +1244,17 @@ def cycle(now: float = None) -> dict:
         except Exception as e:
             errors["youtube country lookup"] = str(e)[:120]
     allow = allowed() | _SEEDED
+    sweeping = set(sweep_games())             # every stream of these counts, however small
     # classify, filter, store
     rows, rejected = [], []
     for sid, x in found.items():
         x["viewers"] = sum(x["streams"].values())
-        if sid in blk or x["viewers"] < MIN_VIEWERS:
+        swept = bool(sweeping) and classify(x.get("category", ""), x.get("title", "")) in sweeping
+        if sid in blk or x["viewers"] < (1 if swept else MIN_VIEWERS):
             continue
         x["country"] = _CTRY.get(sid[3:]) if sid.startswith("yt:") else None
         x["india"] = verdict(x, x["country"], allow)
-        if not x["india"] and x["viewers"] < GLOBAL_MIN:
+        if not x["india"] and x["viewers"] < GLOBAL_MIN and not swept:
             rejected.append(x)                # too small to matter worldwide; remembered so it isn't looked up again
             continue
         x["game"] = classify(x.get("category", ""), x.get("title", ""))
@@ -1103,6 +1271,11 @@ def cycle(now: float = None) -> dict:
             x["logo"] = events.avatar(sid[3:]) if x["platform"] == "youtube" else platforms.logo(sid)
         x["seen"] = now
         rows.append(x)
+    _SCANMEM.update(ts=int(now), rows=[{"sid": x["sid"], "viewers": x["viewers"], "game": x["game"], "platform": x["platform"],
+                                        "name": x["name"], "url": x["url"], "logo": x.get("logo") or "", "title": x.get("title", ""),
+                                        "country": x.get("country"), "language": x.get("language") or "",
+                                        "india": 1 if x.get("india", True) else 0, "tour": x.get("tour"),
+                                        "section": section_of(x["game"], x.get("tour"))} for x in rows])
     with _lock:
         last = _STATE["last"]
         _LIVE.clear()
@@ -1150,22 +1323,23 @@ def _store(rows, now, last):
     _VPEAK.clear()
     with store._lock:
         c = _db()
-        c.executemany("INSERT INTO sc_samples VALUES (?,?,?,?)", [(int(now), x["sid"], x["viewers"], x["game"]) for x in rows])
-        for x in rows:
-            c.execute("""INSERT INTO sc_channels (sid, platform, name, url, logo, first_seen, last_live, title, game,
+        sw = set(sweep_games())               # a launch game's thousands of tiny streams: counted everywhere (totals, daily
+        c.executemany("INSERT INTO sc_samples VALUES (?,?,?,?)",          # peaks, live lists) but not kept scan by scan
+                      [(int(now), x["sid"], x["viewers"], x["game"]) for x in rows if x["viewers"] >= SAMPLE_MIN or x["game"] not in sw])
+        c.executemany("""INSERT INTO sc_channels (sid, platform, name, url, logo, first_seen, last_live, title, game,
                          country, india, language) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(sid) DO UPDATE SET
                          name=excluded.name, url=excluded.url,
                          logo=CASE WHEN excluded.logo!='' THEN excluded.logo ELSE sc_channels.logo END,
                          last_live=excluded.last_live, title=excluded.title, game=excluded.game,
                          country=COALESCE(excluded.country, sc_channels.country), india=excluded.india,
                          language=excluded.language""",
-                      (x["sid"], x["platform"], x["name"], x["url"], x.get("logo") or "", now, now, x.get("title", ""),
-                       x["game"], x.get("country"), 1 if x.get("india", True) else 0, x.get("language") or ""))
-            c.execute("""INSERT INTO sc_daily VALUES (?,?,?,?,?,?,?) ON CONFLICT(day, sid, game) DO UPDATE SET
+                      [(x["sid"], x["platform"], x["name"], x["url"], x.get("logo") or "", now, now, x.get("title", ""),
+                        x["game"], x.get("country"), 1 if x.get("india", True) else 0, x.get("language") or "") for x in rows])
+        c.executemany("""INSERT INTO sc_daily VALUES (?,?,?,?,?,?,?) ON CONFLICT(day, sid, game) DO UPDATE SET
                          peak_at=CASE WHEN excluded.peak > sc_daily.peak THEN excluded.peak_at ELSE sc_daily.peak_at END,
                          peak=MAX(sc_daily.peak, excluded.peak), mins=sc_daily.mins+excluded.mins, hw=sc_daily.hw+excluded.hw""",
-                      (day, x["sid"], x["game"], max(x["viewers"], fpk.get(x["sid"], 0)), int(now), dt / 60,
-                       x["viewers"] * dt / 3600))
+                      [(day, x["sid"], x["game"], max(x["viewers"], fpk.get(x["sid"], 0)), int(now), dt / 60,
+                        x["viewers"] * dt / 3600) for x in rows])
         for x in rows:                        # each YouTube stream on its own: peak CCV, hours watched, duration
             if not x["sid"].startswith("yt:"):
                 continue
@@ -1602,9 +1776,15 @@ def _live_part(game=None, region: str = "in", sec: str = "") -> dict:
     """Who is live now in a region (and section or game): the latest scan (read from the database once per scan) with
     Kick/Twitch viewers replaced by the 2-second readings when they're fresh."""
     blk = blocked()
+    mem = _SCANMEM.get("rows")
     with store.reading():
         c = _db()
-        last = (c.execute("SELECT MAX(ts) FROM sc_samples").fetchone()[0] or 0)
+        last = _SCANMEM["ts"] if mem else (c.execute("SELECT MAX(ts) FROM sc_samples").fetchone()[0] or 0)
+        if _SCAN["ts"] != last and mem:       # the scan this process just made: straight from memory (every stream,
+            _SCAN["rows"] = sorted((dict(r) for r in mem), key=lambda r: -r["viewers"])     # small ones included)
+            day = datetime.now(events.REPORT_TZ).strftime("%Y-%m-%d")
+            _SCAN["peak"] = dict(c.execute("SELECT sid, MAX(peak) FROM sc_daily WHERE day=? GROUP BY sid", (day,)).fetchall())
+            _SCAN["ts"] = last
         if _SCAN["ts"] != last:
             _SCAN["rows"] = [dict(r) for r in c.execute(
                 """SELECT s.sid, s.viewers, s.game, c.platform, c.name, c.url, c.logo, c.title, c.country, c.language,
@@ -2313,7 +2493,7 @@ def categories(region: str = "global", limit: int = 60, rng: str = "1m") -> dict
                      "h48": [s48.get(g, {}).get(h, 0) for h in range(h0, h0 + 49)],
                      "d30": [s30.get(g, {}).get(k, 0) for k in range(nb)],
                      "peak30": max(s30.get(g, {}).values(), default=x["viewers"]), "hw30": round(hw.get(g) or 0)})
-    for p in reversed(PINNED):            # pinned categories on top, even before their first live stream
+    for p in reversed(pinned()):            # pinned categories on top, even before their first live stream
         hit = next((r for r in rows if r["game"] == p), None)
         if hit:
             rows.remove(hit)
