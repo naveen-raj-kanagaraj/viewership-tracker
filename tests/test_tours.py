@@ -82,4 +82,23 @@ with store.reading():
         assert "readonly" in str(e)
     with store._lock:
         store.kv_set("x", 1)
+# category bars from each day's stored peak give the same answer as from the raw totals
+a_ = scene.categories("global", 60, "1m")
+scene.backfill_reg_day()
+b_ = scene.categories("global", 60, "1m")
+assert [(r["game"], r["d30"], r["peak30"]) for r in a_["rows"]] == [(r["game"], r["d30"], r["peak30"]) for r in b_["rows"]]
+assert scene._REGDAY_OK.get(store.DB_PATH)
+
+# PIC Day 1 from the channel's own readings
+from datetime import datetime as _dt
+from tracker import events
+t = int(_dt(2026, 11, 12, 19, 37, tzinfo=events.REPORT_TZ).timestamp())
+with store._lock:
+    c_ = scene._db()
+    c_.executemany("INSERT INTO sc_samples VALUES (?,?,?,?)", [(t - 120, "yt:UCugG6-k5QGbq_iDEPAnG4NQ", 16000, "PUBG: Battlegrounds"),
+                                                               (t, "yt:UCugG6-k5QGbq_iDEPAnG4NQ", 17448, "PUBG: Battlegrounds")])
+    c_.commit()
+events.get = lambda k=None: {"key": "pic"}
+events.backfill_pic_day1()
+assert events._db().execute("SELECT MAX(total) FROM ev_ticks WHERE event='pic'").fetchone()[0] == 17448
 print("TOURS OK")

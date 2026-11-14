@@ -202,6 +202,34 @@ def _schema(c):
 _CLEANED = [False]
 
 
+def backfill_pic_day1():
+    """PIC 2026 tracking began on Day 2 (13 Nov). Day 1 (12 Nov, 6 pm to 11 pm IST) is added once from the site's own
+    readings of KRAFTON INDIA ESPORTS (all its streams together, every 2 minutes, kept 3 days), so the tournament peak
+    and day-by-day include it. Watch parties weren't followed that day, so it is official streams only."""
+    if store.kv_get("pic_day1_v1") or not get("pic"):
+        return
+    t0 = int(datetime(2026, 11, 12, 17, 0, tzinfo=REPORT_TZ).timestamp())
+    t1 = int(datetime(2026, 11, 13, 1, 0, tzinfo=REPORT_TZ).timestamp())
+    try:
+        from tracker import scene
+        with store.reading():
+            have = _db().execute("SELECT COUNT(*) FROM ev_ticks WHERE event='pic' AND ts BETWEEN ? AND ?", (t0, t1)).fetchone()[0]
+            rows = scene._db().execute("""SELECT ts, MAX(viewers) FROM sc_samples WHERE sid='yt:UCugG6-k5QGbq_iDEPAnG4NQ'
+                                          AND ts BETWEEN ? AND ? AND viewers>0 GROUP BY ts ORDER BY ts""", (t0, t1)).fetchall()
+        if have or not rows:
+            if have:
+                store.kv_set("pic_day1_v1", True)
+            return
+        with store._lock:
+            c = _db()
+            c.executemany("INSERT OR IGNORE INTO ev_ticks VALUES ('pic',?,?,?,?,0,0)", [(ts, v, 3, v) for ts, v in rows])
+            c.commit()
+        store.kv_set("pic_day1_v1", True)
+        print(f"PIC 2026 Day 1: {len(rows)} readings added, peak {max(v for _, v in rows)}")
+    except Exception as e:
+        print(f"PIC Day 1: {str(e)[:120]}")
+
+
 def events() -> dict:
     evs = store.kv_get("events", {})
     for k, ev in evs.items():  # events created before a preset gained new fields get them

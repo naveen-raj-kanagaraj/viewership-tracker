@@ -481,6 +481,7 @@ def _schema(c):
         peak INTEGER, peak_at INTEGER, hw REAL, n INTEGER);
     CREATE INDEX IF NOT EXISTS sc_vstreams_sid ON sc_vstreams(sid, first_ts);
     CREATE INDEX IF NOT EXISTS sc_samples_ix ON sc_samples(ts);
+    CREATE TABLE IF NOT EXISTS sc_reg_day (region TEXT, game TEXT, day TEXT, peak INTEGER, PRIMARY KEY (region, game, day));
     CREATE TABLE IF NOT EXISTS sc_tour_ch (tour TEXT, sid TEXT, day TEXT, peak INTEGER, peak_at INTEGER, mins REAL,
         hw REAL, india INTEGER, PRIMARY KEY (tour, sid, day));
     CREATE INDEX IF NOT EXISTS sc_tour_ch_day ON sc_tour_ch(day);
@@ -1142,6 +1143,10 @@ def _store(rows, now, last):
         reg += [("sec:in", t, v, n) for t, (v, n) in totals(ind, "section").items()]
         reg += [("tour:in", t, v, n) for t, (v, n) in totals(ind, "tour").items()]
         c.executemany("INSERT OR REPLACE INTO sc_reg VALUES (?,?,?,?,?)", [(int(now), *r_) for r_ in reg])
+        c.executemany("""INSERT INTO sc_reg_day VALUES (?,?,?,?) ON CONFLICT(region, game, day) DO UPDATE SET
+                         peak=MAX(sc_reg_day.peak, excluded.peak)""",      # each day's peak: the category page's bars
+                      [(r_[0], r_[1], day, r_[2]) for r_ in reg if r_[0] == "global"] +
+                      [("in", g, day, v) for g, (v, n) in cats.items()])
         for x in rows:                        # each channel's part in each tournament, per day
             if x.get("tour"):
                 c.execute("""INSERT INTO sc_tour_ch VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(tour, sid, day) DO UPDATE SET
@@ -2129,6 +2134,44 @@ def _daily(c, tbl, w, a, key, days: int = 30) -> list:
 CAT_RANGES = {"24h": -1, "7d": 7, "1m": 30, "3m": 91, "6m": 182, "ytd": None, "1y": 365, "all": 0}
 
 
+_FIRST = {}
+_REGDAY_OK = {}
+
+
+def _first_ts(c, tbl, w, a, now):
+    """When the region's records begin (a scan of the whole table, so remembered for an hour)."""
+    k = (store.DB_PATH, tbl, a)
+    hit = _FIRST.get(k)
+    if hit and time.time() - hit[1] < 3600:
+        return hit[0]
+    v = c.execute(f"SELECT MIN(ts) FROM {tbl} WHERE 1=1{w}", a).fetchone()[0] or now
+    _FIRST[k] = (v, time.time())
+    return v
+
+
+def backfill_reg_day():
+    """Once: each day's peak per category from the per-scan totals already stored (sc_reg_day is then kept up by
+    every scan). Runs in the background at start; until it finishes the category page reads the raw totals."""
+    if store.kv_get("reg_day_v1"):
+        _REGDAY_OK[store.DB_PATH] = True
+        return
+    try:
+        for region, tbl, w, a in (("global", "sc_reg", " AND region=?", ("global",)), ("in", "sc_cat", "", ())):
+            with store.reading():
+                rows = _db().execute(f"""SELECT game, date(ts + 19800, 'unixepoch') d, MAX(viewers) FROM {tbl}
+                                         WHERE 1=1{w} GROUP BY game, d""", a).fetchall()
+            with store._lock:
+                c = _db()
+                c.executemany("""INSERT INTO sc_reg_day VALUES (?,?,?,?) ON CONFLICT(region, game, day) DO UPDATE SET
+                                 peak=MAX(sc_reg_day.peak, excluded.peak)""", [(region, g, d, v) for g, d, v in rows])
+                c.commit()
+        store.kv_set("reg_day_v1", True)
+        _REGDAY_OK[store.DB_PATH] = True
+        print("Category daily peaks: filled in")
+    except Exception as e:
+        print(f"Category daily peaks: {str(e)[:120]}")
+
+
 def categories(region: str = "global", limit: int = 60, rng: str = "1m") -> dict:
     """Games and categories like a player-count chart: watching now, change against 24 hours earlier, the last 48
     hours, daily peaks for 30 days, 30-day peak and hours watched. Trending = biggest rise in 24 hours among
@@ -2145,7 +2188,7 @@ def categories(region: str = "global", limit: int = 60, rng: str = "1m") -> dict
     q = ",".join("?" * len(names)) or "NULL"
     with store.reading():
         c = _db()
-        first = c.execute(f"SELECT MIN(ts) FROM {tbl} WHERE 1=1{w}", a).fetchone()[0] or now
+        first = _first_ts(c, tbl, w, a, now)
         n = CAT_RANGES[rng]
         start_day = (date(today.year, 1, 1) if n is None else today - timedelta(days=n - 1) if n else
                      datetime.fromtimestamp(first, events.REPORT_TZ).date())
@@ -2161,8 +2204,17 @@ def categories(region: str = "global", limit: int = 60, rng: str = "1m") -> dict
                              (now - 86400 - 900, now - 86400 + 900, *a, *names)).fetchall())
         h48 = c.execute(f"SELECT game, CAST(ts/3600 AS INT) h, MAX(viewers) FROM {tbl} WHERE ts>=?{w} AND game IN ({q}) GROUP BY game, h",
                         (now - 48 * 3600, *a, *names)).fetchall()
-        d = c.execute(f"SELECT game, CAST((ts-?)/? AS INT) dd, MAX(viewers) FROM {tbl} WHERE ts>=?{w} AND game IN ({q}) GROUP BY game, dd",
-                      (t30, span, t30, *a, *names)).fetchall()
+        if n == -1 or not _REGDAY_OK.get(store.DB_PATH):
+            d = c.execute(f"SELECT game, CAST((ts-?)/? AS INT) dd, MAX(viewers) FROM {tbl} WHERE ts>=?{w} AND game IN ({q}) GROUP BY game, dd",
+                          (t30, span, t30, *a, *names)).fetchall()
+        else:                                        # from each day's stored peak: 30 rows a game instead of 21,600
+            dk = {}
+            for g_, dy, v in c.execute(f"SELECT game, day, peak FROM sc_reg_day WHERE region=? AND day>=? AND game IN ({q})",
+                                       (region, d30, *names)):
+                k_ = ((date.fromisoformat(dy) - start_day).days) // max(bd, 1)
+                if v > dk.get((g_, k_), -1):
+                    dk[(g_, k_)] = v
+            d = [(g_, k_, v) for (g_, k_), v in dk.items()]
         hwq = """SELECT d.game, SUM(d.hw) FROM sc_daily d""" + (" JOIN sc_channels c ON c.sid=d.sid AND COALESCE(c.india,0)=1" if region == "in" else "")
         if n == -1:                                  # hours watched in 24 h: each reading stands for one scan interval
             hw = dict(c.execute(f"SELECT game, SUM(viewers) * {SCENE_SEC} / 3600.0 FROM {tbl} WHERE ts>=?{w} AND game IN ({q}) GROUP BY game",

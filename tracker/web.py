@@ -1324,6 +1324,12 @@ def run():
     print(f"Event dashboard: http://localhost:{PORT}")
     _memo_load()
     threading.Thread(target=_memo_save, daemon=True).start()
+    def once():
+        from tracker import events as ev_, scene as sc_
+        time.sleep(20)
+        ev_.backfill_pic_day1()
+        sc_.backfill_reg_day()
+    threading.Thread(target=once, daemon=True).start()
     threading.Thread(target=_warm_forever, daemon=True).start()
     threading.Thread(target=_warm_more, daemon=True).start()
     try:

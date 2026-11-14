@@ -601,9 +601,28 @@ def _since(n: int) -> str:
     return (datetime.now(events.REPORT_TZ).date() - timedelta(days=n - 1)).strftime("%Y-%m-%d") if n else ""
 
 
+_STAT_BUSY = set()
+
+
+def _first_stats(sid: str):
+    try:
+        got = _sane(channel_stats([sid[3:]]))
+        if got:
+            (s_, v_, n_), now = next(iter(got.values())), int(time.time())
+            with store._lock:
+                c = _db()
+                c.execute("INSERT OR REPLACE INTO sc_chstats VALUES (?,?,?,?,?,?)", (_day(), sid, s_, v_, n_, now))
+                c.execute("INSERT OR IGNORE INTO sc_intra VALUES (?,?,?,?)", (sid, now, s_, v_))
+                c.commit()
+    except Exception as e:
+        print(f"Stats of {sid}: {str(e)[:100]}")
+    finally:
+        _STAT_BUSY.discard(sid)
+
+
 def channel_extra(sid: str) -> dict:
     """Super Chats (today / 7 / 30 days / all time, biggest ones) and channel stats (latest, gains) for one channel."""
-    with store._lock:
+    with store.reading():
         c = _db()
         sc = {}
         for k, n in (("today", 1), ("7d", 7), ("30d", 30), ("all", 0)):
@@ -615,7 +634,10 @@ def channel_extra(sid: str) -> dict:
                                              WHERE sid=? AND day>=? AND kind IN ('superchat','sticker') ORDER BY usd DESC LIMIT 5""",
                                           (sid, _since(30)))]
         st = [dict(r) for r in c.execute("SELECT day, subs, views, videos FROM sc_chstats WHERE sid=? ORDER BY day DESC LIMIT 31", (sid,))]
-    if not st and sid.startswith("yt:"):     # never read yet: read it now (1 API unit, or the free about page)
+    if not st and sid.startswith("yt:") and sid not in _STAT_BUSY:   # never read yet: read it in the background (the
+        _STAT_BUSY.add(sid)                                            # page doesn't wait; it shows on the next load)
+        threading.Thread(target=_first_stats, args=(sid,), daemon=True).start()
+    if False:
         try:
             got = _sane(channel_stats([sid[3:]]))
             if got:
