@@ -653,7 +653,7 @@ def build_html(cat: str = "", cat_name: str = "", region: str = "in", sec: str =
                   '.evt{position:absolute;left:0;right:0;bottom:0;padding:22px 14px 12px;background:linear-gradient(transparent,rgba(0,0,0,.85));display:flex;flex-direction:column}'
                   '.evt b{font:700 24px "Barlow Condensed",sans-serif;letter-spacing:.04em}.evt span{font-size:14px;color:#e6e6ee}'
                   '@media(max-width:640px){.evb{aspect-ratio:16/9}}</style>')
-    return (PAGE.replace("__G6__", "true" if __import__("tracker").scene.GTA6_SHOW else "false").replace("__EVBANNER__", banner).replace("__QS__", qs).replace("__PANEL_JS__", PANEL_JS).replace("__PANEL_CSS__", PANEL_CSS).replace("__TITLE__", html.escape(title)).replace("__DESC__", html.escape(desc))
+    return (PAGE.replace("__G6__", "true" if __import__("tracker").scene.gta6_on() else "false").replace("__EVBANNER__", banner).replace("__QS__", qs).replace("__PANEL_JS__", PANEL_JS).replace("__PANEL_CSS__", PANEL_CSS).replace("__TITLE__", html.escape(title)).replace("__DESC__", html.escape(desc))
                 .replace("__CATNAME__", json.dumps(cat_name)).replace("__CAT__", json.dumps(cat))
                 .replace("__SEC__", json.dumps(sec)).replace("__REGION__", json.dumps(region))
                 .replace("__SECTIONS__", json.dumps(scene.SECTIONS)).replace("__ALLG__", json.dumps([{"game": g, "slug": scene.slug(g)} for g, _ in scene.GAMES if scene.shown(g)])).replace("__TOPICS__", json.dumps(__import__("tracker.ytextra", fromlist=["x"]).CATEGORIES)).replace("__HOME__", home)

@@ -1267,7 +1267,7 @@ WARM = ["/global", "/india", "/api/cats?region=global&range=24h", "/api/cats?reg
         "/api/topch?platform=youtube&metric=views_7d", "/api/topch?platform=youtube&metric=views_7d&country=IN",
         "/api/topch?platform=twitch&metric=subs_7d&country=IN", "/api/topch?platform=kick&metric=subs_7d&country=IN"] + (
         ["/global/c/gta-6", "/india/c/gta-6", "/api/scene?region=global&cat=gta-6&period=today", "/api/scene?region=in&cat=gta-6&period=today"]
-        if os.getenv("GTA6_SHOW", "0") == "1" else [])
+        if __import__("tracker.scene", fromlist=["x"]).gta6_on() else [])
 
 
 def _warm_more():
