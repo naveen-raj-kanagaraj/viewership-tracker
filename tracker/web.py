@@ -511,7 +511,7 @@ def kit_page(sid):
     from tracker import kit, scene
     if not _sid_ok(sid):
         return Response("Not found", status=404, mimetype="text/plain")
-    with __import__("tracker").store._lock:
+    with __import__("tracker").store.reading():
         row = scene._db().execute("SELECT name FROM sc_channels WHERE sid=?", (sid,)).fetchone()
     if not row:
         return Response("Not found", status=404, mimetype="text/plain")
@@ -625,7 +625,7 @@ def api_deep():
 
     def build():
         perf = deep.performance(sid)
-        with __import__("tracker").store._lock:
+        with __import__("tracker").store.reading():
             vids = {r[0]: dict(r) for r in deep._db().execute(
                 "SELECT vid, title, ts, views, likes, comments FROM yt_videos WHERE sid=? AND ts>?", (sid, time.time() - 90 * 86400))}
         best = sorted(((v, p) for v, p in perf.items() if v in vids), key=lambda x: -x[1])[:5]
@@ -646,7 +646,7 @@ def scene_channel():
             return scene.channel(sid)
         except Exception as e:                # never leave the page on "Loading...": send what the database has
             print(f"Channel {sid}: {str(e)[:150]}")
-            with __import__("tracker").store._lock:
+            with __import__("tracker").store.reading():
                 r = scene._db().execute("SELECT sid, platform, name, url, logo, title, game FROM sc_channels WHERE sid=?", (sid,)).fetchone()
             return {**dict(r), "now": 0, "periods": {}, "days": [], "recent": [], "ranks": [], "linked": []} if r else {}
     return _memo(f"/api/channel:{sid}", 15, _jdump(build), "application/json")
@@ -739,7 +739,7 @@ def scene_lookup():
     def build():
         res = ytextra.lookup(q)
         allsids = [x["sid"] for L in res.values() for x in L]
-        with __import__("tracker").store._lock:
+        with __import__("tracker").store.reading():
             known = {r[0] for r in scene._db().execute(
                 f"SELECT sid FROM sc_channels WHERE sid IN ({','.join('?' * len(allsids)) or 'NULL'})", allsids)}
         try:
@@ -763,7 +763,7 @@ def scene_ytsearch():
             res = ytextra.yt_channel_search(q)
         except Exception as e:
             return {"channels": [], "error": str(e)[:80]}
-        with __import__("tracker").store._lock:
+        with __import__("tracker").store.reading():
             known = {r[0] for r in scene._db().execute(
                 f"SELECT sid FROM sc_channels WHERE sid IN ({','.join('?' * len(res)) or 'NULL'})", [x["sid"] for x in res])}
         return {"channels": [{**x, "known": x["sid"] in known} for x in res]}
@@ -920,10 +920,10 @@ def _ch_page(sid, region):
     if not __import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid or ""):
         return Response("Not found", status=404, mimetype="text/plain")
     from tracker import ytextra
-    with __import__("tracker").store._lock:
+    with __import__("tracker").store.reading():
         row = scene._db().execute("SELECT name FROM sc_channels WHERE sid=?", (sid,)).fetchone()
     if not row and ytextra.ensure_any(sid):           # a channel found through YouTube / Twitch / Kick lookup
-        with __import__("tracker").store._lock:
+        with __import__("tracker").store.reading():
             row = scene._db().execute("SELECT name FROM sc_channels WHERE sid=?", (sid,)).fetchone()
     if not row:
         return Response("Not found", status=404, mimetype="text/plain")

@@ -13,7 +13,9 @@ table is created by the module that uses it:
 import json
 import os
 import sqlite3
+import sys
 import threading
+import time
 from datetime import datetime, timezone
 
 DB_PATH = os.getenv("TRACKER_DB", os.path.join("data", "tracker.db"))
@@ -32,10 +34,17 @@ class _Lock:
         ok = self._l.acquire(*a, **k)
         if ok:
             _tl.held = getattr(_tl, "held", 0) + 1
+            if _tl.held == 1:
+                f = sys._getframe(2) if hasattr(sys, "_getframe") else None
+                _tl.since = (time.time(), f"{os.path.basename(f.f_code.co_filename)}:{f.f_lineno} {f.f_code.co_name}" if f else "?")
         return ok
 
     def release(self):
         _tl.held -= 1
+        if _tl.held == 0 and getattr(_tl, "since", None):
+            dt = time.time() - _tl.since[0]
+            if dt > 2:                          # everyone else waited this long: name the culprit in the log
+                print(f"Slow write lock: {dt:.1f}s held by {_tl.since[1]}")
         self._l.release()
 
     def __enter__(self):
@@ -118,14 +127,18 @@ def _init(c):
 
 
 def kv_get(key: str, default=None):
-    with _lock:
+    """Read a setting. Never waits for the write lock: it uses this thread's read-only connection (which sees every
+    committed write), unless this thread holds the lock already (then it must see its own uncommitted writes)."""
+    if getattr(_tl, "held", 0):
         r = main().execute("SELECT value FROM kv WHERE key=?", (key,)).fetchone()
-        if not r:
-            return default
-        try:
-            return json.loads(r["value"])
-        except (ValueError, TypeError):
-            return default
+    else:
+        r = _reader().execute("SELECT value FROM kv WHERE key=?", (key,)).fetchone()
+    if not r:
+        return default
+    try:
+        return json.loads(r["value"])
+    except (ValueError, TypeError):
+        return default
 
 
 def kv_set(key: str, value):

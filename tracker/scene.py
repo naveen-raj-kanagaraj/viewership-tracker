@@ -1626,10 +1626,15 @@ def named_tour(name: str) -> bool:
     return bool(name) and not name.endswith(" tournaments")
 
 
+_TRK = {"ts": 0, "v": []}
+
+
 def _tracked_events(region: str) -> list:
-    """This site's own tournament trackers (/e/<key>/) that are running: CEGC, PIC ... with their numbers."""
+    """This site's own tournament trackers (/e/<key>/) that are running: CEGC, PIC ... with their numbers (30 s)."""
     if region != "in":
         return []
+    if time.time() - _TRK["ts"] < 30:
+        return _TRK["v"]
     out = []
     try:
         for key, pr in events.PRESETS.items():
@@ -1645,6 +1650,7 @@ def _tracked_events(region: str) -> list:
                         "peak": pk[1] if pk else 0, "peak_at": pk[0] if pk else None, "art": cat_art(pr.get("game") or "")})
     except Exception as e:
         print(f"Tracked events: {str(e)[:100]}")
+    _TRK.update(ts=time.time(), v=out)
     return out
 
 
