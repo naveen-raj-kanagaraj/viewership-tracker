@@ -190,6 +190,13 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 14 Nov 2026 (2): category bars come from sc_reg_day (each category's peak per IST day and region, kept by every
+  scan; backfilled once at start by scene.backfill_reg_day, kv reg_day_v1): /api/cats 5-11 s -> under 0.2 s.
+  The region's first-reading time is remembered for an hour. Readers are autocommit (isolation_level=None) so a
+  failed write can never pin one to an old snapshot. A channel never read before gets its YouTube stats in the
+  background (ytextra._first_stats) instead of the page waiting. PIC 2026 Day 1 (12 Nov) was added to the PIC tracker
+  once from KRAFTON INDIA ESPORTS' own readings (events.backfill_pic_day1, kv pic_day1_v1): official streams only,
+  peak 17,448; no per-stream rows for that day.
 - Speed (14 Nov 2026): (1) store.reading(): read-only page work gets the thread's own read-only SQLite connection
   (WAL) instead of queueing behind store._lock; a write inside it raises, and taking store._lock inside it switches back
   to the read-write connection. Converted: scene page/channel/category/ranking reads, ytextra past/stream_day/videos,
