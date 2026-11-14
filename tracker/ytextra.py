@@ -62,7 +62,10 @@ def _db():
     global _ready
     from tracker import scene
     c = scene._db()
-    if not _ready:
+    if _ready:
+        return c
+    with store._lock:
+        c = store.main()
         c.executescript(_SCHEMA)
         cols = {r[1] for r in c.execute("PRAGMA table_info(yt_videos)")}
         if "short" not in cols:
@@ -856,7 +859,7 @@ def past_streams(sid: str) -> dict:
         res["note"] = f"Couldn't read past streams right now ({str(e)[:80]})."
     cut = time.time() - 30 * 86400
     res["streams"] = [x for x in res["streams"] if not x["ts"] or x["ts"] >= cut][:40]
-    with store._lock:
+    with store.reading():
         peaks = dict(_db().execute("SELECT day, MAX(peak) FROM sc_daily WHERE sid=? GROUP BY day", (sid,)).fetchall())
         from tracker import scene
         ids = [x.get("id") for x in res["streams"] if x.get("id")]
@@ -885,7 +888,7 @@ def stream_day(sid: str, day: str) -> dict:
     P = [x for x in (past_streams(sid).get("streams") or []) if x.get("day") == day]
     likes = {v["vid"]: v for v in _safe(channel_videos, sid) or []}
     d0 = datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=events.REPORT_TZ).timestamp()
-    with store._lock:
+    with store.reading():
         c = scene._db()
         D = c.execute("SELECT MAX(peak), SUM(hw), SUM(mins) FROM sc_daily WHERE sid=? AND day=?", (sid, day)).fetchone()
         pat = c.execute("SELECT peak_at FROM sc_daily WHERE sid=? AND day=? ORDER BY peak DESC LIMIT 1", (sid, day)).fetchone()
@@ -1496,7 +1499,7 @@ def channel_videos(sid: str, force: bool = False) -> list:
         threading.Thread(target=_refresh_videos, args=(sid, True), daemon=True).start()
     elif now - m.get("recent", 0) > 6 * 3600:
         threading.Thread(target=_refresh_videos, args=(sid, False), daemon=True).start()
-    with store._lock:
+    with store.reading():
         return [dict(r) for r in _db().execute("SELECT * FROM yt_videos WHERE sid=? ORDER BY ts DESC", (sid,))]
 
 
@@ -1803,7 +1806,7 @@ def _live_stats(sid: str, L: list, t0: float) -> list:
     """Live numbers this site recorded: per stream (peak CCV, average, hours watched, length; from 12 Nov 2026) added
     to each live video, and per day for the channel (all its streams at once: the peak of the sum)."""
     from tracker import scene
-    with store._lock:
+    with store.reading():
         c = scene._db()
         vids = [v["vid"] for v in L if v["live"]]
         S = {}

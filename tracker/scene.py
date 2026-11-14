@@ -15,6 +15,7 @@ Discovery is not a census: a YouTube stream that never appears in these searches
 and Kick/Twitch are filtered by stream language. The page says so.
 """
 import html
+import functools
 import json
 import os
 import re
@@ -344,17 +345,104 @@ TOUR_GAME = {"VCT": "Valorant", "VCT Challengers": "Valorant", "VCT Game Changer
              "ALGS": "Apex Legends", "FNCS": "Fortnite"}
 
 
+_LPM = {"ts": -1, "m": [], "games": set()}
+
+
+def _norm(t: str) -> str:
+    return " " + re.sub(r"[^0-9a-z]+", " ", (t or "").lower()).strip() + " "
+
+
+def _lp_matchers():
+    """Liquipedia's current tournaments as (tournament, [(phrase, strength)]): its name, its name without the year,
+    its series' full name, and its short tag (FFWS, BGIS ...)."""
+    from tracker import liquipedia
+    act = liquipedia.active()
+    if _LPM["ts"] == liquipedia._CACHE["ts"]:
+        return _LPM["m"]
+    m = []
+    for t in act:
+        ph = []
+        nm = _norm(t["name"])
+        noyear = re.sub(r" (19|20)\d\d ", " ", nm)
+        for p_, w in ((nm, 4), (noyear, 3), (_norm(t["series"]), 3), (_norm(t["full"]), 4)):
+            if len(p_.strip()) >= 6 and (p_, w) not in ph:
+                ph.append((p_, w))
+        tag = t["name"].split()[0] if t["name"].split() else ""
+        if re.fullmatch(r"[A-Z0-9]{3,8}", tag) and not tag.isdigit():
+            ph.append((_norm(tag), 1))
+        m.append((t, ph, set(nm.split()) - {"2025", "2026", "2027"}))
+    _LPM.update(ts=liquipedia._CACHE["ts"], m=m, games={liquipedia.WIKIS[w][0] for w in liquipedia.WIKIS} | {"BGMI"})
+    _tour_cached.cache_clear()
+    return m
+
+
+_LP_GENERIC = {"major", "minor", "finals", "final", "global", "season", "split", "stage", "cup", "league", "series",
+               "championship", "championships", "open", "masters", "s1", "s2", "s3", "s4", "qualifier", "qualifiers",
+               "playoffs", "group", "world", "pro", "the", "of", "and", "spring", "summer", "fall", "winter", "week",
+               "day", "phase", "showdown", "invitational", "challenge", "esports", "tournament", "grand"}
+
+
+def _lp_match(title: str, game: str):
+    from tracker import liquipedia
+    nt = _norm(title)
+    best, bs = None, 0
+    for t, ph, toks in _lp_matchers():
+        if not liquipedia.game_ok(t, game):
+            continue
+        w = max((w for p_, w in ph if p_ in nt), default=0)
+        if not w and game and game != "Other":      # co-streams name it loosely ("SEMI FINAL MAJOR OSAKA"): two of
+            hit = {k for k in toks if f" {k} " in nt}     # its words, one of them its own (not "major", "finals" ...)
+            if len(hit) >= 2 and hit - _LP_GENERIC:
+                w = 2
+        if not w:
+            continue
+        if w == 1 and (not game or game == "Other") and len(next(p_ for p_, ww in ph if ww == 1).strip()) < 4:
+            continue                       # a three-letter tag alone, with no game to confirm it, is too weak
+        score = w * 10 + sum(1 for k in toks if f" {k} " in nt) + (1 if t["status"] == "ongoing" else 0)
+        if score > bs:
+            best, bs = t, score
+    return best
+
+
+def tournament_info(name: str):
+    """The Liquipedia entry behind a tournament name, if any."""
+    from tracker import liquipedia
+    for t in liquipedia.active() + liquipedia.tours():
+        if t["name"] == name:
+            return t
+    return None
+
+
+def esports_game(game: str) -> bool:
+    _lp_matchers()
+    return bool(game) and (game in _LPM["games"] or game in TOUR_GAME.values())
+
+
 def tournament(title: str, game: str = ""):
-    """The tournament a stream is broadcasting or co-streaming, or None."""
-    t = title or ""
+    """The tournament a stream is broadcasting or co-streaming, or None. Liquipedia's current tournaments first (so
+    every channel showing it, in any language, adds up to one number), then known league names, then, for esports
+    games only, '<game> tournaments' for other competitive broadcasts."""
+    _lp_matchers()
+    return _tour_cached(title or "", game or "", _LPM["ts"])
+
+
+@functools.lru_cache(maxsize=50000)
+def _tour_cached(title: str, game: str, _ts):
+    t = title
     if _T_NOT.search(t):
         return None
+    lp = _lp_match(t, game)
+    if lp:
+        return lp["name"]
+    low = t.lower()
     for rx, name, g in _T_RX:
-        if rx.search(t) and (not g or g == game or game in ("", "Other")):
+        if rx.search(t) and (not g or g == game or g.lower() in low or g == "League of Legends" and re.search(r"\blol\b", low)):
             return name
-    if _T_GENERIC.search(t) and _T_MATCH.search(t):
-        return f"{game} tournaments" if game and game != "Other" else "Other tournaments"
+    if _T_GENERIC.search(t) and _T_MATCH.search(t) and esports_game(game):
+        return f"{game} tournaments"
     return None
+
+
 SEEDS = {"kick": ["skyesports", "cegc"], "twitch": [],
          "youtube": ["@SoulAman", "@DynamoGaming", "@TheBixiOP", "@ZGODGAMING", "@NEYOOGAMINGYT", "@MizoPlays",
                      "@MrSpike", "@LoLzZzGaming", "@SHARKSHE", "@MafiaNinja", "@ImRuthlessceopubg", "@RakaZoneGaming",
@@ -369,8 +457,22 @@ _lock = threading.Lock()
 _pool = ThreadPoolExecutor(max_workers=8)
 
 
+
+_SCHEMA_OK = {}
+
+
 def _db():
-    c = store.conn()
+    """The connection to use: tables are created (and migrations run) once per database file, not on every call;
+    inside store.reading() this is the thread's own read-only connection."""
+    if _SCHEMA_OK.get(store.DB_PATH):
+        return store.conn()
+    with store._lock:
+        _schema(store.main())
+        _SCHEMA_OK[store.DB_PATH] = True
+    return store.conn()
+
+
+def _schema(c):
     c.executescript("""
     CREATE TABLE IF NOT EXISTS sc_channels (sid TEXT PRIMARY KEY, platform TEXT, name TEXT, url TEXT, logo TEXT,
         first_seen REAL, last_live REAL, title TEXT, game TEXT);
@@ -379,6 +481,11 @@ def _db():
         peak INTEGER, peak_at INTEGER, hw REAL, n INTEGER);
     CREATE INDEX IF NOT EXISTS sc_vstreams_sid ON sc_vstreams(sid, first_ts);
     CREATE INDEX IF NOT EXISTS sc_samples_ix ON sc_samples(ts);
+    CREATE TABLE IF NOT EXISTS sc_tour_ch (tour TEXT, sid TEXT, day TEXT, peak INTEGER, peak_at INTEGER, mins REAL,
+        hw REAL, india INTEGER, PRIMARY KEY (tour, sid, day));
+    CREATE INDEX IF NOT EXISTS sc_tour_ch_day ON sc_tour_ch(day);
+    CREATE TABLE IF NOT EXISTS sc_tour (tour TEXT, region TEXT, peak INTEGER, peak_at INTEGER, first_ts INTEGER,
+        last_ts INTEGER, hw REAL, PRIMARY KEY (tour, region));
     CREATE TABLE IF NOT EXISTS sc_daily (day TEXT, sid TEXT, game TEXT, peak INTEGER, peak_at INTEGER, mins REAL,
         hw REAL, PRIMARY KEY (day, sid, game));
     CREATE INDEX IF NOT EXISTS sc_daily_game ON sc_daily(game, day);
@@ -928,6 +1035,10 @@ def cycle(now: float = None) -> dict:
         x["tour"] = tournament(x.get("title", ""), x["game"])
         if x["tour"] and TOUR_GAME.get(x["tour"]):
             x["game"] = TOUR_GAME[x["tour"]]          # a VCT broadcast or co-stream is Valorant, whatever the category says
+        elif x["tour"] and x["game"] in ("", "Other"):
+            lp = tournament_info(x["tour"])           # a Liquipedia tournament's game, for streams with no category
+            if lp and lp["game"] != "Fighting games":
+                x["game"] = "BGMI" if lp["game"] == "BGMI" else lp["game"]
         if x["india"] and x["game"] == "PUBG Mobile" and not x["tour"]:
             x["game"] = "BGMI"                        # PUBG Mobile is banned in India; Indian streams of it are BGMI
         if not x.get("logo"):                 # the channel's real picture: YouTube channel page / Kick / Twitch
@@ -1031,9 +1142,24 @@ def _store(rows, now, last):
         reg += [("sec:in", t, v, n) for t, (v, n) in totals(ind, "section").items()]
         reg += [("tour:in", t, v, n) for t, (v, n) in totals(ind, "tour").items()]
         c.executemany("INSERT OR REPLACE INTO sc_reg VALUES (?,?,?,?,?)", [(int(now), *r_) for r_ in reg])
+        for x in rows:                        # each channel's part in each tournament, per day
+            if x.get("tour"):
+                c.execute("""INSERT INTO sc_tour_ch VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(tour, sid, day) DO UPDATE SET
+                             peak_at=CASE WHEN excluded.peak > sc_tour_ch.peak THEN excluded.peak_at ELSE sc_tour_ch.peak_at END,
+                             peak=MAX(sc_tour_ch.peak, excluded.peak), mins=sc_tour_ch.mins+excluded.mins,
+                             hw=sc_tour_ch.hw+excluded.hw""",
+                          (x["tour"], x["sid"], day, max(x["viewers"], fpk.get(x["sid"], 0)), int(now), dt / 60,
+                           x["viewers"] * dt / 3600, 1 if x.get("india", True) else 0))
+        for region, t, v, n in reg:           # each tournament's all-time numbers (all channels together)
+            if region.startswith("tour:"):
+                c.execute("""INSERT INTO sc_tour VALUES (?,?,?,?,?,?,?) ON CONFLICT(tour, region) DO UPDATE SET
+                             peak_at=CASE WHEN excluded.peak > sc_tour.peak THEN excluded.peak_at ELSE sc_tour.peak_at END,
+                             peak=MAX(sc_tour.peak, excluded.peak), last_ts=excluded.last_ts, hw=sc_tour.hw+excluded.hw""",
+                          (t, region[5:], v, int(now), int(now), int(now), v * dt / 3600))
         if int(now) % 3600 < SCENE_SEC:          # about once an hour: drop raw readings older than KEEP_DAYS
             c.execute("DELETE FROM sc_samples WHERE ts < ?", (now - KEEP_DAYS * 86400,))
-            c.execute("DELETE FROM sc_reg WHERE ts < ? AND region LIKE 'tour:%'", (now - 30 * 86400,))
+            c.execute("DELETE FROM sc_reg WHERE ts < ? AND region LIKE 'tour:%' AND game LIKE '% tournaments'", (now - 30 * 86400,))
+            c.execute("DELETE FROM sc_reg WHERE ts < ? AND region LIKE 'tour:%'", (now - 400 * 86400,))
         c.commit()
 
 
@@ -1069,7 +1195,7 @@ def live_now(sid: str) -> dict:
     now_v = f[1] if f and f[1] is not None and t - f[0] < 30 else (x.get("viewers") or 0)
     if not x:
         now_v = 0
-    with store._lock:
+    with store.reading():
         S = _db().execute("SELECT ts, MAX(viewers) FROM sc_samples WHERE sid=? AND ts>=? GROUP BY ts ORDER BY ts",
                           (sid, t - 12 * 3600)).fetchall()
     S = [[a, b] for a, b in S]
@@ -1320,7 +1446,7 @@ def game_history(game: str) -> list:
     hist = [list(x) for x in GAME_HISTORY.get(game, [])]
     if not hist:
         return []
-    with store._lock:
+    with store.reading():
         c = events._db()
         for ev in events.events().values():
             pr = events.preset(ev["key"])
@@ -1368,7 +1494,7 @@ def _series(c, game: str, period: str, region: str = "in") -> list:
 def _events() -> list:
     """Tracked tournaments for the hub: live now / countdown / finished, with their peak."""
     out = []
-    with store._lock:
+    with store.reading():
         c = events._db()
         for ev in sorted(events.events().values(), key=lambda e: -(e.get("created") or 0)):
             pr = events.preset(ev["key"])
@@ -1391,7 +1517,7 @@ def category_name(cat: str):
     for g, _ in GAMES:
         if slug(g) == cat:
             return g
-    with store._lock:
+    with store.reading():
         c = _db()
         for (g,) in c.execute("SELECT DISTINCT game FROM sc_cat WHERE game != ? UNION SELECT DISTINCT game FROM sc_reg "
                               "WHERE region='global' AND game != ?", (ALL, ALL)):
@@ -1414,7 +1540,7 @@ def _live_part(game=None, region: str = "in", sec: str = "") -> dict:
     """Who is live now in a region (and section or game): the latest scan (read from the database once per scan) with
     Kick/Twitch viewers replaced by the 2-second readings when they're fresh."""
     blk = blocked()
-    with store._lock:
+    with store.reading():
         c = _db()
         last = (c.execute("SELECT MAX(ts) FROM sc_samples").fetchone()[0] or 0)
         if _SCAN["ts"] != last:
@@ -1490,17 +1616,142 @@ def _live_part(game=None, region: str = "in", sec: str = "") -> dict:
             "live_total": sum(x["viewers"] for x in live), "now": now}
 
 
+def named_tour(name: str) -> bool:
+    """A real tournament (Liquipedia or a known league), not a '<game> tournaments' catch-all."""
+    return bool(name) and not name.endswith(" tournaments")
+
+
+def _tracked_events(region: str) -> list:
+    """This site's own tournament trackers (/e/<key>/) that are running: CEGC, PIC ... with their numbers."""
+    if region != "in":
+        return []
+    out = []
+    try:
+        for key, pr in events.PRESETS.items():
+            if pr.get("ended") or not events.get(key):
+                continue
+            with store.reading():
+                c = events._db()
+                pk = c.execute("SELECT ts, total, official, watch FROM ev_ticks WHERE event=? ORDER BY total DESC LIMIT 1", (key,)).fetchone()
+                nw = c.execute("SELECT ts, total FROM ev_ticks WHERE event=? ORDER BY ts DESC LIMIT 1", (key,)).fetchone()
+            live = bool(nw and time.time() - nw[0] < 300 and nw[1])
+            out.append({"name": pr.get("name") or key.upper(), "game": pr.get("game") or "", "url": f"/e/{key}/",
+                        "tracked": True, "viewers": nw[1] if live else 0, "live": live,
+                        "peak": pk[1] if pk else 0, "peak_at": pk[0] if pk else None, "art": cat_art(pr.get("game") or "")})
+    except Exception as e:
+        print(f"Tracked events: {str(e)[:100]}")
+    return out
+
+
+def tours_overview(region: str = "global") -> dict:
+    """The esports page's tournament list: this site's own trackers (India), then every named tournament live now or
+    in the last 3 days (all channels together), then Liquipedia's other ongoing tournaments."""
+    from tracker import liquipedia
+    region = _region(region)
+    lv = _live_part(None, region)
+    live = {k: t for k, t in lv["_tours"].items()}
+    t3 = time.time() - 3 * 86400
+    with store.reading():
+        c = _db()
+        rec = {r[0]: r for r in c.execute("SELECT tour, peak, peak_at, first_ts, last_ts, hw FROM sc_tour WHERE region=? AND last_ts>=?",
+                                          (region, t3))}
+    rows = []
+    for name in set(live) | set(rec):
+        if not named_tour(name):
+            continue
+        t, r = live.get(name), rec.get(name)
+        info = tournament_info(name) or {}
+        g = (max(t["games"], key=t["games"].get) if t else "") or info.get("game") or ""
+        rows.append({"name": name, "slug": slug(name), "game": g, "art": cat_art(g), "viewers": t["viewers"] if t else 0,
+                     "streams": len(t["streams"]) if t else 0, "live": bool(t),
+                     "peak": max(r[1] if r else 0, t["viewers"] if t else 0), "peak_at": r[2] if r else None,
+                     "hw": round(r[5]) if r else 0, "start": info.get("start"), "end": info.get("end"),
+                     "liquipedia": info.get("url")})
+    rows.sort(key=lambda x: (not x["live"], -(x["viewers"] if x["live"] else x["peak"])))
+    have = {x["name"] for x in rows}
+    other = []
+    if region == "global":
+        for t in liquipedia.active():
+            if t["status"] == "ongoing" and t["name"] not in have:
+                other.append({"name": t["name"], "slug": slug(t["name"]), "game": t["game"], "start": t["start"],
+                              "end": t["end"], "liquipedia": t["url"]})
+    comp = sorted(({"name": k, "viewers": t["viewers"], "streams": len(t["streams"])} for k, t in live.items()
+                   if not named_tour(k)), key=lambda x: -x["viewers"])
+    return {"tracked": _tracked_events(region), "tournaments": rows, "ongoing_no_streams": other[:60],
+            "other_matches": comp[:20], "source": "Liquipedia (CC-BY-SA)"}
+
+
+def tour_name(sl: str):
+    """The tournament behind a URL slug."""
+    from tracker import liquipedia
+    for t in liquipedia.active() + liquipedia.tours():
+        if slug(t["name"]) == sl:
+            return t["name"]
+    with store.reading():
+        for (n,) in _db().execute("SELECT DISTINCT tour FROM sc_tour"):
+            if slug(n) == sl:
+                return n
+    return None
+
+
+def tour_data(name: str, region: str = "global") -> dict:
+    """One tournament, every channel broadcasting or co-streaming it added up: watching now, its peak with all of
+    them at once, today's line, peak by day, hours watched, every channel's own peak, and languages."""
+    region = _region(region)
+    lv = _live_part(None, region)
+    live = sorted((x for x in lv["_live"] if x.get("tour") == name), key=lambda x: -x["viewers"])
+    d0 = datetime.combine(datetime.now(events.REPORT_TZ).date(), datetime.min.time(), events.REPORT_TZ).timestamp()
+    reg = f"tour:{region}"
+    with store.reading():
+        c = _db()
+        tot = c.execute("SELECT peak, peak_at, first_ts, last_ts, hw FROM sc_tour WHERE tour=? AND region=?", (name, region)).fetchone()
+        today = c.execute("SELECT ts, viewers FROM sc_reg WHERE region=? AND game=? AND ts>=? ORDER BY ts", (reg, name, d0)).fetchall()
+        days = c.execute("""SELECT date(ts + 19800, 'unixepoch') d, MAX(viewers), COUNT(*) FROM sc_reg WHERE region=? AND game=?
+                            GROUP BY d ORDER BY d""", (reg, name)).fetchall()
+        ch = c.execute(f"""SELECT t.sid, MAX(t.peak), SUM(t.hw), SUM(t.mins), COUNT(DISTINCT t.day), c.name, c.logo, c.platform,
+                           c.url, c.country, c.language FROM sc_tour_ch t LEFT JOIN sc_channels c ON c.sid=t.sid
+                           WHERE t.tour=? {"AND t.india=1" if region == "in" else ""} GROUP BY t.sid ORDER BY 2 DESC LIMIT 300""",
+                       (name,)).fetchall()
+    nowv = sum(x["viewers"] for x in live)
+    pk = max((tot[0] if tot else 0), nowv)
+    step = max(1, len(today) // 600)
+    langs = {}
+    for r in ch:
+        lg = (r[10] or "").split("-")[0].lower() or "unknown"
+        langs[lg] = langs.get(lg, 0) + (r[2] or 0)
+    info = tournament_info(name) or {}
+    g = info.get("game") or (live[0]["game"] if live else "")
+    trk = next(({"url": e["url"], "name": e["name"]} for e in _tracked_events("in")
+                if e["name"].lower() in name.lower() or name.lower() in e["name"].lower()), None)
+    return {"name": name, "slug": slug(name), "region": region, "game": g, "art": cat_art(g) if g else "",
+            "liquipedia": info.get("url"), "start": info.get("start"), "end": info.get("end"), "status": info.get("status"),
+            "now": nowv, "live_count": len(live), "peak": pk, "peak_at": tot[1] if tot else None,
+            "peak_today": max([v for _, v in today] + [nowv]) if today or nowv else 0,
+            "hw": round(tot[4]) if tot else 0, "first_ts": tot[2] if tot else None, "last_ts": tot[3] if tot else None,
+            "series": [[a_, b_] for a_, b_ in today[::step]], "days": [{"day": d, "peak": v} for d, v, _ in days],
+            "live": [{"sid": x["sid"], "name": x["name"], "platform": x["platform"], "url": x["url"], "logo": _logo(x),
+                      "title": x.get("title") or "", "viewers": x["viewers"], "language": x.get("language") or "",
+                      "country": x.get("country") or ""} for x in live[:200]],
+            "channels": [{"sid": r[0], "peak": r[1] or 0, "hw": round(r[2] or 0), "hours": round((r[3] or 0) / 60, 1),
+                          "days": r[4], "name": r[5] or r[0], "logo": _logo({"sid": r[0], "logo": r[6]}), "platform": r[7] or "",
+                          "url": r[8] or "", "country": r[9] or "", "language": r[10] or "", "live": any(x["sid"] == r[0] for x in live)}
+                         for r in ch],
+            "languages": sorted(({"lang": k, "hw": round(v)} for k, v in langs.items() if v), key=lambda x: -x["hw"])[:12],
+            "tracker": trk, "updated": time.time()}
+
+
 def _tour_list(tours: dict, region: str) -> list:
     """Live tournaments, biggest first, with today's peak (IST day) from the per-scan totals."""
     d0 = datetime.combine(datetime.now(events.REPORT_TZ).date(), datetime.min.time(), events.REPORT_TZ).timestamp()
-    with store._lock:
+    with store.reading():
         pk = {r[0]: (r[1], r[2]) for r in _db().execute(
             "SELECT game, MAX(viewers), ts FROM sc_reg WHERE region=? AND ts>=? GROUP BY game", (f"tour:{region}", d0))}
     out = []
     for t in tours.values():
         g = max(t["games"], key=t["games"].get)
         st = sorted(t["streams"], key=lambda s_: -s_["viewers"])
-        out.append({"name": t["name"], "game": g, "slug": slug(g), "art": cat_art(g), "viewers": t["viewers"],
+        out.append({"name": t["name"], "tslug": slug(t["name"]), "named": named_tour(t["name"]),
+                    "game": g, "slug": slug(g), "art": cat_art(g), "viewers": t["viewers"],
                     "streams": len(st), "top": st[:6], "peak": max((pk.get(t["name"]) or (0,))[0], t["viewers"])})
     return sorted(out, key=lambda t: -t["viewers"])[:24]
 
@@ -1590,7 +1841,7 @@ def live_data(cat: str = "", region: str = "in", sec: str = "") -> dict:
     region, sec = _region(region), _sec(sec)
     game = category_name(cat) if cat else None
     lv = _live_part(game, region, sec)
-    with store._lock:
+    with store.reading():
         k = _kpis(_db(), region, sec, game, lv)
     return _with_full({**_common(lv, region), "kpis": k}, region, game, sec)
 
@@ -1605,7 +1856,7 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
     today = datetime.now(events.REPORT_TZ).date()
     d0 = (today - timedelta(days=PERIODS[period])).strftime("%Y-%m-%d")
     tbl, w, a, key = _scope(region, sec, game)
-    with store._lock:
+    with store.reading():
         c = _db()
         q = """SELECT d.sid, d.game, MAX(d.peak) peak, SUM(d.mins) mins, SUM(d.hw) hw, c.name, c.platform,
                c.url, c.logo, c.last_live FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid WHERE d.day >= ?"""
@@ -1624,7 +1875,7 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
         pk = c.execute(f"SELECT ts, viewers FROM {tbl} WHERE game=? AND ts>=?{w} ORDER BY viewers DESC LIMIT 1",
                        (key, time.time() - SERIES_SEC[period], *a)).fetchone()
         pk_all = c.execute(f"SELECT ts, viewers FROM {tbl} WHERE game=?{w} ORDER BY viewers DESC LIMIT 1", (key, *a)).fetchone()
-        tour_day = [{"name": r[0], "peak": r[1], "at": r[2]} for r in c.execute(
+        tour_day = [{"name": r[0], "tslug": slug(r[0]), "named": named_tour(r[0]), "peak": r[1], "at": r[2]} for r in c.execute(
             "SELECT game, MAX(viewers), ts FROM sc_reg WHERE region=? AND ts>=? GROUP BY game ORDER BY MAX(viewers) DESC LIMIT 20",
             (f"tour:{region}", p0))]
         kp = _kpis(c, region, sec, game, lv)
@@ -1652,7 +1903,7 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
         del x["games"], x["mins"]
         board.append(x)
     board.sort(key=lambda x: -x["hw"])
-    with store._lock:
+    with store.reading():
         prev = _prev_ranks(_db(), region, game, sec, period)
     for i, x in enumerate(board):
         x["rank"] = i + 1
@@ -1721,7 +1972,7 @@ def _rank_base(d0: str, d1: str, current: bool) -> list:
         hit = _RB.get(key)
         if hit and time.time() - hit[0] < (90 if current else 3600):
             return hit[1]
-        with store._lock:
+        with store.reading():
             rows = [dict(r) for r in _db().execute(
                 """SELECT d.sid, d.game, MAX(d.peak) peak, SUM(d.mins) mins, SUM(d.hw) hw, c.name, c.platform, c.url, c.logo,
                    c.country, COALESCE(c.india,1) india, c.last_live FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid
@@ -1807,7 +2058,7 @@ def rankings(region="global", metric="hw", period="day", date="", cat="", countr
             missing = [sid for sid in extra[metric] if sid not in out and sid not in blk]
             for i in range(0, len(missing), 500):
                 part = missing[i:i + 500]
-                with store._lock:
+                with store.reading():
                     chs = _db().execute(f"SELECT * FROM sc_channels WHERE sid IN ({','.join('?' * len(part))})", part).fetchall()
                 for r in chs:
                     if region == "in" and not r["india"]:
@@ -1849,7 +2100,7 @@ def rankings(region="global", metric="hw", period="day", date="", cat="", countr
         x["delta"] = prev[x["sid"]] - x["rank"] if x["sid"] in prev else None
         x["now"] = now.get(x["sid"], 0)
     if not _RB.get("first"):
-        with store._lock:
+        with store.reading():
             _RB["first"] = _db().execute("SELECT MIN(day) FROM sc_daily").fetchone()[0]
     first = _RB["first"]
     return {"region": region, "metric": metric, "period": period, "date": end.strftime("%Y-%m-%d"),
@@ -1892,7 +2143,7 @@ def categories(region: str = "global", limit: int = 60, rng: str = "1m") -> dict
     rng = rng if rng in CAT_RANGES else "1m"
     today = datetime.now(events.REPORT_TZ).date()
     q = ",".join("?" * len(names)) or "NULL"
-    with store._lock:
+    with store.reading():
         c = _db()
         first = c.execute(f"SELECT MIN(ts) FROM {tbl} WHERE 1=1{w}", a).fetchone()[0] or now
         n = CAT_RANGES[rng]
@@ -1959,7 +2210,7 @@ def category_months(game: str, region: str = "global") -> dict:
     region = _region(region)
     tbl, w, a = _totals_sql(region)
     now = time.time()
-    with store._lock:
+    with store.reading():
         c = _db()
         first = c.execute(f"SELECT MIN(ts) FROM {tbl} WHERE game=?{w}", (game, *a)).fetchone()[0]
         if not first:
@@ -2007,49 +2258,91 @@ def _series_any(c, tbl, w, a, key, period) -> list:
     return [b[k] for k in sorted(b)]
 
 
+_SIDX = {"ts": 0, "rows": [], "games": [], "busy": False}
+SEARCH_EVERY = 300
+
+
+def _search_build():
+    """Everything search looks at, in memory: every channel's name (and its last stream title if it was live in the
+    last 30 days), its best peak and the game names. Rebuilt every 5 minutes in the background from a read-only
+    connection, so a search is a scan of a list (milliseconds), not a database query per keystroke."""
+    if _SIDX["busy"]:
+        return
+    _SIDX["busy"] = True
+    try:
+        t30 = time.time() - 30 * 86400
+        with store.reading():
+            c = _db()
+            peak = dict(c.execute("SELECT sid, MAX(peak) FROM sc_daily GROUP BY sid").fetchall())
+            rows = []
+            for r in c.execute("SELECT sid, name, platform, url, logo, last_live, game, title, COALESCE(india,1) FROM sc_channels"):
+                if not r[1]:
+                    continue
+                recent = (r[5] or 0) >= t30
+                rows.append((r[0], r[1], r[1].lower(), (r[7] or "").lower() if recent else "", r[2], r[3], r[4], r[5],
+                             r[6], r[7] if recent else "", r[8], peak.get(r[0]) or 0))
+            d0 = (datetime.now(events.REPORT_TZ).date() - timedelta(days=120)).strftime("%Y-%m-%d")
+            games = [g for (g,) in c.execute("SELECT DISTINCT game FROM sc_daily WHERE day>=? AND game!=''", (d0,))]
+        rows.sort(key=lambda x: -x[11])                  # biggest first, so the first matches are the ones to show
+        _SIDX.update(rows=rows, games=sorted(set(games) | {g for g, _ in GAMES}), ts=time.time())
+    except Exception as e:
+        print(f"Search index: {str(e)[:150]}")
+    finally:
+        _SIDX["busy"] = False
+
+
+def search_index_loop():
+    while True:
+        _search_build()
+        time.sleep(SEARCH_EVERY)
+
+
 def search(q: str, region: str = "in", limit: int = 20) -> dict:
-    """Any channel ever seen live whose name or stream title contains q (live titles included), plus matching
-    games/categories. Channels whose name matches come first."""
+    """Any channel ever seen live whose name or recent stream title contains q (live titles included), plus matching
+    games/categories. Channels whose name matches come first, biggest first."""
     q = (q or "").strip().lower()[:60]
     if len(q) < 2:
         return {"channels": [], "categories": []}
     region = _region(region)
-    lv = _live_part(None, region)
-    now = lv["_now"]
-    live_title = {x["sid"]: x.get("title") or "" for x in lv["_live"]}
-    hits_live = [sid for sid, t in live_title.items() if q in t.lower()]
-    with store._lock:
-        c = _db()
-        reg = "AND COALESCE(c.india,1)=1 " if region == "in" else ""
-        sel = """SELECT c.sid, c.name, c.platform, c.url, c.logo, c.last_live, c.game, c.title,
-                 (SELECT MAX(peak) FROM sc_daily d WHERE d.sid=c.sid) peak FROM sc_channels c """
-        rows = c.execute(sel + "WHERE LOWER(c.name) LIKE ? " + reg + "ORDER BY peak DESC NULLS LAST LIMIT ?",
-                         (f"%{q}%", limit)).fetchall()
-        seen = {r["sid"] for r in rows}
-        more = c.execute(sel + "WHERE LOWER(c.title) LIKE ? " + reg + "ORDER BY peak DESC NULLS LAST LIMIT ?",
-                         (f"%{q}%", limit)).fetchall()
-        extra = [x for x in hits_live if x not in seen and x not in {r["sid"] for r in more}][:limit]
-        if extra:
-            more += c.execute(sel + f"WHERE c.sid IN ({','.join('?' * len(extra))})", extra).fetchall()
-        games = [g for (g,) in c.execute("SELECT DISTINCT game FROM sc_cat WHERE LOWER(game) LIKE ? AND game != ? "
-                                         "UNION SELECT DISTINCT game FROM sc_reg WHERE region='global' AND LOWER(game) LIKE ? "
-                                         "AND game != ? LIMIT 8", (f"%{q}%", ALL, f"%{q}%", ALL))]
-    out = []
-    for r in list(rows) + [r for r in more if r["sid"] not in seen]:
-        if not r["name"] or any(o["sid"] == r["sid"] for o in out):
+    if not _SIDX["ts"]:
+        _search_build()
+    with _lock:
+        live = {sid: x for sid, x in _LIVE.items()}
+    by_name, by_title = [], []
+    for r in _SIDX["rows"]:
+        if region == "in" and not r[10]:
             continue
-        title = live_title.get(r["sid"]) or r["title"] or ""
-        out.append({"sid": r["sid"], "name": r["name"], "platform": r["platform"], "url": r["url"],
-                    "logo": _logo({"sid": r["sid"], "logo": r["logo"]}), "last_live": r["last_live"], "game": r["game"],
-                    "title": title, "by": "name" if q in r["name"].lower() else "title",
-                    "peak": r["peak"] or 0, "now": now.get(r["sid"], 0)})
-    return {"channels": out[:limit * 2], "categories": [{"game": g, "slug": slug(g), "art": cat_art(g)} for g in games if shown(g)]}
+        lv = live.get(r[0])
+        if q in r[2]:
+            if len(by_name) < limit:
+                by_name.append(r)
+        elif len(by_title) < limit and (q in r[3] or lv and q in (lv.get("title") or "").lower()):
+            by_title.append(r)
+        if len(by_name) >= limit and len(by_title) >= limit:
+            break
+    have = {r[0] for r in by_name + by_title}
+    for sid, x in live.items():                       # live right now but newer than the index
+        if sid in have or region == "in" and not x.get("india", True):
+            continue
+        nm, tt = (x.get("name") or "").lower(), (x.get("title") or "").lower()
+        if q in nm or q in tt:
+            (by_name if q in nm else by_title).append((sid, x.get("name") or "", nm, tt, x.get("platform"), x.get("url"),
+                                                       x.get("logo") or "", x.get("seen"), x.get("game"), x.get("title") or "",
+                                                       1, x.get("viewers") or 0))
+    out = []
+    for r in by_name[:limit] + by_title[:limit]:
+        lv = live.get(r[0]) or {}
+        out.append({"sid": r[0], "name": r[1], "platform": r[4], "url": r[5], "logo": _logo({"sid": r[0], "logo": r[6]}),
+                    "last_live": r[7], "game": lv.get("game") or r[8], "title": lv.get("title") or r[9],
+                    "by": "name" if q in r[2] else "title", "peak": r[11], "now": lv.get("viewers") or 0})
+    games = [g for g in _SIDX["games"] if q in g.lower() and g not in (ALL, "Other") and shown(g)][:8]
+    return {"channels": out, "categories": [{"game": g, "slug": slug(g), "art": cat_art(g)} for g in games]}
 
 
 def channel(sid: str) -> dict:
     """One channel's analytics: now, today / 7 / 30 days / all time (peak, average, hours watched, hours live,
     days live), day by day for 30 days, and its viewers over the last 3 days."""
-    with store._lock:
+    with store.reading():
         c = _db()
         ch = c.execute("SELECT * FROM sc_channels WHERE sid=?", (sid,)).fetchone()
         if not ch:

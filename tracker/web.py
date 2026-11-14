@@ -17,7 +17,7 @@ import queue
 
 from flask import Flask, Response, redirect, request
 
-from tracker import eventpage, predict, predictpage, visitors
+from tracker import eventpage, predict, predictpage, store, visitors
 
 PORT = int(os.getenv("EVENT_WEB_PORT", "8092"))
 app = Flask(__name__)
@@ -27,7 +27,7 @@ class _GlobalPaths:
     """Worldwide pages live under /global, like India's under /india: /global/categories is served by the
     /categories handler. Old worldwide links (/categories, /c/bgmi, /ch/yt:...) redirect to their /global address."""
     OLD = ("/categories", "/rankings", "/moments", "/compare")    # /map stays: it shows the whole world
-    OLD_PRE = ("/c/", "/ch/", "/s/", "/kit/")
+    OLD_PRE = ("/c/", "/ch/", "/s/", "/kit/", "/t/")
 
     def __init__(self, wsgi):
         self.wsgi = wsgi
@@ -119,7 +119,49 @@ def _headers(resp):
 _MEMO, _MLOCK = {}, {}
 
 
-_STALE_MAX = 600      # an expired response is still served (and rebuilt in the background) for up to this long
+_STALE_MAX = 600      # live responses (ttl under 30 s): an expired copy is served, and rebuilt in the background, this long
+_STALE_LONG = 6 * 3600   # everything else: a page or API answer up to 6 hours old is shown at once while it rebuilds
+_MEMO_TTL = {}
+_MEMO_FILE = os.path.join(os.path.dirname(os.path.abspath(store.DB_PATH)), "memo_cache.pkl")
+
+
+def _memo_save():
+    """Every 10 minutes: the built pages and API answers (not the live ones) to disk, so after a restart or deploy
+    visitors get them instantly (and they rebuild in the background) instead of every page being cold."""
+    import pickle
+    while True:
+        time.sleep(600)
+        try:
+            now, out, size = time.time(), [], 0
+            for k, (ts, body, gz) in sorted(list(_MEMO.items()), key=lambda kv: -kv[1][0]):
+                if _MEMO_TTL.get(k, 0) < 30 or now - ts > _STALE_LONG:
+                    continue
+                size += len(body) + len(gz or b"")
+                if size > 200 * 1024 * 1024:
+                    break
+                out.append((k, ts, body, gz, _MEMO_TTL.get(k, 60)))
+            tmp = _MEMO_FILE + ".tmp"
+            with open(tmp, "wb") as f:
+                pickle.dump(out, f, protocol=pickle.HIGHEST_PROTOCOL)
+            os.replace(tmp, _MEMO_FILE)
+        except Exception as e:
+            print(f"Memo save: {str(e)[:120]}")
+
+
+def _memo_load():
+    import pickle
+    try:
+        with open(_MEMO_FILE, "rb") as f:
+            rows = pickle.load(f)
+        now = time.time()
+        for k, ts, body, gz, ttl in rows:
+            if now - ts < _STALE_LONG and k not in _MEMO:
+                _MEMO[k], _MEMO_TTL[k] = (ts, body, gz), ttl
+        print(f"Memo: {len(rows)} saved responses loaded")
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f"Memo load: {str(e)[:120]}")
 
 
 def _memo_build(key, build):
@@ -127,8 +169,9 @@ def _memo_build(key, build):
     if isinstance(body, str):
         body = body.encode()
     hit = (time.time(), body, gzip.compress(body, 5) if len(body) > 1024 else None)
-    if len(_MEMO) > 3000:                     # search keys are open-ended: drop stale entries
-        for k in [k for k, v in list(_MEMO.items()) if time.time() - v[0] > _STALE_MAX]:
+    if len(_MEMO) > 6000:                     # search keys are open-ended: drop stale entries
+        for k in [k for k, v in list(_MEMO.items()) if time.time() - v[0] > (_STALE_MAX if _MEMO_TTL.get(k, 0) < 30 else _STALE_LONG)
+                  or k.startswith("/api/search:") and time.time() - v[0] > 120]:
             _MEMO.pop(k, None)
             _MLOCK.pop(k, None)
     _MEMO[key] = hit
@@ -188,7 +231,9 @@ def _memo(key, ttl, build, mimetype):
         build = _html(build)
     hit = _MEMO.get(key)
     now = time.time()
-    if hit and now - hit[0] >= ttl and now - hit[0] < _STALE_MAX:
+    _MEMO_TTL[key] = ttl
+    stale_max = _STALE_MAX if ttl < 30 else _STALE_LONG
+    if hit and now - hit[0] >= ttl and now - hit[0] < stale_max:
         lock = _MLOCK.setdefault(key, threading.Lock())
         if lock.acquire(blocking=False):
             def bg():
@@ -353,6 +398,48 @@ def category(cat):
 @app.route("/india/c/<cat>")
 def category_india(cat):
     return _cat_page(cat, "in")
+
+
+def _tour_page(sl: str, region: str):
+    from tracker import scene, tourpage
+    if not __import__("re").fullmatch(r"[a-z0-9-]{1,80}", sl or ""):
+        return Response("Not found", status=404, mimetype="text/plain")
+    name = scene.tour_name(sl)
+    if not name or not scene.named_tour(name):
+        return Response("Not found", status=404, mimetype="text/plain")
+    return _memo(f"/t/{region}/{sl}", 15, lambda: tourpage.build_html(name, region), "text/html")
+
+
+@app.route("/t/<sl>")
+def tour_global(sl):
+    """One esports tournament worldwide, every channel streaming it together: /global/t/ffws-global-finals-2026"""
+    return _tour_page(sl, "global")
+
+
+@app.route("/india/t/<sl>")
+def tour_india(sl):
+    return _tour_page(sl, "in")
+
+
+@app.route("/api/tour")
+def api_tour():
+    """/api/tour?region=global|in&t=<slug>: one tournament (see scene.tour_data)."""
+    from tracker import scene
+    sl, region = request.args.get("t", ""), request.args.get("region", "global")
+    region = region if region in ("global", "in") else "global"
+    name = scene.tour_name(sl) if __import__("re").fullmatch(r"[a-z0-9-]{1,80}", sl or "") else None
+    if not name:
+        return Response("{}", status=404, mimetype="application/json")
+    return _memo(f"/api/tour:{region}:{sl}", 10, _jdump(lambda: scene.tour_data(name, region)), "application/json")
+
+
+@app.route("/api/tours")
+def api_tours():
+    """/api/tours?region=global|in: tournaments on now (this site's trackers, Liquipedia's, all channels together)."""
+    from tracker import scene
+    region = request.args.get("region", "global")
+    region = region if region in ("global", "in") else "global"
+    return _memo(f"/api/tours:{region}", 15, _jdump(lambda: scene.tours_overview(region)), "application/json")
 
 
 def _scene_args():
@@ -1014,6 +1101,7 @@ def _hit_writer():   # visitor counts are written here, one at a time, so page r
 
 
 threading.Thread(target=_hit_writer, daemon=True).start()
+threading.Thread(target=__import__("tracker.scene", fromlist=["scene"]).search_index_loop, daemon=True).start()   # search in memory
 
 
 @app.route("/gameart/<name>")
@@ -1182,6 +1270,43 @@ WARM = ["/global", "/india", "/api/cats?region=global&range=24h", "/api/cats?reg
         if os.getenv("GTA6_SHOW", "0") == "1" else [])
 
 
+def _warm_more():
+    """Beyond the fixed list: every few minutes, build the pages people open next: the 40 biggest categories and
+    every section and live tournament in both regions, and the biggest channels' pages. Pages already built are
+    skipped by the cache, so this only costs work for what has expired."""
+    from tracker import scene
+    time.sleep(90)
+    c = app.test_client()
+    H = {"Accept-Encoding": "gzip"}
+    while True:
+        t0 = time.time()
+        try:
+            for region, rp in (("global", "/global"), ("in", "/india")):
+                lv = scene._live_part(None, region)
+                cats = sorted(lv["_by_game"].values(), key=lambda g: -g["viewers"])[:40]
+                urls = []
+                for g in cats:
+                    sl = scene.slug(g["game"])
+                    urls += [f"{rp}/c/{sl}", f"/api/scene?region={region}&cat={sl}&period=today", f"/api/catmonths?cat={sl}&region={region}"]
+                for sec, _ in scene.SECTIONS:
+                    urls += [f"{rp}/s/{sec}", f"/api/scene?region={region}&sec={sec}&period=today"]
+                for t in list(lv["_tours"].values())[:30]:
+                    sl = scene.slug(t["name"])
+                    urls += [f"{rp}/t/{sl}", f"/api/tour?region={region}&t={sl}"]
+                top = sorted(lv["_live"], key=lambda x: -x["viewers"])[:120]
+                for x in top:
+                    urls += [f"/api/channel?sid={x['sid']}"]
+                for u in urls:
+                    try:
+                        c.get(u, headers=H)
+                    except Exception:
+                        pass
+                    time.sleep(0.05)
+        except Exception as e:
+            print(f"Warm more: {str(e)[:120]}")
+        time.sleep(max(30, 240 - (time.time() - t0)))
+
+
 def _warm_forever():
     """Keep the busiest pages built, so a visitor never waits for one to be computed."""
     time.sleep(30)
@@ -1197,7 +1322,10 @@ def _warm_forever():
 
 def run():
     print(f"Event dashboard: http://localhost:{PORT}")
+    _memo_load()
+    threading.Thread(target=_memo_save, daemon=True).start()
     threading.Thread(target=_warm_forever, daemon=True).start()
+    threading.Thread(target=_warm_more, daemon=True).start()
     try:
         from waitress import serve   # production server if installed (pip install waitress)
         serve(app, host="127.0.0.1", port=PORT, threads=48, connection_limit=2000, channel_timeout=30, _quiet=True)

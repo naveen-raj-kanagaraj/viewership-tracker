@@ -57,6 +57,7 @@ def _db():
     global _init_done
     c = store.conn()
     if not _init_done:
+        c = store.main()          # tables are made on the read-write connection
         with store._lock:
             c.executescript("""
             CREATE TABLE IF NOT EXISTS pw_players (
@@ -80,7 +81,7 @@ def _db():
             c.commit()
         _init_done = True
         _archive_bmsd(c)
-    return c
+    return store.conn()
 
 
 BMIC_RESULTS = {      # final results (owner, 2 Nov); text answers list every spelling players used for the right player

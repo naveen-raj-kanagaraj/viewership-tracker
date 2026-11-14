@@ -48,10 +48,11 @@ def _db():
     global _ready
     c = ytextra._db()
     if not _ready:
+        c = store.main()          # tables are made on the read-write connection
         c.executescript(SCHEMA)
         c.commit()
         _ready = True
-    return c
+    return store.conn()
 
 
 def size_band(subs) -> str:
@@ -299,7 +300,7 @@ def standing(sid: str) -> dict:
     """The channel's metrics per format with where it stands among peers (same category, game and size band,
     worldwide and in India), as a percentile: 90 = better than 90% of them."""
     since = ytextra._day(time.time() - 4 * 86400)
-    with store._lock:
+    with store.reading():
         c = _db()
         ch = c.execute("SELECT COALESCE(NULLIF(ytcat,''), topic) cat, game, COALESCE(india,0) india FROM sc_channels WHERE sid=?",
                        (sid,)).fetchone()
@@ -316,7 +317,7 @@ def standing(sid: str) -> dict:
         peers += [("in", "cat", ch["cat"]), ("in", "game", ch["game"])]
     peers = [p for p in peers if p[2] and p[2] != "Other"] + [("world", "all", "")]
     out = {"size_band": band, "subs": subs, "formats": {}}
-    with store._lock:
+    with store.reading():
         c = _db()
         for fmt, m in mets.items():
             f = {k: m.get(k) for k in ("n", "med_views", "like_rate", "comment_rate", "eng_rate", "per_week", "views_per_sub")}
@@ -350,7 +351,7 @@ def performance(sid: str, fmt: str = "long") -> dict:
     mv = m.get("med_views")
     if not mv:
         return {}
-    with store._lock:
+    with store.reading():
         rows = _db().execute(f"SELECT vid, views FROM yt_videos WHERE sid=? AND {FORMATS[fmt]} AND ts>? AND views>0",
                              (sid, time.time() - 365 * 86400)).fetchall()
     return {v: round(n / mv, 2) for v, n in rows}
@@ -360,7 +361,7 @@ def monthly(sid: str, since: float = None) -> list:
     """Per month since BACKFILL_FROM: posts by format, views / likes / comments of that month's posts (as of now),
     median engagement, hours streamed."""
     since = since or BACKFILL_FROM
-    with store._lock:
+    with store.reading():
         rows = _db().execute("SELECT ts, views, likes, comments, secs, live, short FROM yt_videos WHERE sid=? AND ts>=? ORDER BY ts",
                              (sid, since)).fetchall()
     months = {}
@@ -437,7 +438,7 @@ def comments_once(max_calls: int = 60) -> int:
 
 
 def top_comments(sid: str, n: int = 12) -> list:
-    with store._lock:
+    with store.reading():
         rows = _db().execute("""SELECT k.vid, k.author, k.text, k.likes, k.ts, v.title FROM yt_comments k JOIN yt_videos v ON v.vid=k.vid
                                 WHERE v.sid=? AND k.rank>0 ORDER BY k.likes DESC LIMIT ?""", (sid, n)).fetchall()
     return [dict(r) for r in rows]

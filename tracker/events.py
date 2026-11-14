@@ -162,8 +162,19 @@ def need_official(ev: dict) -> bool:
 
 # ---------- storage ----------
 
+_SCHEMA_OK = {}
+
+
 def _db():
-    c = store.conn()
+    if _SCHEMA_OK.get(store.DB_PATH):
+        return store.conn()
+    with store._lock:
+        _schema(store.main())
+        _SCHEMA_OK[store.DB_PATH] = True
+    return store.conn()
+
+
+def _schema(c):
     c.executescript("""
     CREATE TABLE IF NOT EXISTS ev_streams (event TEXT, vid TEXT, channel TEXT, channel_id TEXT, title TEXT, kind TEXT,
         first_seen REAL, last_seen REAL, peak INTEGER DEFAULT 0, peak_at REAL, PRIMARY KEY (event, vid));

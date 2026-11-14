@@ -51,7 +51,7 @@ def _rows():
     from tracker import scene, ytextra
     today = datetime.now(events.REPORT_TZ).date()
     d30 = (today - timedelta(days=30)).strftime("%Y-%m-%d")
-    with store._lock:
+    with store.reading():
         c = scene._db()
         ytextra._db()
         latest = {r[0]: (r[1], r[2]) for r in c.execute(
@@ -82,7 +82,7 @@ def _rows():
     per = {}                                          # (sid, period) -> (eng, likes, medv) from deep.period_metrics
     try:
         from tracker import deep
-        with store._lock:
+        with store.reading():
             for sid, pp, e, lk, mv in deep._db().execute("SELECT sid, period, eng_rate, like_rate, med_views FROM ch_period"):
                 per[(sid, pp)] = (e, lk, mv)
     except Exception as ex:
@@ -90,7 +90,7 @@ def _rows():
     eng = {}                                          # this site's medians from the channel's recent posts (deep.py)
     try:
         from tracker import deep
-        with store._lock:
+        with store.reading():
             for sid, fmt, e, lk, mv, n in deep._db().execute(
                     "SELECT sid, fmt, eng_rate, like_rate, med_views, n FROM ch_metrics WHERE fmt IN ('long','short')"):
                 if sid not in eng or (fmt == "long" and n >= 5):
@@ -99,7 +99,7 @@ def _rows():
         print(f"Ranks engagement: {str(ex)[:80]}")
     vod = {}                                 # Kick / Twitch: total views of past broadcasts per period (their VOD lists)
     try:
-        with store._lock:
+        with store.reading():
             c = ytextra._db()
             for p in PERIODS:
                 d0 = period_start(p)

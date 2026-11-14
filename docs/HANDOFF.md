@@ -190,6 +190,23 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- Speed (14 Nov 2026): (1) store.reading(): read-only page work gets the thread's own read-only SQLite connection
+  (WAL) instead of queueing behind store._lock; a write inside it raises, and taking store._lock inside it switches back
+  to the read-write connection. Converted: scene page/channel/category/ranking reads, ytextra past/stream_day/videos,
+  deep reads, kit data, eventpage reads, ranks._rows. New read paths should use `with store.reading():`.
+  (2) scene._db/events._db run their CREATE TABLE scripts once per process, not on every call. (3) Search is in
+  memory (scene._SIDX, rebuilt every 5 min by search_index_loop): milliseconds instead of 2-3 s. (4) web._memo serves a
+  non-live answer up to 6 h old at once while rebuilding it; built answers are saved to data/memo_cache.pkl every
+  10 min and loaded at start, so deploys don't make every page cold. (5) web._warm_more builds the 40 biggest
+  categories, every section, live tournaments and the 120 biggest live channels in both regions every ~4 min.
+- Tournaments (14 Nov 2026): tracker/liquipedia.py reads Liquipedia's tournament lists (25 game wikis, every 6 h, one
+  page every 4 s, kv lp_tours). scene.tournament() matches titles to Liquipedia's current tournaments first (name,
+  series name, tag like FFWS, or two of its words for loose co-stream titles; game must fit), then the known league
+  regexes, then '<game> tournaments' only for esports games (no more volleyball/radio in Esports). Tables: sc_tour_ch
+  (tournament x channel x day: peak, hours) and sc_tour (all-time peak / hours per tournament and region). Pages:
+  /global/t/<slug>, /india/t/<slug> (tourpage.py: all channels together, live now, every channel's peak, languages,
+  share card); APIs /api/tour, /api/tours. Esports section pages show "Ongoing tournaments" (India: this site's own
+  trackers like CEGC/PIC first, linking to /e/<key>/). Liquipedia is CC-BY-SA: keep the credit links.
 - Kick / Twitch views (13 Nov 2026): rankings have VIEWS for Kick and Twitch = total views of the channel's past
   broadcasts streamed in the period (yt_videos rows from their VOD lists; ranks.vod). ytextra.prefetch_once re-reads
   the VOD lists of Kick/Twitch channels live in the last 3 days every 6 hours (30 per run, free). Twitch keeps VODs
