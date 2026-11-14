@@ -252,7 +252,7 @@ def channel_events(sid: str) -> dict:
     with the peak (official + watch parties) and the split at that moment; plus BGMI's history for BGMI organisers."""
     plat, _, ident = (sid or "").partition(":")
     out = []
-    with events.store._lock:
+    with events.store.reading():
         c = events._db()
         for key, pr in events.PRESETS.items():
             offs = [x.lower() for x in pr.get("official_channels", [])] if plat == "yt" else \
@@ -280,7 +280,7 @@ def day_event(sid: str, day: str) -> dict:
     from datetime import datetime
     d0 = datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=events.REPORT_TZ).timestamp()
     for e in channel_events(sid)["events"]:
-        with events.store._lock:
+        with events.store.reading():
             c = events._db()
             r = c.execute("SELECT ts, total, official, watch FROM ev_ticks WHERE event=? AND ts>=? AND ts<? ORDER BY total DESC LIMIT 1",
                           (e["key"], d0, d0 + 86400)).fetchone()
@@ -302,7 +302,7 @@ def event_peaks() -> list:
     by this site (so a finished event joins the chart by itself)."""
     out = []
     try:
-        with events.store._lock:
+        with events.store.reading():
             c = events._db()
             for key, pr in events.PRESETS.items():
                 h = pr.get("hist")

@@ -64,10 +64,11 @@ def _db():
     from tracker import ytextra
     c = ytextra._db()
     if not _ready:
+        c = store.main()          # tables are made on the read-write connection
         c.executescript(SCHEMA)
         c.commit()
         _ready = True
-    return c
+    return store.conn()
 
 
 def _salt() -> bytes:

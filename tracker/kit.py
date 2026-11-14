@@ -29,17 +29,18 @@ def _db():
     from tracker import ytextra
     c = ytextra._db()
     if not _ready:
+        c = store.main()          # tables are made on the read-write connection
         c.executescript(API_SCHEMA)
         c.commit()
         _ready = True
-    return c
+    return store.conn()
 
 
 # ---------- the data behind a kit ----------
 
 def data(sid: str) -> dict:
     from tracker import deep, chatstats, ranks, ytextra
-    with store._lock:
+    with store.reading():
         c = _db()
         ch = c.execute("SELECT * FROM sc_channels WHERE sid=?", (sid,)).fetchone()
         if not ch:
@@ -67,7 +68,7 @@ def data(sid: str) -> dict:
         out["engagement"] = deep.standing(sid)
         out["monthly"] = deep.monthly(sid)
         perf = deep.performance(sid)
-        with store._lock:
+        with store.reading():
             vids = {r[0]: dict(r) for r in _db().execute(
                 "SELECT vid, title, ts, views, likes, comments FROM yt_videos WHERE sid=? AND ts>?", (sid, time.time() - 90 * 86400))}
         out["best_videos"] = [{**vids[v], "index": p} for v, p in sorted(perf.items(), key=lambda x: -x[1]) if v in vids][:5]

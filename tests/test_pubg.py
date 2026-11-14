@@ -30,6 +30,7 @@ c.execute("INSERT INTO sc_daily VALUES ('2026-11-09',?,'PUBG: Battlegrounds',300
 c.commit()
 store.kv_set("scene_mig_pubgpc", False)
 scene._COLS.clear()
+scene._SCHEMA_OK.clear()          # run the migrations again
 c = scene._db()
 q = lambda sql, *a: [tuple(r) for r in c.execute(sql, a).fetchall()]
 assert q("SELECT COUNT(*) FROM sc_samples WHERE sid=? AND game='BGMI'", sid)[0][0] == 0

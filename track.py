@@ -105,6 +105,8 @@ def cmd_run(args) -> int:
         threading.Thread(target=scene.run_forever, daemon=True).start()
         from tracker import ytextra
         ytextra.start()                    # Super Chats on the biggest YouTube streams + daily channel stats
+        from tracker import liquipedia
+        liquipedia.start()                 # which esports tournaments are on (Liquipedia), every 6 h
         from tracker import deep
         deep.start()                       # ranked channels: refresh every 1-3 h, history since Jan, metrics, comments
         from tracker import chatstats

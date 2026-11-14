@@ -69,6 +69,7 @@ def _db():
     from tracker import scene
     c = scene._db()
     if not _ready:
+        c = store.main()          # tables are made on the read-write connection
         c.executescript(_SCHEMA)
         have = {r[1] for r in c.execute("PRAGMA table_info(moments)")}
         for col, typ in (("kind", "TEXT"), ("score", "REAL"), ("chat_base", "REAL"), ("chat_peak", "REAL")):
@@ -76,7 +77,7 @@ def _db():
                 c.execute(f"ALTER TABLE moments ADD COLUMN {col} {typ}")
         c.commit()
         _ready = True
-    return c
+    return store.conn()
 
 
 # ---------- detection ----------

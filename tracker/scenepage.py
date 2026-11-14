@@ -213,6 +213,10 @@ body{font-size:14px}.wrap{padding:0 12px 20px}
 .kpi #k3p{display:block;font-size:10.5px;margin-top:3px}.sbox{padding:0 12px 10px}.sres{left:12px;right:12px}
 .hr{grid-template-columns:96px minmax(0,1fr) 52px;gap:8px;font-size:12px}.hr .hb{height:13px}.foot{font-size:11px}
 }
+.otchips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 12px}.otchips a{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#14141e;padding:6px 10px;font:700 13px "Barlow Condensed",sans-serif;letter-spacing:.05em;text-decoration:none;color:var(--ink)}.otchips a.tk{background:var(--lime);color:#0b0b12;border-color:var(--lime)}.otchips a i{width:7px;height:7px;border-radius:50%;background:#ff4d5e;display:inline-block}
+.otg{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:10px}.otg a{display:flex;gap:10px;align-items:center;border:1px solid var(--line);background:#14141e;padding:10px;text-decoration:none;color:inherit;min-width:0}.otg a:hover{border-color:var(--lime)}
+.otg img,.otg .ph{width:36px;height:48px;object-fit:cover;border-radius:3px;flex:none;background:#1a1a26}.otg .n{font-weight:700;line-height:1.2}.otg .m{color:var(--muted);font-size:12px}.otg .v{margin-left:auto;text-align:right;font:700 20px "Barlow Condensed",sans-serif;white-space:nowrap}.otg .v small{display:block;font:500 11px "Barlow",sans-serif;color:var(--muted)}
+.otg .lvb{display:inline-block;background:#ff4d5e;color:#fff;font:700 10px "Barlow Condensed",sans-serif;letter-spacing:.08em;padding:0 5px;margin-right:5px}.otmore{color:var(--muted);font-size:12px;margin-top:10px}.otmore a{color:var(--muted)}
 </style></head><body>
 <div class="top"><div class="in"><a class="brand" href="__HOME__">__BRAND__</a><span class="beta" title="Under testing: numbers may be incomplete or change">BETA</span><span class="rg" id="rg"></span><span class="upd"><span class="dot"></span><span>UPDATED </span><b id="upd">-</b></span><button class="sbtn" id="sbtn" aria-label="Search streamers"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></button></div>
 <div class="sbox" id="sbox"><input id="gs" type="search" placeholder="Search a streamer, stream title or game" autocomplete="off"><div class="sres" id="sres"></div></div>
@@ -229,6 +233,8 @@ body{font-size:14px}.wrap{padding:0 12px 20px}
  <div class="gcard" id="gcardw"><div class="gh"><div><h2>Where the streamers are from</h2><div class="gsub">Viewers by the streamer's country. Grey: no located streamer live.</div></div><a class="btn" href="/map" style="text-decoration:none">OPEN MAP</a></div><iframe id="gframe" title="World map of live viewers" loading="lazy"></iframe></div>
 </div>
 <div id="evwrap"></div>
+<div class="card" id="otcard" style="display:none"><div class="head"><div><div class="lbl">Esports</div><h2>Ongoing tournaments</h2><div class="sub" id="ots">Every channel streaming a tournament added together: official broadcasts in every country and language, and co-streams. Tap one for all its numbers.</div></div></div>
+<div class="otchips" id="otchips"></div><div class="otg" id="otg"></div><div class="otmore" id="otmore"></div></div>
 <div class="hbar" id="hbar"><div><div class="lbl">Today</div><h2 id="hbt">Top today</h2></div><label class="hsel"><span>Category</span><select id="hcat"><option value="">All categories</option></select></label><a class="hopen" id="hopen" style="display:none"></a></div>
 <div class="hcs" id="hcs"></div>
 <div class="card" id="histcard" style="display:none"><div class="head"><div><div class="lbl" id="hl">Past events</div><h2 id="hh">Peak viewers of past tournaments</h2><div class="sub">Highest number watching at once, official broadcast plus co-streams.</div></div><button class="btn" data-share="hist">SHARE</button></div><div class="hchart"><canvas id="hc"></canvas></div></div>
@@ -382,6 +388,14 @@ const liveMap=()=>{const m={};(D.live||[]).forEach(x=>m[x.sid]=x.viewers);return
 const liveList=()=>(D.live||[]).filter(x=>(plat==='all'||x.platform===plat)&&(!q||(x.name+' '+x.title+' '+x.game).toLowerCase().includes(q)));
 const dl=d=>d===undefined?'':d===null?'<span class="dl nw">NEW</span>':d>0?`<span class="dl up">&#9650;${d}</span>`:d<0?`<span class="dl dn">&#9660;${-d}</span>`:'';
 const boardList=()=>{const lm=liveMap();return (D.board||[]).filter(x=>bplat==='all'||x.platform===bplat).map(x=>({...x,now:lm[x.sid]||x.now||0})).sort((a,b)=>b[sort]-a[sort])};
+
+async function otLoad(){let j;try{j=await (await fetch('/api/tours?region='+REGION)).json()}catch(e){return}
+ const K=j.tracked||[],T=j.tournaments||[],O=j.ongoing_no_streams||[];if(!K.length&&!T.length&&!O.length)return;document.getElementById('otcard').style.display='';
+ const dd=s=>s?new Date(s+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'}):'';
+ setH('otchips',K.map(e=>`<a class="tk" href="${esc(e.url)}">${e.live?'<i></i>':''}${esc(e.name.toUpperCase())}</a>`).join('')+T.filter(t=>t.live).slice(0,12).map(t=>`<a href="${RP}/t/${esc(t.slug)}"><i></i>${esc(t.name.toUpperCase())}</a>`).join(''));
+ const card=(href,t,extra)=>`<a href="${href}">${art(t.game,t.art,'')}<span style="min-width:0"><div class="n">${esc(t.name)}</div><div class="m">${t.live?'<span class="lvb">LIVE</span>':''}${esc(t.game||'')}${t.start?' · '+dd(t.start)+(t.end&&t.end!==t.start?' to '+dd(t.end):''):''}${extra||''}</div></span><span class="v">${t.live?fmt(t.viewers):fmt(t.peak)}<small>${t.live?'watching now':'peak'}</small></span></a>`;
+ setH('otg',K.map(e=>card(esc(e.url),e,' · official tracker')).join('')+T.slice(0,24).map(t=>card(`${RP}/t/${esc(t.slug)}`,t,t.streams?` · ${t.streams} channel${t.streams>1?'s':''}`:'')).join(''));
+ setH('otmore',(O.length?'Also on now, no stream seen yet: '+O.slice(0,25).map(t=>`<a href="${esc(t.liquipedia)}" target="_blank" rel="noopener">${esc(t.name)}</a>`).join(', ')+'. ':'')+'Tournament list from <a href="https://liquipedia.net" target="_blank" rel="noopener">Liquipedia</a> (CC-BY-SA).')}
 function render(){if(!D)return;const K=D.kpis||{};
  updLabel();
  const S=D.sections||[];
@@ -411,14 +425,16 @@ function render(){if(!D)return;const K=D.kpis||{};
  setT('bh',(SEC==='esports'?'Biggest tournaments ':'Top streamers ')+PERB[per]);setT('bm',SEC==='esports'?'PEAK VIEWERS':{hw:'HOURS WATCHED',peak:'PEAK VIEWERS',avg:'AVERAGE VIEWERS'}[sort]);
  {const rl=document.getElementById('rlink');rl.style.display=SEC==='esports'?'none':'block';rl.href=RP+'/rankings?period='+({today:'day','7d':'week','30d':'month'}[per])+(CAT?'&cat='+CAT:'')+(SEC?'&sec='+SEC:'');rl.textContent='Full rankings: any day, week or month, by category and country'}
  if(SEC==='esports'){const TD=D.tour_day||[];
-  setH('board',TD.slice(0,bAll?50:10).map((x,i)=>`<div class="row"><span class="rk${i<3?' t':''}">${i+1}</span><span class="av"><span class="ph">${svg('esports',16)}</span></span><span style="min-width:0"><div class="nm">${esc(x.name)}<span class="pf">${({youtube:'YouTube',kick:'Kick',twitch:'Twitch'})[x.platform]||''}</span></div><div class="ds">peak at ${when(x.at)}</div></span><span class="vv">${fmt(x.peak)}</span></div>`).join('')||'<div class="empty">No tournaments seen yet in this period.</div>');
+  setH('board',TD.slice(0,bAll?50:10).map((x,i)=>`<div class="row"><span class="rk${i<3?' t':''}">${i+1}</span><span class="av"><span class="ph">${svg('esports',16)}</span></span><span style="min-width:0"><div class="nm">${x.named?`<a href="${RP}/t/${esc(x.tslug)}" style="text-decoration:none">${esc(x.name)} &rsaquo;</a>`:esc(x.name)}</div><div class="ds">peak at ${when(x.at)}</div></span><span class="vv">${fmt(x.peak)}</span></div>`).join('')||'<div class="empty">No tournaments seen yet in this period.</div>');
   const bm=document.getElementById('bmore');bm.style.display=TD.length>10?'block':'none';bm.textContent=bAll?'Show top 10':`Show all ${TD.length}`;bm.onclick=()=>{bAll=!bAll;render()}}
  else{const B=boardList(),bb=bAll?B.slice(0,300):B.slice(0,10);
   flipH('board',bb.map((x,i)=>rowX('b',x,`<span class="rk${i<3?' r'+(i+1):''}">${i+1}</span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}<span class="pf">${({youtube:'YouTube',kick:'Kick',twitch:'Twitch'})[x.platform]||''}</span>${dl(x.delta)}<span class="car">&#9654;</span></div><div class="ds">${x.now?`<span class="lv">LIVE</span>${full(x.now)} watching`:x.last_live?'Last live '+ago(x.last_live):''}${CAT?'':' · '+esc(x.game)} · peak ${fmt(x.peak)}</div></span><span class="vv">${sort==='hw'?fmt(x.hw)+'h':fmt(x[sort])}<small>${sort==='hw'?'avg '+fmt(x.avg):fmt(x.hw)+'h watched'}</small></span>`)).join('')||'<div class="empty">No streamers recorded in this period yet.</div>');
   document.getElementById('bmore').style.display='none'}
+
+ if(SEC==='esports'&&!window._otL){window._otL=1;otLoad();setInterval(otLoad,30000)}
  const T=D.tournaments||[];document.getElementById('tourcard').style.display=(T.length||SEC==='esports')?'':'none';
  setT('th',`Tournaments live now ${WHERE}`);
- setH('tours',T.map(t=>`<div class="tc">${art(t.game,t.art,'ta')}<span style="min-width:0"><div class="tn">${esc(t.name)}</div><a class="tg" href="${CU(esc(t.slug))}">${esc(t.game)}</a></span><span class="tv">${fmt(t.viewers)}<small>${t.streams} stream${t.streams>1?'s':''} · peak ${fmt(t.peak)}</small></span>
+ setH('tours',T.map(t=>`<div class="tc">${art(t.game,t.art,'ta')}<span style="min-width:0"><div class="tn">${t.named?`<a href="${RP}/t/${esc(t.tslug)}" style="text-decoration:none">${esc(t.name)} &rsaquo;</a>`:esc(t.name)}</div><a class="tg" href="${CU(esc(t.slug))}">${esc(t.game)}</a></span><span class="tv">${fmt(t.viewers)}<small>${t.streams} stream${t.streams>1?'s':''} · peak ${fmt(t.peak)}</small></span>
   <div class="ts">${t.top.slice(0,5).map(x=>`<a href="${esc(x.url)}" target="_blank" rel="noopener">${x.logo?`<img src="${esc(x.logo)}" alt="" referrerpolicy="no-referrer">`:'<span class="ph"></span>'}${esc(x.name)} <b class="mono" style="font-weight:400">${fmt(x.viewers)}</b></a>`).join('')}</div></div>`).join('')||'<div class="empty">No esports tournament is live right now. They show up here the moment one goes live.</div>');
  setT('ch',cmode==='days'?'Day by day':`Viewers over time, ${PER[per]}`);setT('chs',cmode==='days'?'Most watching at once each day (IST). Hours watched under each bar.':'Everyone watching at once, every scan.');
  seg('cmode',[['days','BY DAY'],['line',{today:'24H','7d':'7D','30d':'30D'}[per]+' LINE']],cmode,v=>{cmode=v;render()});drawChart();
