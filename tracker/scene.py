@@ -76,6 +76,11 @@ def pinned() -> list:                     # always first in Categories
 
 # Titles in Chinese, Japanese, Korean, Thai, Arabic or Cyrillic script are not Indian streams even when the
 # streamer tagged them Hindi (it happens on Twitch).
+# Hinglish: Indian streamers on Kick/Twitch often title in English letters ("aaj kya khelenge bhai"). Urdu speakers use the
+# same words, so a title that says Pakistan is not counted.
+HINGLISH = re.compile(r"\b(bhai|bhaiyo|bhaiya|yaar|dosto|aaj|kya|nahi|karenge|khelenge|chalo|masti|pagal|paisa|dhamaka|"
+                      r"bigg ?boss|ipl|gareeb|jeetenge|bolo)\b", re.I)
+NOT_INDIA = re.compile(r"\b(pakistan|pakistani|karachi|lahore|islamabad|urdu)\b", re.I)
 FOREIGN = re.compile(r"[\u0400-\u04FF\u0600-\u06FF\u0E00-\u0E7F\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7AF]")
 
 
@@ -211,7 +216,9 @@ def verdict(x: dict, country: str = None, allow: set = frozenset()) -> bool:
         return True
     if FOREIGN.search(t + " " + n) and not re.search(r"[\u0900-\u0D7F]", t + n):
         return False
-    return bool(re.search(r"[\u0900-\u0D7F]", t + " " + n) or INDIA_MARK.search(t) or INDIA_MARK.search(n))
+    if re.search(r"[\u0900-\u0D7F]", t + " " + n) or INDIA_MARK.search(t) or INDIA_MARK.search(n):
+        return True
+    return x.get("platform") in ("kick", "twitch") and bool(HINGLISH.search(t)) and not NOT_INDIA.search(t + " " + n)
 
 
 def _kick_live(params) -> list:
@@ -955,7 +962,7 @@ def classify(category: str, title: str) -> str:
     return "Other"
 
 
-ALWAYS = {"kick": ["skyesports", "cegc", "rntxrohit", "jonathangaming"]}   # Indian Kick channels: tracked (and Indian) even if the seed list was edited
+ALWAYS = {"kick": ["skyesports", "cegc", "rntxrohit", "jonathangaming", "kaashplays", "regaltos", "neyoo_gaming"]}   # Indian Kick channels: tracked (and Indian) even if the seed list was edited
 
 
 def seeds() -> dict:
