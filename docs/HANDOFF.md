@@ -190,6 +190,11 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 16 Nov 2026: rakazone and tbone_gaming (Kick) were recorded but not Indian ("Big Boss", "YatraRP" titles): INDIA_MARK
+  has yatrarp, HINGLISH matches "big boss"; both added to scene.ALWAYS. "bolo" removed from HINGLISH (chessbrah was
+  counted Indian). mark_known_india() now re-judges every Kick/Twitch channel from its stored title, language and
+  country with the current rules (outside the write lock), so a rule change applies to offline channels within the
+  hour (and at start), and ranks recompute when flags change.
 - 15 Nov 2026 (8): Indian-script check (scene._ind_script) needs 2+ Indian letters, Om signs don't count, and must
   outnumber another non-Latin script ("ૐ Витус Бритва" was counted Indian). india_known() also includes the Kick seeds
   and the allow list; the hourly india_marks thread unflags Kick/Twitch channels wrongly marked by a foreign-script title

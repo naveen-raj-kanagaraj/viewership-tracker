@@ -43,7 +43,7 @@ LANGS = [x.strip() for x in os.getenv("SCENE_LANGS", "hi").split(",") if x.strip
 # or says so (hindi, india, desi, tamil, bgmi ...).
 INDIA_MARK = re.compile(r"[\u0900-\u0D7F]|\b(hindi|india|indian|desi|bharat|hinglish|tamil|telugu|kannada|malayalam|"
                         r"marathi|bengali|bangla|punjabi|gujarati|odia|assamese|bgmi|bmps|bgis|bmsd|bmic|"
-                        r"soulcity|mumbai|delhi|bangalore|bengaluru|hyderabad|chennai|kolkata|pune)\b", re.I)
+                        r"soulcity|yatrarp|yatra rp|mumbai|delhi|bangalore|bengaluru|hyderabad|chennai|kolkata|pune)\b", re.I)
 INDIA_CATS = {"kick": [x.strip() for x in os.getenv("SCENE_KICK_CATS", "PUBG Mobile,Free Fire,Grand Theft Auto V,"
                                                    "Valorant,Just Chatting,Battlegrounds Mobile India").split(",") if x.strip()],
               "twitch": [x.strip() for x in os.getenv("SCENE_TWITCH_CATS", "PUBG MOBILE,Garena Free Fire,Grand Theft Auto V,"
@@ -79,7 +79,7 @@ def pinned() -> list:                     # always first in Categories
 # Hinglish: Indian streamers on Kick/Twitch often title in English letters ("aaj kya khelenge bhai"). Urdu speakers use the
 # same words, so a title that says Pakistan is not counted.
 HINGLISH = re.compile(r"\b(bhai|bhaiyo|bhaiya|yaar|dosto|aaj|kya|nahi|karenge|khelenge|chalo|masti|pagal|paisa|dhamaka|"
-                      r"bigg ?boss|ipl|gareeb|jeetenge|bolo)\b", re.I)
+                      r"bigg? ?boss|ipl|gareeb|jeetenge)\b", re.I)
 NOT_INDIA = re.compile(r"\b(pakistan|pakistani|karachi|lahore|islamabad|urdu)\b", re.I)
 FOREIGN = re.compile(r"[\u0400-\u04FF\u0600-\u06FF\u0E00-\u0E7F\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7AF]")
 
@@ -186,27 +186,41 @@ def india_known() -> frozenset:
 
 
 def mark_known_india() -> int:
-    """Flag the known Indian channels as Indian in sc_channels, so their past days count in India's rankings."""
+    """Flag the known Indian channels as Indian in sc_channels, so their past days count in India's rankings, and
+    re-judge every Kick / Twitch channel from its last title with today's rules (the scan does the same each time a
+    channel is live; this applies a rule change to channels that are offline now). Judged outside the write lock."""
     known = india_known()
     if not known:
         return 0
+    wrong, right = [], []
+    with store.reading():
+        rows = store.conn().execute("SELECT sid, name, title, country, language, COALESCE(india,0) FROM sc_channels "
+                                    "WHERE platform IN ('kick','twitch') AND COALESCE(title,'')<>''").fetchall()
+    for sid, nm, tt, ct, lg, ind in rows:
+        if sid in known:
+            continue
+        v = verdict({"sid": sid, "platform": sid.split(":")[0], "name": nm or "", "title": tt or "", "language": lg or ""},
+                    ct, known)
+        if ind and not v:
+            wrong.append(sid)
+        elif v and not ind:
+            right.append(sid)
+    n = 0
     with store._lock:
         c = store.main()
         L = sorted(known)
-        n = 0
         for i in range(0, len(L), 500):
             part = L[i:i + 500]
             n += c.execute(f"UPDATE sc_channels SET india=1 WHERE COALESCE(india,0)=0 AND sid IN ({','.join('?' * len(part))})",
                            part).rowcount
-        wrong = [r[0] for r in c.execute("SELECT sid, name, title, country FROM sc_channels WHERE india=1 AND platform IN ('kick','twitch')")
-                 if r[0] not in known and FOREIGN.search((r[2] or "") + " " + (r[1] or "")) and not _ind_script((r[2] or "") + " " + (r[1] or ""))]
-        for i in range(0, len(wrong), 500):            # e.g. a Russian title with an Om sign: not Indian
-            part = wrong[i:i + 500]
-            c.execute(f"UPDATE sc_channels SET india=0 WHERE sid IN ({','.join('?' * len(part))})", part)
-        if wrong:
-            print(f"Unmarked {len(wrong)} channels wrongly counted as Indian (foreign script): {', '.join(wrong[:10])}")
+        for flag, ids in ((1, right), (0, wrong)):
+            for i in range(0, len(ids), 500):
+                part = ids[i:i + 500]
+                c.execute(f"UPDATE sc_channels SET india=? WHERE sid IN ({','.join('?' * len(part))})", [flag] + part)
         c.commit()
-    return n + len(wrong)
+    if wrong:
+        print(f"Unmarked {len(wrong)} channels no longer counted as Indian: {', '.join(wrong[:10])}")
+    return n + len(right) + len(wrong)
 
 
 _IND_LETTERS = re.compile(r"[\u0900-\u0D7F]")
@@ -982,7 +996,7 @@ def classify(category: str, title: str) -> str:
     return "Other"
 
 
-ALWAYS = {"kick": ["skyesports", "cegc", "rntxrohit", "jonathangaming", "kaashplays", "regaltos", "neyoo_gaming"]}   # Indian Kick channels: tracked (and Indian) even if the seed list was edited
+ALWAYS = {"kick": ["skyesports", "cegc", "rntxrohit", "jonathangaming", "kaashplays", "regaltos", "neyoo_gaming", "rakazone", "tbone_gaming"]}   # Indian Kick channels: tracked (and Indian) even if the seed list was edited
 
 
 def seeds() -> dict:
