@@ -2242,9 +2242,27 @@ def _rank_base(d0: str, d1: str, current: bool) -> list:
     hit = _RB.get(key)
     if hit and now - hit[0] < (90 if current else 3600):
         return hit[1]
+    if hit and now - hit[0] < 3 * 3600:          # a bit old: answer now, refresh in the background (one at a time)
+        if not _RB_BUSY.get(key):
+            _RB_BUSY[key] = True
+
+            def bg():
+                try:
+                    _rank_base_build(key, d0, d1)
+                finally:
+                    _RB_BUSY.pop(key, None)
+            threading.Thread(target=bg, daemon=True).start()
+        return hit[1]
+    return _rank_base_build(key, d0, d1, current)
+
+
+_RB_BUSY = {}
+
+
+def _rank_base_build(key, d0, d1, current=None) -> list:
     with _RB_LOCK:
         hit = _RB.get(key)
-        if hit and time.time() - hit[0] < (90 if current else 3600):
+        if current is not None and hit and time.time() - hit[0] < (90 if current else 3600):
             return hit[1]
         with store.reading():
             rows = [dict(r) for r in _db().execute(
@@ -2252,7 +2270,7 @@ def _rank_base(d0: str, d1: str, current: bool) -> list:
                    c.country, COALESCE(c.india,1) india, c.last_live FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid
                    WHERE d.day BETWEEN ? AND ? GROUP BY d.sid, d.game""", (d0, d1))]
         _RB[key] = (time.time(), rows)
-        for k in [k for k, v in _RB.items() if isinstance(v, tuple) and time.time() - v[0] > 3600]:
+        for k in [k for k, v in _RB.items() if isinstance(v, tuple) and time.time() - v[0] > 3 * 3600]:
             _RB.pop(k, None)
     return rows
 

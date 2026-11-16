@@ -190,6 +190,10 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 15 Nov 2026 (2): rankings, live streamers mode: EVERYTHING / GAMING / ESPORTS buttons (sec=) next to the platform
+  buttons; share card title follows the filters ("TOP KICK GAMING STREAMERS", "INDIA · LAST 7 DAYS · BY HOURS
+  WATCHED"). scene._rank_base serves a window's rows while it refreshes in the background (up to 3 h old) instead of
+  making a visitor wait for the 7-day sc_daily scan (a cold build was 37 s on the live site).
 - 15 Nov 2026: speed pass. Every read-only `with store._lock` block across the code (60 of them: channel extras,
   deep stats, predict, exports, chat stats ...) now uses store.reading(), so no page waits behind a tracker write.
   ytextra.linked() builds its channel-name map in a background thread (warmed at start) instead of scanning

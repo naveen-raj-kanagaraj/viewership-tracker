@@ -79,6 +79,7 @@ __PANEL_CSS__
  <select id="cat"><option value="">All categories</option></select>
  <select id="country"><option value="">All countries</option></select>
  <div class="seg" id="plat"></div>
+ <div class="seg" id="secs"></div>
  <button class="btn" id="share">SHARE TOP 10</button>
 </div>
 <div class="span" id="span"></div>
@@ -172,6 +173,7 @@ function render(){if(!R)return;const order=[S.metric,...['hw','peak','avg','hour
 function controls(){{const el=document.getElementById('period');el.outerHTML='<select id="period" aria-label="Period">'+[['day','Last 24 hours'],['3d','Last 3 days'],['week','Last 7 days'],['month','Last 30 days'],['3m','Last 3 months'],['6m','Last 6 months'],['ytd','This year'],['1y','Last 12 months'],['all','Lifetime']].map(([v,l])=>`<option value="${v}"${v===S.period?' selected':''}>${l}</option>`).join('')+'</select>';document.getElementById('period').onchange=e=>{S.period=e.target.value;S.date='';go()}}
  seg('metric',[['hw','HOURS WATCHED'],['peak','PEAK'],['avg','AVERAGE'],['hours','HOURS LIVE'],['sc','SUPER CHATS'],['vg','VIEWS GAINED']],S.metric,v=>{S.metric=v;go()});
  seg('plat',[['','ALL'],['youtube','YOUTUBE'],['kick','KICK'],['twitch','TWITCH']],S.platform,v=>{S.platform=v;go()});
+ seg('secs',[['','EVERYTHING'],['gaming','GAMING'],['esports','ESPORTS']],S.sec,v=>{S.sec=v;S.cat='';go()});
  const di=document.getElementById('date');if(R){di.max=R.today;di.min=R.first_day||'';di.value=R.date;
   document.getElementById('prev').disabled=!!R.first_day&&R.start<=R.first_day;document.getElementById('next').disabled=R.date>=R.today}
  const cs=document.getElementById('cat');cs.innerHTML='<option value="">All categories</option>'+((R&&R.categories)||[]).slice().sort((a,b)=>a.game.localeCompare(b.game)).map(g=>`<option value="${esc(g.slug)}"${g.slug===S.cat?' selected':''}>${esc(g.game)}</option>`).join('')+(S.cat&&R&&!R.categories.some(g=>g.slug===S.cat)?`<option value="${esc(S.cat)}" selected>${esc(S.cat)}</option>`:'');
@@ -200,10 +202,11 @@ async function makeCard(logos){const ST=FMT==='story',H=ST?1920:1350;
  const y0=ST?210:64;
  x.fillStyle='#b6f23a';x.font='700 30px "Barlow Condensed",sans-serif';x.fillText('LETSGROWESPORTS',72,y0+26);
  x.fillStyle='#fff';x.font='700 64px "Barlow Condensed",sans-serif';
- x.fillText(fit(CH?'TOP '+(NAMES[C.platform]||'').toUpperCase()+' CHANNELS':'TOP STREAMERS '+(cat?'· '+cat.toUpperCase():where.toUpperCase()),936),72,y0+100);
+ x.fillText(shrink(CH?'TOP '+(NAMES[C.platform]||'').toUpperCase()+' CHANNELS':['TOP',S.platform?(NAMES[S.platform]||'').toUpperCase():'',cat?cat.toUpperCase():({gaming:'GAMING',esports:'ESPORTS'})[S.sec]||'','STREAMERS'].filter(Boolean).join(' '),936,64,'700 #px "Barlow Condensed",sans-serif'),72,y0+100);
  const WM='For more: '+(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\./,'')+RP;x.font='600 22px "Barlow Condensed",sans-serif';const wmW=x.measureText(WM).width+28;
  if(CH){x.fillStyle='#b6f23a';x.fillText(shrink([cat,where,'BY '+CML(C.metric).replace('PAST STREAM ','')].filter(Boolean).join(' · ').toUpperCase(),936-wmW,34,'700 #px "Barlow Condensed",sans-serif'),72,y0+145)}
- else{x.fillStyle='#8d8ca3';x.fillText(shrink(document.getElementById('span').textContent.toUpperCase(),936-wmW,28,'#px "Barlow Condensed",sans-serif'),72,y0+145)}
+ else{x.fillStyle='#8d8ca3';const pl=document.getElementById('period'),pt=pl&&pl.selectedOptions&&pl.selectedOptions[0]?pl.selectedOptions[0].text:'';
+  x.fillText(shrink([where,pt+(R.date!==R.today?' TO '+dshortD(R.date):''),'BY '+MET[S.metric][0]].filter(Boolean).join(' · ').toUpperCase(),936-wmW,28,'#px "Barlow Condensed",sans-serif'),72,y0+145)}
  x.textAlign='right';x.fillStyle='#a9a8be';x.font='600 22px "Barlow Condensed",sans-serif';x.fillText(WM,1008,y0+145);x.textAlign='left';
  x.fillStyle='#262636';x.fillRect(72,y0+170,936,2);
  const L=(CH?CR.rows:R.rows).slice(0,10),ims=logos?await Promise.all(L.map(s=>loadImg(s.logo))):[];
@@ -243,7 +246,7 @@ document.getElementById('mfmt').onclick=async e=>{const b=e.target.closest('butt
 document.getElementById('mcopy').onclick=async e=>{try{await navigator.clipboard.writeText(location.href);e.target.textContent='COPIED'}catch(x){prompt('Copy this link',location.href)}};
 document.getElementById('mclose').onclick=()=>document.getElementById('modal').style.display='none';
 document.getElementById('mdl').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='rankings.png';a.click()};
-document.getElementById('mshare').onclick=async()=>{const f=new File([blob],'rankings.png',{type:'image/png'}),t=(MODE==='channels'?`Top ${NAMES[C.platform]} channels${C.game?' making '+C.game:''} by ${CML(C.metric).toLowerCase()}: `+CR.rows.slice(0,3).map((s,i)=>`${i+1}. ${s.name}`).join(' | ')+' '+location.href+' @letsgrowesports':`Top streamers ${WHERE}: `+R.rows.slice(0,3).map((s,i)=>`${i+1}. ${s.name}`).join(' | ')+' '+SITE+location.pathname+location.search+' @letsgrowesports');
+document.getElementById('mshare').onclick=async()=>{const f=new File([blob],'rankings.png',{type:'image/png'}),t=(MODE==='channels'?`Top ${NAMES[C.platform]} channels${C.game?' making '+C.game:''} by ${CML(C.metric).toLowerCase()}: `+CR.rows.slice(0,3).map((s,i)=>`${i+1}. ${s.name}`).join(' | ')+' '+location.href+' @letsgrowesports':`Top ${S.platform?NAMES[S.platform]+' ':''}${({gaming:'gaming ',esports:'esports '})[S.sec]||''}streamers ${WHERE}: `+R.rows.slice(0,3).map((s,i)=>`${i+1}. ${s.name}`).join(' | ')+' '+SITE+location.pathname+location.search+' @letsgrowesports');
  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],text:t});return}catch(e){}}document.getElementById('mdl').click()};
 </script></body></html>"""
 
