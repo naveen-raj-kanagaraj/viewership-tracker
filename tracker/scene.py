@@ -151,6 +151,8 @@ def verdict(x: dict, country: str = None, allow: set = frozenset()) -> bool:
     sid, t, n = x.get("sid", ""), x.get("title") or "", x.get("name") or ""
     if sid in allow or x.get("seeded"):
         return True
+    if x.get("game") == "BGMI":                  # BGMI is only played in India
+        return True
     if x.get("platform") == "youtube":
         if country == "IN":
             return True
@@ -630,6 +632,7 @@ SEEDS = {"kick": ["skyesports", "cegc"], "twitch": [],
                      "@MortaLyt", "@VAADHIYAAR", "@soulregaltos9810", "@SnaxGaming", "@sriop-sr70", "@NEONXPAWANOP",
                      "@LadyPredatorGaming"]}
 
+_KSEED = set()        # Kick seed slugs (always Indian), refreshed every scan
 _SEEDED = set()       # YouTube channels found through hand-added @handles: always Indian
 _LIVE = {}            # sid -> {"sid","platform","name","url","logo","game","title","streams": {vid: viewers},"seen","errs"}
 _STATE = {"last": 0.0, "yt": 0.0, "seeds": 0.0, "errors": {}, "running": False}
@@ -903,7 +906,7 @@ def classify(category: str, title: str) -> str:
     return "Other"
 
 
-ALWAYS = {"kick": ["skyesports", "cegc"]}      # Sky Esports' Kick channels: tracked even if the seed list was edited
+ALWAYS = {"kick": ["skyesports", "cegc", "rntxrohit", "jonathangaming"]}   # Indian Kick channels: tracked (and Indian) even if the seed list was edited
 
 
 def seeds() -> dict:
@@ -1141,6 +1144,8 @@ def cycle(now: float = None) -> dict:
     found, errors = {}, {}
     blk = blocked()
     sd = seeds()
+    _KSEED.clear()
+    _KSEED.update(x.lower() for x in sd.get("kick", []))
     sw_jobs = [(p_, g_, _SPOOL.submit(sweep_platform, p_, g_, errors)) for g_ in sweep_games()
                for p_ in ("twitch", "kick") if platforms._keys(p_)] + \
               [("youtube", g_, _SPOOL.submit(sweep_youtube, g_, errors)) for g_ in sweep_games()]   # in parallel
@@ -1225,7 +1230,8 @@ def cycle(now: float = None) -> dict:
                 continue
             found[sid] = {"sid": sid, "platform": p_, "name": r["channel"], "url": platforms.link(sid),
                           "logo": platforms.logo(sid), "title": r["title"], "category": r.get("category", ""),
-                          "streams": {sid: r["viewers"]}, "language": r.get("language", ""), "seeded": False}
+                          "streams": {sid: r["viewers"]}, "language": r.get("language", ""),
+                          "seeded": (found.get(sid) or {}).get("seeded", False) or sid.split(":", 1)[1] in _KSEED}
     if now - _STATE.get("watch", 0) >= WATCH_SEC:
         _STATE["watch"] = now
         try:
@@ -1257,6 +1263,7 @@ def cycle(now: float = None) -> dict:
         if sid in blk or x["viewers"] < (1 if swept else MIN_VIEWERS):
             continue
         x["country"] = _CTRY.get(sid[3:]) if sid.startswith("yt:") else None
+        x["game"] = classify(x.get("category", ""), x.get("title", ""))   # first pass (BGMI streams are Indian)
         x["india"] = verdict(x, x["country"], allow)
         if not x["india"] and x["viewers"] < GLOBAL_MIN and not swept:
             rejected.append(x)                # too small to matter worldwide; remembered so it isn't looked up again
