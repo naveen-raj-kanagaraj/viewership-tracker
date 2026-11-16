@@ -1340,6 +1340,19 @@ def run():
         except Exception as e:
             print(f"Tournament merge: {str(e)[:120]}")
     threading.Thread(target=once, daemon=True).start()
+
+    def india_marks():                       # channels known Indian from events / BGMI: counted in India's rankings
+        from tracker import scene as sc_
+        time.sleep(40)
+        while True:
+            try:
+                n = sc_.mark_known_india()
+                if n:
+                    print(f"Marked {n} channels as Indian (event trackers, BGMI)")
+            except Exception as e:
+                print(f"India marks: {str(e)[:120]}")
+            time.sleep(3600)
+    threading.Thread(target=india_marks, daemon=True).start()
     threading.Thread(target=_warm_forever, daemon=True).start()
     threading.Thread(target=_warm_more, daemon=True).start()
     try:
