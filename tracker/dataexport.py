@@ -151,7 +151,7 @@ def predict_data() -> dict:
                       ", ".join(predict.ans_list(q)), "yes" if q["void"] else "", s["n"], json.dumps(split)])
     _write(os.path.join(OUT, "predict", "questions.csv"),
            ["id", "kind", "tag", "question", "closes_ist", "answer", "void", "players_answered", "picks_by_option"], qrows)
-    with store._lock:
+    with store.reading():
         players = store.conn().execute("SELECT id, handle, name, created, hidden FROM pw_players ORDER BY created").fetchall()
         picks = store.conn().execute("SELECT player_id, qid, option, ts FROM pw_picks ORDER BY ts").fetchall()
     _, sc, _, _ = predict._scores()

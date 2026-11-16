@@ -21,7 +21,7 @@ def _t(ts):
 
 
 def _players():
-    with store._lock:
+    with store.reading():
         rows = [dict(r) for r in predict._db().execute(
             "SELECT p.id, p.handle, p.name, p.created, p.hidden, p.ip, p.last_ip, p.last_ts, p.token_hash IS NOT NULL bound, "
             "(SELECT COUNT(*) FROM pw_picks k WHERE k.player_id=p.id) picks, "
@@ -42,7 +42,7 @@ def data() -> dict:
     fbq = [q for q in qs if q["kind"] == "feedback"]
     fb = []
     if fbq:
-        with store._lock:
+        with store.reading():
             fb = [dict(r) for r in predict._db().execute(
                 "SELECT p.handle, p.ip, k.option, k.ts FROM pw_picks k JOIN pw_players p ON p.id=k.player_id "
                 "WHERE k.qid=? ORDER BY k.ts DESC", (fbq[0]["id"],))]
@@ -186,7 +186,7 @@ def act(form) -> None:
 def csv_text() -> str:
     qs = predict.questions()
     _, sc, _, _ = predict._scores()
-    with store._lock:
+    with store.reading():
         picks = predict._db().execute("SELECT player_id, qid, option FROM pw_picks").fetchall()
     by = {}
     for k in picks:

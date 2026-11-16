@@ -62,7 +62,7 @@ def data(key: str = None) -> dict:
         return {"name": "No event", "ticks": 0, "now": time.time()}
     with _cache_lock:
         hit = _cache.get(ev["key"])
-        if hit and time.time() - hit[0] < 1.5:
+        if hit and time.time() - hit[0] < (1.5 if hit[1].get("official_live") else 30):   # off air: numbers don't move
             return {**hit[1], "now": time.time()}
     st = events.stats(ev["key"])
     out = {"key": ev["key"], "name": ev["name"], "ticks": st.get("ticks", 0), "now": time.time(), "every": events.FAST_SEC,

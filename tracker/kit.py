@@ -230,7 +230,7 @@ def key_create(name: str, daily: int = 10000) -> str:
 
 def key_list() -> list:
     from tracker import ytextra
-    with store._lock:
+    with store.reading():
         return [dict(r) | {"today": (_db().execute("SELECT calls FROM api_use WHERE khash=? AND day=?", (r["khash"], ytextra._day())).fetchone() or [0])[0]}
                 for r in _db().execute("SELECT * FROM api_keys ORDER BY created")]
 

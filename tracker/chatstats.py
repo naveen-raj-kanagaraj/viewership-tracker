@@ -180,7 +180,7 @@ def flush(ended_after: int = 900):
         if not a["msgs"]:
             continue
         if a["base"] is None:                     # restarted mid-stream: carry on from what was saved
-            with store._lock:
+            with store.reading():
                 r = _db().execute("SELECT * FROM chat_stream WHERE vid=?", (vid,)).fetchone()
             a["base"] = dict(r) if r else {}
         b = a["base"]
@@ -240,7 +240,7 @@ def summary(sid: str, days: int = 30) -> dict:
     """Chat and viewer-spending summary of a channel's streams over the last `days` days."""
     from tracker import ytextra
     since = ytextra._day(time.time() - days * 86400)
-    with store._lock:
+    with store.reading():
         c = _db()
         rows = c.execute("SELECT * FROM chat_stream WHERE sid=? AND day>=?", (sid, since)).fetchall()
         paid = c.execute("""SELECT kind, COUNT(*), SUM(n), SUM(usd), SUM(inr) FROM sc_superchat WHERE sid=? AND day>=?

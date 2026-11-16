@@ -28,14 +28,20 @@ Audience numbers for creators and live events are late, partial and split across
 
 ## What it does
 
-- **Live dashboard:** everyone watching right now across YouTube, Twitch and Kick, by platform, category and game, refreshed every 2 seconds. Worldwide and India views. Every live Twitch stream is counted, plus the top Kick and YouTube streams: over 100,000 live streams at once (126,100 on 5 Nov 2026).
-- **Channel pages for any channel:** subscribers, lifetime views, views gained per day, every recent video with views, likes, comments and engagement, best day and time to post, and live stats while the channel is streaming.
-- **Rankings:** channels by views gained (day, week, month), total views or subscribers; streamers by hours watched, peak or average viewers; filter by YouTube category, game and country.
-- **Categories:** every game and category ranked by watching now, with the change against 24 hours ago, hourly bars for the last 24 hours, peak and hours watched, a Trending list and a search box. Longer ranges (7 days, 1 month and up) appear as the history builds.
-- **Tournament trackers:** every stream carrying an event (official broadcast and permitted watch parties) counted together, with the official vs watch-party split. Tracking starts by itself when the official channel goes live. Tracked end to end so far: BMSD 2026 (653K peak) and BMIC 2026. Worldwide tournaments (LoL Worlds, VCT, ESL, IEM, PGL and more) are detected from stream titles and grouped with their co-streams on the dashboard.
-- **Moments:** sudden audience jumps (against the level a minute earlier) detected from chat speed and viewer counts. Each one plays on the site: a YouTube clip from 30 seconds before the jump to 30 seconds after the peak, a Twitch clip or replay, or the live channel.
-- **Predict & Win:** a free prediction game per tournament (champion, qualifiers, top 3, MVP, best IGL, peak viewership) with crowd results, a leaderboard and prizes, run from an owner dashboard.
-- **Compare, search, share cards, creator badges, world map.**
+Two views of the same data: **Worldwide** at `/global` and **India** at `/india`. Every page, share link and card
+keeps its region in the address.
+
+- **Live dashboard:** everyone watching right now across YouTube, Twitch and Kick, by platform, category and game, refreshed every 2 seconds. Every live Twitch stream is counted, plus Kick and YouTube: over 100,000 live streams at once (126,100 on 5 Nov 2026).
+- **Esports and tournaments:** every tournament on now, grouped by game. Each one has its own page (`/global/t/<name>`, `/india/t/<name>`) that adds up every channel carrying it, in any country or language: official broadcasts, regional channels (for example Garena's country channels for one Free Fire event) and co-streams. Combined watching now, combined peak, today's line, peak by day, hours watched, every channel's own peak, languages, and a share card. League names and editions (FFWS and FFWS 2026, CEGC and CEGC 2026) are one event, never two cards.
+- **Event trackers:** the site's own end-to-end trackers for Indian esports (official broadcast plus permitted watch parties every 2 seconds, with the split). Tracked so far: BMSD 2026 (653K peak), BMIC 2026, CEGC 2026, PIC 2026. Tracking starts by itself when the official channel goes live.
+- **GTA 6 launch coverage:** from release (18 Nov 2026, 10:00 UTC) the site sweeps the whole world for GTA 6 streams: every Twitch page of the category (up to 40,000 streams), Kick by viewers and in 16 languages, and 32 YouTube searches across the main countries and languages. Streams count from 1 viewer. Tested with 30,000 streams per scan.
+- **Channel pages for any channel:** subscribers, lifetime views, views gained per day, every recent video (sortable by date, views, likes, engagement), past live streams with each stream's peak, best day and time to post, rank in its category and country, the same creator's channels on other platforms, and a live-day share card while the channel is streaming. Kick and Twitch views come from their VODs. Official esports channels (for example Krafton India Esports) show their events first.
+- **Rankings:** channels by views gained, engagement, subscribers gained, total views; streamers by hours watched, peak or average viewers. Every metric has a period: 24 hours, 3 / 7 / 30 days, 3 / 6 months, year to date, 1 year, lifetime. Filter by category, country and (for Gaming) game.
+- **Categories:** every game and category ranked by watching now, with the change against 24 hours ago, hourly bars, peak and hours watched over the same periods, trending, and share cards with the bar charts.
+- **Moments:** sudden audience jumps detected from chat speed and viewer counts, each one playable on the site from 30 seconds before the jump.
+- **Search:** any channel, game or tournament, answered from memory in about 100 ms.
+- **Share cards and channel badges:** sized for Instagram and X, each carrying the region link (`live.letsgrowesports.com/global` or `/india`). A live channel badge creators can show on their own pages.
+- **Compare, world map, Predict & Win** (a free prediction game per tournament).
 
 | Rankings | World map |
 |---|---|
@@ -84,10 +90,11 @@ The official broadcast and the watch parties rise and fall together with each ma
 
 ## How it works
 
-- **Sources:** YouTube Data API (channel and video statistics, read-only), YouTube's public live pages, Twitch and Kick official APIs.
-- **Freshness:** live counts every 2 seconds; channel statistics daily plus hourly readings for the most active channels.
-- **Accuracy:** sanity checks on every reading, labelled estimates, metered API use.
-- **Stack:** Python and Flask, SQLite, Cloudflare in front of a single cloud VM, stdlib-first so updates deploy without new dependencies.
+- **Sources:** YouTube Data API (channel and video statistics, read-only), YouTube's public live pages, Twitch and Kick official APIs, and public tournament schedules for which events are on.
+- **Freshness:** live counts every 2 seconds for every channel, also during big events; channel statistics daily plus hourly readings for the most active channels.
+- **Accuracy:** sanity checks on every reading, labelled estimates, metered API use, rate limits handled by waiting rather than dropping data.
+- **Speed:** pages are built ahead of time and served from memory (the most opened pages, the 40 biggest categories, every live tournament and the top channels in each region), kept across restarts, and refreshed in the background so a visitor never waits for a rebuild. Pages read the database through their own read-only connections, so they never wait for the tracker writing new readings. Day totals per category are kept pre-added. Anything that needs an outside call (a YouTube start time, a channel's first statistics) runs in the background, never inside a page load.
+- **Stack:** Python and Flask, SQLite (WAL), Cloudflare in front of a single cloud VM, stdlib-first so updates deploy without new dependencies.
 - **Privacy:** no accounts and no tracking cookies. Visitor IP addresses are held in memory for 2 days only (abuse and bots); Predict & Win stores players' IP addresses to stop duplicate accounts. Both are disclosed in the [privacy policy](https://live.letsgrowesports.com/privacy).
 
 Details, commands and configuration: [docs/TECHNICAL.md](docs/TECHNICAL.md).

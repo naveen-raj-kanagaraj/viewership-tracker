@@ -269,7 +269,7 @@ def join(handle: str, name: str, consent: bool, ip: str = "") -> dict:
 def player_by_token(token: str):
     if not token or len(token) > 200:
         return None
-    with store._lock:
+    with store.reading():
         r = _db().execute("SELECT id, handle, name, hidden FROM pw_players WHERE token_hash=?",
                           (_hash(token),)).fetchone()
     return dict(r) if r else None
@@ -372,7 +372,7 @@ def create_match_day(day: int, close_ts: float = None) -> list:
     if str(day) not in s["days"]:
         raise GameError("Day must be 1, 2 or 3.")
     close_ts = _close(day, close_ts)
-    with store._lock:
+    with store.reading():
         have = {r["title"] for r in _db().execute("SELECT title FROM pw_questions WHERE kind='match' AND day=?", (day,))}
     ids = []
     for m in range(1, int(s["matches"]) + 1):
@@ -385,7 +385,7 @@ def create_match_day(day: int, close_ts: float = None) -> list:
 
 
 def _exists(kind, title, day=None) -> bool:
-    with store._lock:
+    with store.reading():
         if day is None:
             return bool(_db().execute("SELECT 1 FROM pw_questions WHERE kind=? AND title=?", (kind, title)).fetchone())
         return bool(_db().execute("SELECT 1 FROM pw_questions WHERE kind=? AND title=? AND day=?",
@@ -446,7 +446,7 @@ def create_day_set(day: int, close_ts: float = None) -> list:
     for m in range(1, int(s["matches"]) + 1 if s.get("match_questions") else 1):
         mp = maps[m - 1] if m - 1 < len(maps) else ""
         t = f"Match {m} · {mp}: Which team gets the chicken dinner?" if mp else f"Match {m}: Which team gets the chicken dinner?"
-        with store._lock:
+        with store.reading():
             have = _db().execute("SELECT 1 FROM pw_questions WHERE kind='match' AND day=? AND json_extract(meta,'$.match')=?",
                                  (day, m)).fetchone()
         if not have:
@@ -488,7 +488,7 @@ def create_record(close_ts: float = None) -> int:
 
 
 def get_question(qid: int) -> dict:
-    with store._lock:
+    with store.reading():
         r = _db().execute("SELECT * FROM pw_questions WHERE id=?", (int(qid),)).fetchone()
     if not r:
         raise GameError("No such question.", 404)
@@ -496,7 +496,7 @@ def get_question(qid: int) -> dict:
 
 
 def questions() -> list:
-    with store._lock:
+    with store.reading():
         rows = _db().execute("SELECT * FROM pw_questions ORDER BY day=0 DESC, day, sort, close_ts, id").fetchall()
     return [_q(r) for r in rows]
 
@@ -674,7 +674,7 @@ def submit_all(token: str, picks: dict, now: float = None, ip: str = "") -> dict
     p = player_by_token(token)
     if not p:
         raise GameError("Enter your Instagram ID first.", 401)
-    with store._lock:
+    with store.reading():
         done = {r["qid"] for r in _db().execute("SELECT qid FROM pw_picks WHERE player_id=?", (p["id"],))}
     todo = [q for q in questions() if not q["void"] and not is_closed(q, now) and q["id"] not in done]
     if not todo:
@@ -710,7 +710,7 @@ def _check_option(q: dict, option):
 
 def _qstats(qs: dict) -> dict:
     """Per question: n players who picked, and how many picked/included each option (text: by normalised name)."""
-    with store._lock:
+    with store.reading():
         rows = _db().execute("SELECT k.qid, k.option FROM pw_picks k JOIN pw_players p ON p.id=k.player_id "
                              "WHERE p.hidden=0").fetchall()
     out = {}
@@ -762,7 +762,7 @@ def _scores():
     """(players, {player_id: {'all': [pts, correct], 1: [...], 2: [...], 3: [...]}}, qstats, qs)"""
     qs = {q["id"]: q for q in questions()}
     st = _qstats(qs)
-    with store._lock:
+    with store.reading():
         players = {r["id"]: dict(r) for r in _db().execute(
             "SELECT id, handle, name, created FROM pw_players WHERE hidden=0")}
         picks = _db().execute("SELECT player_id, qid, option FROM pw_picks").fetchall()
@@ -898,7 +898,7 @@ def me(token: str) -> dict:
     if not p:
         raise GameError("Not joined.", 401)
     qs = {q["id"]: q for q in questions()}
-    with store._lock:
+    with store.reading():
         rows = _db().execute("SELECT qid, option FROM pw_picks WHERE player_id=?", (p["id"],)).fetchall()
     picks = {str(r["qid"]): _decode(qs[r["qid"]], r["option"]) for r in rows if r["qid"] in qs}
     players, sc, st, _ = _scores()
@@ -918,12 +918,12 @@ def me(token: str) -> dict:
 def profile(handle: str, now: float = None) -> dict:
     """Public profile: picks only on questions that have closed."""
     h = norm_handle(handle)
-    with store._lock:
+    with store.reading():
         p = _db().execute("SELECT id, handle, name FROM pw_players WHERE handle=? AND hidden=0", (h,)).fetchone()
     if not p:
         raise GameError("No such player.", 404)
     players, sc, st, qs = _scores()
-    with store._lock:
+    with store.reading():
         rows = _db().execute("SELECT qid, option FROM pw_picks WHERE player_id=?", (p["id"],)).fetchall()
     picks = []
     for r in rows:
@@ -944,7 +944,7 @@ def profile(handle: str, now: float = None) -> dict:
 
 # ---------------- owner ----------------
 def players_admin() -> list:
-    with store._lock:
+    with store.reading():
         rows = _db().execute("SELECT p.id, p.handle, p.name, p.created, p.hidden, p.token_hash IS NOT NULL bound, "
                              "(SELECT COUNT(*) FROM pw_picks k WHERE k.player_id=p.id) picks FROM pw_players p "
                              "ORDER BY p.created DESC").fetchall()
