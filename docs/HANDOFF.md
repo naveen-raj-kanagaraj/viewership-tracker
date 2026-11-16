@@ -190,6 +190,9 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 15 Nov 2026 (7): checked the worldwide Kick top 100 (week and month, by peak and hours) against India: kaashplays
+  (79.8K peak), regaltos (34.7K), neyoo_gaming were missing; added to scene.ALWAYS. Kick/Twitch titles in Hinglish
+  (scene.HINGLISH: bhai, yaar, aaj, kya, khelenge, bigg boss ...) count as Indian unless they say Pakistan (NOT_INDIA).
 - 15 Nov 2026 (6): scene.india_known(): every channel the Indian event trackers ever recorded (ev_streams, all events,
   YouTube/Kick/Twitch), the events' Kick lists, and every channel that has streamed BGMI count as Indian in each scan;
   web.run's india_marks thread sets sc_channels.india=1 for them hourly so their past days count in India rankings
