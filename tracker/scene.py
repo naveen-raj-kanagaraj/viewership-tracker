@@ -146,6 +146,55 @@ def allowed() -> set:
     return set(store.kv_get("scene_allowed") or [])
 
 
+_KNOWN = {"at": 0, "set": frozenset()}
+
+
+def india_known() -> frozenset:
+    """Channels known to be Indian from what they did: every channel this site's Indian event trackers recorded
+    (official broadcasts and watch parties of BMSD, BMIC, CEGC, PIC on YouTube, Kick, Twitch), the events' own Kick
+    lists, and every channel that has streamed BGMI (only played in India). Kick and Twitch give no country, and many
+    Indian streamers there title in English, so this catches the ones the title / language checks miss."""
+    if time.time() - _KNOWN["at"] < 3600:
+        return _KNOWN["set"]
+    out = set()
+    try:
+        for k, v in events.PRESETS.items():
+            kk = v.get("kick") or {}
+            for slug_ in list(kk.get("official") or []) + list(kk.get("channels") or []):
+                out.add("kick:" + slug_.lower())
+        with store.reading():
+            c = store.conn()
+            if c.execute("SELECT 1 FROM sqlite_master WHERE name='ev_streams'").fetchone():
+                for vid, cid in c.execute("SELECT DISTINCT vid, channel_id FROM ev_streams"):
+                    if vid and vid.startswith(("kick:", "twitch:")):
+                        out.add(vid.lower())
+                    elif cid and cid.startswith("UC"):
+                        out.add("yt:" + cid)
+            out.update(r[0] for r in c.execute("SELECT DISTINCT sid FROM sc_daily WHERE game='BGMI'"))
+    except Exception as e:
+        print(f"Known Indian channels: {str(e)[:100]}")
+        return _KNOWN["set"]
+    _KNOWN.update(at=time.time(), set=frozenset(out))
+    return _KNOWN["set"]
+
+
+def mark_known_india() -> int:
+    """Flag the known Indian channels as Indian in sc_channels, so their past days count in India's rankings."""
+    known = india_known()
+    if not known:
+        return 0
+    with store._lock:
+        c = store.main()
+        L = sorted(known)
+        n = 0
+        for i in range(0, len(L), 500):
+            part = L[i:i + 500]
+            n += c.execute(f"UPDATE sc_channels SET india=1 WHERE COALESCE(india,0)=0 AND sid IN ({','.join('?' * len(part))})",
+                           part).rowcount
+        c.commit()
+    return n
+
+
 def verdict(x: dict, country: str = None, allow: set = frozenset()) -> bool:
     """True if this live channel counts as Indian."""
     sid, t, n = x.get("sid", ""), x.get("title") or "", x.get("name") or ""
@@ -1253,7 +1302,7 @@ def cycle(now: float = None) -> dict:
             _CTRY.update(yt_countries(new))
         except Exception as e:
             errors["youtube country lookup"] = str(e)[:120]
-    allow = allowed() | _SEEDED
+    allow = allowed() | _SEEDED | india_known()
     sweeping = set(sweep_games())             # every stream of these counts, however small
     # classify, filter, store
     rows, rejected = [], []

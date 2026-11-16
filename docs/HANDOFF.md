@@ -190,6 +190,10 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 15 Nov 2026 (6): scene.india_known(): every channel the Indian event trackers ever recorded (ev_streams, all events,
+  YouTube/Kick/Twitch), the events' Kick lists, and every channel that has streamed BGMI count as Indian in each scan;
+  web.run's india_marks thread sets sc_channels.india=1 for them hourly so their past days count in India rankings
+  (neyoo_gaming, lolzzzgaming, snaxgaming ... on Kick were missing).
 - 15 Nov 2026 (5): rntxrohit and jonathangaming (Kick) added to scene.ALWAYS (tracked and always Indian); Kick seeds stay
   "seeded" when the worldwide list finds them too (_KSEED); any BGMI stream counts as Indian (verdict). Their past
   days join India rankings once sc_channels.india flips on their next live scan.
