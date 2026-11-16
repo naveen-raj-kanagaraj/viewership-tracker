@@ -190,6 +190,9 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 15 Nov 2026 (5): rntxrohit and jonathangaming (Kick) added to scene.ALWAYS (tracked and always Indian); Kick seeds stay
+  "seeded" when the worldwide list finds them too (_KSEED); any BGMI stream counts as Indian (verdict). Their past
+  days join India rankings once sc_channels.india flips on their next live scan.
 - 15 Nov 2026 (4): channel ranks: a YouTube channel whose own category is Gaming but whose live hours are mostly a
   non-gaming section (Cricket, News, Music ...) is ranked under that section's category (CricTalks -> Sports).
 - 15 Nov 2026 (3): channel rankings (Rankings > Channels, /api/topch) have peak_<period> and avg_<period> (peak and
