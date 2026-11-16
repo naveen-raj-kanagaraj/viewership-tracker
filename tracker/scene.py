@@ -136,7 +136,7 @@ def yt_countries(cids: list) -> dict:
 def _load_countries():
     if _CTRY:
         return
-    with store._lock:
+    with store.reading():
         for sid, ctry in _db().execute("SELECT sid, country FROM sc_channels WHERE platform='youtube' AND country IS NOT NULL"):
             _CTRY[sid[3:]] = ctry
     _CTRY.setdefault("", "-")
@@ -533,6 +533,10 @@ def _canon(name: str, title: str = "", game: str = "") -> str:
     if rx is None:
         return name
     cands = [t for t in liquipedia.active() if rx.search(t["name"] + " " + t["full"]) and liquipedia.game_ok(t, game)]
+    if not cands:                        # just finished (replays, recap streams): the edition that ended in the last week
+        d7 = (datetime.now(timezone.utc).date() - timedelta(days=7)).isoformat()
+        cands = [t for t in liquipedia.tours() if t["status"] == "completed" and (t.get("end") or "") >= d7
+                 and rx.search(t["name"] + " " + t["full"]) and liquipedia.game_ok(t, game)]
     if not cands:
         return name
     if len(cands) == 1:
@@ -1072,7 +1076,7 @@ def watch_list() -> list:
     ids = []
     for key in events.ROSTERS:
         ids += [h for _, _, h in events.roster(key) if h and h.startswith("UC")]
-    with store._lock:
+    with store.reading():
         c = _db()
         ids += [r[0][3:] for r in c.execute(
             """SELECT c.sid FROM sc_channels c LEFT JOIN (SELECT sid, SUM(hw) hw FROM sc_daily WHERE day>=? GROUP BY sid) d ON d.sid=c.sid
@@ -1926,6 +1930,17 @@ def tours_overview(region: str = "global") -> dict:
             e["start"], e["end"] = x.get("start"), x.get("end")
         if not e.get("art") or e["art"].startswith("/caticon/"):
             e["art"] = cat_art(e["game"]) if e.get("game") else e.get("art")
+    leagues = {n for _, n, _ in _T_RX}
+    for x in [x for x in rows if x["name"] in leagues]:   # 'MPL' next to 'MPL Cambodia Season 11': one card
+        same = [y for y in rows if y is not x and tag(y["name"]) == tag(x["name"])]
+        if len(same) == 1:
+            y = same[0]
+            y["viewers"] += x["viewers"]
+            y["streams"] += x["streams"]
+            y["live"] = y["live"] or x["live"]
+            y["peak"] = max(y["peak"], x["peak"], y["viewers"])
+            y["hw"] += x["hw"]
+            rows.remove(x)
     rows.sort(key=lambda x: (not x["live"], -(x["viewers"] if x["live"] else x["peak"])))
     have = {x["name"] for x in rows} | {e["name"] for e in trk}
     other = []
@@ -2785,7 +2800,7 @@ def clean() -> dict:
     """Re-judge every channel seen so far as Indian or not (looking up YouTube countries not yet known) and rebuild
     the India totals from the raw readings. Nothing is deleted: non-Indian channels stay in the global view.
     Run on the Mac (the tracker can keep running)."""
-    with store._lock:
+    with store.reading():
         chans = [dict(r) for r in _db().execute("SELECT sid, platform, name, title, country, language FROM sc_channels")]
     need = [x["sid"][3:] for x in chans if x["platform"] == "youtube" and not x["country"]]
     found = yt_countries(need) if need else {}

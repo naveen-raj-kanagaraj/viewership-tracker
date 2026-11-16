@@ -71,7 +71,7 @@ def ranked_set(force: bool = False) -> tuple:
     if not force and time.time() - _SET["at"] < 3600 and _SET["a"]:
         return _SET["a"], _SET["b"]
     since = ytextra._day(time.time() - 4 * 86400)
-    with store._lock:
+    with store.reading():
         rows = _db().execute(
             """SELECT c.sid, COALESCE(NULLIF(c.ytcat,''), c.topic) cat, c.game, COALESCE(c.india,0) india, s.subs
                FROM sc_channels c JOIN (SELECT sid, MAX(subs) subs FROM sc_chstats WHERE day>=? GROUP BY sid) s ON s.sid=c.sid
@@ -105,7 +105,7 @@ def refresh_once(max_channels: int = 4000) -> int:
         return 0
     a, b = ranked_set()
     if not _LAST:
-        with store._lock:
+        with store.reading():
             _LAST.update(dict(_db().execute("SELECT sid, MAX(ts) FROM sc_intra WHERE ts>? GROUP BY sid",
                                             (time.time() - 86400,)).fetchall()))
     now = time.time()
@@ -174,7 +174,7 @@ def channel_metrics(sid: str, subs=None) -> dict:
     older posts are a different era of the channel)."""
     now = time.time()
     out = {}
-    with store._lock:
+    with store.reading():
         c = _db()
         for fmt, cond in FORMATS.items():
             rows = c.execute(f"""SELECT views, likes, comments, ts FROM yt_videos WHERE sid=? AND {cond}
@@ -198,7 +198,7 @@ def metrics_once(limit: int = 20000) -> int:
     a, b = ranked_set()
     sids = (a + b)[:limit]
     since = ytextra._day(time.time() - 4 * 86400)
-    with store._lock:
+    with store.reading():
         subs = dict(_db().execute("SELECT sid, MAX(subs) FROM sc_chstats WHERE day>=? GROUP BY sid", (since,)).fetchall())
     now, rows = int(time.time()), []
     for sid in sids:
@@ -226,7 +226,7 @@ def period_metrics(sids: list) -> int:
     out = []
     for i in range(0, len(sids), 300):
         part = sids[i:i + 300]
-        with store._lock:
+        with store.reading():
             rows = _db().execute(f"""SELECT sid, ts, views, likes, comments, COALESCE(short,0), COALESCE(live,0) FROM yt_videos
                                      WHERE sid IN ({','.join('?' * len(part))}) AND views>0""", part).fetchall()
         by = {}
@@ -267,7 +267,7 @@ def _pct(xs, p):
 def benchmarks() -> int:
     """Percentiles per (scope, kind, group, size band, format, metric), from channels with at least 3 posts."""
     since = ytextra._day(time.time() - 4 * 86400)
-    with store._lock:
+    with store.reading():
         c = _db()
         rows = c.execute(f"""SELECT m.*, COALESCE(NULLIF(ch.ytcat,''), ch.topic) cat, ch.game, COALESCE(ch.india,0) india, s.subs
                              FROM ch_metrics m JOIN sc_channels ch ON ch.sid=m.sid
@@ -400,7 +400,7 @@ def comments_once(max_calls: int = 60) -> int:
     a, b = ranked_set()
     top = (a + b)[:5000]
     now = time.time()
-    with store._lock:
+    with store.reading():
         c = _db()
         vids = []
         for i in range(0, len(top), 500):

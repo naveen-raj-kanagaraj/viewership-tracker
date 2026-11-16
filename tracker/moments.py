@@ -385,6 +385,40 @@ def _est_start(sid: str, ts: int) -> int:
     return s0
 
 
+_EST = {}                                 # (sid, ts) -> stream start from our own readings
+_FIXQ, _FIXING, _TRIED = [], set(), {}
+
+
+def _fix_later(r: dict):
+    if r["id"] in _FIXING or time.time() - _TRIED.get(r["vid"], 0) < 3600:
+        return
+    _FIXING.add(r["id"])
+    _FIXQ.append((r["id"], r["vid"], r["ts"]))
+    if len(_FIXING) == 1:
+        threading.Thread(target=_fix_run, daemon=True).start()
+
+
+def _fix_run():
+    while _FIXQ:
+        try:
+            mid, vid, ts = _FIXQ.pop(0)
+        except IndexError:
+            return
+        try:
+            _TRIED[vid] = time.time()
+            s0 = _yt_start(vid)
+            if s0:
+                et = max(0, ts - s0 - LEAD)
+                with store._lock:
+                    c = store.main()
+                    c.execute("UPDATE moments SET embed_t=?, link=? WHERE id=?", (et, f"https://youtu.be/{vid}?t={et}", mid))
+                    c.commit()
+        except Exception as e:
+            print(f"Moment start time {vid}: {str(e)[:80]}")
+        finally:
+            _FIXING.discard(mid)
+
+
 def recent(region: str = "global", period: str = "today", game: str = "", sid: str = "", limit: int = 60, sort: str = "views") -> dict:
     days = {"today": 1, "7d": 7, "30d": 30}.get(period, 1)
     if period == "today":
@@ -417,17 +451,15 @@ def recent(region: str = "global", period: str = "today", game: str = "", sid: s
     for r in rows:
         r["live_now"] = r["vid"] in live_vids    # a YouTube embed can't rewind a stream that's still live
         if r["embed"] == "yt" and not r["embed_t"] and time.time() - r["ts"] < 7 * 86400 and not r["live_now"]:
-            s0 = _yt_start(r["vid"])           # start time wasn't known when the moment happened: try again
-            if s0:
-                r["embed_t"] = max(0, r["ts"] - s0 - LEAD)
-                r["link"] = f"https://youtu.be/{r['vid']}?t={r['embed_t']}"
-                with store._lock:
-                    c = _db()
-                    c.execute("UPDATE moments SET embed_t=?, link=? WHERE id=?", (r["embed_t"], r["link"], r["id"]))
-                    c.commit()
+            _fix_later(r)                      # start time wasn't known: looked up in the background, never in a page load
         r["exact_time"] = bool(r["embed_t"]) or r["embed"] == "tw_clip"
         if r["platform"] == "youtube" and not r["embed_t"] and not r["live_now"] and r.get("vid"):
-            s0 = _est_start(r["sid"], r["ts"])   # YouTube wouldn't say when the stream began: our own first reading of it
+            k = (r["sid"], r["ts"])
+            if k not in _EST:
+                if len(_EST) > 5000:
+                    _EST.clear()
+                _EST[k] = _est_start(r["sid"], r["ts"])
+            s0 = _EST[k]                        # YouTube wouldn't say when the stream began: our own first reading of it
             if s0:
                 r["embed_t"], r["approx_t"] = max(0, r["ts"] - s0 - LEAD), True
                 r["embed"], r["embed_id"] = "yt", r["embed_id"] or r["vid"]

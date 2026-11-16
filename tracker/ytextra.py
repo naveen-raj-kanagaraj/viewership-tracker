@@ -489,7 +489,7 @@ def stats_once(limit: int = 300) -> int:
     """Snapshot up to `limit` YouTube channels that have none for today yet, most watched first."""
     d = _day()
     since = (datetime.now(events.REPORT_TZ).date() - timedelta(days=30)).strftime("%Y-%m-%d")
-    with store._lock:
+    with store.reading():
         c = _db()
         todo = [r[0] for r in c.execute(
             """SELECT c.sid FROM sc_channels c LEFT JOIN (SELECT sid, SUM(hw) hw FROM sc_daily WHERE day>=? GROUP BY sid) d
@@ -511,7 +511,7 @@ def _sane(got: dict) -> dict:
         return got
     sids = ["yt:" + k for k in got]
     q = ",".join("?" * len(sids))
-    with store._lock:
+    with store.reading():
         c = _db()
         top = dict(c.execute(f"SELECT sid, MAX(views) FROM yt_videos WHERE sid IN ({q}) AND approx=0 GROUP BY sid", sids).fetchall())
         prev = dict(c.execute(f"""SELECT s.sid, s.views FROM sc_chstats s JOIN (SELECT sid, MAX(day) d FROM sc_chstats
@@ -534,7 +534,7 @@ def intra_once(limit: int = INTRA_PER_RUN) -> int:
     them all day, not only after tomorrow's daily snapshot."""
     if not os.getenv("YOUTUBE_API_KEY") or not events.yt_quota_left(.6):
         return 0
-    with store._lock:
+    with store.reading():
         c = _db()
         todo = [r[0] for r in c.execute(
             """SELECT c.sid FROM sc_channels c LEFT JOIN (SELECT sid, MAX(ts) t FROM sc_intra GROUP BY sid) i ON i.sid=c.sid
@@ -670,7 +670,7 @@ def channel_extra(sid: str) -> dict:
 
 def window_superchats(d0: str, d1: str) -> dict:
     """{sid: {usd, inr, count}} for days d0..d1."""
-    with store._lock:
+    with store.reading():
         rows = _db().execute("""SELECT sid, SUM(usd), SUM(inr), SUM(CASE WHEN kind IN ('superchat','sticker') THEN 1 ELSE 0 END)
                                 FROM sc_superchat WHERE day BETWEEN ? AND ? GROUP BY sid""", (d0, d1)).fetchall()
     return {r[0]: {"usd": round(r[1] or 0, 2), "inr": round(r[2] or 0), "count": r[3] or 0} for r in rows}
@@ -680,7 +680,7 @@ def window_views(d0: str, d1: str) -> dict:
     """{sid: {views gained, subs gained, subs, views}} between the last snapshot before d0 (or on it) and the last on
     or before d1. Channels with a single snapshot in reach have no gain yet."""
     prev = (datetime.strptime(d0, "%Y-%m-%d").date() - timedelta(days=1)).strftime("%Y-%m-%d")
-    with store._lock:
+    with store.reading():
         rows = _db().execute("""SELECT sid, day, subs, views FROM sc_chstats WHERE day BETWEEN ? AND ? ORDER BY sid, day""",
                              ((datetime.strptime(prev, "%Y-%m-%d").date() - timedelta(days=3)).strftime("%Y-%m-%d"), d1)).fetchall()
     by = {}
@@ -992,7 +992,7 @@ def ensure_channel(sid: str, name: str = "", logo: str = "") -> bool:
     from tracker import scene
     if not re.fullmatch(r"yt:UC[\w-]{22}", sid or ""):
         return False
-    with store._lock:
+    with store.reading():
         row = _db().execute("SELECT sid, tracked, EXISTS(SELECT 1 FROM sc_chstats WHERE sid=?) FROM sc_channels WHERE sid=?", (sid, sid)).fetchone()
     if row and row[1] and row[2]:
         return True
@@ -1033,7 +1033,7 @@ def ensure_channel(sid: str, name: str = "", logo: str = "") -> bool:
 
 def views_series(sid: str, days: int = 90) -> dict:
     """Daily snapshots and the views / subscribers gained between them, plus 7 / 30 day and per-month totals."""
-    with store._lock:
+    with store.reading():
         st = [dict(r) for r in _db().execute("SELECT day, subs, views, videos FROM sc_chstats WHERE sid=? ORDER BY day DESC LIMIT ?",
                                              (sid, days + 1))]
     st.reverse()
@@ -1056,7 +1056,7 @@ def recent_views(sid: str) -> dict:
     """Views gained over the last hours, from readings taken during the day: shows a newly followed channel's views
     the same day instead of waiting for tomorrow's snapshot. Opening the page takes a fresh reading at most once an
     hour (1 YouTube API unit)."""
-    with store._lock:
+    with store.reading():
         R = _db().execute("SELECT ts, subs, views FROM sc_intra WHERE sid=? AND ts>? ORDER BY ts", (sid, time.time() - 26 * 3600)).fetchall()
     if sid.startswith("yt:") and os.getenv("YOUTUBE_API_KEY") and (not R or time.time() - R[-1][0] > 3600) and sid not in _IBUSY:
         _IBUSY.add(sid)
@@ -1215,7 +1215,7 @@ def ensure_any(sid: str) -> bool:
     plat, _, ident = sid.partition(":")
     if plat not in ("twitch", "kick") or not re.fullmatch(r"[a-z0-9_-]{2,40}", ident or ""):
         return False
-    with store._lock:
+    with store.reading():
         row = _db().execute("SELECT tracked, EXISTS(SELECT 1 FROM sc_chstats WHERE sid=?) FROM sc_channels WHERE sid=?", (sid, sid)).fetchone()
     if row and row[0] and row[1]:
         return True
@@ -1276,7 +1276,7 @@ def followers_once(limit: int = 300) -> int:
     """Daily follower counts for Twitch/Kick channels: followed (tracked) ones first, then the most watched."""
     d = _day()
     since = (datetime.now(events.REPORT_TZ).date() - timedelta(days=30)).strftime("%Y-%m-%d")
-    with store._lock:
+    with store.reading():
         todo = [r[0] for r in _db().execute(
             """SELECT c.sid FROM sc_channels c LEFT JOIN (SELECT sid, SUM(hw) hw FROM sc_daily WHERE day>=? GROUP BY sid) d
                ON d.sid=c.sid WHERE c.platform IN ('twitch','kick') AND c.sid NOT IN (SELECT sid FROM sc_chstats WHERE day=?)
@@ -1539,7 +1539,7 @@ def history_loading(sid: str) -> bool:
 def prefetch_once(n: int = 5) -> int:
     """Read the last 60 days of videos of channels that have none yet (followed ones first, then the biggest), so
     every channel page shows its performance before anyone opens it. About 4 API units a channel."""
-    with store._lock:
+    with store.reading():
         cand = [r[0] for r in _db().execute(
             """SELECT c.sid FROM sc_channels c LEFT JOIN (SELECT s.sid, s.subs FROM sc_chstats s JOIN
                (SELECT sid, MAX(day) d FROM sc_chstats GROUP BY sid) m ON m.sid=s.sid AND m.d=s.day) t ON t.sid=c.sid
@@ -1656,7 +1656,7 @@ def _latest_posts(sid: str):
             print("YouTube channel feeds are failing: reading uploads playlist pages instead for 30 minutes")
     got = _uploads_free(cid)
     if got:
-        with store._lock:
+        with store.reading():
             have = {r[0] for r in _db().execute(f"SELECT vid FROM yt_videos WHERE vid IN ({','.join('?' * len(got))})",
                                                [v["id"] for v in got])}
         if any(v["id"] not in have for v in got):
@@ -1674,7 +1674,7 @@ def rss_once(n: int = 600) -> int:
     """Free, no API units. Every 5 minutes: channels with nothing stored yet first (biggest first), then channels
     whose latest posts haven't been re-read for a day, so views and likes of recent posts stay current."""
     day = time.time() - 86400
-    with store._lock:
+    with store.reading():
         c = _db()
         new = [r[0] for r in c.execute(
             """SELECT c.sid FROM sc_channels c LEFT JOIN yt_videos v ON v.sid=c.sid
@@ -1727,7 +1727,7 @@ def video_stats_once(max_calls: int = 30) -> int:
     key = os.getenv("YOUTUBE_API_KEY")
     if not key:
         return 0
-    with store._lock:
+    with store.reading():
         ids = [r[0] for r in _db().execute(
             """SELECT vid FROM yt_videos WHERE sid LIKE 'yt:%' AND ts>? AND (comments IS NULL OR updated<?
                OR (ts>? AND updated<?))
@@ -1774,7 +1774,7 @@ def video_stats_once(max_calls: int = 30) -> int:
 def coverage() -> dict:
     """How many YouTube channels have their numbers: for the owner page."""
     d = _day()
-    with store._lock:
+    with store.reading():
         c = _db()
         tot = c.execute("SELECT COUNT(*) FROM sc_channels WHERE platform='youtube'").fetchone()[0]
         st = c.execute("SELECT COUNT(*) FROM sc_chstats WHERE day=? AND sid LIKE 'yt:%'", (d,)).fetchone()[0]
@@ -1941,6 +1941,21 @@ def _norm(name: str) -> str:
     return re.sub(r"[^a-z0-9]", "", (name or "").lower())
 
 
+def _nn_build():
+    try:
+        m = {}
+        with store.reading():
+            for s_, n in _db().execute("SELECT sid, name FROM sc_channels"):
+                k = _norm(n)
+                if len(k) >= 5:
+                    m.setdefault(k, []).append(s_)
+        _NN.update(at=time.time(), map=m)
+    except Exception as e:
+        print(f"Channel name map: {str(e)[:100]}")
+    finally:
+        _NN["busy"] = False
+
+
 def linked(sid: str) -> list:
     """The same creator's channels on the other platforms: links set by hand (track.py scene link ...), else channels
     whose name matches exactly once spaces and symbols are dropped (e.g. "Soul Aman" on YouTube and "soulaman" on Kick)."""
@@ -1950,15 +1965,12 @@ def linked(sid: str) -> list:
             others = [x for x in g if x != sid]
             break
     else:
-        if time.time() - _NN["at"] > 600:
-            m = {}
-            with store._lock:
-                for s_, n in _db().execute("SELECT sid, name FROM sc_channels"):
-                    k = _norm(n)
-                    if len(k) >= 5:
-                        m.setdefault(k, []).append(s_)
-            _NN.update(at=time.time(), map=m)
-        with store._lock:
+        if not _NN["at"]:
+            _nn_build()                         # first use after a start (normally done by the start-up warm-up)
+        elif time.time() - _NN["at"] > 600 and not _NN.get("busy"):
+            _NN["busy"] = True                  # rebuilt in the background: a page never waits on a full channel scan
+            threading.Thread(target=_nn_build, daemon=True).start()
+        with store.reading():
             row = _db().execute("SELECT name FROM sc_channels WHERE sid=?", (sid,)).fetchone()
         mine = sid.split(":", 1)[0]
         others = [x for x in _NN["map"].get(_norm(row[0] if row else ""), []) if x.split(":", 1)[0] != mine]
@@ -1966,7 +1978,7 @@ def linked(sid: str) -> list:
             others += [x for x in _NN["map"].get(_norm(sid.split(":", 1)[1]), []) if x.split(":", 1)[0] != mine and x not in others]
     if not others:
         return []
-    with store._lock:
+    with store.reading():
         rows = _db().execute(f"SELECT sid, platform, name, logo FROM sc_channels WHERE sid IN ({','.join('?' * len(others))})", others).fetchall()
     best = {}
     for r in rows:                                               # one per platform
@@ -1996,7 +2008,7 @@ def _latest_gains(day_back: int = 1) -> dict:
     two days)."""
     d0 = (datetime.now(events.REPORT_TZ).date() - timedelta(days=2)).strftime("%Y-%m-%d")
     out = {}
-    with store._lock:
+    with store.reading():
         rows = _db().execute("SELECT sid, day, subs, views FROM sc_chstats WHERE day >= ? ORDER BY sid, day",
                              ((datetime.now(events.REPORT_TZ).date() - timedelta(days=4)).strftime("%Y-%m-%d"),)).fetchall()
     by = {}
@@ -2015,7 +2027,7 @@ def _latest_gains(day_back: int = 1) -> dict:
 def _chan_rows(sids: list) -> dict:
     if not sids:
         return {}
-    with store._lock:
+    with store.reading():
         return {r["sid"]: dict(r) for r in _db().execute(
             f"SELECT sid, platform, name, logo, url, game, COALESCE(NULLIF(ytcat,''), topic) topic, country, COALESCE(india,0) india FROM sc_channels WHERE sid IN ({','.join('?' * len(sids))})", sids)}
 
@@ -2056,7 +2068,7 @@ def home_lists(region: str = "global", game: str = "", n: int = 25, topic: str =
         ids = [k for k, v in YT_CATS.items() if v == topic]
         q += f" AND (v.cat IN ({','.join('?' * len(ids)) or 'NULL'}) OR (v.cat IS NULL AND COALESCE(NULLIF(c.ytcat,''), c.topic)=?))"
         a += ids + [topic]
-    with store._lock:
+    with store.reading():
         vids = [dict(r) for r in _db().execute(q + " ORDER BY v.views DESC LIMIT ?", (*a, n))]
         live_sids = [r[0] for r in _db().execute("SELECT sid FROM sc_channels WHERE COALESCE(NULLIF(ytcat,''), topic)=? AND last_live>?",
                                                   (topic, time.time() - 2 * 86400))] if topic else []
@@ -2066,7 +2078,7 @@ def home_lists(region: str = "global", game: str = "", n: int = 25, topic: str =
 def category_channels(game: str, region: str = "global", n: int = 25, topic: str = "") -> list:
     """Channels whose main game is this one, or in this YouTube category (streamers and uploaders), biggest first,
     with today's views gained."""
-    with store._lock:
+    with store.reading():
         rows = [dict(r) for r in _db().execute(
             """SELECT c.sid, c.platform, c.name, c.logo, c.url, c.game, COALESCE(c.india,0) india, s.subs, s.views
                FROM sc_channels c JOIN (SELECT s.sid, s.subs, s.views FROM sc_chstats s JOIN (SELECT sid, MAX(day) d FROM sc_chstats GROUP BY sid) m

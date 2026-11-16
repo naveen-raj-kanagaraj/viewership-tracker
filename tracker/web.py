@@ -165,7 +165,11 @@ def _memo_load():
 
 
 def _memo_build(key, build):
+    t0 = time.time()
     body = build()
+    took = time.time() - t0
+    if took > 2:
+        print(f"Slow page build: {took:.1f}s {key[:120]}")
     if isinstance(body, str):
         body = body.encode()
     hit = (time.time(), body, gzip.compress(body, 5) if len(body) > 1024 else None)
@@ -667,7 +671,7 @@ def scene_cats():
     """Games and categories, player-chart style: /api/cats?region=global|in"""
     from tracker import scene
     region = request.args.get("region", "global") if request.args.get("region") in scene.REGIONS else "global"
-    rng = request.args.get("range", "1m") if request.args.get("range") in scene.CAT_RANGES else "1m"
+    rng = request.args.get("range", "24h") if request.args.get("range") in scene.CAT_RANGES else "24h"
     return _memo(f"/api/cats:{region}:{rng}", 60, _jdump(lambda: scene.categories(region, limit=200, rng=rng)), "application/json")
 
 
@@ -1263,6 +1267,7 @@ def robots():
 WARM = ["/global", "/india", "/api/cats?region=global&range=24h", "/api/cats?region=in&range=24h", "/global/categories", "/india/categories", "/api/home?region=global", "/api/home?region=in", "/api/scene?region=global&period=today", "/api/scene?region=in&period=today",
         "/api/scene/live?region=global", "/api/scene/live?region=in", "/global/rankings", "/api/rank?region=global&period=day&metric=hw",
         "/api/rank?region=in&period=day&metric=hw", "/map", "/api/geo", "/global/moments", "/api/moments?region=global&period=7d",
+        "/api/moments?region=global&period=today&sort=views", "/api/moments?region=in&period=today&sort=views", "/e/pic/data",
         "/india/rankings", "/api/rank?region=in&period=week&metric=peak", "/api/rank?region=global&period=week&metric=hw",
         "/api/topch?platform=youtube&metric=views_7d", "/api/topch?platform=youtube&metric=views_7d&country=IN",
         "/api/topch?platform=twitch&metric=subs_7d&country=IN", "/api/topch?platform=kick&metric=subs_7d&country=IN"] + (
@@ -1325,8 +1330,9 @@ def run():
     _memo_load()
     threading.Thread(target=_memo_save, daemon=True).start()
     def once():
-        from tracker import events as ev_, scene as sc_
+        from tracker import events as ev_, scene as sc_, ytextra as yx_
         time.sleep(20)
+        yx_._nn_build()
         ev_.backfill_pic_day1()
         sc_.backfill_reg_day()
         try:

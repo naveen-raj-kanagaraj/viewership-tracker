@@ -49,7 +49,7 @@ def export_xlsx(key: str = None) -> bytes:
         first=True)
     sheet("By day", ["Day (IST)", "Peak concurrent", "Peak at", "Average concurrent (broadcast)", "Hours watched"],
           [[d["day"], d["peak"], _t(d.get("peak_at")), round(d.get("avg_broadcast", 0)), round(d.get("hw", 0))] for d in st.get("days", [])])
-    with store._lock:
+    with store.reading():
         c = events._db()
         ticks = c.execute("SELECT ts, total, official, watch FROM ev_ticks WHERE event=? ORDER BY ts", (ev["key"],)).fetchall()
         streams = c.execute("SELECT vid, channel, kind, title, peak, peak_at, first_seen, last_seen FROM ev_streams "
@@ -84,7 +84,7 @@ def anomalies_xlsx(key: str, since: float = 0) -> tuple:
     """(xlsx bytes, row count) of sudden viewer jumps/drops per stream."""
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill
-    with store._lock:
+    with store.reading():
         rows = events._db().execute("SELECT ts, channel, kind, before, after, change, pct, seconds, vid FROM ev_anomalies "
                                     "WHERE event=? AND ts>=? ORDER BY ts", (key, since)).fetchall()
     wb = Workbook()
@@ -108,7 +108,7 @@ def check_anomalies(ev: dict):
     last = store.kv_get(f"ev_anom_sent:{key}", 0)
     if time.time() - last < 1800:
         return
-    with store._lock:
+    with store.reading():
         n = events._db().execute("SELECT COUNT(*) FROM ev_anomalies WHERE event=? AND ts>?", (key, last)).fetchone()[0]
     if not n:
         return

@@ -190,6 +190,17 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 15 Nov 2026: speed pass. Every read-only `with store._lock` block across the code (60 of them: channel extras,
+  deep stats, predict, exports, chat stats ...) now uses store.reading(), so no page waits behind a tracker write.
+  ytextra.linked() builds its channel-name map in a background thread (warmed at start) instead of scanning
+  sc_channels inside a channel page. moments.recent() no longer calls YouTube inside a page load (start-time lookups
+  are queued to a background thread, at most once an hour per video; own-reading estimates are cached). Event data
+  off air is cached 30 s instead of 1.5 s. /api/cats defaults to 24h (what the page asks for). More warm keys
+  (today's moments, /e/pic/data). web._memo_build logs "Slow page build: Ns <key>" for any build over 2 s: check
+  `journalctl -u tracker | grep "Slow page"` after a deploy. scene._canon also maps a league name to an edition that
+  ended in the last 7 days (replays after LoL Worlds), and the tournament list folds a bare league card into its only
+  edition card (MPL into MPL Cambodia Season 11). README rewritten for the current features. tests/test_plat.py was
+  already failing before this change (events.get default preset expectation); not touched.
 - GTA 6 launch (14 Nov 2026; owner launches the site with GTA 6, 19 Nov): scene.gta6_on() switches GTA 6 on by itself
   at scene.GTA6_RELEASE (18 Nov 2026 10:00 UTC, an hour before New Zealand's midnight); GTA6_SHOW=1/0 in .env forces
   it. From then the worldwide sweep runs every scan (scene.sweep_games, SWEEP_GAMES): every Twitch page of "Grand Theft

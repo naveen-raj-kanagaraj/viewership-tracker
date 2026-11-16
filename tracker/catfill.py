@@ -119,7 +119,7 @@ def counts() -> dict:
     """{(scope, kind, name): channels with numbers in the last 3 days} (India: Indian channels only)."""
     since = ytextra._day(time.time() - 3 * 86400)
     out = {g: 0 for g in groups()}
-    with store._lock:
+    with store.reading():
         c = ytextra._db()
         for kind, col in (("cat", "COALESCE(NULLIF(c.ytcat,''), c.topic)"), ("game", "c.game")):
             for scope, cond in (("in", "AND COALESCE(c.india,0)=1"), ("world", "")):
@@ -135,7 +135,7 @@ def _known(cids: list) -> set:
     if not cids:
         return set()
     sids = ["yt:" + c for c in cids]
-    with store._lock:
+    with store.reading():
         c = ytextra._db()
         return {r[0][3:] for i in range(0, len(sids), 500)
                 for r in c.execute(f"SELECT sid FROM sc_channels WHERE sid IN ({','.join('?' * len(sids[i:i + 500]))})", sids[i:i + 500])}
@@ -174,7 +174,7 @@ def admit(found: dict, scope: str = "in") -> int:
                     for t in ("sc_chstats", "sc_intra", "sc_channels"):
                         c.execute(f"DELETE FROM {t} WHERE sid IN ({dq})", drop)
             c.commit()
-    with store._lock:
+    with store.reading():
         return ytextra._db().execute(f"SELECT COUNT(*) FROM sc_channels WHERE sid IN ({','.join('?' * min(len(new), 900))})",
                                      ["yt:" + x for x in new[:900]]).fetchone()[0]
 
@@ -272,7 +272,7 @@ def links(hungry: list) -> int:
     """Channels listed on the Channels tab of the biggest channels in hungry groups (Indian ones for India)."""
     done = set(store.kv_get("fill_links_done") or [])
     seeds = []
-    with store._lock:
+    with store.reading():
         c = ytextra._db()
         for scope, kind, name in hungry[:8]:
             col = "COALESCE(NULLIF(c.ytcat,''), c.topic)" if kind == "cat" else "c.game"

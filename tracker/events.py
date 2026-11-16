@@ -910,7 +910,7 @@ def poll(ev: dict, now: int = None) -> dict:
         for s in pool.map(check_channel, chans):
             if s and s["vid"] not in found and relevant(ev, s):
                 found[s["vid"]] = s
-    with store._lock:
+    with store.reading():
         c = _db()
         recent = [dict(r) for r in c.execute(
             "SELECT vid, channel, channel_id, title FROM ev_streams WHERE event=? AND last_seen>?",
