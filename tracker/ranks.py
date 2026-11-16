@@ -33,7 +33,7 @@ METRICS = ("size", "views", "vday", "v7", "growth", "live", "eng", "likes", "med
 # first daily reading: a period longer than that history shows the change since then (top() reports "history_from").
 PERIODS = ("24h", "3d", "7d", "30d", "3m", "6m", "ytd", "1y", "all")
 PERIOD_DAYS = {"24h": 1, "3d": 3, "7d": 7, "30d": 30, "3m": 90, "6m": 180, "1y": 365}
-BASES = ("views", "subs", "live", "eng", "likes", "medv")
+BASES = ("views", "subs", "live", "peak", "avg", "eng", "likes", "medv")
 PMETRICS = tuple(f"{b}_{p}" for b in BASES for p in PERIODS)
 GAIN_BASES = ("views", "subs")
 
@@ -67,10 +67,18 @@ def _rows():
         firsts = {p: first_since(d) for p, d in starts.items() if p not in ("7d", "30d")}
         firsts["7d"], firsts["30d"] = old7, old
         pcols = [p for p in PERIODS if p != "all"]
-        sums = ", ".join(f"SUM(CASE WHEN day>=? THEN hw END)" for _ in pcols)
-        hwp = {r[0]: dict(zip(pcols + ["all"], r[1:])) for r in c.execute(
-            f"SELECT sid, {sums}, SUM(hw) FROM sc_daily GROUP BY sid",
-            [(period_start(p) if p != "24h" else today - timedelta(days=1)).strftime("%Y-%m-%d") for p in pcols])}
+        sums = ", ".join(f"SUM(CASE WHEN day>=? THEN hw END), MAX(CASE WHEN day>=? THEN peak END), SUM(CASE WHEN day>=? THEN mins END)"
+                         for _ in pcols)
+        pstarts = [(period_start(p) if p != "24h" else today - timedelta(days=1)).strftime("%Y-%m-%d") for p in pcols]
+        hwp, pkp, avp = {}, {}, {}           # per period: hours watched, peak live viewers, average live viewers
+        for r in c.execute(f"SELECT sid, {sums}, SUM(hw), MAX(peak), SUM(mins) FROM sc_daily GROUP BY sid",
+                           [d for d in pstarts for _ in range(3)]):
+            v = list(r[1:])
+            for i, p in enumerate(pcols + ["all"]):
+                h, pk, mn = v[3 * i], v[3 * i + 1], v[3 * i + 2]
+                hwp.setdefault(r[0], {})[p] = h
+                pkp.setdefault(r[0], {})[p] = pk
+                avp.setdefault(r[0], {})[p] = round(h * 60 / mn) if h and mn else None
         first_day = c.execute("SELECT MIN(day) FROM sc_chstats").fetchone()[0]
         top_game = {}
         for sid, g, h in c.execute("SELECT sid, game, SUM(hw) FROM sc_daily WHERE day>=? GROUP BY sid, game", (d30,)):
@@ -155,6 +163,8 @@ def _rows():
                 pm["views_" + p] = (vod.get(sid) or {}).get(p)
             h = (hwp.get(sid) or {}).get(p)
             pm["live_" + p] = round(h) if h else None
+            pm["peak_" + p] = (pkp.get(sid) or {}).get(p) or None
+            pm["avg_" + p] = (avp.get(sid) or {}).get(p) or None
             e = per.get((sid, p))
             pm["eng_" + p], pm["likes_" + p], pm["medv_" + p] = e if e else (None, None, None)
         rows.append({**pm, "sid": sid, "platform": ch["platform"], "name": ch["name"], "logo": ch["logo"], "url": ch["url"],
@@ -252,7 +262,7 @@ def _keep(r, metric):
     base = metric.split("_")[0] if "_" in metric else metric
     if metric in ("growth", "vday", "v7") or (base in GAIN_BASES and "_" in metric and not metric.endswith("_all")):
         return v > 0
-    if metric in ("live", "views") or base == "live" or metric in ("views_all", "subs_all"):
+    if metric in ("live", "views") or base in ("live", "peak", "avg") or metric in ("views_all", "subs_all"):
         return bool(v)
     if metric in RATE_METRICS or base in ("eng", "likes"):
         return (r["size"] or 0) >= RATE_MIN_SUBS

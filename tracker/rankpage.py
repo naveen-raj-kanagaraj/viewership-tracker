@@ -114,16 +114,16 @@ let MODE=Q.get('mode')==='live'||(!Q.get('mode')&&(Q.get('period')||Q.get('cat')
 if(MODE==='channels')S.metric='hw';
 const PERS=[['24h','Last 24 hours','24H'],['3d','Last 3 days','3 DAYS'],['7d','Last 7 days','7 DAYS'],['30d','Last 30 days','30 DAYS'],['3m','Last 3 months','3 MONTHS'],['6m','Last 6 months','6 MONTHS'],['ytd','This year','THIS YEAR'],['1y','Last 12 months','12 MONTHS'],['all','Lifetime','LIFETIME']];
 {const qm=Q.get('metric')||'',LEG={vday:['views','24h'],v7:['views','7d'],growth:['views','30d'],views:['views','all'],size:['subs','all'],live:['live','30d'],eng:['eng','3m'],likes:['likes','3m'],medv:['medv','3m']};
- const mm=qm.match(/^(views|subs|live|eng|likes|medv)_(24h|3d|7d|30d|3m|6m|ytd|1y|all)$/);if(mm){C.base=mm[1];C.per=mm[2]}else if(LEG[qm]){[C.base,C.per]=LEG[qm]}
- if(!['youtube'].includes(C.platform)&&!['subs','live','views'].includes(C.base))C.base='subs';C.metric=C.base+'_'+C.per}
+ const mm=qm.match(/^(views|subs|live|peak|avg|eng|likes|medv)_(24h|3d|7d|30d|3m|6m|ytd|1y|all)$/);if(mm){C.base=mm[1];C.per=mm[2]}else if(LEG[qm]){[C.base,C.per]=LEG[qm]}
+ if(!['youtube'].includes(C.platform)&&!['subs','live','views','peak','avg'].includes(C.base))C.base='subs';C.metric=C.base+'_'+C.per}
 const YT=()=>C.platform==='youtube';
 const PLAB=p=>(PERS.find(x=>x[0]===p)||[])[2]||'';
 const CML=m=>{const [b,p]=m.split('_'),L=PLAB(p);if(b==='views')return YT()?(p==='all'?'TOTAL VIEWS':'VIEWS, '+L):(p==='all'?'PAST STREAM VIEWS':'PAST STREAM VIEWS, '+L);if(b==='subs')return p==='all'?(YT()?'SUBSCRIBERS':'FOLLOWERS'):(YT()?'SUBS GAINED, ':'FOLLOWERS GAINED, ')+L;
- if(b==='live')return 'HOURS WATCHED, '+L;return ({eng:'ENGAGEMENT',likes:'LIKE RATE',medv:'TYPICAL VIEWS'})[b]+', '+L};
-const CMS=()=>YT()?[['views','VIEWS'],['subs','SUBSCRIBERS'],['eng','ENGAGEMENT'],['likes','LIKE RATE'],['medv','TYPICAL VIEWS'],['live','HOURS WATCHED']]:[['subs','FOLLOWERS'],['views','VIEWS'],['live','HOURS WATCHED']];
+ if(b==='live')return 'HOURS WATCHED, '+L;if(b==='peak')return 'PEAK LIVE VIEWERS, '+L;if(b==='avg')return 'AVG LIVE VIEWERS, '+L;return ({eng:'ENGAGEMENT',likes:'LIKE RATE',medv:'TYPICAL VIEWS'})[b]+', '+L};
+const CMS=()=>YT()?[['views','VIEWS'],['subs','SUBSCRIBERS'],['peak','PEAK LIVE'],['avg','AVG LIVE'],['live','HOURS WATCHED'],['eng','ENGAGEMENT'],['likes','LIKE RATE'],['medv','TYPICAL VIEWS']]:[['peak','PEAK LIVE'],['avg','AVG LIVE'],['live','HOURS WATCHED'],['views','VIEWS'],['subs','FOLLOWERS']];
 const CMV=(m,v)=>{if(v==null)return '-';const [b,p]=m.split('_');if(b==='eng'||b==='likes')return (v*100).toFixed(v<.1?2:1)+'%';if(b==='live')return fmt(v)+'h';
  if((b==='views'&&YT()||b==='subs')&&p!=='all')return (v>0?'+':'')+fmt(v);return fmt(v)};
-const OTHERS=()=>{const p=C.per,b=C.base;return b==='views'&&!YT()?['subs_'+p,'live_'+p]:b==='views'?['subs_'+p,'views_all']:b==='subs'?(YT()?['views_'+p,'subs_all']:['views_'+p,'live_'+p]):b==='views'&&!YT()?['subs_'+p,'live_'+p]:b==='eng'?['likes_'+p,'medv_'+p]:b==='likes'?['eng_'+p,'medv_'+p]:b==='medv'?['eng_'+p,'subs_all']:['subs_'+p,'subs_all']};
+const OTHERS=()=>{const p=C.per,b=C.base;if(b==='peak')return ['avg_'+p,'live_'+p];if(b==='avg')return ['peak_'+p,'live_'+p];if(b==='live')return ['peak_'+p,'avg_'+p];return b==='views'&&!YT()?['subs_'+p,'live_'+p]:b==='views'?['subs_'+p,'views_all']:b==='subs'?(YT()?['views_'+p,'subs_all']:['views_'+p,'live_'+p]):b==='views'&&!YT()?['subs_'+p,'live_'+p]:b==='eng'?['likes_'+p,'medv_'+p]:b==='likes'?['eng_'+p,'medv_'+p]:b==='medv'?['eng_'+p,'subs_all']:['subs_'+p,'subs_all']};
 function setMode(m){MODE=m;document.querySelector('h1').innerHTML=(m==='live'?'Top streamers ':'Top channels ')+`<em>${WHERE}</em>`;document.getElementById('lf').style.display=m==='live'?'':'none';document.getElementById('cf').style.display=m==='channels'?'':'none';document.querySelector('.lth .lc').textContent=m==='live'?'STREAMER':'CHANNEL';
  document.getElementById('intro').textContent=m==='live'?'Ranked by what people actually watched live. Tap a streamer for their full numbers.':'Every YouTube, Twitch and Kick channel this site tracks, uploaders and streamers, ranked by views, subscribers or growth. Tap one for its full stats.';
  seg('mode',[['channels','CHANNELS'],['live','LIVE STREAMERS']],MODE,v=>{setMode(v)});m==='live'?go():goCh()}
@@ -134,7 +134,7 @@ async function goCh(){if(!CMS().some(x=>x[0]===C.base))C.base=CMS()[0][0];C.metr
  const my=++SEQ;busy(true);let J;try{J=await getJ('/api/topch?'+p,60000)}catch(e){busy(false);return}if(my!==SEQ)return;busy(false);CR=J;
  if(!CR.updated){setTimeout(()=>{if(MODE==='channels'){JC.delete('/api/topch?'+p);goCh()}},15000)}
  setTimeout(()=>CMS().forEach(([b])=>{if(b!==C.base){const q=new URLSearchParams(p);q.set('metric',b+'_'+C.per);pre('/api/topch?'+q,60000)}}),600);
- seg('cplat',[['youtube','YOUTUBE'],['twitch','TWITCH'],['kick','KICK']],C.platform,v=>{if(v!==C.platform)C.base=v==='youtube'?'views':'subs';C.platform=v;C.category='';C.game='';goCh()});
+ seg('cplat',[['youtube','YOUTUBE'],['twitch','TWITCH'],['kick','KICK']],C.platform,v=>{if(v!==C.platform)C.base=v==='youtube'?'views':'peak';C.platform=v;C.category='';C.game='';goCh()});
  seg('cmetric',CMS(),C.base,v=>{C.base=v;goCh()});
  const cpe=document.getElementById('cper');cpe.innerHTML=PERS.map(([v,l])=>`<option value="${v}"${v===C.per?' selected':''}>${l}</option>`).join('');cpe.onchange=e=>{C.per=e.target.value;goCh()};
  const cc=document.getElementById('ccat');cc.innerHTML=`<option value="">${YT()?'All YouTube categories':'All sections'}</option>`+(CR.categories||[]).map(x=>`<option${x===C.category?' selected':''}>${esc(x)}</option>`).join('');
