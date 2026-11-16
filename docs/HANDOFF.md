@@ -190,6 +190,8 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 15 Nov 2026 (4): channel ranks: a YouTube channel whose own category is Gaming but whose live hours are mostly a
+  non-gaming section (Cricket, News, Music ...) is ranked under that section's category (CricTalks -> Sports).
 - 15 Nov 2026 (3): channel rankings (Rankings > Channels, /api/topch) have peak_<period> and avg_<period> (peak and
   average live viewers from sc_daily, every period) for YouTube, Kick and Twitch; buttons PEAK LIVE / AVG LIVE. Kick and
   Twitch open on PEAK LIVE when switching platform. Home nav has Top creators and Top streamers instead of Rankings.
