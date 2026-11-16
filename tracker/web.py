@@ -1348,7 +1348,9 @@ def run():
             try:
                 n = sc_.mark_known_india()
                 if n:
-                    print(f"Marked {n} channels as Indian (event trackers, BGMI)")
+                    print(f"India flags changed on {n} channels (event trackers, BGMI, seeds); recomputing ranks")
+                    from tracker import ranks as rk_
+                    rk_.compute()                    # India's channel rankings show it now, not in 30 minutes
             except Exception as e:
                 print(f"India marks: {str(e)[:120]}")
             time.sleep(3600)

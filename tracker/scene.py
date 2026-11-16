@@ -176,6 +176,8 @@ def india_known() -> frozenset:
                     elif cid and cid.startswith("UC"):
                         out.add("yt:" + cid)
             out.update(r[0] for r in c.execute("SELECT DISTINCT sid FROM sc_daily WHERE game='BGMI'"))
+        out.update("kick:" + k.lower() for k in seeds().get("kick", []))
+        out.update(allowed())
     except Exception as e:
         print(f"Known Indian channels: {str(e)[:100]}")
         return _KNOWN["set"]
@@ -196,8 +198,26 @@ def mark_known_india() -> int:
             part = L[i:i + 500]
             n += c.execute(f"UPDATE sc_channels SET india=1 WHERE COALESCE(india,0)=0 AND sid IN ({','.join('?' * len(part))})",
                            part).rowcount
+        wrong = [r[0] for r in c.execute("SELECT sid, name, title, country FROM sc_channels WHERE india=1 AND platform IN ('kick','twitch')")
+                 if r[0] not in known and FOREIGN.search((r[2] or "") + " " + (r[1] or "")) and not _ind_script((r[2] or "") + " " + (r[1] or ""))]
+        for i in range(0, len(wrong), 500):            # e.g. a Russian title with an Om sign: not Indian
+            part = wrong[i:i + 500]
+            c.execute(f"UPDATE sc_channels SET india=0 WHERE sid IN ({','.join('?' * len(part))})", part)
+        if wrong:
+            print(f"Unmarked {len(wrong)} channels wrongly counted as Indian (foreign script): {', '.join(wrong[:10])}")
         c.commit()
-    return n
+    return n + len(wrong)
+
+
+_IND_LETTERS = re.compile(r"[\u0900-\u0D7F]")
+_IND_SYMBOLS = "\u0950\u0AD0\u0BD0\u0964\u0965"     # Om signs and danda: decoration, used by non-Indian streamers too
+
+
+def _ind_script(t: str) -> bool:
+    """Written in an Indian script: at least 2 Indian letters (not just an Om sign), and more of them than letters in
+    another non-Latin script ('ૐ Витус Бритва' is Russian)."""
+    n = sum(1 for ch in _IND_LETTERS.findall(t or "") if ch not in _IND_SYMBOLS)
+    return n >= 2 and n > len(FOREIGN.findall(t or ""))
 
 
 def verdict(x: dict, country: str = None, allow: set = frozenset()) -> bool:
@@ -214,9 +234,9 @@ def verdict(x: dict, country: str = None, allow: set = frozenset()) -> bool:
             return False                      # the channel says it is from another country
     elif (x.get("language") or "").lower() in LANGS and not FOREIGN.search(t + " " + n):
         return True
-    if FOREIGN.search(t + " " + n) and not re.search(r"[\u0900-\u0D7F]", t + n):
+    if FOREIGN.search(t + " " + n) and not _ind_script(t + " " + n):
         return False
-    if re.search(r"[\u0900-\u0D7F]", t + " " + n) or INDIA_MARK.search(t) or INDIA_MARK.search(n):
+    if _ind_script(t + " " + n) or INDIA_MARK.search(_IND_LETTERS.sub(" ", t)) or INDIA_MARK.search(_IND_LETTERS.sub(" ", n)):
         return True
     return x.get("platform") in ("kick", "twitch") and bool(HINGLISH.search(t)) and not NOT_INDIA.search(t + " " + n)
 

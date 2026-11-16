@@ -190,6 +190,10 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 15 Nov 2026 (8): Indian-script check (scene._ind_script) needs 2+ Indian letters, Om signs don't count, and must
+  outnumber another non-Latin script ("ૐ Витус Бритва" was counted Indian). india_known() also includes the Kick seeds
+  and the allow list; the hourly india_marks thread unflags Kick/Twitch channels wrongly marked by a foreign-script title
+  and recomputes ranks right away when flags change. Home nav back to one "Rankings" link (owner).
 - 15 Nov 2026 (7): checked the worldwide Kick top 100 (week and month, by peak and hours) against India: kaashplays
   (79.8K peak), regaltos (34.7K), neyoo_gaming were missing; added to scene.ALWAYS. Kick/Twitch titles in Hinglish
   (scene.HINGLISH: bhai, yaar, aaj, kya, khelenge, bigg boss ...) count as Indian unless they say Pakistan (NOT_INDIA).
