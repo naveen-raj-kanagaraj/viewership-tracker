@@ -190,6 +190,9 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 15 Nov 2026 (3): channel rankings (Rankings > Channels, /api/topch) have peak_<period> and avg_<period> (peak and
+  average live viewers from sc_daily, every period) for YouTube, Kick and Twitch; buttons PEAK LIVE / AVG LIVE. Kick and
+  Twitch open on PEAK LIVE when switching platform. Home nav has Top creators and Top streamers instead of Rankings.
 - 15 Nov 2026 (2): rankings, live streamers mode: EVERYTHING / GAMING / ESPORTS buttons (sec=) next to the platform
   buttons; share card title follows the filters ("TOP KICK GAMING STREAMERS", "INDIA · LAST 7 DAYS · BY HOURS
   WATCHED"). scene._rank_base serves a window's rows while it refreshes in the background (up to 3 h old) instead of
