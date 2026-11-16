@@ -142,6 +142,9 @@ def _rows():
         sec = scene.section_of(g) if g else ""
         if ch["platform"] == "youtube":          # YouTube's own categories only (until known: nearest one to what they stream)
             cat = next((x for x in (ch["ytcat"], ch["topic"]) if x and x != "Other"), "") or _YT_FROM_SEC.get(sec, "")
+            want = _YT_FROM_SEC.get(sec, "") if live else ""
+            if want and cat == "Gaming" and want != "Gaming":
+                cat = want            # what they actually stream wins: a cricket channel tagged Gaming is Sports
         else:
             cat = scene.SECTION_NAMES.get(sec, "") if sec != "other" else ""
         pm = {}
