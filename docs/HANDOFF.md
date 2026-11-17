@@ -190,6 +190,10 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 17 Nov 2026 (2): the GTA 6 sweep (switched on early with GTA6_SWEEP=1) read 18 Kick lists per category every scan,
+  hit Kick's rate limit, and CEGC's 2-second Kick counts stalled ("DELAYED"). Now per scan: by viewers, newest and 2
+  languages in turn (all 16 every 8 scans), re-reads capped (500, 200 while a tournament is live on Kick), and while a
+  tracked tournament is live on Kick (scene._event_on_kick) the category lists run every 3rd scan only.
 - 17 Nov 2026: GTA 6 sweep memory. Kick lists only 100 streams per query with no next page, and YouTube search shows
   only top results, so every stream the sweep finds is remembered (scene._kick_known / _yt_known, 6 h) and re-read
   each scan until it ends: Kick by broadcaster id, 50 a call; YouTube from the live counter (no quota), biggest first,

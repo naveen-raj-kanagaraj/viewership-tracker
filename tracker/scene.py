@@ -379,8 +379,16 @@ def sweep_platform(p: str, game: str, errors: dict) -> list:
         if time.time() < _KICK_COOL[0]:
             return rows
         cids = [c for c in dict.fromkeys(_category_id("kick", n) for n in cfg["kick"]) if c]
+        # Kick's rate limit is shared with the tournament trackers' 2-second counts (CEGC on Kick went stale when the
+        # sweep read 18 lists per category every scan). Each scan: by viewers, newest, and 2 of the languages in turn;
+        # streams found once are re-read by broadcaster (_kick_known). While a tracked tournament is live on Kick, the
+        # category lists are read every 3rd scan only.
+        n_ = _SWEEP["kick_n"] = _SWEEP.get("kick_n", 0) + 1
+        if _event_on_kick() and n_ % 3:
+            cids = []
+        langs = [SWEEP_KICK_LANGS[(n_ * 2 + i) % len(SWEEP_KICK_LANGS)] for i in range(2)]
         for cid in cids:
-            for prm in [{}, {"sort": "started_at"}] + [{"language": lg} for lg in SWEEP_KICK_LANGS]:
+            for prm in [{}, {"sort": "started_at"}] + [{"language": lg} for lg in langs]:
                 try:
                     rows += _kick_live({"category_id": cid, **prm})
                     time.sleep(0.35)
@@ -414,7 +422,7 @@ def _kick_known(game: str, rows: list, errors: dict) -> list:
             seen.add(uid)
     for uid in [u for u, t in known.items() if now - t > KNOWN_KEEP]:
         known.pop(uid, None)
-    ask = [u for u in sorted(known, key=lambda u: -known[u]) if u not in seen]
+    ask = [u for u in sorted(known, key=lambda u: -known[u]) if u not in seen][:(500 if not _event_on_kick() else 200)]
     out = []
     for i in range(0, len(ask), 50):
         if time.time() < _KICK_COOL[0]:
@@ -1310,6 +1318,11 @@ def yt_watch_once(found: dict, errors: dict) -> int:
             elif c_ is None or c_ == 0:
                 _WSEEN[vid] = ("done", now)
     return n
+
+
+def _event_on_kick() -> bool:
+    """A tracked tournament has a live stream on Kick right now (its 2-second counts come first)."""
+    return any(str(v).startswith("kick:") for d in events._LIVE.values() for v in d)
 
 
 def _event_on_air() -> bool:
