@@ -228,6 +228,11 @@ def _html(build):
     return b
 
 
+from concurrent.futures import ThreadPoolExecutor as _TPE
+_LIVE_POOL = _TPE(max_workers=6, thread_name_prefix="memo-live")
+_SLOW_POOL = _TPE(max_workers=4, thread_name_prefix="memo-slow")
+
+
 def _memo(key, ttl, build, mimetype):
     """Stale-while-revalidate: a fresh copy is served as is; an expired one is served immediately while one
     background thread rebuilds it, so nobody waits on a slow build except the very first visitor."""
@@ -247,7 +252,10 @@ def _memo(key, ttl, build, mimetype):
                     print(f"Rebuild {key[:60]}: {str(e)[:120]}")
                 finally:
                     lock.release()
-            threading.Thread(target=bg, daemon=True).start()
+            # Bounded pools: after a restart every cached page is stale at once, and one thread per page (hundreds)
+            # made every build take minutes (420 s), freezing live pages like the CEGC tracker. Live answers have
+            # their own pool so they never queue behind channel pages.
+            (_LIVE_POOL if ttl < 30 else _SLOW_POOL).submit(bg)
     elif not hit or now - hit[0] >= ttl:
         lock = _MLOCK.setdefault(key, threading.Lock())
         with lock:
