@@ -40,7 +40,21 @@ tw = scene.sweep_platform("twitch", "GTA 6", errs)
 assert len(tw) == 300 and all(c[2].get("game_id") == "999" for c in calls if "streams" in c[1]), (len(tw), errs)
 scene.time.sleep = lambda *_: None
 kk = scene.sweep_platform("kick", "GTA 6", errs)
-assert len({r["vid"] for r in kk}) >= len(scene.SWEEP_KICK_LANGS), len(kk)
+assert len({r["vid"] for r in kk}) >= 3, len(kk)              # by viewers/newest + 2 languages in turn
+langs = set()
+for _ in range(len(scene.SWEEP_KICK_LANGS)):
+    calls.clear(); scene.sweep_platform("kick", "GTA 6", errs)
+    langs |= {c[2].get("language") for c in calls if "livestreams" in c[1] and c[2].get("language")}
+    assert sum(1 for c in calls if "livestreams" in c[1] and "category_id" in c[2]) <= 4 * 3
+assert langs == set(scene.SWEEP_KICK_LANGS), langs                # every language comes round
+from tracker import events as ev
+ev._LIVE["cegc"] = {"kick:skyesports": {}}                        # a tournament live on Kick: sweep lists 1 scan in 3
+cats = []
+for _ in range(6):
+    calls.clear(); scene.sweep_platform("kick", "GTA 6", errs)
+    cats.append(sum(1 for c in calls if "livestreams" in c[1] and "category_id" in c[2]))
+assert sum(1 for x in cats if x) == 2, cats
+ev._LIVE.pop("cegc")
 print("GTA6 LAUNCH OK")
 
 # Kick has no next page: every stream the sweep found is remembered and re-read by broadcaster until it ends
