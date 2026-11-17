@@ -190,6 +190,11 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 17 Nov 2026 (4): ROOT CAUSE of "DELAYED"/frozen pages after every restart: _memo started one thread per stale page
+  rebuild; after a restart every cached page is stale at once (and _warm_more asks for ~400), so hundreds of builds ran
+  together and each took 420 s; the CEGC tracker kept counting but /e/cegc/data was served stale. Background rebuilds
+  now go through two bounded pools in web.py: _LIVE_POOL (6, answers with ttl < 30 s) and _SLOW_POOL (4, the rest).
+  Diagnose freezes with py-spy (installed on the server): sudo <venv>/bin/py-spy dump --pid <MainPID>.
 - 17 Nov 2026 (3): CEGC (owner): official = Sky Esports' Kick channels only (skyesports, skyesports_2/-2); every
   other stream carrying CEGC is a watch party ("all_watch"), listed or not. Unlisted ones come from the site-wide live
   scan by title (preset "scene_match" regex, events.scene_matches; YouTube ones must be Indian channels). kick_only and
