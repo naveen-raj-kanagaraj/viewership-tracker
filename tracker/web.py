@@ -437,6 +437,13 @@ def api_tour():
     return _memo(f"/api/tour:{region}:{sl}", 10, _jdump(lambda: scene.tour_data(name, region)), "application/json")
 
 
+@app.route("/api/sweep")
+def api_sweep():
+    """Launch sweep status: which games are swept and how many streams each source found (no secrets)."""
+    from tracker import scene
+    return _json(scene.sweep_status())
+
+
 @app.route("/api/tours")
 def api_tours():
     """/api/tours?region=global|in: tournaments on now (this site's trackers, Liquipedia's, all channels together)."""

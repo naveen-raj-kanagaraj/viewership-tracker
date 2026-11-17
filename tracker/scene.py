@@ -340,6 +340,14 @@ SWEEP_KICK_LANGS = ["en", "es", "pt", "tr", "ar", "ru", "de", "fr", "it", "pl", 
 _SWEEP = {"yt_cool": 0.0, "stats": {}}
 
 
+def sweep_status() -> dict:
+    """What the launch sweep is doing (for /api/sweep): games on, and per source when it last ran and what it found."""
+    return {"games": sweep_games(), "release": GTA6_RELEASE, "shown": gta6_on(),
+            "yt_resting": max(0, round(_SWEEP["yt_cool"] - time.time())), "kick_resting": max(0, round(_KICK_COOL[0] - time.time())),
+            "stats": {k: {"ago": round(time.time() - v[0]), "found": v[1], **({"read_now": v[2]} if len(v) > 2 else {})}
+                      for k, v in _SWEEP["stats"].items()}}
+
+
 def sweep_games() -> list:
     """Games being swept now: GTA 6 from its release (or GTA6_SWEEP=1)."""
     on = os.getenv("GTA6_SWEEP", "") == "1" or (os.getenv("GTA6_SWEEP", "") != "0" and gta6_on() and time.time() >= GTA6_RELEASE)
@@ -366,7 +374,7 @@ def sweep_platform(p: str, game: str, errors: dict) -> list:
             after = (j.get("pagination") or {}).get("cursor")
             if not after or not d:
                 break
-            time.sleep(0.05)
+            time.sleep(0.1)                   # <= 600 calls a minute: Twitch allows 800, the 2-second reads need the rest
     else:
         if time.time() < _KICK_COOL[0]:
             return rows
@@ -382,8 +390,57 @@ def sweep_platform(p: str, game: str, errors: dict) -> list:
                         errors["sweep kick"] = "Kick rate limit: sweep resumes in 5 minutes"
                         return rows
                     errors[f"sweep kick {prm}"] = str(e)[:80]
+    if p == "kick":
+        rows += _kick_known(game, rows, errors)
     _SWEEP["stats"][f"{p}:{game}"] = (time.time(), len(rows))
     return rows
+
+
+KNOWN_KEEP = 6 * 3600          # a swept stream is re-read for 6 hours after it was last seen live
+YT_RECOUNT_MAX = int(os.getenv("SCENE_SWEEP_YT_RECOUNT", "800"))   # YouTube streams re-counted per scan beyond search
+
+
+def _kick_known(game: str, rows: list, errors: dict) -> list:
+    """Kick lists at most 100 streams per query and has no next page, so a launch with thousands of streams can't be
+    read from the category alone. Every stream the sweep has ever found is remembered and re-read by broadcaster
+    (50 per call) until it ends, so a small stream found once (in 'newest' or a language list) stays counted."""
+    known = _SWEEP.setdefault(f"kick_known:{game}", {})
+    now = time.time()
+    seen = set()
+    for r in rows:
+        uid = platforms._kick_uid.get(r["vid"])
+        if uid:
+            known[uid] = now
+            seen.add(uid)
+    for uid in [u for u, t in known.items() if now - t > KNOWN_KEEP]:
+        known.pop(uid, None)
+    ask = [u for u in sorted(known, key=lambda u: -known[u]) if u not in seen]
+    out = []
+    for i in range(0, len(ask), 50):
+        if time.time() < _KICK_COOL[0]:
+            break
+        part = ask[i:i + 50]
+        try:
+            j = platforms._get("kick", "https://api.kick.com/public/v1/livestreams",
+                               [("broadcaster_user_id", u) for u in part] + [("limit", 100)])
+        except Exception as e:
+            if "429" in str(e):
+                _KICK_COOL[0] = time.time() + 300
+            errors["sweep kick known"] = str(e)[:80]
+            break
+        for s_ in j.get("data") or []:
+            if not s_.get("slug"):
+                continue
+            cat = (s_.get("category") or {}).get("name", "")
+            if classify(cat, s_.get("stream_title") or "") != game:
+                continue                      # switched game: no longer this sweep's
+            known[s_.get("broadcaster_user_id")] = now
+            out.append(platforms._kick_row(s_["slug"], s_.get("stream_title"), s_.get("viewer_count"), category=cat,
+                                           pic=s_.get("profile_picture") or "", language=s_.get("language") or "",
+                                           uid=s_.get("broadcaster_user_id")))
+        time.sleep(0.35)
+    _SWEEP["stats"][f"kick known:{game}"] = (now, len(known), len(out))
+    return out
 
 
 def yt_search_pages(query: str, gl: str, pages: int) -> list:
@@ -421,7 +478,39 @@ def sweep_youtube(game: str, errors: dict) -> list:
         _SWEEP["yt_cool"] = time.time() + 300
         errors[f"sweep youtube {game}"] = f"{bad}/{len(jobs)} searches failed; resting 5 minutes"
     out = [s_ for r_ in res if r_ != "err" for s_ in r_]
+    out += _yt_known(game, out)
     _SWEEP["stats"][f"youtube:{game}"] = (time.time(), len(out))
+    return out
+
+
+def _yt_known(game: str, found: list) -> list:
+    """YouTube search shows each query's top results only. Every live video the sweep has found is remembered and,
+    when this scan's searches didn't return it, re-counted from YouTube's live counter (no API quota), the biggest
+    first, up to YT_RECOUNT_MAX a scan. A video with no live count three times running has ended and is dropped."""
+    known = _SWEEP.setdefault(f"yt_known:{game}", {})
+    now = time.time()
+    got = set()
+    for s_ in found:
+        known[s_["vid"]] = {**s_, "seen": now, "miss": 0}
+        got.add(s_["vid"])
+    for v in [v for v, k in known.items() if now - k["seen"] > KNOWN_KEEP or k["miss"] >= 3]:
+        known.pop(v, None)
+    ask = sorted((v for v in known if v not in got), key=lambda v: -(known[v].get("viewers") or 0))[:YT_RECOUNT_MAX]
+    out, errs = [], 0
+    for v, n in zip(ask, _YPOOL.map(_safe_count, ask)):
+        k = known.get(v)
+        if n == "err":
+            errs += 1
+        if k is None or n == "err":
+            continue
+        if n:
+            k.update(viewers=n, seen=now, miss=0)
+            out.append({x: k[x] for x in k if x not in ("seen", "miss")})
+        else:
+            k["miss"] += 1
+    if ask and errs > len(ask) // 2:          # YouTube refusing: rest like the searches do
+        _SWEEP["yt_cool"] = time.time() + 300
+    _SWEEP["stats"][f"youtube known:{game}"] = (now, len(known), len(out))
     return out
 
 
@@ -1704,7 +1793,7 @@ def run_twitch_full():
                 twitch_full_once()
         except Exception as e:
             print(f"Twitch full count: {str(e)[:150]}")
-        time.sleep(TWITCH_FULL_EVERY)
+        time.sleep(TWITCH_FULL_EVERY * (2 if sweep_games() else 1))   # launch sweep on: leave Twitch calls for it
 
 
 def _with_full(out: dict, region: str, game, sec: str) -> dict:
