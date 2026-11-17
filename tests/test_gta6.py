@@ -42,3 +42,50 @@ scene.time.sleep = lambda *_: None
 kk = scene.sweep_platform("kick", "GTA 6", errs)
 assert len({r["vid"] for r in kk}) >= len(scene.SWEEP_KICK_LANGS), len(kk)
 print("GTA6 LAUNCH OK")
+
+# Kick has no next page: every stream the sweep found is remembered and re-read by broadcaster until it ends
+rnd = {"n": 0}
+def fake_kick(p, url, prm):
+    if "categories" in url:
+        return {"data": [{"id": 77, "name": "Grand Theft Auto VI"}]}
+    if isinstance(prm, list):                 # re-read by broadcaster ids
+        ids = [v for k, v in prm if k == "broadcaster_user_id"]
+        return {"data": [{"slug": f"u{u}", "broadcaster_user_id": u, "stream_title": "GTA 6 grind", "viewer_count": 2,
+                          "category": {"name": "Grand Theft Auto VI"}} for u in ids if u % 7]}   # every 7th has ended
+    base = rnd["n"] * 1000 + hash(str(sorted(prm.items()))) % 900
+    return {"data": [{"slug": f"u{base + i}", "broadcaster_user_id": base + i, "stream_title": "GTA 6", "viewer_count": 1,
+                      "category": {"name": "Grand Theft Auto VI"}} for i in range(5)]}
+platforms._get = fake_kick
+platforms._cats.clear()
+scene._SWEEP.pop("kick_known:GTA 6", None)
+first = scene.sweep_platform("kick", "GTA 6", {})
+rnd["n"] = 1
+second = scene.sweep_platform("kick", "GTA 6", {})
+v1, v2 = {r["vid"] for r in first}, {r["vid"] for r in second}
+still = {v for v in v1 if int(v.split(":u")[1]) % 7}
+assert still <= v2, len(still - v2)            # round-1 streams still live are counted in round 2 though the lists changed
+assert not ({v for v in v1 if int(v.split(":u")[1]) % 7 == 0} & v2)   # ended ones are not
+print("GTA6 KICK MEMORY OK", len(v1), len(v2))
+
+# YouTube: videos search didn't return this time are re-counted from the live counter; ended ones dropped after 3 misses
+yt_round = {"n": 0}
+scene.yt_search_pages = lambda q, gl, pages: [{"vid": f"v{yt_round['n']}_{q}_{gl}", "channel": "c", "channel_id": f"UC{yt_round['n']}{gl}",
+                                               "title": "GTA 6 live", "viewers": 5}]
+counts = {}
+scene._safe_count = lambda v: counts.get(v, 7)
+scene._SWEEP.pop("yt_known:GTA 6", None)
+scene._SWEEP["yt_cool"] = 0
+a = scene.sweep_youtube("GTA 6", {})
+yt_round["n"] = 1
+for x in a:
+    counts[x["vid"]] = 0 if x["vid"].endswith("_US") else 9
+b = scene.sweep_youtube("GTA 6", {})
+ids_b = {x["vid"] for x in b}
+assert all(x["vid"] in ids_b for x in a if not x["vid"].endswith("_US"))
+assert not any(x["vid"] in ids_b for x in a if x["vid"].endswith("_US"))
+assert all(x["viewers"] == 9 for x in b if x["vid"].startswith("v0_"))
+st = scene.sweep_status()
+assert st["games"] == ["GTA 6"] and "youtube known:GTA 6" in st["stats"] and "kick known:GTA 6" in st["stats"], st
+from tracker.web import app as app2
+assert app2.test_client().get("/api/sweep").json["games"] == ["GTA 6"]
+print("GTA6 YOUTUBE MEMORY OK", len(a), len(b))

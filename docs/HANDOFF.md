@@ -190,6 +190,13 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 17 Nov 2026: GTA 6 sweep memory. Kick lists only 100 streams per query with no next page, and YouTube search shows
+  only top results, so every stream the sweep finds is remembered (scene._kick_known / _yt_known, 6 h) and re-read
+  each scan until it ends: Kick by broadcaster id, 50 a call; YouTube from the live counter (no quota), biggest first,
+  up to SCENE_SWEEP_YT_RECOUNT (800) a scan, dropped after 3 empty counts, 5-minute rest if YouTube refuses.
+  /api/sweep shows which games are swept and per-source counts (scene.sweep_status). Twitch sweep paced at 0.1 s a
+  page; the 5-minute full Twitch count runs every 10 minutes while a sweep is on. Release unlocks are midnight local
+  per region, earliest New Zealand 18 Nov 11:00 UTC; GTA6_RELEASE (10:00 UTC) is an hour before.
 - 16 Nov 2026: rakazone and tbone_gaming (Kick) were recorded but not Indian ("Big Boss", "YatraRP" titles): INDIA_MARK
   has yatrarp, HINGLISH matches "big boss"; both added to scene.ALWAYS. "bolo" removed from HINGLISH (chessbrah was
   counted Indian). mark_known_india() now re-judges every Kick/Twitch channel from its stored title, language and
