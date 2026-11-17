@@ -190,6 +190,10 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 17 Nov 2026 (3): CEGC (owner): official = Sky Esports' Kick channels only (skyesports, skyesports_2/-2); every
+  other stream carrying CEGC is a watch party ("all_watch"), listed or not. Unlisted ones come from the site-wide live
+  scan by title (preset "scene_match" regex, events.scene_matches; YouTube ones must be Indian channels). kick_only and
+  the allow list were dropped. tests/test_cegc_watch.py.
 - 17 Nov 2026 (2): the GTA 6 sweep (switched on early with GTA6_SWEEP=1) read 18 Kick lists per category every scan,
   hit Kick's rate limit, and CEGC's 2-second Kick counts stalled ("DELAYED"). Now per scan: by viewers, newest and 2
   languages in turn (all 16 every 8 scans), re-reads capped (500, 200 while a tournament is live on Kick), and while a

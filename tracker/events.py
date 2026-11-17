@@ -114,18 +114,18 @@ PRESETS = {
         "auto": True,                           # created on startup if missing (no command needed)
         "home": True,                           # the event at / while it runs
         # official broadcast on Kick (Sky Esports). Permitted watch parties (owner's list, 3 Nov) stream only on Kick.
-        "kick": {"official": ["cegc", "skyesports", "skyesports_2", "skyesports-2"],
+        "kick": {"official": ["skyesports", "skyesports_2", "skyesports-2"],     # Sky Esports only (owner, 17 Nov)
                  # exact channels from the owner (3 Nov); Kick slugs use "-" where the URL shows "_"
-                 "channels": ["sheekgaming", "snaxgaming", "lolzzzgaming", "ravensharplive", "mazyislive", "soulaman",
+                 "channels": ["cegc", "sheekgaming", "snaxgaming", "lolzzzgaming", "ravensharplive", "mazyislive", "soulaman",
                               "vaadhiyaar", "neyoo_gaming", "neyoo-gaming", "sharkshe", "shreemanlegend", "tagkiolmao",
                               "therawknee", "pardhan", "kushalmahajan", "mizo", "jabakumargaming", "vinogaminglive",
                               "mrspikeyt"]},
-        "any_title": True,                      # the list is exact: count these channels whatever their stream title says
-        "official_only": True,
-        "kick_only": True,                      # broadcast and watch parties are all on Kick: YouTube is never counted
-        "allowed": ["snax", "lolzz", "ravensharp", "mazy", "soulaman", "vadhiyaar", "vaadhiyaar", "neyoo", "sharkshe",
-                    "sheek", "shreeman", "kiolmao", "rawknee", "pardhan", "kushalmahajan", "mizoplays", "jabakumar",
-                    "vinogaming", "mrspike"],
+        "any_title": True,                      # the listed channels count whatever their stream title says
+        # Owner, 17 Nov 2026: official = Sky Esports' channels only; every other stream carrying CEGC is a watch party,
+        # listed or not, on Kick or YouTube. Unlisted ones are found in the site's live scan by their title.
+        "all_watch": True,
+        "scene_match": r"\bcegc\b|\bc e g c\b",
+        "allowed": [],
         "ended": False,
         "next_start": "2026-11-03 13:30",       # IST; countdown until the broadcast goes live
         "match": ["cegc", "c e g c", "sky esports", "skyesports", "watch party", "watchparty", "watch along", "watchalong"],
@@ -446,13 +446,37 @@ def _forced_channel(ev, s) -> bool:
     return bool(s.get("channel_id") and s["channel_id"].lower() in chans) or s.get("channel", "").lower() in chans
 
 
+def scene_matches(ev: dict) -> list:
+    """Live streams in the site-wide scan (YouTube, Kick, Twitch) whose title names the event (preset "scene_match",
+    a regex). YouTube ones must be Indian channels (a Portuguese church channel is also called CEGC)."""
+    rx = PRESETS.get(ev.get("key", ""), {}).get("scene_match")
+    if not rx:
+        return []
+    try:
+        from tracker import scene
+        with scene._lock:
+            items = [(sid, dict(x), dict(x.get("streams") or {})) for sid, x in scene._LIVE.items()]
+    except Exception:
+        return []
+    out = []
+    for sid, x, streams in items:
+        if not re.search(rx, x.get("title") or "", re.I):
+            continue
+        if sid.startswith("yt:") and not x.get("india"):
+            continue
+        for vid, v in streams.items():
+            out.append({"vid": vid, "channel": x.get("name") or sid, "channel_id": sid[3:] if sid.startswith("yt:") else sid,
+                        "title": x.get("title") or "", "viewers": int(v or 0)})
+    return out
+
+
 def kind_of(ev: dict, s: dict) -> str:
     if platforms.official(ev, preset(ev.get("key")), s.get("vid", "")):
         return "official"
     ch = s.get("channel", "").lower()
     if any(o and o in ch for o in ev.get("official", [])) or (s.get("channel_id") or "").lower() in ev.get("official", []):
         return "official"
-    if allowed_list(ev) or WATCH_PARTY.search(s.get("title", "")):
+    if allowed_list(ev) or opt(ev, "all_watch") or WATCH_PARTY.search(s.get("title", "")):
         return "watch party"
     return "community"
 
@@ -904,6 +928,10 @@ def poll(ev: dict, now: int = None) -> dict:
             if relevant(ev, s):
                 found[s["vid"]] = s
                 _ENDED.pop(s["vid"], None)       # the platform API says it's live now (no search lag to guard against)
+    for s in scene_matches(ev):                  # streams carrying it that only the site-wide live scan saw
+        if s["vid"] not in found and relevant(ev, s):
+            found[s["vid"]] = s
+            _ENDED.pop(s["vid"], None)
     chans = list(dict.fromkeys(ev.get("channels", []) + PRESETS.get(ev["key"], {}).get("always_check", [])
                                + [h for _, _, h in roster(ev["key"]) if h]))[:48]
     with ThreadPoolExecutor(max_workers=8) as pool:
