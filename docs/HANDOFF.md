@@ -190,6 +190,10 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 19 Nov 2026: "today" on overview / section / game pages and their share cards = the LAST 24 HOURS for both regions
+  (KPIs: peak, hours watched, average from the exact last 24 h of sc_totals/sc_reg; channel lists: sc_daily of yesterday
+  and today, the same as the rankings' 24h). The Central-day rollup (_CTD) is kept but not used. Labels: "Peak, last 24
+  hours", card "LAST 24H · <date, time>". Reason: right after IST midnight the India card showed only the last hour.
 - 18 Nov 2026 (12): the 2-second KPIs (scene.live_data) also use the Central day on worldwide pages (the page showed
   "peak today 6.20M at 12:10 am IST, led by Rubius" while the full data said 7.08M at 10:07 AM CT, HoneyMad); the
   peak-today label uses CT/IST by page; the GTA 6 countdown is hidden after 18 Nov 10:00 UTC.

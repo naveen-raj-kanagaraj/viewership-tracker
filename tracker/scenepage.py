@@ -227,8 +227,8 @@ body{font-size:14px}.wrap{padding:0 12px 20px}
 <div class="hero" id="hero"><div class="kpis">
  <div class="kpi main"><div class="k" id="k1l">Watching now</div><div class="v mono" id="k1">-</div><div class="bar" id="pbar"></div><div class="leg" id="pleg"></div><button class="btn shr" data-share="now">SHARE</button></div>
  <div class="kpi"><div class="k">Live channels</div><div class="v mono" id="k2">-</div><div class="s" id="k2s">streaming right now</div></div>
- <div class="kpi"><div class="k">Peak today</div><div class="v mono" id="k3">-</div><div class="s" id="k3s"></div><div class="s" id="k3p"></div></div>
- <div class="kpi hwk"><div class="k">Hours watched today</div><div class="v mono" id="k4">-</div><div class="s" id="k4s"></div></div>
+ <div class="kpi"><div class="k">Peak, last 24 hours</div><div class="v mono" id="k3">-</div><div class="s" id="k3s"></div><div class="s" id="k3p"></div></div>
+ <div class="kpi hwk"><div class="k">Hours watched, last 24 hours</div><div class="v mono" id="k4">-</div><div class="s" id="k4s"></div></div>
  </div>
  <div class="gcard" id="gcardw"><div class="gh"><div><h2>Where the streamers are from</h2><div class="gsub">Viewers by the streamer's country. Grey: no located streamer live.</div></div><a class="btn" href="/map" style="text-decoration:none">OPEN MAP</a></div><iframe id="gframe" title="World map of live viewers" loading="lazy"></iframe></div>
 </div>
@@ -407,7 +407,7 @@ function render(){if(!D)return;const K=D.kpis||{};
  const tot=K.watching||1;setH('pbar',(D.platforms||[]).map(p=>`<div style="width:${100*p.viewers/tot}%;background:${COL[p.platform]}"></div>`).join(''));
  setH('pleg',(D.platforms||[]).map(p=>`<span title="${p.platform==='twitch'&&D.twitch_full?'Every live Twitch stream ('+full(D.twitch_full.streams)+'), counted every 5 minutes':''}"><span class="sw" style="background:${COL[p.platform]}"></span>${p.name.toUpperCase()} <b>${fmt(p.viewers)}</b>${p.platform==='twitch'&&D.twitch_full?` <small style="opacity:.7">ALL ${fmt(D.twitch_full.streams)} STREAMS</small>`:''}</span>`).join(''));
  if(D.fresh)tw('k2',K.live_channels,full);else setT('k2','-');setT('k2s',CAT||SEC?`${D.india_total?(100*K.watching/D.india_total).toFixed(1):0}% of everyone watching ${WHERE}`:'streaming right now');
- tw('k3',K.peak_today,fmt);setT('k3s',K.peak_today_at?'at '+ctm(K.peak_today_at,{hour:'numeric',minute:'2-digit'})+' '+CZ.lb:'since midnight '+CZ.lb);
+ tw('k3',K.peak_today,fmt);setT('k3s',K.peak_today_at?'at '+ctm(K.peak_today_at,{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})+' '+CZ.lb:'');
  {const p=K.peak_lead;setH('k3p',p?`led by <a href="${esc(p.url)}" target="_blank" rel="noopener"><b style="color:${COL[p.platform]||'inherit'}">${esc(p.name)}</b></a> ${fmt(p.viewers)}`:'')}
  tw('k4',K.hw_today,v=>fmt(v)+'h');setT('k4s',SEC==='esports'?`${full(K.channels_today||0)} tournaments today`:`${full(K.channels_today||0)} channels streamed today`);
  renderEvents();renderHist();renderHome();
@@ -422,7 +422,7 @@ function render(){if(!D)return;const K=D.kpis||{};
  const L=liveList(),ll=lAll||q?L.slice(0,300):L.slice(0,10);
  flipH('live',ll.map((x,i)=>rowX('l',x,`<span class="rk${i<3?' r'+(i+1):''}">${i+1}</span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}<span class="pf">${({youtube:'YouTube',kick:'Kick',twitch:'Twitch'})[x.platform]||''}</span><span class="car">&#9654;</span></div><div class="ds">${CAT?'':esc(x.game)+' · '}${esc(x.title)}</div></span><span class="vv">${full(x.viewers)}</span>`)).join('')||'<div class="empty">Nothing live right now.</div>');
  const lm=document.getElementById('lmore');lm.style.display=L.length>10&&!q?'block':'none';lm.textContent=lAll?'Show top 10':`Show all ${L.length} live streams`;lm.onclick=()=>{lAll=!lAll;render()};
- seg('per',[['today','TODAY'],['7d','7D'],['30d','30D']],per,v=>{per=v;bAll=false;load()});
+ seg('per',[['today','24H'],['7d','7D'],['30d','30D']],per,v=>{per=v;bAll=false;load()});
  const PH=window.innerWidth<600;
  setT('bh',(SEC==='esports'?'Biggest tournaments ':'Top streamers ')+PERB[per]);setT('bm',SEC==='esports'?'PEAK VIEWERS':{hw:'HOURS WATCHED',peak:'PEAK VIEWERS',avg:'AVERAGE VIEWERS'}[sort]);
  {const rl=document.getElementById('rlink');rl.style.display=SEC==='esports'?'none':'block';rl.href=RP+'/rankings?period='+({today:'day','7d':'week','30d':'month'}[per])+(CAT?'&cat='+CAT:'')+(SEC?'&sec='+SEC:'');rl.textContent='Full rankings: any day, week or month, by category and country'}
@@ -578,7 +578,7 @@ async function card(type){let c,x,text;const sc=SCOPE(),K=D.kpis||{};
   const lead=K.peak_lead;
   [c,x]=await statCard({title:CAT?CATNAME:SEC?SECNAME[SEC]:'Live streaming',sub:(GL?'Worldwide':'India')+' · YouTube, Kick and Twitch',
    pill:['LIVE VIEWERSHIP',ctm(Date.now()/1000,{day:'numeric',month:'short',year:'numeric'}).toUpperCase()],
-   peak:K.peak_today,peakSub:(K.peak_today_at?'TODAY AT '+ctm(K.peak_today_at,{hour:'numeric',minute:'2-digit'}).toUpperCase()+' '+CZ.lb:'TODAY')+(lead?' · LED BY '+lead.name.toUpperCase():''),
+   peak:K.peak_today,peakSub:(K.peak_today_at?'LAST 24H · '+ctm(K.peak_today_at,{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}).toUpperCase()+' '+CZ.lb:'LAST 24 HOURS')+(lead?' · LED BY '+lead.name.toUpperCase():''),
    now:K.watching,
    rows:[['avg','AVERAGE VIEWERS',full(K.avg_today!=null?K.avg_today:K.hw_today/Math.max(1,(Date.now()/1000-((D.daily||[]).length?new Date(D.daily[D.daily.length-1].day+'T00:00:00+05:30').getTime()/1000:Date.now()/1000-3600))/3600))],['hw','HOURS WATCHED',full(K.hw_today)],['air','AIR TIME',hmTxt(K.air_today!=null?K.air_today:per==='today'?(D.board||[]).reduce((a,b)=>a+(b.airtime_h||0),0):0)]],
    a:{label:esp?'TOURNAMENTS LIVE NOW':'TOP CHANNELS BY PEAK VIEWERS',rows:A},
