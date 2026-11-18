@@ -211,21 +211,27 @@ def flush(ended_after: int = 900):
 
 
 def overlap_once() -> int:
-    """Shares of audience between the OVERLAP_TOP biggest chat audiences of the last 30 days."""
+    """Shares of audience between the OVERLAP_TOP biggest chat audiences of the last 30 days.
+    The heavy self-join runs on a read-only connection, outside the write lock: inside it (GTA 6 launch day, millions
+    of chatters) it held the lock for over 10 minutes and every scan, count and page write waited ("paused")."""
     from tracker import ytextra
     since = ytextra._day(time.time() - AUD_DAYS * 86400)
     with store._lock:
         c = _db()
         c.execute("DELETE FROM chat_aud WHERE day<?", (since,))
+        c.commit()
+    with store.reading():
+        c = _db()
         top = [r[0] for r in c.execute("SELECT sid FROM chat_aud GROUP BY sid ORDER BY COUNT(*) DESC LIMIT ?", (OVERLAP_TOP,))]
         if len(top) < 2:
-            c.commit()
             return 0
         q = ",".join("?" * len(top))
         size = dict(c.execute(f"SELECT sid, COUNT(*) FROM chat_aud WHERE sid IN ({q}) GROUP BY sid", top).fetchall())
         pairs = c.execute(f"""SELECT a.sid, b.sid, COUNT(*) FROM chat_aud a JOIN chat_aud b ON a.h=b.h AND a.sid<>b.sid
                               WHERE a.sid IN ({q}) AND b.sid IN ({q}) GROUP BY a.sid, b.sid""", top + top).fetchall()
-        now = int(time.time())
+    now = int(time.time())
+    with store._lock:
+        c = _db()
         c.execute("DELETE FROM chat_overlap")
         c.executemany("INSERT INTO chat_overlap VALUES (?,?,?,?,?)",
                       [(a, b, n * SAMPLE, n / size[a], now) for a, b, n in pairs if size.get(a)])

@@ -190,6 +190,9 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 19 Nov 2026 (2): ROOT CAUSE of "paused" after restarts on GTA 6 day (py-spy): chatstats.overlap_once ran its
+  chat_aud self-join (millions of chatters) inside store._lock, holding the write lock 10+ minutes; scans, moments,
+  kv and visitors all waited. The join now runs on a reader; the lock is taken only for the prune and the result write.
 - 19 Nov 2026: "today" on overview / section / game pages and their share cards = the LAST 24 HOURS for both regions
   (KPIs: peak, hours watched, average from the exact last 24 h of sc_totals/sc_reg; channel lists: sc_daily of yesterday
   and today, the same as the rankings' 24h). The Central-day rollup (_CTD) is kept but not used. Labels: "Peak, last 24
