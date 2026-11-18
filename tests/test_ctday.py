@@ -21,8 +21,16 @@ scene._ct_add([{"sid": "twitch:rub", "game": "GTA 6", "viewers": 367000}], now, 
 rows = {r[0]: r for r in scene.ct_rows("GTA 6")}
 assert rows["twitch:honey"][2] == 642000 and rows["twitch:rub"][2] == 367000, rows
 assert abs(rows["twitch:rub"][4] - (scene.SCENE_SEC / 60 + 2)) < 1e-6          # minutes: seeded scan + this scan
+# "today" on pages and cards = the last 24 hours: yesterday's daily rows count (like the rankings' 24h)
+from datetime import datetime, timedelta
+from tracker import events
+td = datetime.now(events.REPORT_TZ).date()
+c.executemany("INSERT INTO sc_daily VALUES (?,?,?,?,?,?,?)", [((td - timedelta(days=1)).strftime("%Y-%m-%d"), "twitch:honey", "GTA 6", 642000, 1, 60, 500000),
+              (td.strftime("%Y-%m-%d"), "twitch:rub", "GTA 6", 367000, 2, 60, 300000),
+              ((td - timedelta(days=2)).strftime("%Y-%m-%d"), "twitch:rub", "GTA 6", 999999, 3, 60, 1)])
+c.commit()
 d = scene.data("today", "gta-6" if scene.shown("GTA 6") else "", "global")
 b = {x["name"]: x["peak"] for x in d["board"]}
 if scene.shown("GTA 6"):
     assert b.get("HoneyMad") == 642000 and b.get("Rubius") == 367000, b
-print("CENTRAL DAY OK")
+print("LAST 24 HOURS OK")

@@ -2474,8 +2474,7 @@ def _kpis(c, region: str, sec: str, game, lv: dict, ct: bool = False) -> dict:
     """The headline numbers: watching now, live channels, today's peak and hours watched today (IST day; the US
     Central day on worldwide pages when ct)."""
     tbl, w, a, key = _scope(region, sec, game)
-    d0 = datetime.fromtimestamp(ct_midnight(), CT) if ct else \
-        datetime.combine(datetime.now(events.REPORT_TZ).date(), datetime.min.time(), events.REPORT_TZ)
+    d0 = datetime.fromtimestamp(time.time() - 86400, events.REPORT_TZ)          # the last 24 hours
     pk = c.execute(f"SELECT ts, viewers FROM {tbl} WHERE game=? AND ts>=?{w} ORDER BY viewers DESC LIMIT 1",
                    (key, d0.timestamp(), *a)).fetchone()
     # hours watched today: every scan's total x the time between scans (works the same for sections and tournaments)
@@ -2485,13 +2484,10 @@ def _kpis(c, region: str, sec: str, game, lv: dict, ct: bool = False) -> dict:
     if sec == "esports":
         chans = c.execute("SELECT COUNT(DISTINCT game) FROM sc_reg WHERE region=? AND ts>=?", (f"tour:{region}", d0.timestamp())
                           ).fetchone()[0]
-    elif ct:                                  # Central day: from the in-memory rollup
-        cr = [r for r in ct_rows(game) if not sec or section_of(r[1]) == sec]
-        chans, air = len({r[0] for r in cr}), round(sum(r[4] for r in cr) / 60, 1)
     else:
         q = """SELECT COUNT(DISTINCT d.sid), SUM(d.mins) FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid
                WHERE d.day=?""" + (" AND COALESCE(c.india,1)=1" if region == "in" else "")
-        args = [d0.strftime("%Y-%m-%d")]
+        args = [datetime.now(events.REPORT_TZ).strftime("%Y-%m-%d")]
         if game:
             q += " AND d.game=?"
             args.append(game)
@@ -2558,9 +2554,12 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
     lv = _live_part(game, region, sec)
     blk, live = lv["_blk"], lv["_live"]
     today = datetime.now(events.REPORT_TZ).date()
-    d0 = (today - timedelta(days=PERIODS[period])).strftime("%Y-%m-%d")
+    # "today" is the last 24 hours on every page and card (owner, 19 Nov: a calendar day starting at midnight showed
+    # only the last hour after midnight and disagreed with the 24-hour rankings). Channel peaks come from the daily
+    # rows of yesterday and today, as the rankings' 24h does; totals and the peak from the exact last 24 hours.
+    d0 = (today - timedelta(days=max(1, PERIODS[period]))).strftime("%Y-%m-%d")
     tbl, w, a, key = _scope(region, sec, game)
-    ctday = region == "global" and period == "today" and _CTD["ready"]    # worldwide "today" = the US Central day
+    ctday = False
     with store.reading():
         c = _db()
         if ctday:
@@ -2585,7 +2584,7 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
                              (d0, game) if game else (d0,)).fetchall()
         series = _series_any(c, tbl, w, a, key, period)
         daily = _daily(c, tbl, w, a, key)
-        p0 = ct_midnight() if ctday else \
+        p0 = time.time() - 86400 if period == "today" else \
             datetime.combine(today - timedelta(days=PERIODS[period]), datetime.min.time(), events.REPORT_TZ).timestamp()
         rt, rw, ra = _totals_sql(region)
         scans = c.execute(f"SELECT COUNT(*) FROM {rt} WHERE game=? AND ts>=?{rw}", (ALL, p0, *ra)).fetchone()[0] or 0
