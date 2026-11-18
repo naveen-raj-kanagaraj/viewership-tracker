@@ -2201,9 +2201,36 @@ def _logo(x: dict) -> str:
     return events.avatar(sid[3:]) if sid.startswith("yt:") else platforms.logo(sid)
 
 
+_LB = {}
+_LBL = threading.Lock()
+
+
+def _live_base(region: str):
+    """Everyone live in a region with 2-second viewers, built once per 2 seconds for all pages (19 Nov: every page
+    and section built it on its own, 7-12 s each under load)."""
+    sk = (_SCANMEM.get("ts"), len(_FASTV), frozenset(blocked()))    # a new scan or a block rebuilds it at once
+    hit = _LB.get(region)
+    if hit and time.time() - hit[0] < 2 and hit[2] == sk:
+        return hit[1]
+    with _LBL:
+        hit = _LB.get(region)
+        if hit and time.time() - hit[0] < 2 and hit[2] == sk:
+            return hit[1]
+        v = _live_base_build(region)
+        _LB[region] = (time.time(), v, sk)
+        return v
+
+
 def _live_part(game=None, region: str = "in", sec: str = "") -> dict:
     """Who is live now in a region (and section or game): the latest scan (read from the database once per scan) with
     Kick/Twitch viewers replaced by the 2-second readings when they're fresh."""
+    blk, last, fresh, now, live0, region_total, now_map, secs0 = _live_base(region)
+    live = [dict(x) for x in live0 if not sec or x["section"] == sec]
+    secs = {k: {**z, "top": list(z["top"]), "items": dict(z["items"])} for k, z in secs0.items()}
+    return _live_rest(live, secs, blk, last, fresh, now, region_total, now_map, game, sec)
+
+
+def _live_base_build(region: str):
     blk = blocked()
     mem = _SCANMEM.get("rows")
     with store.reading():
@@ -2253,6 +2280,10 @@ def _live_part(game=None, region: str = "in", sec: str = "") -> dict:
             z["top"].append({"name": x["name"], "viewers": x["viewers"], "logo": x["logo"], "platform": x["platform"]})
         k = x["tour"] if x["section"] == "esports" else x["game"]
         z["items"][k] = z["items"].get(k, 0) + x["viewers"]
+    return blk, last, fresh, now, live, region_total, now_map, secs
+
+
+def _live_rest(live, secs, blk, last, fresh, now, region_total, now_map, game, sec):
     if sec:
         live = [x for x in live if x["section"] == sec]
     by_game = {}
@@ -2546,6 +2577,33 @@ def live_data(cat: str = "", region: str = "in", sec: str = "") -> dict:
     return _with_full({**_common(lv, region), "kpis": k}, region, game, sec)
 
 
+_DR = {}
+_DRL = threading.Lock()
+
+
+def _day_rows(c, d0: str, region: str, game):
+    """Per channel and game since d0. Without a game the same rows serve the overview and every section, so they are
+    read once per scan for all of them (19 Nov: 16 s per page, every page reading them again)."""
+    q = """SELECT d.sid, d.game, MAX(d.peak) peak, SUM(d.mins) mins, SUM(d.hw) hw, c.name, c.platform,
+           c.url, c.logo, c.last_live FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid WHERE d.day >= ?"""
+    q += " AND COALESCE(c.india, 1)=1" if region == "in" else ""
+    if game:
+        return c.execute(q + " AND d.game = ? GROUP BY d.sid, d.game", (d0, game)).fetchall()
+    k = (d0, region, _SCANMEM.get("ts"))       # a new scan reads them again
+    hit = _DR.get(k)
+    if hit and time.time() - hit[0] < 120:
+        return hit[1]
+    with _DRL:
+        hit = _DR.get(k)
+        if hit and time.time() - hit[0] < 120:
+            return hit[1]
+        rows = [dict(r) for r in c.execute(q + " GROUP BY d.sid, d.game", (d0,))]
+        for kk in [kk for kk, v in _DR.items() if time.time() - v[0] > 600]:
+            _DR.pop(kk, None)
+        _DR[k] = (time.time(), rows)
+        return rows
+
+
 def data(period: str = "today", cat: str = "", region: str = "in", sec: str = "") -> dict:
     """Everything a page shows: the overview (no cat/sec), a section (sec) or one game (cat), for India or the world."""
     period = period if period in PERIODS else "today"
@@ -2579,11 +2637,7 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
                      "logo": (info.get(sid) or [None] * 6)[4], "last_live": (info.get(sid) or [None] * 6)[5]}
                     for sid, g, pk, pa, mn, hw in cr if sid in keep]
         else:
-            q = """SELECT d.sid, d.game, MAX(d.peak) peak, SUM(d.mins) mins, SUM(d.hw) hw, c.name, c.platform,
-                   c.url, c.logo, c.last_live FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid WHERE d.day >= ?"""
-            q += " AND COALESCE(c.india, 1)=1" if region == "in" else ""
-            rows = c.execute(q + (" AND d.game = ?" if game else "") + " GROUP BY d.sid, d.game",
-                             (d0, game) if game else (d0,)).fetchall()
+            rows = _day_rows(c, d0, region, game)
         T.append(("daily_rows", time.time()))
         series = _series_any(c, tbl, w, a, key, period)
         T.append(("series", time.time()))
