@@ -190,6 +190,15 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 18 Nov 2026: event trackers (CEGC) never wait on the database: fast_tick keeps the last totals and stream counts in
+  memory (events._MEMT/_MEMROWS) and queues its writes to one writer thread (events._WQ, events.flush() in tests);
+  eventpage.live_data overlays those on the full stats, which rebuild in the background every 6 s (eventpage._refresh),
+  and /e/<k>/data is no longer memo-cached. Kick/Twitch count errors no longer slow the loop (YouTube only).
+  Site-wide 2-second reads: Twitch top 1000 + 300 more Indian (SCENE_FAST_TW / _IN_TW), Kick top 300 + 200 Indian
+  (SCENE_FAST_KICK / _IN_KICK; halves for 10 min on 429), YouTube top 40 + 40 Indian on their own 16 threads
+  (_YFPOOL); one platform failing no longer stops the other. During the GTA 6 sweep the full Twitch count runs every
+  20 min at ~240 calls/min and the sweep at <=300/min, leaving Twitch's 800/min for the 2-second reads.
+  tests/test_fast.py; test_plat.py fixed (default event rule changed earlier).
 - 17 Nov 2026 (4): ROOT CAUSE of "DELAYED"/frozen pages after every restart: _memo started one thread per stale page
   rebuild; after a restart every cached page is stale at once (and _warm_more asks for ~400), so hundreds of builds ran
   together and each took 420 s; the CEGC tracker kept counting but /e/cegc/data was served stale. Background rebuilds

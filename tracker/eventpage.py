@@ -46,8 +46,49 @@ def live_data(key: str = None) -> dict:
     out = {k: v for k, v in d.items() if k not in HEAVY}
     out["tail"] = (d.get("series_recent") or [])[-90:]
     ev = events.get(key)
-    out["wp_tail"] = events.stream_tail(ev["key"], [w["vid"] for w in d.get("wp", [])]) if ev and d.get("official_live") else {}
+    _overlay(out, ev)
+    out["wp_tail"] = events.stream_tail(ev["key"], [w["vid"] for w in out.get("wp", [])]) if ev and out.get("official_live") else {}
     return out
+
+
+def _overlay(out: dict, ev: dict):
+    """The full stats are rebuilt every few seconds from the database; the numbers that must move every 2 seconds
+    (watching now, the split, each live stream, the last minutes of the graph, 'updated') come straight from the
+    live counter's memory, so the page never shows DELAYED because a database read or write was slow."""
+    if not ev:
+        return
+    k = ev["key"]
+    mt = list(events._MEMT.get(k) or [])
+    mr = events._MEMROWS.get(k)
+    if not mt or time.time() - mt[-1][0] > 20:
+        return
+    last = mt[-1]
+    newer = [[t[0], t[1], t[3], t[4], t[5]] for t in mt if not out["tail"] or t[0] > out["tail"][-1][0]]   # ts, total, official, watch, community
+    out["tail"] = (out["tail"] + newer)[-90:]
+    out["updated"] = last[0]
+    out["official_live"] = True
+    out["method"] = out.get("method") or events._FASTSTATE.get("method", "")
+    if mr and time.time() - mr[0] < 20:
+        cur = {r["vid"]: r["viewers"] for r in mr[1]}
+        live = []
+        for x in out.get("live") or []:
+            if x["vid"] in cur:
+                live.append({**x, "viewers": cur.pop(x["vid"])})
+        for r in mr[1]:                          # streams the full stats haven't caught up with yet
+            if r["vid"] in cur:
+                live.append({"vid": r["vid"], "channel": r.get("channel", ""), "title": r.get("title", ""), "kind": r["kind"],
+                             "platform": events.platforms.platform_of(r["vid"]), "viewers": r["viewers"],
+                             "url": events.yt_link(r["vid"]), "logo": events.avatar(r.get("channel_id", ""))})
+        out["live"] = sorted(live, key=lambda x: -x["viewers"])
+        if out.get("wp"):
+            out["wp"] = [{**w, "viewers": next((r["viewers"] for r in mr[1] if r["vid"] == w["vid"]), w["viewers"]),
+                          "peak": max(w.get("peak", 0), next((r["viewers"] for r in mr[1] if r["vid"] == w["vid"]), 0))}
+                         for w in out["wp"]]
+    if last[1] > (out.get("peak") or 0):          # a new all-time peak shows at once, not at the next full rebuild
+        out["peak"] = last[1]
+        out["peak_when"] = events._when(last[0])
+    out["peak_official"] = max(out.get("peak_official") or 0, last[3])
+    out["peak_watch"] = max(out.get("peak_watch") or 0, last[4])
 
 
 def series_data(key: str = None) -> dict:
@@ -62,8 +103,32 @@ def data(key: str = None) -> dict:
         return {"name": "No event", "ticks": 0, "now": time.time()}
     with _cache_lock:
         hit = _cache.get(ev["key"])
-        if hit and time.time() - hit[0] < (1.5 if hit[1].get("official_live") else 30):   # off air: numbers don't move
+        if hit and time.time() - hit[0] < (6 if hit[1].get("official_live") else 30):   # live numbers come from memory (_overlay)
             return {**hit[1], "now": time.time()}
+        if hit and time.time() - hit[0] < 300 and ev["key"] not in _REFRESHING:   # rebuild in the background, answer now
+            _REFRESHING.add(ev["key"])
+            threading.Thread(target=_refresh, args=(ev["key"],), daemon=True).start()
+            return {**hit[1], "now": time.time()}
+        if hit and ev["key"] in _REFRESHING:
+            return {**hit[1], "now": time.time()}
+    return _build(ev)
+
+
+_REFRESHING = set()
+
+
+def _refresh(key):
+    try:
+        ev = events.get(key)
+        if ev:
+            _build(ev)
+    except Exception as e:
+        print(f"Event page data {key}: {str(e)[:120]}")
+    finally:
+        _REFRESHING.discard(key)
+
+
+def _build(ev: dict) -> dict:
     st = events.stats(ev["key"])
     out = {"key": ev["key"], "name": ev["name"], "ticks": st.get("ticks", 0), "now": time.time(), "every": events.FAST_SEC,
            "next_start": events.next_start(ev["key"]),

@@ -36,7 +36,13 @@ _KICK_COOL = [0.0]
 KICK_CATS = int(os.getenv("SCENE_KICK_CATS", "8"))         # global Kick: top 100 overall + top 100 in this many categories
 YT_LIVE_PAGES = int(os.getenv("SCENE_YT_LIVE_PAGES", "4"))  # YouTube Live page: first page + this many "more" pages
 YT_RECOUNT = int(os.getenv("SCENE_YT_RECOUNT", "400"))     # YouTube streams re-counted each scan (biggest first)
-FAST_MAX = int(os.getenv("SCENE_FAST_MAX", "300"))         # Kick/Twitch channels re-read every 2s (biggest first)
+FAST_MAX = int(os.getenv("SCENE_FAST_MAX", "300"))         # (old single cap, kept for the env name)
+# Re-read every 2 seconds, biggest first, plus the biggest Indian ones on top (GTA 6 launch, 18 Nov 2026):
+FAST_TW = int(os.getenv("SCENE_FAST_TW", "1000"))         # Twitch: 100 a call, 10 calls / 2 s = 300 a minute of 800
+FAST_KICK = int(os.getenv("SCENE_FAST_KICK", "300"))      # Kick: 50 a call; halves for 10 minutes if Kick says 429
+FAST_IN = {"twitch": int(os.getenv("SCENE_FAST_IN_TW", "300")),   # extra Indian channels beyond the top list
+           "kick": int(os.getenv("SCENE_FAST_IN_KICK", "200"))}
+_KFAST = {"cap": None, "until": 0.0}
 LANGS = [x.strip() for x in os.getenv("SCENE_LANGS", "hi").split(",") if x.strip()]
 # Kick and Twitch have no country filter. Besides the India languages above, the top streams overall and in the
 # categories Indians stream most are read, and a stream counts as Indian if its title is written in an Indian script
@@ -374,7 +380,7 @@ def sweep_platform(p: str, game: str, errors: dict) -> list:
             after = (j.get("pagination") or {}).get("cursor")
             if not after or not d:
                 break
-            time.sleep(0.1)                   # <= 600 calls a minute: Twitch allows 800, the 2-second reads need the rest
+            time.sleep(0.2)                   # <= 300 calls a minute: Twitch allows 800, the 2-second reads need 300
     else:
         if time.time() < _KICK_COOL[0]:
             return rows
@@ -825,6 +831,7 @@ _LIVE = {}            # sid -> {"sid","platform","name","url","logo","game","tit
 _STATE = {"last": 0.0, "yt": 0.0, "seeds": 0.0, "errors": {}, "running": False}
 _lock = threading.Lock()
 _pool = ThreadPoolExecutor(max_workers=8)
+_YFPOOL = ThreadPoolExecutor(max_workers=16)  # YouTube's 2-second counts (own threads: never wait behind a scan)
 _YPOOL = ThreadPoolExecutor(max_workers=6)   # sweep searches on YouTube
 _SCANMEM = {"ts": 0, "rows": None}        # the latest scan, as stored (pages read it from here, not the database)
 SAMPLE_MIN = int(os.getenv("SCENE_SAMPLE_MIN", "10"))   # swept streams below this aren't written to the per-scan table
@@ -1613,8 +1620,8 @@ def _fast_seen(sid: str, v: int):
         _FPEAK[sid] = v
 
 
-YT_FAST_N = int(os.getenv("SCENE_YT_FAST_N", "25"))   # biggest YouTube channels re-counted every FAST_SEC
-YT_FAST_IN = int(os.getenv("SCENE_YT_FAST_IN", "25"))  # plus the biggest Indian ones (most of this site's audience)
+YT_FAST_N = int(os.getenv("SCENE_YT_FAST_N", "40"))   # biggest YouTube channels re-counted every FAST_SEC
+YT_FAST_IN = int(os.getenv("SCENE_YT_FAST_IN", "40"))  # plus the biggest Indian ones (most of this site's audience)
 _YTF = {"next": 0.0, "slow": 0}
 
 
@@ -1673,7 +1680,7 @@ def yt_fast_once(now: float = None) -> int:
         have = {sid for sid, _ in top}
         top += [(sid, list(_LIVE[sid]["streams"])) for sid, exp in list(HOT.items())   # channel pages open right now
                 if exp > t and sid in _LIVE and sid not in have and sid.startswith("yt:")][:20]
-    jobs = [(sid, vid, _pool.submit(_safe_count, vid)) for sid, vids in top for vid in vids]
+    jobs = [(sid, vid, _YFPOOL.submit(_safe_count, vid)) for sid, vids in top for vid in vids]
     got, errs = {}, 0
     for sid, vid, fu in jobs:
         n = fu.result()
@@ -1703,14 +1710,28 @@ def yt_fast_once(now: float = None) -> int:
 
 def fast_once(now: float = None) -> int:
     """Re-read every live Kick/Twitch channel (one batched request per platform). Returns how many were read."""
+    t_ = time.time()
+    kcap = _KFAST["cap"] if _KFAST["cap"] and t_ < _KFAST["until"] else FAST_KICK
+    cap = {"twitch": FAST_TW, "kick": kcap}
     with _lock:
-        ids = {p: [sid for sid, x in sorted(_LIVE.items(), key=lambda kv: -kv[1]["viewers"]) if x["platform"] == p][:FAST_MAX]
-               for p in ("kick", "twitch")}
-    n = 0
+        ids = {}
+        for p in ("kick", "twitch"):
+            L = [(sid, x) for sid, x in sorted(_LIVE.items(), key=lambda kv: -kv[1]["viewers"]) if x["platform"] == p]
+            top = [sid for sid, _ in L[:cap[p]]]
+            top += [sid for sid, x in L[cap[p]:] if x.get("india")][:FAST_IN[p]]
+            ids[p] = top
+    n, fails = 0, []
     for p, sids in ids.items():
         if not sids or not platforms._keys(p):
             continue
-        rows = platforms._by_ids(p, [platforms.split(s)[1] for s in sids])
+        try:                                  # one platform failing must not stop the other's 2-second reads
+            rows = platforms._by_ids(p, [platforms.split(s)[1] for s in sids])
+        except Exception as e:
+            fails.append(f"{p}: {str(e)[:100]}")
+            if p == "kick" and "429" in str(e):
+                _KFAST.update(cap=max(100, kcap // 2), until=time.time() + 600)
+                print(f"Kick 2-second reads: rate limited, reading the top {_KFAST['cap']} for 10 minutes")
+            continue
         got = {r["vid"]: r["viewers"] for r in rows}
         t = now or time.time()
         for s in sids:
@@ -1723,6 +1744,10 @@ def fast_once(now: float = None) -> int:
                 f[0], f[2] = t, f[2] + 1
                 if f[2] >= 3:                 # gone from the platform's live list three times running: ended
                     f[1] = 0
+    if fails and not n:
+        raise RuntimeError("; ".join(fails))
+    if fails:
+        print(f"Kick/Twitch fast count partly failed: {'; '.join(fails)}")
     return n
 
 
@@ -1793,7 +1818,7 @@ def twitch_full_once() -> dict:
         after = (j.get("pagination") or {}).get("cursor")
         if not after or not d:
             break
-        time.sleep(0.12)                      # ~500 calls a minute at most
+        time.sleep(0.25 if sweep_games() else 0.12)   # ~500 calls a minute at most (~240 during a launch sweep)
     _TWFULL.update(viewers=tot, streams=n, ts=time.time())
     return dict(_TWFULL)
 
@@ -1806,7 +1831,7 @@ def run_twitch_full():
                 twitch_full_once()
         except Exception as e:
             print(f"Twitch full count: {str(e)[:150]}")
-        time.sleep(TWITCH_FULL_EVERY * (2 if sweep_games() else 1))   # launch sweep on: leave Twitch calls for it
+        time.sleep(TWITCH_FULL_EVERY * (4 if sweep_games() else 1))   # launch sweep on: every 20 min, Twitch calls go to it
 
 
 def _with_full(out: dict, region: str, game, sec: str) -> dict:

@@ -348,7 +348,7 @@ def ev_index(key):
 def ev_data(key):
     if not _ev(key):
         return Response(status=404)
-    return _memo(f"/e/{key}/data", 1, _jdump(lambda: eventpage.live_data(key)), "application/json")
+    return _json(eventpage.live_data(key))     # cheap: full stats cached and rebuilt in the background, live numbers from memory
 
 
 @app.route("/e/<key>/series")

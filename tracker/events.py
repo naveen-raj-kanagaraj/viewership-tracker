@@ -40,6 +40,31 @@ _LIVE = {}      # event -> {vid: stream dict} from the latest discovery
 _FAST = {}      # event -> {vid: {"viewers", "ts", "misses"}}
 _FASTSTATE = {"method": "", "ok_ts": 0.0, "errors": 0}
 _HIST = {}      # event -> {vid: deque[(ts, viewers)]} every live-counter reading (last ~3h), for streamer graphs
+_MEMT = {}      # event -> deque[(ts, total, live, official, watch party, community)]: the last ~10 min of totals, in memory
+_LASTSAMPLE = {}
+_MEMROWS = {}   # event -> (ts, [stream rows with current viewers]) from the latest 2-second count
+import queue as _queue
+_WQ = _queue.Queue()    # database writes from the 2-second counter: done by one writer thread, so a busy write lock
+                        # elsewhere (the site-wide scan storing 100,000 streams) never delays a count
+
+
+def _writer():
+    while True:
+        fn = _WQ.get()
+        try:
+            fn()
+        except Exception as e:
+            print(f"Event write failed: {str(e)[:150]}")
+        finally:
+            _WQ.task_done()
+
+
+def flush():
+    """Wait until the 2-second counter's queued database writes are done (tests, shutdown)."""
+    _WQ.join()
+
+
+threading.Thread(target=_writer, daemon=True, name="event-writer").start()
 _ENDED = {}     # vid -> time the live counter saw it end (search results lag, so don't re-add it)
 RECHECK_MIN = 15          # re-check streams seen live within this many minutes that vanished from search
 MAX_DIRECT_CHECKS = 20
@@ -638,7 +663,8 @@ def fast_tick(ev: dict, now: float = None) -> dict:
     for vid, n, how in results:
         if n == "err":
             _FASTSTATE["errors"] += 1
-            errs += 1
+            if not platforms.is_other(vid):   # only YouTube refusals slow the loop; a Kick/Twitch hiccup must not
+                errs += 1
             continue
         if n is None:
             f = fast.setdefault(vid, {"viewers": 0, "ts": now, "misses": 0})
@@ -692,37 +718,47 @@ def fast_tick(ev: dict, now: float = None) -> dict:
     by = {k: sum(r["viewers"] for r in rows if r["kind"] == k) for k in ("official", "watch party", "community")}
     if by["official"] <= 0 and (need_official(ev) or total <= 0):
         return {"total": total, "live": len(rows), "official_live": False}   # only record while the official broadcast is live
-    if anomalies:
-        with store._lock:
-            c = _db()
-            c.executemany("INSERT INTO ev_anomalies VALUES (?,?,?,?,?,?,?,?,?,?)", anomalies)
-            c.commit()
     hist = _HIST.setdefault(key, {})
     for r in rows:
         if r["viewers"] > 0:
             hist.setdefault(r["vid"], deque(maxlen=5400)).append((int(now), r["viewers"]))
-    write_samples = now - store.kv_get(f"event_last_sample:{key}", 0) >= SAMPLE_EVERY
-    with store._lock:
-        c = _db()
-        c.execute("INSERT OR REPLACE INTO ev_ticks VALUES (?,?,?,?,?,?,?)",
-                  (key, int(now), total, len(rows), by["official"], by["watch party"],
-                   by["community"]))
-        for r in rows:
-            c.execute("""UPDATE ev_streams SET last_seen=?, peak_at=CASE WHEN ? > peak THEN ? ELSE peak_at END,
-                         peak=MAX(peak, ?) WHERE event=? AND vid=?""",
-                      (now, r["viewers"], now, r["viewers"], key, r["vid"]))
-        if write_samples:
-            c.executemany("INSERT INTO ev_samples VALUES (?,?,?,?)", [(key, int(now), r["vid"], r["viewers"]) for r in rows])
-        # every stream at full resolution (every reading, ~2s), kept for later analysis; nothing on the site reads it
-        c.executemany("INSERT INTO ev_fine VALUES (?,?,?,?)", [(key, int(now), r["vid"], r["viewers"]) for r in rows])
-        c.commit()
+    tick = (int(now), total, len(rows), by["official"], by["watch party"], by["community"])
+    _MEMT.setdefault(key, deque(maxlen=400)).append(tick)        # the live page reads this: never waits on the database
+    _MEMROWS[key] = (now, [dict(r) for r in rows])
+    write_samples = now - _LASTSAMPLE.get(key, 0) >= SAMPLE_EVERY
     if write_samples:
-        store.kv_set(f"event_last_sample:{key}", now)
-    best = store.kv_get(f"event_peak_break:{key}") or {}
-    if total > best.get("total", -1):  # remember exactly who made up the peak
-        store.kv_set(f"event_peak_break:{key}", {"ts": int(now), "total": total, "streams": sorted(
-            [{"vid": r["vid"], "viewers": r["viewers"], "channel": r.get("channel", ""), "title": r.get("title", ""),
-              "kind": r["kind"]} for r in rows if r["viewers"] > 0], key=lambda x: -x["viewers"])})
+        _LASTSAMPLE[key] = now
+    snap = [(r["vid"], r["viewers"], r.get("channel", ""), r.get("title", ""), r["kind"]) for r in rows]
+
+    def write():
+        with store._lock:
+            c = _db()
+            c.execute("INSERT OR REPLACE INTO ev_ticks VALUES (?,?,?,?,?,?,?)", (key,) + tick[:2] + tick[2:])
+            c.executemany("""UPDATE ev_streams SET last_seen=?, peak_at=CASE WHEN ? > peak THEN ? ELSE peak_at END,
+                             peak=MAX(peak, ?) WHERE event=? AND vid=?""",
+                          [(now, v, now, v, key, vid) for vid, v, _, _, _ in snap])
+            if write_samples:
+                c.executemany("INSERT INTO ev_samples VALUES (?,?,?,?)", [(key, int(now), vid, v) for vid, v, _, _, _ in snap])
+            # every stream at full resolution (every reading, ~2s), kept for later analysis; nothing on the site reads it
+            c.executemany("INSERT INTO ev_fine VALUES (?,?,?,?)", [(key, int(now), vid, v) for vid, v, _, _, _ in snap])
+            c.commit()
+        if write_samples:
+            store.kv_set(f"event_last_sample:{key}", now)
+        best = store.kv_get(f"event_peak_break:{key}") or {}
+        if total > best.get("total", -1):  # remember exactly who made up the peak
+            store.kv_set(f"event_peak_break:{key}", {"ts": int(now), "total": total, "streams": sorted(
+                [{"vid": vid, "viewers": v, "channel": ch, "title": ti, "kind": k} for vid, v, ch, ti, k in snap if v > 0],
+                key=lambda x: -x["viewers"])})
+    if anomalies:
+        an = list(anomalies)
+
+        def write_an():
+            with store._lock:
+                c = _db()
+                c.executemany("INSERT INTO ev_anomalies VALUES (?,?,?,?,?,?,?,?,?,?)", an)
+                c.commit()
+        _WQ.put(write_an)
+    _WQ.put(write)
     return {"total": total, "live": len(rows), "official_live": True}
 
 
