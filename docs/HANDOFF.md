@@ -190,6 +190,13 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 18 Nov 2026 (3): GTA 6 launch audit vs YouTube's live search. Live counts matched (Mythpat 43K/44K, Carry 79K/82K,
+  Speed 274K/265K) but streams read without a title (YouTube's Live page, live counter) were filed under Other: Kai
+  Cenat Live (~115K) and TheBurntPeanut (~116K) were missing from GTA 6. Now _yt_add never wipes a known title
+  (_YTITLE), scene.fill_titles() looks up missing titles via oEmbed (60 biggest a scan, no quota), classify() also
+  matches "GTA VI🌴" (_G6RX), and a one-time startup repair (refile_gta6, kv refile_g6_v1, 7 min after start) moves
+  launch-day 'Other' sc_daily rows of YouTube channels now titled GTA 6 to GTA 6. sc_reg_day (category totals) is not
+  re-filed. tests/test_titles.py.
 - 18 Nov 2026 (2): share cards on worldwide pages show US Central time ("CT", America/Chicago, en-US format); India
   pages keep IST. Each page's JS has CZ/ctm() (decided by the address: /india = IST); only card drawing uses it (overview,
   category, rankings, channel live-day, tournament cards). Page text and IST day boundaries are unchanged. GTA 6 YouTube
