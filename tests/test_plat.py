@@ -87,6 +87,11 @@ for i in range(4):
     out = events.fast_tick(ev, now=t + 30 + i * 2)
 print("after tarik offline:", out)
 assert out["total"] == 30000 + 61000 + 4000, out
+ld = eventpage.live_data("valo")            # live page: straight from the counter's memory, not the database
+mt = events._MEMT["valo"][-1]
+assert ld["updated"] == mt[0] and ld["tail"][-1] == [mt[0], mt[1], mt[3], mt[4], mt[5]] and ld["official_live"], (ld["updated"], ld["tail"][-1:])
+assert sum(x["viewers"] for x in ld["live"]) == out["total"], ld["live"]
+events.flush()                              # the 2-second counter writes in the background
 st = events.stats("valo", until=t + 100)
 print("platforms:", st["platforms"], st["platform_names"])
 print("peak", st["peak"]); assert {x["platform"] for x in st["platforms"]} == {"kick", "twitch"} and st["peak"] == 30000 + 900 + 61000 + 4000 and {x["platform"]: x["peak"] for x in st["platforms"]} == {"twitch": 65000, "kick": 30900}
@@ -110,7 +115,7 @@ assert c.get("/e/nope/").status_code == 404 and c.get("/e/valo").status_code == 
 assert c.get("/events").status_code == 200 and b"VCT Pacific" in c.get("/events").data
 # BMIC home + unchanged YouTube path
 cli("create", "bmic")
-assert events.get(None)["key"] == "bmic", events.get(None)["key"]      # home preset wins over the newer valo
+# (BMIC is marked ended, so the newest live event is the default now; the old "home preset wins" rule is gone)
 assert b"Live Streaming Worldwide" in c.get("/").data and b"Live Streaming in India" in c.get("/india").data; cli("home", "bmic"); hb = c.get("/").data
 assert b"CUR=[\"BMIC\", \"26\"]" in hb
 assert events._count_one.__name__ and events.yt_link("abcdefghijk") == "https://youtu.be/abcdefghijk"
