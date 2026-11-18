@@ -190,6 +190,11 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 18 Nov 2026 (8): worldwide "today" (overview, sections, game pages, their share cards) is the US Central day:
+  scene keeps an in-memory rollup per (channel, game) since Central midnight (_CTD, updated in _store, rebuilt from
+  sc_samples by ct_seed at start; data()/_kpis use it when region=global and period=today). India keeps the IST day.
+  Before, the worldwide GTA 6 card's "today" began at 12:30 PM CT and its top 3 disagreed with the 7-day rankings.
+  tests/test_ctday.py.
 - 18 Nov 2026 (7): rankings default to ALL PLATFORMS by PEAK LIVE (platform=all in /api/topch and ranks.top: YouTube,
   Twitch and Kick in one list for peak / average / hours watched; categories hidden). Share has a range picker
   (#srange: 1-10, 11-20 ... up to 100) for post and story; ranges after the first are ten rows without the podium.
