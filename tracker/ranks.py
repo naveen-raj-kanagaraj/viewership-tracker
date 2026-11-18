@@ -71,6 +71,21 @@ def _rows():
                          for _ in pcols)
         pstarts = [(period_start(p) if p != "24h" else today - timedelta(days=1)).strftime("%Y-%m-%d") for p in pcols]
         hwp, pkp, avp = {}, {}, {}           # per period: hours watched, peak live viewers, average live viewers
+        # the same per game (games of the gaming/esports sections only): with a game chosen, a channel is ranked by
+        # its peak / hours / average WHILE STREAMING THAT GAME (GamerFleet: 90K in GTA 6, though his week was mostly GTA V)
+        gstat = {}
+        for r in c.execute(f"SELECT sid, game, {sums}, SUM(hw), MAX(peak), SUM(mins) FROM sc_daily "
+                           f"WHERE game NOT IN ('Other','') GROUP BY sid, game", [d for d in pstarts for _ in range(3)]):
+            v = list(r[2:])
+            if scene.section_of(r[1]) not in ("gaming", "esports"):
+                continue
+            d = gstat.setdefault(r[0], {}).setdefault(r[1], {})
+            for i, p in enumerate(pcols + ["all"]):
+                h, pk, mn = v[3 * i], v[3 * i + 1], v[3 * i + 2]
+                if h or pk:
+                    d["live_" + p] = round(h) if h else None
+                    d["peak_" + p] = pk or None
+                    d["avg_" + p] = round(h * 60 / mn) if h and mn else None
         for r in c.execute(f"SELECT sid, {sums}, SUM(hw), MAX(peak), SUM(mins) FROM sc_daily GROUP BY sid",
                            [d for d in pstarts for _ in range(3)]):
             v = list(r[1:])
@@ -174,7 +189,7 @@ def _rows():
                      "country": ct[0] if ct else "", "country_name": ct[2] if ct else "", "category": cat or "", "game": g,
                      "size": size, "views": views, "vday": vday, "v7": v7, "growth": growth, "live": round(live),
                      "eng": (eng.get(sid) or (None,))[0], "likes": (eng.get(sid) or (None, None))[1],
-                     "medv": (eng.get(sid) or (None, None, None))[2]})
+                     "medv": (eng.get(sid) or (None, None, None))[2], "games_live": gstat.get(sid) or {}})
     _R["first_day"] = first_day
     return rows
 
@@ -274,10 +289,19 @@ def _keep(r, metric):
 
 def top(platform: str = "youtube", metric: str = "size", country: str = "", category: str = "", limit: int = 100, game: str = "") -> dict:
     from tracker import scene
+    by_game = bool(game) and metric.split("_")[0] in ("peak", "avg", "live")
     with _lock:
-        rows = [r for r in _R["rows"].values() if r["platform"] == platform and _keep(r, metric)
-                and (not country or r["country"] == country) and (not category or r["category"] == category)
-                and (not game or r["game"] == game)]
+        if by_game:                           # live metrics with a game: what each channel did while streaming it
+            rows = []
+            for r in _R["rows"].values():
+                gv = (r.get("games_live") or {}).get(game) or {}
+                if r["platform"] == platform and gv.get(metric) and (not country or r["country"] == country) \
+                        and (not category or r["category"] == category):
+                    rows.append({**r, **{k: gv.get(k) for k in (metric, *[m for m in gv])}, "game": game})
+        else:
+            rows = [r for r in _R["rows"].values() if r["platform"] == platform and _keep(r, metric)
+                    and (not country or r["country"] == country) and (not category or r["category"] == category)
+                    and (not game or r["game"] == game)]
         cats = sorted({r["category"] for r in _R["rows"].values() if r["platform"] == platform and r["category"]}, key=str.lower)
         ctrs = sorted({(r["country"], r["country_name"]) for r in _R["rows"].values() if r["platform"] == platform and r["country"]},
                       key=lambda x: x[1])
@@ -285,12 +309,13 @@ def top(platform: str = "youtube", metric: str = "size", country: str = "", cate
     rows.sort(key=lambda r: -r[metric])
     # games: real games only (not News, Music, Devotional, Cricket ...), and only those of the chosen category
     with _lock:
-        pool = [r["game"] for r in _R["rows"].values() if r["platform"] == platform and r["game"] and scene.shown(r["game"])
-                and (not category or r["category"] == category) and (not country or r["country"] == country)]
+        pool = [g for r in _R["rows"].values() if r["platform"] == platform
+                and (not category or r["category"] == category) and (not country or r["country"] == country)
+                for g in {r["game"], *(r.get("games_live") or {})} if g and scene.shown(g)]
     games = sorted({g for g in pool if scene.section_of(g) in ("gaming", "esports")}, key=str.lower)
     if category and category != "Gaming" and platform == "youtube":
         games = []
     return {"platform": platform, "metric": metric, "total": len(rows), "updated": at, "games": games,
             "history_from": _R.get("first_day"),
-            "rows": [{**r, "rank": i + 1} for i, r in enumerate(rows[:limit])],
+            "rows": [{**{k: v for k, v in r.items() if k != "games_live"}, "rank": i + 1} for i, r in enumerate(rows[:limit])],
             "categories": cats, "countries": [{"code": a, "name": b} for a, b in ctrs]}
