@@ -190,6 +190,8 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- India rankings (page and share cards) show each channel's place worldwide in the same list (`world_rank` from `ranks.top` when a country is set): podium line "#N WORLDWIDE · PLATFORM", rows prefixed the same way.
+
 - 19 Nov 2026 (2): ROOT CAUSE of "paused" after restarts on GTA 6 day (py-spy): chatstats.overlap_once ran its
   chat_aud self-join (millions of chatters) inside store._lock, holding the write lock 10+ minutes; scans, moments,
   kv and visitors all waited. The join now runs on a reader; the lock is taken only for the prune and the result write.

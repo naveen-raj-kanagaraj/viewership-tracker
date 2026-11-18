@@ -352,6 +352,13 @@ def top(platform: str = "youtube", metric: str = "size", country: str = "", cate
                       key=lambda x: x[1])
         at = _R["at"]
     rows.sort(key=lambda r: -r[metric])
+    if country and rows:                      # each channel's place worldwide in the same list (India cards show it)
+        try:
+            w = top(platform, metric, "", category, limit=100000, game=game)["rows"]
+            wr = {r["sid"]: r["rank"] for r in w}
+            rows = [{**r, "world_rank": wr.get(r["sid"])} for r in rows]
+        except Exception as e:
+            print(f"World ranks: {str(e)[:80]}")
     # games: real games only (not News, Music, Devotional, Cricket ...), and only those of the chosen category
     with _lock:
         pool = [r["game"] for r in _R["rows"].values() if (platform == "all" or r["platform"] == platform) and r["game"] and scene.shown(r["game"])

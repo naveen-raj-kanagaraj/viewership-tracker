@@ -15,7 +15,10 @@ c.commit(); ranks.compute()
 t = ranks.top("all", "peak_7d")
 assert [r["name"] for r in t["rows"]] == ["B", "C", "A"] and {r["platform"] for r in t["rows"]} == {"youtube", "twitch", "kick"}, t["rows"]
 assert [r["name"] for r in ranks.top("all", "peak_7d", game="GTA 6")["rows"]] == ["B", "A"]
-assert [r["name"] for r in ranks.top("all", "peak_7d", country="IN")["rows"]] == ["C", "A"]
+ind = ranks.top("all", "peak_7d", country="IN")["rows"]
+assert [r["name"] for r in ind] == ["C", "A"] and [r["world_rank"] for r in ind] == [2, 3], ind      # India cards show the place worldwide
+assert [r["world_rank"] for r in ranks.top("all", "peak_7d", country="IN", game="GTA 6")["rows"]] == [2]
+assert "world_rank" not in ranks.top("all", "peak_7d")["rows"][0]
 j = web.app.test_client().get("/api/topch?platform=all&metric=peak_7d").json
 assert j["platform"] == "all" and j["total"] == 3, j
 print("ALL PLATFORMS OK")
