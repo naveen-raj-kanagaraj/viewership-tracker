@@ -190,6 +190,9 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 18 Nov 2026 (12): the 2-second KPIs (scene.live_data) also use the Central day on worldwide pages (the page showed
+  "peak today 6.20M at 12:10 am IST, led by Rubius" while the full data said 7.08M at 10:07 AM CT, HoneyMad); the
+  peak-today label uses CT/IST by page; the GTA 6 countdown is hidden after 18 Nov 10:00 UTC.
 - 18 Nov 2026 (11): _store wrote every live channel to sc_channels every scan (100K+ on GTA 6 day: "Slow write lock:
   62 s held by _store"). Now only new/changed channels, plus last_live every 10 min (_CHSIG). sc_daily can be buffered
   (_DBUF, SCENE_DAILY_FLUSH seconds; default 0 = every scan) if writes are still slow.
