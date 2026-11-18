@@ -1603,6 +1603,72 @@ def _try(fn, *a):
         return "err"
 
 
+# Worldwide pages count "today" in US Central time (owner, 18 Nov 2026: the GTA 6 card said "today" but started at
+# 12:30 PM CT, India's midnight, and missed the morning's peaks). sc_daily is per IST day, so the Central day is kept
+# in memory: per (channel, game) peak, minutes live and hours watched since Central midnight, updated every scan and
+# rebuilt from sc_samples after a restart.
+from zoneinfo import ZoneInfo as _ZI
+CT = _ZI("America/Chicago")
+_CTD = {"day": None, "m": {}, "ready": False}
+
+
+def ct_midnight(ts: float = None) -> float:
+    d = datetime.fromtimestamp(ts or time.time(), CT)
+    return datetime(d.year, d.month, d.day, tzinfo=CT).timestamp()
+
+
+def _ct_add(rows, now, dt, fpk):
+    day = datetime.fromtimestamp(now, CT).strftime("%Y-%m-%d")
+    if _CTD["day"] != day:
+        _CTD.update(day=day, m={})
+    m = _CTD["m"]
+    for x in rows:
+        k = (x["sid"], x["game"])
+        e = m.get(k)
+        if e is None:
+            e = m[k] = [0, 0, 0.0, 0.0]
+        pk = max(x["viewers"], fpk.get(x["sid"], 0))
+        if pk > e[0]:
+            e[0], e[1] = pk, int(now)
+        e[2] += dt / 60
+        e[3] += x["viewers"] * dt / 3600
+
+
+def ct_seed():
+    """After a restart: the Central day so far from the per-scan readings (sc_samples), merged with what the scans
+    added since the start."""
+    t0, t1 = ct_midnight(), time.time()
+    got = {}
+    try:
+        with store.reading():
+            for sid, game, pk, pa, n, sv in store.conn().execute(
+                    "SELECT sid, game, MAX(viewers), MAX(ts), COUNT(*), SUM(viewers) FROM sc_samples WHERE ts>=? AND ts<? "
+                    "GROUP BY sid, game", (t0, t1)):
+                got[(sid, game)] = [pk or 0, pa or 0, n * SCENE_SEC / 60, (sv or 0) * SCENE_SEC / 3600]
+    except Exception as e:
+        print(f"Central day seed: {str(e)[:120]}")
+    day = datetime.fromtimestamp(t1, CT).strftime("%Y-%m-%d")
+    if _CTD["day"] not in (None, day):
+        return
+    _CTD["day"] = day
+    m = _CTD["m"]
+    for k, v in got.items():
+        e = m.get(k)
+        if e is None:
+            m[k] = v
+        else:
+            if v[0] > e[0]:
+                e[0], e[1] = v[0], v[1]
+            e[2] += v[2]
+            e[3] += v[3]
+    _CTD["ready"] = True
+
+
+def ct_rows(game=None) -> list:
+    """[(sid, game, peak, peak_at, mins, hw)] for the Central day so far (one game if given)."""
+    return [(k[0], k[1], *v) for k, v in list(_CTD["m"].items()) if not game or k[1] == game]
+
+
 def _store(rows, now, last):
     if not rows:
         return
@@ -1612,6 +1678,10 @@ def _store(rows, now, last):
     _FPEAK.clear()
     vpk = dict(_VPEAK)
     _VPEAK.clear()
+    try:
+        _ct_add(rows, now, dt, fpk)
+    except Exception as e:
+        print(f"Central day: {str(e)[:100]}")
     with store._lock:
         c = _db()
         sw = set(sweep_games())               # a launch game's thousands of tiny streams: counted everywhere (totals, daily
@@ -1949,6 +2019,7 @@ def run_forever():
     if _STATE["running"]:
         return
     _STATE["running"] = True
+    threading.Thread(target=ct_seed, daemon=True).start()   # the US Central day so far (worldwide "today")
     threading.Thread(target=run_fast, daemon=True).start()
     threading.Thread(target=run_twitch_full, daemon=True).start()
     time.sleep(20)                           # let the event counter start first
@@ -2350,10 +2421,12 @@ def _scope(region: str, sec: str, game):
     return tbl, w, a, ALL
 
 
-def _kpis(c, region: str, sec: str, game, lv: dict) -> dict:
-    """The headline numbers: watching now, live channels, today's peak (IST day) and hours watched today."""
+def _kpis(c, region: str, sec: str, game, lv: dict, ct: bool = False) -> dict:
+    """The headline numbers: watching now, live channels, today's peak and hours watched today (IST day; the US
+    Central day on worldwide pages when ct)."""
     tbl, w, a, key = _scope(region, sec, game)
-    d0 = datetime.combine(datetime.now(events.REPORT_TZ).date(), datetime.min.time(), events.REPORT_TZ)
+    d0 = datetime.fromtimestamp(ct_midnight(), CT) if ct else \
+        datetime.combine(datetime.now(events.REPORT_TZ).date(), datetime.min.time(), events.REPORT_TZ)
     pk = c.execute(f"SELECT ts, viewers FROM {tbl} WHERE game=? AND ts>=?{w} ORDER BY viewers DESC LIMIT 1",
                    (key, d0.timestamp(), *a)).fetchone()
     # hours watched today: every scan's total x the time between scans (works the same for sections and tournaments)
@@ -2363,6 +2436,9 @@ def _kpis(c, region: str, sec: str, game, lv: dict) -> dict:
     if sec == "esports":
         chans = c.execute("SELECT COUNT(DISTINCT game) FROM sc_reg WHERE region=? AND ts>=?", (f"tour:{region}", d0.timestamp())
                           ).fetchone()[0]
+    elif ct:                                  # Central day: from the in-memory rollup
+        cr = [r for r in ct_rows(game) if not sec or section_of(r[1]) == sec]
+        chans, air = len({r[0] for r in cr}), round(sum(r[4] for r in cr) / 60, 1)
     else:
         q = """SELECT COUNT(DISTINCT d.sid), SUM(d.mins) FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid
                WHERE d.day=?""" + (" AND COALESCE(c.india,1)=1" if region == "in" else "")
@@ -2435,16 +2511,33 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
     today = datetime.now(events.REPORT_TZ).date()
     d0 = (today - timedelta(days=PERIODS[period])).strftime("%Y-%m-%d")
     tbl, w, a, key = _scope(region, sec, game)
+    ctday = region == "global" and period == "today" and _CTD["ready"]    # worldwide "today" = the US Central day
     with store.reading():
         c = _db()
-        q = """SELECT d.sid, d.game, MAX(d.peak) peak, SUM(d.mins) mins, SUM(d.hw) hw, c.name, c.platform,
-               c.url, c.logo, c.last_live FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid WHERE d.day >= ?"""
-        q += " AND COALESCE(c.india, 1)=1" if region == "in" else ""
-        rows = c.execute(q + (" AND d.game = ?" if game else "") + " GROUP BY d.sid, d.game",
-                         (d0, game) if game else (d0,)).fetchall()
+        if ctday:
+            cr = ct_rows(game)
+            keep = {r[0] for r in sorted(cr, key=lambda r: -r[5])[:3000]} | {r[0] for r in sorted(cr, key=lambda r: -r[2])[:3000]}
+            info = {}
+            L = sorted(keep)
+            for i in range(0, len(L), 900):
+                part = L[i:i + 900]
+                for r in c.execute(f"SELECT sid, name, platform, url, logo, last_live FROM sc_channels WHERE sid IN "
+                                   f"({','.join('?' * len(part))})", part):
+                    info[r[0]] = r
+            rows = [{"sid": sid, "game": g, "peak": pk, "mins": mn, "hw": hw, "name": (info.get(sid) or [None] * 6)[1],
+                     "platform": (info.get(sid) or [None] * 6)[2], "url": (info.get(sid) or [None] * 6)[3],
+                     "logo": (info.get(sid) or [None] * 6)[4], "last_live": (info.get(sid) or [None] * 6)[5]}
+                    for sid, g, pk, pa, mn, hw in cr if sid in keep]
+        else:
+            q = """SELECT d.sid, d.game, MAX(d.peak) peak, SUM(d.mins) mins, SUM(d.hw) hw, c.name, c.platform,
+                   c.url, c.logo, c.last_live FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid WHERE d.day >= ?"""
+            q += " AND COALESCE(c.india, 1)=1" if region == "in" else ""
+            rows = c.execute(q + (" AND d.game = ?" if game else "") + " GROUP BY d.sid, d.game",
+                             (d0, game) if game else (d0,)).fetchall()
         series = _series_any(c, tbl, w, a, key, period)
         daily = _daily(c, tbl, w, a, key)
-        p0 = datetime.combine(today - timedelta(days=PERIODS[period]), datetime.min.time(), events.REPORT_TZ).timestamp()
+        p0 = ct_midnight() if ctday else \
+            datetime.combine(today - timedelta(days=PERIODS[period]), datetime.min.time(), events.REPORT_TZ).timestamp()
         rt, rw, ra = _totals_sql(region)
         scans = c.execute(f"SELECT COUNT(*) FROM {rt} WHERE game=? AND ts>=?{rw}", (ALL, p0, *ra)).fetchone()[0] or 0
         cstats = c.execute(f"SELECT game, SUM(viewers) s, MAX(viewers) pk FROM {rt} WHERE ts>=? AND game!=?{rw} GROUP BY game",
@@ -2457,7 +2550,7 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
         tour_day = [{"name": r[0], "tslug": slug(r[0]), "named": named_tour(r[0]), "peak": r[1], "at": r[2]} for r in c.execute(
             "SELECT game, MAX(viewers), ts FROM sc_reg WHERE region=? AND ts>=? GROUP BY game ORDER BY MAX(viewers) DESC LIMIT 20",
             (f"tour:{region}", p0))]
-        kp = _kpis(c, region, sec, game, lv)
+        kp = _kpis(c, region, sec, game, lv, ct=ctday)
     ch, games = {}, {}
     for r in rows:
         if r["sid"] in blk or (sec and sec != "esports" and section_of(r["game"]) != sec):
