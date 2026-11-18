@@ -190,6 +190,10 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 18 Nov 2026 (6): rankings page is one list (owner): the Channels/Live streamers toggle is gone; old ?mode=live links
+  map to the channel list (hw->HOURS WATCHED, peak, avg; day->24h, week->7d, month->30d; cat slug -> game). Rows show
+  "LIVE n" when the channel is live now (ranks._now_live from scene._LIVE). The game picker is a type-to-search box
+  (input + datalist). Upload-only channels have no live numbers, so they are not in PEAK/AVG/HOURS lists.
 - 18 Nov 2026 (5): per-game channel rankings no longer precomputed (that made ranks.compute build a dict per channel
   per game for millions of sc_daily rows, and it never finished on the server): ranks.game_live(game) reads only that
   game's sc_daily rows (index sc_daily_game) when a game is chosen, cached 10 min (~0.8 s cold on the 270K-row test

@@ -272,6 +272,16 @@ def _keep(r, metric):
     return True
 
 
+def _now_live(sid: str) -> int:
+    """Watching this channel live right now (0 if not live), from the site-wide scan."""
+    try:
+        from tracker import scene
+        x = scene._LIVE.get(sid)
+        return int(x["viewers"]) if x else 0
+    except Exception:
+        return 0
+
+
 _GS = {"at": 0, "games": []}
 
 
@@ -351,5 +361,5 @@ def top(platform: str = "youtube", metric: str = "size", country: str = "", cate
         games = []
     return {"platform": platform, "metric": metric, "total": len(rows), "updated": at, "games": games,
             "history_from": _R.get("first_day"),
-            "rows": [{**r, "game": game or r["game"], "rank": i + 1} for i, r in enumerate(rows[:limit])],
+            "rows": [{**r, "game": game or r["game"], "rank": i + 1, "now": _now_live(r["sid"])} for i, r in enumerate(rows[:limit])],
             "categories": cats, "countries": [{"code": a, "name": b} for a, b in ctrs]}
