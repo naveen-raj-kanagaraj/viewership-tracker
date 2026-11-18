@@ -1350,6 +1350,15 @@ def run():
         yx_._nn_build()
         ev_.backfill_pic_day1()
         sc_.backfill_reg_day()
+        def g6_refile():                     # after a few scans have looked up the missing titles
+            time.sleep(420)
+            try:
+                if not store.kv_get("refile_g6_v1"):
+                    sc_.refile_gta6()
+                    store.kv_set("refile_g6_v1", time.time())
+            except Exception as e:
+                print(f"GTA 6 refile: {str(e)[:120]}")
+        threading.Thread(target=g6_refile, daemon=True).start()
         try:
             sc_.merge_aliases()
         except Exception as e:

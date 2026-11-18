@@ -1086,6 +1086,9 @@ def is_gaming(game: str) -> bool:
     return not any(w in (game or "").lower() for w in _NON_GAMING_WORDS)
 
 
+_G6RX = re.compile(r"\bgta ?(vi|6)\b|grand theft auto (vi|6)\b")
+
+
 def classify(category: str, title: str) -> str:
     cat = (category or "").lower()
     if cat:
@@ -1097,7 +1100,7 @@ def classify(category: str, title: str) -> str:
     for g, words in GAMES:
         if g in _hidden():
             continue                        # "GTA 6 soon" titles before release are GTA V
-        if any(w in t for w in words):
+        if any(w in t for w in words) or (g == "GTA 6" and _G6RX.search(t)):   # "GTA VI🌴": an emoji right after
             return g
     return "Other"
 
@@ -1230,14 +1233,86 @@ def _continuation(j):
     return out[-1] if out else None
 
 
+_YTITLE = {}          # vid -> stream title (from search, the API or oEmbed), so a reading without one keeps it
+
+
+def _oembed_title(vid: str) -> str:
+    """A live video's title from YouTube's oEmbed (free, no API quota)."""
+    try:
+        r = events._http.get("https://www.youtube.com/oembed", params={"url": f"https://www.youtube.com/watch?v={vid}",
+                             "format": "json"}, timeout=6, headers={"User-Agent": events._UA})
+        return (r.json().get("title") or "") if r.status_code == 200 else ""
+    except Exception:
+        return ""
+
+
+def refile_gta6(since_day: str = "2026-11-18") -> int:
+    """One-time repair (18 Nov 2026): YouTube streams read without a title were filed under 'Other' on GTA 6 launch
+    day. Days since `since_day` filed 'Other' for YouTube channels whose title now says GTA 6 move to 'GTA 6'
+    (peak = the higher, minutes and hours watched added)."""
+    if not gta6_on():
+        return 0
+    with store.reading():
+        c = store.conn()
+        rows = c.execute("SELECT d.day, d.sid, d.peak, d.peak_at, d.mins, d.hw, c.title FROM sc_daily d JOIN sc_channels c "
+                         "ON c.sid=d.sid WHERE d.game='Other' AND d.day>=? AND d.sid LIKE 'yt:%'", (since_day,)).fetchall()
+    move = [r for r in rows if classify("", r[6] or "") == "GTA 6"]
+    if not move:
+        return 0
+    with store._lock:
+        c = store.main()
+        for day, sid, pk, pa, mins, hw, _ in move:
+            have = c.execute("SELECT peak, peak_at, mins, hw FROM sc_daily WHERE day=? AND sid=? AND game='GTA 6'", (day, sid)).fetchone()
+            if have:
+                bp, bpa = (pk, pa) if (pk or 0) > (have[0] or 0) else (have[0], have[1])
+                c.execute("UPDATE sc_daily SET peak=?, peak_at=?, mins=?, hw=? WHERE day=? AND sid=? AND game='GTA 6'",
+                          (bp, bpa, (have[2] or 0) + (mins or 0), (have[3] or 0) + (hw or 0), day, sid))
+            else:
+                c.execute("INSERT INTO sc_daily VALUES (?,?,?,?,?,?,?)", (day, sid, "GTA 6", pk, pa, mins, hw))
+            c.execute("DELETE FROM sc_daily WHERE day=? AND sid=? AND game='Other'", (day, sid))
+        c.commit()
+    print(f"Moved {len(move)} launch-day YouTube channel-days from Other to GTA 6: "
+          f"{', '.join(sorted({r[1] for r in move})[:10])}")
+    return len(move)
+
+
+def fill_titles(found: dict, limit: int = 60) -> int:
+    """YouTube streams found without a title (Kai Cenat and TheBurntPeanut came in from the Live page with none and
+    were filed under Other, not GTA 6): look the title up, biggest first."""
+    need = sorted(((sid, x) for sid, x in found.items() if x["platform"] == "youtube" and not x.get("title") and x["streams"]),
+                  key=lambda kv: -sum(kv[1]["streams"].values()))[:limit]
+    vids = [max(x["streams"], key=x["streams"].get) for _, x in need]
+    vids = [v for v in vids if v not in _YTITLE and _NOTITLE.get(v, 0) < time.time() - 1800]
+    n = 0
+    for v, t in zip(vids, _pool.map(_oembed_title, vids)):
+        if t:
+            _YTITLE[v] = t
+        else:
+            _NOTITLE[v] = time.time()
+    for sid, x in need:
+        v = max(x["streams"], key=x["streams"].get)
+        if _YTITLE.get(v):
+            x["title"] = _YTITLE[v]
+            n += 1
+    if len(_YTITLE) > 50000:
+        _YTITLE.clear()
+    return n
+
+
+_NOTITLE = {}
+
+
 def _yt_add(found: dict, s: dict, logo: str = ""):
     sid = f"yt:{s['channel_id']}"
     x = found.setdefault(sid, {"sid": sid, "platform": "youtube", "name": s.get("channel", ""), "logo": logo or s.get("logo", ""),
                                "url": f"https://youtu.be/{s['vid']}", "title": s.get("title", ""), "category": "",
                                "streams": {}})
     x["streams"][s["vid"]] = int(s.get("viewers") or 0)
+    if s.get("title"):
+        _YTITLE[s["vid"]] = s["title"]
     if x["streams"][s["vid"]] >= max(x["streams"].values()):
-        x.update(url=f"https://youtu.be/{s['vid']}", title=s.get("title", ""))
+        # a reading without a title (YouTube's Live page, the live counter) never wipes the title we know
+        x.update(url=f"https://youtu.be/{s['vid']}", title=s.get("title") or _YTITLE.get(s["vid"]) or x.get("title", ""))
     if not x.get("logo") and (logo or s.get("logo")):
         x["logo"] = logo or s.get("logo")
 
@@ -1447,6 +1522,10 @@ def cycle(now: float = None) -> dict:
                 _SEEDED.add(f"yt:{s['channel_id']}")
 
     # Indian or not: look up the country of YouTube channels not seen before (cached in sc_channels)
+    try:
+        fill_titles(found)
+    except Exception as e:
+        errors["youtube titles"] = str(e)[:100]
     _load_countries()
     new = [sid[3:] for sid in found if sid.startswith("yt:") and sid[3:] not in _CTRY][:200]
     if new:
