@@ -337,23 +337,24 @@ def top(platform: str = "youtube", metric: str = "size", country: str = "", cate
             rows = []
             for r in _R["rows"].values():
                 gv = gl.get(r["sid"]) or {}
-                if r["platform"] == platform and gv.get(metric) and (not country or r["country"] == country) \
+                if (platform == "all" or r["platform"] == platform) and gv.get(metric) and (not country or r["country"] == country) \
                         and (not category or r["category"] == category):
                     rows.append({**r, **gv})
         else:
-            rows = [r for r in _R["rows"].values() if r["platform"] == platform and _keep(r, metric)
+            rows = [r for r in _R["rows"].values() if (platform == "all" or r["platform"] == platform) and _keep(r, metric)
                     and (not country or r["country"] == country) and (not category or r["category"] == category)
                     and (not game or r["game"] == game or r["sid"] in gl)]
             if game:                          # one stream of the game is enough to be in its list (owner, 18 Nov)
                 rows = [{**r, "game": game} for r in rows]
-        cats = sorted({r["category"] for r in _R["rows"].values() if r["platform"] == platform and r["category"]}, key=str.lower)
-        ctrs = sorted({(r["country"], r["country_name"]) for r in _R["rows"].values() if r["platform"] == platform and r["country"]},
+        cats = [] if platform == "all" else \
+            sorted({r["category"] for r in _R["rows"].values() if r["platform"] == platform and r["category"]}, key=str.lower)
+        ctrs = sorted({(r["country"], r["country_name"]) for r in _R["rows"].values() if (platform == "all" or r["platform"] == platform) and r["country"]},
                       key=lambda x: x[1])
         at = _R["at"]
     rows.sort(key=lambda r: -r[metric])
     # games: real games only (not News, Music, Devotional, Cricket ...), and only those of the chosen category
     with _lock:
-        pool = [r["game"] for r in _R["rows"].values() if r["platform"] == platform and r["game"] and scene.shown(r["game"])
+        pool = [r["game"] for r in _R["rows"].values() if (platform == "all" or r["platform"] == platform) and r["game"] and scene.shown(r["game"])
                 and (not category or r["category"] == category) and (not country or r["country"] == country)]
     pool += [g for g in _games_streamed() if scene.shown(g)]
     games = sorted({g for g in pool if scene.section_of(g) in ("gaming", "esports")}, key=str.lower)

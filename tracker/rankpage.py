@@ -71,7 +71,7 @@ __PANEL_CSS__
 <div class="filters"><div class="seg" id="mode"></div></div>
 <div class="filters" id="cf" style="display:none"><div class="seg" id="cplat"></div><div class="seg" id="cmetric"></div><select id="cper" aria-label="Period"></select>
  <select id="ccat"><option value="">All categories</option></select><input id="cgame" list="cgames" placeholder="All games (type to search)" autocomplete="off" style="background:var(--card,#16161f);color:inherit;border:1px solid #2a2a3a;border-radius:8px;padding:8px 10px;font:inherit;min-width:220px"><datalist id="cgames"></datalist><select id="cctry"><option value="">All countries</option></select>
- <button class="btn" id="cshare">SHARE TOP 10</button></div>
+ <select id="srange" title="Which ten to share"></select><button class="btn" id="cshare">SHARE</button></div>
 <div class="filters" id="lf">
  <div class="seg" id="period"></div>
  <div class="dt"><button id="prev" aria-label="Earlier">&#8249;</button><input type="date" id="date"><button id="next" aria-label="Later">&#8250;</button></div>
@@ -91,7 +91,7 @@ __PANEL_CSS__
  <div class="seg" id="mfmt" style="margin-bottom:8px"><button data-f="post" class="on">POST 4:5</button><button data-f="story">STORY 9:16</button></div><img id="mimg" alt="Share card" style="width:100%;max-height:70vh;object-fit:contain;display:block;border:1px solid var(--line);margin-bottom:10px"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="mshare">SHARE</button><button class="btn" id="mdl">DOWNLOAD</button><button class="btn" id="mcopy">COPY LINK</button><button class="btn" id="mclose" style="background:none;color:var(--muted);border:1px solid var(--line)">CLOSE</button></div></div></div>
 <script>
 const REGION=__REGION__,GL=REGION==='global',RP=GL?'/global':'/india',SITE=__SITEURL__,WHERE=GL?'worldwide':'in India';
-const NAMES={youtube:'YouTube',kick:'Kick',twitch:'Twitch'},COL={youtube:'#ff4d5e',kick:'#53fc18',twitch:'#a970ff'},MEDAL=['#ffd23f','#d9dde8','#ff9f5a'];
+const NAMES={youtube:'YouTube',kick:'Kick',twitch:'Twitch',all:'YouTube, Twitch & Kick'},COL={youtube:'#ff4d5e',kick:'#53fc18',twitch:'#a970ff'},MEDAL=['#ffd23f','#d9dde8','#ff9f5a'];
 const MET={hw:['HOURS WATCHED',v=>fmt(v)+'h'],peak:['PEAK VIEWERS',v=>fmt(v)],avg:['AVG VIEWERS',v=>fmt(v)],hours:['HOURS LIVE',v=>v+'h'],
  sc:['SUPER CHATS',v=>money(v)],vg:['VIEWS GAINED',v=>'+'+fmt(v)]};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -115,10 +115,10 @@ let R=null,OPEN=null,ALL=false;
 // One list (owner, 18 Nov): every channel; streamers carry their live numbers (peak, average, hours watched) and a
 // LIVE tag, upload-only channels have none and sit out the live rankings. Old "live streamers" links open the same.
 const LIVEQ=Q.get('mode')==='live'||(!Q.get('mode')&&(Q.get('period')||Q.get('cat')||Q.get('sec')));
-let MODE='channels',C={platform:['youtube','twitch','kick'].includes(Q.get('platform'))?Q.get('platform'):'youtube',base:'views',per:'7d',country:Q.get('country')||(GL?'':'IN'),category:Q.get('category')||'',game:Q.get('game')||''},CR=null;
+let MODE='channels',C={platform:['youtube','twitch','kick','all'].includes(Q.get('platform'))?Q.get('platform'):(Q.get('metric')?'youtube':'all'),base:Q.get('platform')||Q.get('metric')?'views':'peak',per:'7d',country:Q.get('country')||(GL?'':'IN'),category:Q.get('category')||'',game:Q.get('game')||''},CR=null;
 if(MODE==='channels')S.metric='hw';
 if(LIVEQ){const PM={day:'24h','3d':'3d',week:'7d',month:'30d','3m':'3m','6m':'6m',ytd:'ytd','1y':'1y',all:'all'},BM={hw:'live',peak:'peak',avg:'avg'};
- C.base=BM[Q.get('metric')]||'live';C.per=PM[Q.get('period')]||'24h';if(['youtube','twitch','kick'].includes(Q.get('platform')))C.platform=Q.get('platform');
+ C.base=BM[Q.get('metric')]||'live';C.per=PM[Q.get('period')]||'24h';C.platform=['youtube','twitch','kick'].includes(Q.get('platform'))?Q.get('platform'):'all';
  C.metric=C.base+'_'+C.per;if(Q.get('cat'))C.gslug=Q.get('cat')}
 const PERS=[['24h','Last 24 hours','24H'],['3d','Last 3 days','3 DAYS'],['7d','Last 7 days','7 DAYS'],['30d','Last 30 days','30 DAYS'],['3m','Last 3 months','3 MONTHS'],['6m','Last 6 months','6 MONTHS'],['ytd','This year','THIS YEAR'],['1y','Last 12 months','12 MONTHS'],['all','Lifetime','LIFETIME']];
 {const qm=Q.get('metric')||'',LEG={vday:['views','24h'],v7:['views','7d'],growth:['views','30d'],views:['views','all'],size:['subs','all'],live:['live','30d'],eng:['eng','3m'],likes:['likes','3m'],medv:['medv','3m']};
@@ -128,7 +128,7 @@ const YT=()=>C.platform==='youtube';
 const PLAB=p=>(PERS.find(x=>x[0]===p)||[])[2]||'';
 const CML=m=>{const [b,p]=m.split('_'),L=PLAB(p);if(b==='views')return YT()?(p==='all'?'TOTAL VIEWS':'VIEWS, '+L):(p==='all'?'PAST STREAM VIEWS':'PAST STREAM VIEWS, '+L);if(b==='subs')return p==='all'?(YT()?'SUBSCRIBERS':'FOLLOWERS'):(YT()?'SUBS GAINED, ':'FOLLOWERS GAINED, ')+L;
  if(b==='live')return 'HOURS WATCHED, '+L;if(b==='peak')return 'PEAK LIVE VIEWERS, '+L;if(b==='avg')return 'AVG LIVE VIEWERS, '+L;return ({eng:'ENGAGEMENT',likes:'LIKE RATE',medv:'TYPICAL VIEWS'})[b]+', '+L};
-const CMS=()=>YT()?[['views','VIEWS'],['subs','SUBSCRIBERS'],['peak','PEAK LIVE'],['avg','AVG LIVE'],['live','HOURS WATCHED'],['eng','ENGAGEMENT'],['likes','LIKE RATE'],['medv','TYPICAL VIEWS']]:[['peak','PEAK LIVE'],['avg','AVG LIVE'],['live','HOURS WATCHED'],['views','VIEWS'],['subs','FOLLOWERS']];
+const CMS=()=>C.platform==='all'?[['peak','PEAK LIVE'],['avg','AVG LIVE'],['live','HOURS WATCHED']]:YT()?[['views','VIEWS'],['subs','SUBSCRIBERS'],['peak','PEAK LIVE'],['avg','AVG LIVE'],['live','HOURS WATCHED'],['eng','ENGAGEMENT'],['likes','LIKE RATE'],['medv','TYPICAL VIEWS']]:[['peak','PEAK LIVE'],['avg','AVG LIVE'],['live','HOURS WATCHED'],['views','VIEWS'],['subs','FOLLOWERS']];
 const CMV=(m,v)=>{if(v==null)return '-';const [b,p]=m.split('_');if(b==='eng'||b==='likes')return (v*100).toFixed(v<.1?2:1)+'%';if(b==='live')return fmt(v)+'h';
  if((b==='views'&&YT()||b==='subs')&&p!=='all')return (v>0?'+':'')+fmt(v);return fmt(v)};
 const OTHERS=()=>{const p=C.per,b=C.base;if(b==='peak')return ['avg_'+p,'live_'+p];if(b==='avg')return ['peak_'+p,'live_'+p];if(b==='live')return ['peak_'+p,'avg_'+p];return b==='views'&&!YT()?['subs_'+p,'live_'+p]:b==='views'?['subs_'+p,'views_all']:b==='subs'?(YT()?['views_'+p,'subs_all']:['views_'+p,'live_'+p]):b==='views'&&!YT()?['subs_'+p,'live_'+p]:b==='eng'?['likes_'+p,'medv_'+p]:b==='likes'?['eng_'+p,'medv_'+p]:b==='medv'?['eng_'+p,'subs_all']:['subs_'+p,'subs_all']};
@@ -142,7 +142,7 @@ async function goCh(){if(!CMS().some(x=>x[0]===C.base))C.base=CMS()[0][0];C.metr
  const my=++SEQ;busy(true);let J;try{J=await getJ('/api/topch?'+p,60000)}catch(e){busy(false);return}if(my!==SEQ)return;busy(false);CR=J;
  if(!CR.updated){setTimeout(()=>{if(MODE==='channels'){JC.delete('/api/topch?'+p);goCh()}},15000)}
  setTimeout(()=>CMS().forEach(([b])=>{if(b!==C.base){const q=new URLSearchParams(p);q.set('metric',b+'_'+C.per);pre('/api/topch?'+q,60000)}}),600);
- seg('cplat',[['youtube','YOUTUBE'],['twitch','TWITCH'],['kick','KICK']],C.platform,v=>{if(v!==C.platform)C.base=v==='youtube'?'views':'peak';C.platform=v;C.category='';C.game='';goCh()});
+ seg('cplat',[['all','ALL PLATFORMS'],['youtube','YOUTUBE'],['twitch','TWITCH'],['kick','KICK']],C.platform,v=>{if(v!==C.platform)C.base=v==='youtube'?'views':'peak';C.platform=v;C.category='';C.game='';goCh()});
  seg('cmetric',CMS(),C.base,v=>{C.base=v;goCh()});
  const cpe=document.getElementById('cper');cpe.innerHTML=PERS.map(([v,l])=>`<option value="${v}"${v===C.per?' selected':''}>${l}</option>`).join('');cpe.onchange=e=>{C.per=e.target.value;goCh()};
  const cc=document.getElementById('ccat');cc.innerHTML=`<option value="">${YT()?'All YouTube categories':'All sections'}</option>`+(CR.categories||[]).map(x=>`<option${x===C.category?' selected':''}>${esc(x)}</option>`).join('');
@@ -155,7 +155,7 @@ async function goCh(){if(!CMS().some(x=>x[0]===C.base))C.base=CMS()[0][0];C.metr
  ['h1c','h2c','h3c'].forEach((id,i)=>document.getElementById(id).textContent=CML([C.metric,...others][i]).replace(', '+PLAB(C.per),''));
  document.getElementById('span').textContent=`${full(CR.total)} ${NAMES[C.platform]} channels${C.category?' in '+C.category:''}${C.game?' making '+C.game:''}${C.country?' from '+((CR.countries.find(x=>x.code===C.country)||{}).name||C.country):''} · ranked by ${CML(C.metric).toLowerCase()} · updated ${CR.updated?Math.round((Date.now()/1000-CR.updated)/60)+' min ago':'soon'}`+(()=>{const H=CR.history_from,need={'3d':3,'7d':7,'30d':30,'3m':90,'6m':180,'1y':365}[C.per]??(C.per==='ytd'?Math.floor((Date.now()-new Date(new Date().getFullYear(),0,1))/864e5):0);
   if(!H||!['views','subs'].includes(C.base)||!need)return '';const days=Math.floor((Date.now()-new Date(H+'T00:00:00'))/864e5);return days<need?` · tracking began ${new Date(H+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})}, so this shows the gain since then`:''})();
- const L=CR.rows||[],P=L.slice(0,3),ord=P.length===3?[P[1],P[0],P[2]]:P,link=x=>`${RP}/ch/${encodeURIComponent(x.sid)}`;
+ fillRange();const L=CR.rows||[],P=L.slice(0,3),ord=P.length===3?[P[1],P[0],P[2]]:P,link=x=>`${RP}/ch/${encodeURIComponent(x.sid)}`;
  document.getElementById('podium').innerHTML=ord.map(x=>`<a class="pd p${x.rank}" href="${link(x)}" style="text-decoration:none"><div class="md">#${x.rank}</div>${x.logo?`<img src="${esc(x.logo)}" alt="" referrerpolicy="no-referrer">`:`<span class="ph">${ini(x.name)}</span>`}<div class="n">${esc(x.name)}</div><div class="v">${CMV(C.metric,x[C.metric])}</div><div class="s">${esc([x.category,x.country_name].filter(Boolean).join(' · '))}</div></a>`).join('');
  document.getElementById('rows').innerHTML=L.slice(3,CN).map(x=>`<a class="row" href="${link(x)}" style="text-decoration:none"><span class="rk">${x.rank}</span>${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}<span class="pf">${({youtube:'YouTube',kick:'Kick',twitch:'Twitch'})[x.platform]||''}</span>${x.now?`<span class="pf" style="color:#ff4d5e;border-color:#ff4d5e">LIVE ${fmt(x.now)}</span>`:''}</div><div class="ds">${esc([x.category,x.game&&x.game!==x.category?x.game:'',x.country_name].filter(Boolean).join(' · '))}</div></span>`+
   [C.metric,...others].map((m,i)=>`<span class="c${i===0?' m':''} x${i+1}">${CMV(m,x[m])}</span>`).join('')+'</a>').join('')||(L.length?'':`<div class="empty">${!CR.updated?'Rankings are being calculated after a site update. This fills in by itself in a minute.':!YT()&&C.base==='views'?'Views come from each channel\'s past broadcasts on '+(C.platform==='kick'?'Kick':'Twitch')+', read every few hours. They fill in as the lists are read.':['views','subs'].includes(C.base)&&C.per!=='all'?(YT()?'Views and subscribers gained':'Followers gained')+' need two daily readings of a channel, so they fill in from the day after a channel is first read. Try Lifetime meanwhile.':['eng','likes','medv'].includes(C.base)?'No channel posted enough in this period to measure. Try a longer period.':'No channels match these filters yet.'}</div>`);
@@ -201,7 +201,7 @@ controls();setMode(MODE);setInterval(()=>{if(!document.hidden&&MODE==='live'&&R&
 let blob=null;
 function loadImg(u){return new Promise(r=>{if(!u)return r(null);const i=new Image();i.crossOrigin='anonymous';i.onload=()=>r(i);i.onerror=()=>r(null);i.src=u})}
 let FMT='post';
-async function makeCard(logos){const ST=FMT==='story',H=ST?1920:1350;
+async function makeCard(logos){const ST=FMT==='story',H=ST?1920:1350,OFF0=Math.max(0,+((document.getElementById('srange')||{}).value||0));
  const c=document.createElement('canvas');c.width=2160;c.height=H*2;const x=c.getContext('2d');x.scale(2,2);
  x.fillStyle='#0b0b12';x.fillRect(0,0,1080,H);const g=x.createRadialGradient(860,ST?120:-60,10,860,ST?120:-60,760);g.addColorStop(0,'rgba(124,92,255,.24)');g.addColorStop(1,'rgba(124,92,255,0)');x.fillStyle=g;x.fillRect(0,0,1080,H);
  const fit=(t,w)=>{t=String(t||'');while(x.measureText(t).width>w&&t.length>2)t=t.slice(0,-1);return t};
@@ -213,20 +213,20 @@ async function makeCard(logos){const ST=FMT==='story',H=ST?1920:1350;
  x.fillStyle='#fff';x.font='700 64px "Barlow Condensed",sans-serif';
  x.fillText(shrink(CH?'TOP '+(NAMES[C.platform]||'').toUpperCase()+' CHANNELS':['TOP',S.platform?(NAMES[S.platform]||'').toUpperCase():'',cat?cat.toUpperCase():({gaming:'GAMING',esports:'ESPORTS'})[S.sec]||'','STREAMERS'].filter(Boolean).join(' '),936,64,'700 #px "Barlow Condensed",sans-serif'),72,y0+100);
  const WM='For more: '+(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\./,'')+RP;x.font='600 22px "Barlow Condensed",sans-serif';const wmW=x.measureText(WM).width+28;
- if(CH){x.fillStyle='#b6f23a';x.fillText(shrink([cat,where,'BY '+CML(C.metric).replace('PAST STREAM ','')].filter(Boolean).join(' · ').toUpperCase(),936-wmW,34,'700 #px "Barlow Condensed",sans-serif'),72,y0+145)}
+ if(CH){x.fillStyle='#b6f23a';x.fillText(shrink([OFF0?'#'+(OFF0+1)+' TO #'+Math.min(OFF0+10,((CH?CR.rows:R.rows)||[]).length):'',cat,where,'BY '+CML(C.metric).replace('PAST STREAM ','')].filter(Boolean).join(' · ').toUpperCase(),936-wmW,34,'700 #px "Barlow Condensed",sans-serif'),72,y0+145)}
  else{x.fillStyle='#8d8ca3';const pl=document.getElementById('period'),pt=pl&&pl.selectedOptions&&pl.selectedOptions[0]?pl.selectedOptions[0].text:'';
   x.fillText(shrink([where,pt+(R.date!==R.today?' TO '+dshortD(R.date):''),'BY '+MET[S.metric][0]].filter(Boolean).join(' · ').toUpperCase(),936-wmW,28,'#px "Barlow Condensed",sans-serif'),72,y0+145)}
  x.textAlign='right';x.fillStyle='#a9a8be';x.font='600 22px "Barlow Condensed",sans-serif';x.fillText(WM,1008,y0+145);x.textAlign='left';
  x.fillStyle='#262636';x.fillRect(72,y0+170,936,2);
- const L=(CH?CR.rows:R.rows).slice(0,10),ims=logos?await Promise.all(L.map(s=>loadImg(s.logo))):[];
+ const OFF=Math.max(0,+((document.getElementById('srange')||{}).value||0)),L=(CH?CR.rows:R.rows).slice(OFF,OFF+10),ims=logos?await Promise.all(L.map(s=>loadImg(s.logo))):[];
  const val=s=>CH?CMV(C.metric,s[C.metric]):MET[S.metric][1](s[S.metric]);
- const sub=s=>CH?[s.category,s.game&&s.game!==s.category?s.game:'',s.country_name].filter(Boolean).join(' · '):[s.game,'PEAK '+fmt(s.peak)].filter(Boolean).join(' · ');
+ const sub=s=>CH?[C.platform==='all'?NAMES[s.platform]:'',s.category,s.game&&s.game!==s.category?s.game:'',s.country_name].filter(Boolean).join(' · '):[s.game,'PEAK '+fmt(s.peak)].filter(Boolean).join(' · ');
  const dtxt=d=>d===null?['NEW','#a58bff']:d>0?['▲'+d,'#3ddc84']:d<0?['▼'+(-d),'#ff4d5e']:['=','#8d8ca3'];
  const face=(im,s,cx,cy,r,ring)=>{x.save();x.beginPath();x.arc(cx,cy,r,0,7);x.fillStyle='#1a1a26';x.fill();if(im){x.clip();x.drawImage(im,cx-r,cy-r,2*r,2*r)}else{x.fillStyle='#8d8ca3';x.font=`700 ${Math.round(r*.7)}px "Barlow",sans-serif`;x.textAlign='center';x.fillText(String(s.name||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase(),cx,cy+r*.25)}x.restore();
   x.beginPath();x.arc(cx,cy,r,0,7);x.lineWidth=ring?4:2;x.strokeStyle=ring||'#262636';x.stroke()};
  // podium: #2 left, #1 centre (taller), #3 right
  const pTop=y0+190,pH=ST?480:390,W=296,GP=24,O=ST?{rk:66,g:30,n:52,v:66,s:40,r:[86,72]}:{rk:54,g:22,n:44,v:54,s:34,r:[64,54]};
- [1,0,2].forEach((i,j)=>{const s=L[i];if(!s)return;const bx=72+j*(W+GP),by=pTop+(i?50:0),bh=pH-(i?50:0),cx=bx+W/2,col=MEDAL[i];
+ if(!OFF)[1,0,2].forEach((i,j)=>{const s=L[i];if(!s)return;const bx=72+j*(W+GP),by=pTop+(i?50:0),bh=pH-(i?50:0),cx=bx+W/2,col=MEDAL[i];
   x.fillStyle='#13131c';x.fillRect(bx,by,W,bh);if(!i){const gg=x.createLinearGradient(0,by,0,by+bh*.6);gg.addColorStop(0,'rgba(255,210,63,.16)');gg.addColorStop(1,'rgba(255,210,63,0)');x.fillStyle=gg;x.fillRect(bx,by,W,bh)}
   x.lineWidth=2;x.strokeStyle=col;x.strokeRect(bx+1,by+1,W-2,bh-2);
   x.textAlign='center';x.fillStyle=col;x.font=`700 ${i?50:62}px "Barlow Condensed",sans-serif`;const rt='#'+(i+1);x.fillText(rt,cx,by+O.rk);
@@ -236,8 +236,8 @@ async function makeCard(logos){const ST=FMT==='story',H=ST?1920:1350;
   x.font=`700 ${ST?60:50}px "Barlow Condensed",sans-serif`;x.fillText(val(s),cx,cy+r+O.n+O.v);
   x.fillStyle='#8d8ca3';x.font=`600 ${ST?22:20}px "Barlow Condensed",sans-serif`;x.fillText(fit(sub(s).toUpperCase(),W-24),cx,cy+r+O.n+O.v+O.s);x.textAlign='left'});
  // 4 to 10
- const rS=pTop+pH+(ST?36:24),RH=ST?100:88;
- L.slice(3).forEach((s,k)=>{const i=k+3,y=rS+k*RH;x.fillStyle='#8d8ca3';x.font='700 40px "Barlow Condensed",sans-serif';x.fillText(String(i+1).padStart(2,'0'),72,y+46);
+ const B0=OFF?0:3,rS=OFF?pTop+(ST?20:6):pTop+pH+(ST?36:24),RH=ST?(OFF?118:100):(OFF?100:88);   // 11-20, 21-30 ...: ten rows, no podium
+ L.slice(B0).forEach((s,k)=>{const i=k+B0,y=rS+k*RH;x.fillStyle='#8d8ca3';x.font='700 40px "Barlow Condensed",sans-serif';x.fillText(String(OFF+i+1).padStart(2,'0'),72,y+46);
   face(ims[i],s,180,y+34,30,null);
   x.fillStyle='#fff';x.font='700 34px "Barlow",sans-serif';x.fillText(fit(s.name,470),232,y+32);
   x.font='600 22px "Barlow Condensed",sans-serif';let sx=232;
@@ -250,6 +250,9 @@ async function makeCard(logos){const ST=FMT==='story',H=ST?1920:1350;
 document.getElementById('share').onclick=async()=>{const L0=MODE==='channels'?(CR&&CR.rows):(R&&R.rows);if(!L0||!L0.length)return;try{await document.fonts.ready}catch(e){}blob=await makeCard(true)||await makeCard(false);
  document.getElementById('mimg').src=URL.createObjectURL(blob);document.getElementById('modal').style.display='flex'};
 document.getElementById('cshare').onclick=()=>document.getElementById('share').onclick();
+function fillRange(){const e=document.getElementById('srange');if(!e)return;const n=Math.min(100,((CR&&CR.rows)||[]).length),v=e.value||'0';
+ e.innerHTML=Array.from({length:Math.max(1,Math.ceil(n/10))},(_,i)=>`<option value="${i*10}">TOP ${i*10+1}-${Math.min(n,i*10+10)}</option>`).join('');
+ e.value=[...e.options].some(o=>o.value===v)?v:'0'}
 document.getElementById('mfmt').onclick=async e=>{const b=e.target.closest('button');if(!b)return;FMT=b.dataset.f;
  document.querySelectorAll('#mfmt button').forEach(x=>x.classList.toggle('on',x===b));blob=await makeCard(true)||await makeCard(false);document.getElementById('mimg').src=URL.createObjectURL(blob)};
 document.getElementById('mcopy').onclick=async e=>{try{await navigator.clipboard.writeText(location.href);e.target.textContent='COPIED'}catch(x){prompt('Copy this link',location.href)}};
