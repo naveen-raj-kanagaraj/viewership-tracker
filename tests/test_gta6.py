@@ -4,6 +4,8 @@ os.environ["TRACKER_DB"] = tempfile.mkdtemp() + "/g.db"
 os.environ.pop("GTA6_SHOW", None)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from tracker import scene, catpage, scenepage
+import time as _t
+scene.GTA6_RELEASE = _t.time() + 86400        # the test checks the before-release switch, whatever today's date is
 assert not scene.gta6_on() and scene.pinned() == []
 assert scene.classify("", "GTA 6 SOON | SOULCITY RP") == "GTA V"          # hype titles are GTA V
 assert scene.classify("Grand Theft Auto VI", "trailer 3 reaction") == "Other"

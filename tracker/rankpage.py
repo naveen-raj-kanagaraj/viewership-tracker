@@ -98,6 +98,8 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const fmt=n=>{n=+n||0;return n>=1e9?(n/1e9).toFixed(2)+'B':n>=1e7?(n/1e6).toFixed(1)+'M':n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e4?(n/1e3).toFixed(1)+'K':Math.round(n).toLocaleString('en-IN')};
 const full=n=>Math.round(+n||0).toLocaleString('en-IN');
 const ist=(ts,o)=>new Date(ts*1000).toLocaleString('en-IN',Object.assign({timeZone:'Asia/Kolkata'},o));
+const CZ=location.pathname.startsWith('/india')?{tz:'Asia/Kolkata',lb:'IST',loc:'en-IN'}:{tz:'America/Chicago',lb:'CT',loc:'en-US'};   // share cards: Central Time on worldwide pages, IST on India
+const ctm=(ts,o)=>new Date(ts*1000).toLocaleString(CZ.loc,Object.assign({timeZone:CZ.tz},o));
 const ago=ts=>{const s=Date.now()/1000-ts;return s<120?'just now':s<3600?Math.round(s/60)+' min ago':s<86400?Math.round(s/3600)+' h ago':Math.round(s/86400)+' d ago'};
 const ini=s=>esc(String(s||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase()||'?');
 const av=x=>`<span class="av">${x.logo?`<img src="${esc(x.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=ph>${ini(x.name)}</span>'">`:`<span class="ph">${ini(x.name)}</span>`}</span>`;
@@ -236,7 +238,7 @@ async function makeCard(logos){const ST=FMT==='story',H=ST?1920:1350;
   x.fillStyle='#8d8ca3';x.fillText(fit((CH?sub(s):`${(NAMES[s.platform]||'').toUpperCase()} · PEAK ${fmt(s.peak)} · AVG ${fmt(s.avg)}`).toUpperCase(),520-(sx-232)),sx,y+64);
   x.textAlign='right';x.fillStyle='#fff';x.font='700 44px "Barlow Condensed",sans-serif';x.fillText(val(s),1008,y+46);
   if(CH){x.font='600 18px "Barlow Condensed",sans-serif';x.fillStyle='#8d8ca3';x.fillText(CML(C.metric),1008,y+70)}x.textAlign='left';x.fillStyle='#1d1d2b';x.fillRect(72,y+RH-12,936,1)});
- x.fillStyle='#8d8ca3';x.font='26px "Barlow Condensed",sans-serif';x.fillText((SITE+location.pathname).replace('https://','')+'  ·  '+new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}),72,H-(ST?230:30));
+ x.fillStyle='#8d8ca3';x.font='26px "Barlow Condensed",sans-serif';x.fillText((SITE+location.pathname).replace('https://','')+'  ·  '+new Date().toLocaleString(CZ.loc,{timeZone:CZ.tz,day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'})+' '+CZ.lb,72,H-(ST?230:30));
  return new Promise(r=>{try{c.toBlob(r,'image/png')}catch(e){r(null)}})}
 document.getElementById('share').onclick=async()=>{const L0=MODE==='channels'?(CR&&CR.rows):(R&&R.rows);if(!L0||!L0.length)return;try{await document.fonts.ready}catch(e){}blob=await makeCard(true)||await makeCard(false);
  document.getElementById('mimg').src=URL.createObjectURL(blob);document.getElementById('modal').style.display='flex'};

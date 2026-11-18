@@ -190,6 +190,11 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 18 Nov 2026 (2): share cards on worldwide pages show US Central time ("CT", America/Chicago, en-US format); India
+  pages keep IST. Each page's JS has CZ/ctm() (decided by the address: /india = IST); only card drawing uses it (overview,
+  category, rankings, channel live-day, tournament cards). Page text and IST day boundaries are unchanged. GTA 6 YouTube
+  sweep drops search results clearly about another game (classify(title) not GTA 6, '' or Other). test_gta6 pins the
+  release a day ahead so it passes after launch day.
 - 18 Nov 2026: event trackers (CEGC) never wait on the database: fast_tick keeps the last totals and stream counts in
   memory (events._MEMT/_MEMROWS) and queues its writes to one writer thread (events._WQ, events.flush() in tests);
   eventpage.live_data overlays those on the full stats, which rebuild in the background every 6 s (eventpage._refresh),
