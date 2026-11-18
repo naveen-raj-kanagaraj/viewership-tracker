@@ -2546,7 +2546,7 @@ def live_data(cat: str = "", region: str = "in", sec: str = "") -> dict:
     game = category_name(cat) if cat else None
     lv = _live_part(game, region, sec)
     with store.reading():
-        k = _kpis(_db(), region, sec, game, lv)
+        k = _kpis(_db(), region, sec, game, lv, ct=region == "global" and _CTD["ready"])   # worldwide: Central day
     return _with_full({**_common(lv, region), "kpis": k}, region, game, sec)
 
 
