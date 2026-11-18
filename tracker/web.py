@@ -120,6 +120,7 @@ _MEMO, _MLOCK = {}, {}
 
 
 _STALE_MAX = 600      # live responses (ttl under 30 s): an expired copy is served, and rebuilt in the background, this long
+_STALE_PAGE = 1800    # page data (ttl 10-29 s, e.g. /api/scene, a 20-40 s build): served this old while it rebuilds
 _STALE_LONG = 6 * 3600   # everything else: a page or API answer up to 6 hours old is shown at once while it rebuilds
 _MEMO_TTL = {}
 _MEMO_FILE = os.path.join(os.path.dirname(os.path.abspath(store.DB_PATH)), "memo_cache.pkl")
@@ -129,8 +130,22 @@ def _memo_save():
     """Every 10 minutes: the built pages and API answers (not the live ones) to disk, so after a restart or deploy
     visitors get them instantly (and they rebuild in the background) instead of every page being cold."""
     import pickle
+    n = 0
     while True:
-        time.sleep(600)
+        time.sleep(60)
+        n += 1
+        try:                                  # every minute: page data (/api/scene ...), so a restart never shows blanks
+            now, out = time.time(), []
+            for k, (ts, body, gz) in list(_MEMO.items()):
+                if 10 <= _MEMO_TTL.get(k, 0) < 30 and now - ts < _STALE_PAGE:
+                    out.append((k, ts, body, gz, _MEMO_TTL[k]))
+            with open(_MEMO_FILE + ".live.tmp", "wb") as f:
+                pickle.dump(out, f, protocol=pickle.HIGHEST_PROTOCOL)
+            os.replace(_MEMO_FILE + ".live.tmp", _MEMO_FILE + ".live")
+        except Exception as e:
+            print(f"Memo save (live): {str(e)[:120]}")
+        if n % 10:
+            continue
         try:
             now, out, size = time.time(), [], 0
             for k, (ts, body, gz) in sorted(list(_MEMO.items()), key=lambda kv: -kv[1][0]):
@@ -150,18 +165,19 @@ def _memo_save():
 
 def _memo_load():
     import pickle
-    try:
-        with open(_MEMO_FILE, "rb") as f:
-            rows = pickle.load(f)
-        now = time.time()
-        for k, ts, body, gz, ttl in rows:
-            if now - ts < _STALE_LONG and k not in _MEMO:
-                _MEMO[k], _MEMO_TTL[k] = (ts, body, gz), ttl
-        print(f"Memo: {len(rows)} saved responses loaded")
-    except FileNotFoundError:
-        pass
-    except Exception as e:
-        print(f"Memo load: {str(e)[:120]}")
+    for path, age in ((_MEMO_FILE + ".live", _STALE_PAGE), (_MEMO_FILE, _STALE_LONG)):
+        try:
+            with open(path, "rb") as f:
+                rows = pickle.load(f)
+            now = time.time()
+            for k, ts, body, gz, ttl in rows:
+                if now - ts < age and k not in _MEMO:
+                    _MEMO[k], _MEMO_TTL[k] = (ts, body, gz), ttl
+            print(f"Memo: {len(rows)} saved responses loaded from {os.path.basename(path)}")
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            print(f"Memo load: {str(e)[:120]}")
 
 
 def _memo_build(key, build):
@@ -230,6 +246,7 @@ def _html(build):
 
 from concurrent.futures import ThreadPoolExecutor as _TPE
 _LIVE_POOL = _TPE(max_workers=6, thread_name_prefix="memo-live")
+_FAST_POOL = _TPE(max_workers=4, thread_name_prefix="memo-fast")      # 2-second answers never queue behind page builds
 _SLOW_POOL = _TPE(max_workers=4, thread_name_prefix="memo-slow")      # pages visitors asked for
 _WARM_POOL = _TPE(max_workers=3, thread_name_prefix="memo-warm")      # the background warm-up
 
@@ -249,7 +266,7 @@ def _memo(key, ttl, build, mimetype):
     hit = _MEMO.get(key)
     now = time.time()
     _MEMO_TTL[key] = ttl
-    stale_max = _STALE_MAX if ttl < 30 else _STALE_LONG
+    stale_max = _STALE_MAX if ttl < 10 else _STALE_PAGE if ttl < 30 else _STALE_LONG
     if hit and now - hit[0] >= ttl and now - hit[0] < stale_max:
         lock = _MLOCK.setdefault(key, threading.Lock())
         warm = _is_warm()
@@ -268,7 +285,7 @@ def _memo(key, ttl, build, mimetype):
             # their own pool so they never queue behind channel pages.
             # Pages a visitor asked for and the background warm-up have separate pools, so a long warm-up queue
             # (hundreds of channel pages) never leaves a visitor's page hours old.
-            (_LIVE_POOL if ttl < 30 else _WARM_POOL if warm else _SLOW_POOL).submit(bg)
+            (_FAST_POOL if ttl < 10 else _LIVE_POOL if ttl < 30 else _WARM_POOL if warm else _SLOW_POOL).submit(bg)
     elif not hit or now - hit[0] >= ttl:
         lock = _MLOCK.setdefault(key, threading.Lock())
         with lock:

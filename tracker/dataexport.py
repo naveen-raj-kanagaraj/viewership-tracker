@@ -44,7 +44,8 @@ def viewership(key: str) -> dict:
     db = store.conn()
     if not db.execute("SELECT 1 FROM sqlite_master WHERE name='ev_ticks'").fetchone():
         return {"rows_2min": 0}
-    with store._lock:
+    with store.reading():                     # read-only: held the write lock 44 s and froze live writes (19 Nov)
+        db = store.conn()
         ticks = db.execute("SELECT ts, total, official, watch, community FROM ev_ticks WHERE event=? ORDER BY ts",
                            (key,)).fetchall()
         streams = {r["vid"]: dict(r) for r in db.execute(
