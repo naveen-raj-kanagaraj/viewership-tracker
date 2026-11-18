@@ -1639,12 +1639,24 @@ def ct_seed():
     added since the start."""
     t0, t1 = ct_midnight(), time.time()
     got = {}
+    # Read in 10-minute slices along the ts index and add up here: one GROUP BY over a day of readings (10M+ rows)
+    # made SQLite sort them on disk for minutes and stalled the scans after a restart (18 Nov 2026).
     try:
-        with store.reading():
-            for sid, game, pk, pa, n, sv in store.conn().execute(
-                    "SELECT sid, game, MAX(viewers), MAX(ts), COUNT(*), SUM(viewers) FROM sc_samples WHERE ts>=? AND ts<? "
-                    "GROUP BY sid, game", (t0, t1)):
-                got[(sid, game)] = [pk or 0, pa or 0, n * SCENE_SEC / 60, (sv or 0) * SCENE_SEC / 3600]
+        a = t0
+        while a < t1:
+            b = min(a + 600, t1)
+            with store.reading():
+                for sid, game, v, ts in store.conn().execute(
+                        "SELECT sid, game, viewers, ts FROM sc_samples WHERE ts>=? AND ts<?", (a, b)):
+                    e = got.get((sid, game))
+                    if e is None:
+                        e = got[(sid, game)] = [0, 0, 0.0, 0.0]
+                    if v > e[0]:
+                        e[0], e[1] = v, ts
+                    e[2] += SCENE_SEC / 60
+                    e[3] += v * SCENE_SEC / 3600
+            a = b
+            time.sleep(0.05)                  # let the scans and pages run in between
     except Exception as e:
         print(f"Central day seed: {str(e)[:120]}")
     day = datetime.fromtimestamp(t1, CT).strftime("%Y-%m-%d")
