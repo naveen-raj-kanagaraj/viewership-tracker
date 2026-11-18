@@ -71,6 +71,8 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const fmt=n=>{n=+n||0;return n>=1e6?(n/1e6).toFixed(n>=1e7?1:2)+'M':n>=1e3?(n/1e3).toFixed(n>=1e4?1:1)+'K':String(Math.round(n))};
 const full=n=>Math.round(+n||0).toLocaleString('en-IN');
 const ist=(t,o)=>new Date(t*1000).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',...o});
+const CZ=location.pathname.startsWith('/india')?{tz:'Asia/Kolkata',lb:'IST',loc:'en-IN'}:{tz:'America/Chicago',lb:'CT',loc:'en-US'};   // share cards: Central Time on worldwide pages, IST on India
+const ctm=(ts,o)=>new Date(ts*1000).toLocaleString(CZ.loc,Object.assign({timeZone:CZ.tz},o));
 const PF={youtube:'YouTube',twitch:'Twitch',kick:'Kick'};
 const LN=new Intl.DisplayNames(['en'],{type:'language'});const lang=l=>{if(!l||l==='unknown')return 'Unknown';try{return LN.of(l.split('-')[0])}catch(e){return l}};
 const dd=s=>s?new Date(s+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'}):'';
@@ -116,10 +118,10 @@ async function card(){const d=D,W=1080,H=1350,cv=document.createElement('canvas'
   x.strokeStyle='rgba(255,255,255,.06)';x.lineWidth=1;for(let k=0;k<=4;k++){const v=mx*k/4,y=Y(v);x.beginPath();x.moveTo(X0,y);x.lineTo(X0+CW,y);x.stroke();T(k?fmt(v):'0',X0+CW+12,y-12,M(22),'#8d8ca3')}
   x.save();x.shadowColor='rgba(182,242,58,.8)';x.shadowBlur=18;x.beginPath();P.forEach((p,i)=>i?x.lineTo(X(p[0]),Y(p[1])):x.moveTo(X(p[0]),Y(p[1])));x.strokeStyle='#b6f23a';x.lineWidth=5;x.stroke();x.restore();
   const pk=P.reduce((a,p)=>p[1]>a[1]?p:a,P[0]);x.beginPath();x.arc(X(pk[0]),Y(pk[1]),11,0,7);x.fillStyle='#ff4d5e';x.fill();
-  for(let k=0;k<5;k++){const t=t0+(t1-t0)*k/4;T(ist(t,{hour:'2-digit',minute:'2-digit',hour12:true}).toLowerCase(),X(t),Y0+CH+16,M(24),'#8d8ca3',k===0?'left':k===4?'right':'center')}}
+  for(let k=0;k<5;k++){const t=t0+(t1-t0)*k/4;T(ctm(t,{hour:'2-digit',minute:'2-digit',hour12:true}).toLowerCase(),X(t),Y0+CH+16,M(24),'#8d8ca3',k===0?'left':k===4?'right':'center')}}
  let ly=1035;T('// BIGGEST CHANNELS (PEAK)',80,ly,M(26),'#ff4d5e');ly+=42;(d.channels||[]).slice(0,3).forEach((c,k)=>{T(`${k+1}. ${String(c.name).toUpperCase()}`.slice(0,30),80,ly,B(34),k?'#eeeef5':'#b6f23a','left',W-420);T(full(c.peak),W-80,ly,B(34),k?'#eeeef5':'#b6f23a','right');ly+=46});
  x.fillStyle='#b6f23a';x.fillRect(0,H-130,W,130);T(('LIVE.LETSGROWESPORTS.COM'+RP).toUpperCase(),80,H-108,B(44),'#0a0a14','left',W-160);
- T(ist(Date.now()/1000,{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true})+' IST // @letsgrowesports',80,H-52,M(24),'#0a0a14');
+ T(ctm(Date.now()/1000,{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true})+' '+CZ.lb+' // @letsgrowesports',80,H-52,M(24),'#0a0a14');
  return new Promise(r=>cv.toBlob(r,'image/png'))}
 document.getElementById('shb').onclick=async()=>{try{await document.fonts.ready}catch(e){}BLOB=await card();document.getElementById('mimg').src=URL.createObjectURL(BLOB);document.getElementById('modal').style.display='flex'};
 document.getElementById('mcl').onclick=()=>document.getElementById('modal').style.display='none';

@@ -491,7 +491,9 @@ def sweep_youtube(game: str, errors: dict) -> list:
     if bad > len(jobs) // 2:                  # YouTube is refusing: rest 5 minutes rather than get blocked
         _SWEEP["yt_cool"] = time.time() + 300
         errors[f"sweep youtube {game}"] = f"{bad}/{len(jobs)} searches failed; resting 5 minutes"
-    out = [s_ for r_ in res if r_ != "err" for s_ in r_]
+    # a "GTA 6 live" search also returns streams of other games (a BGMI stream): keep those whose title names this
+    # game or no game at all (a GTA 6 stream titled "Vice City day 1"), drop ones clearly about another game
+    out = [s_ for r_ in res if r_ != "err" for s_ in r_ if classify("", s_.get("title") or "") in (game, "", "Other")]
     out += _yt_known(game, out)
     _SWEEP["stats"][f"youtube:{game}"] = (time.time(), len(out))
     return out

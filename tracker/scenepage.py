@@ -274,6 +274,8 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const fmt=n=>{n=+n||0;return n>=1e9?(n/1e9).toFixed(2)+'B':n>=1e7?(n/1e6).toFixed(1)+'M':n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e4?(n/1e3).toFixed(1)+'K':Math.round(n).toLocaleString('en-IN')};
 const full=n=>Math.round(+n||0).toLocaleString('en-IN');
 const ist=(ts,o)=>new Date(ts*1000).toLocaleString('en-IN',Object.assign({timeZone:'Asia/Kolkata'},o));
+const CZ=location.pathname.startsWith('/india')?{tz:'Asia/Kolkata',lb:'IST',loc:'en-IN'}:{tz:'America/Chicago',lb:'CT',loc:'en-US'};   // share cards: Central Time on worldwide pages, IST on India
+const ctm=(ts,o)=>new Date(ts*1000).toLocaleString(CZ.loc,Object.assign({timeZone:CZ.tz},o));
 const when=ts=>ts?ist(ts,{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})+' IST':'';
 const ago=ts=>{const s=Date.now()/1000-ts;return s<120?'just now':s<3600?Math.round(s/60)+' min ago':s<86400?Math.round(s/3600)+' h ago':Math.round(s/86400)+' d ago'};
 const CU=sl=>RP+'/c/'+sl,SU=k=>RP+'/s/'+k,HOME=GL?'/global':'/india';
@@ -484,7 +486,7 @@ function plot(x,W,H,S,fs){const pl=8*fs,pr=58*fs,pt=14*fs,pb=24*fs;
  if(S.length<2){x.fillText('The chart fills in as readings come in (one every 2 minutes).',pl,H/2);return}
  const t0=S[0][0],t1=S[S.length-1][0],mx=Math.max(...S.map(p=>p[1]))*1.12||1,X=t=>pl+(W-pl-pr)*(t-t0)/((t1-t0)||1),Y=v=>pt+(H-pt-pb)*(1-v/mx);
  x.strokeStyle='#262636';x.lineWidth=1;for(let i=0;i<=4;i++){const y=pt+(H-pt-pb)*i/4;x.beginPath();x.moveTo(pl,y);x.lineTo(W-pr,y);x.stroke();x.fillText(fmt(mx*(1-i/4)),W-pr+6*fs,y+4*fs)}
- const span=t1-t0,nt=W<500?2:4;for(let i=0;i<=nt;i++){const t=t0+span*i/nt;x.textAlign=i===0?'left':i===nt?'right':'center';x.fillText(span>2*86400?ist(t,{day:'numeric',month:'short'}):ist(t,{hour:'numeric',minute:'2-digit'}),X(t),H-6*fs)}x.textAlign='left';
+ const span=t1-t0,nt=W<500?2:4;for(let i=0;i<=nt;i++){const t=t0+span*i/nt;x.textAlign=i===0?'left':i===nt?'right':'center';const tz=fs>1?ctm:ist;x.fillText(span>2*86400?tz(t,{day:'numeric',month:'short'}):tz(t,{hour:'numeric',minute:'2-digit'}),X(t),H-6*fs)}x.textAlign='left';
  const g=x.createLinearGradient(0,pt,0,H-pb);g.addColorStop(0,'rgba(182,242,58,.28)');g.addColorStop(1,'rgba(182,242,58,0)');
  x.beginPath();S.forEach((p,i)=>i?x.lineTo(X(p[0]),Y(p[1])):x.moveTo(X(p[0]),Y(p[1])));x.lineTo(X(t1),H-pb);x.lineTo(X(t0),H-pb);x.closePath();x.fillStyle=g;x.fill();
  x.beginPath();S.forEach((p,i)=>i?x.lineTo(X(p[0]),Y(p[1])):x.moveTo(X(p[0]),Y(p[1])));x.strokeStyle='#b6f23a';x.lineWidth=2.2*fs;x.shadowColor='rgba(182,242,58,.6)';x.shadowBlur=10*fs;x.stroke();x.shadowBlur=0;
@@ -499,7 +501,7 @@ function base(title,sub){const c=document.createElement('canvas');c.width=2160;c
  x.fillStyle='#ffffff';x.font='700 64px "Barlow Condensed",sans-serif';x.fillText(title.slice(0,28),72,170);const WM='For more: '+(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\\./,'')+RP;x.font='600 22px "Barlow Condensed",sans-serif';const wmW=x.measureText(WM).width+28;x.textAlign='right';x.fillStyle='#a9a8be';x.fillText(WM,1008,218);x.textAlign='left';
  x.fillStyle='#8d8ca3';x.font='28px "Barlow Condensed",sans-serif';x.fillText(fitText(x,sub,936-wmW),72,218);
  x.fillStyle='#262636';x.fillRect(72,250,936,2);x.fillStyle='#8d8ca3';x.font='26px "Barlow Condensed",sans-serif';x.fillText(PAGEURL.replace('https://',''),72,1290);
- x.textAlign='right';x.fillText(ist(Date.now()/1000,{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})+' IST',1008,1290);x.textAlign='left';return [c,x]}
+ x.textAlign='right';x.fillText(ctm(Date.now()/1000,{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})+' '+CZ.lb,1008,1290);x.textAlign='left';return [c,x]}
 function listRows(x,R,avs){R.slice(0,10).forEach((r,i)=>{const y=290+i*96;x.fillStyle=i<3?'#b6f23a':'#8d8ca3';x.font='700 34px "Barlow Condensed",sans-serif';x.fillText(String(i+1).padStart(2,'0'),72,y+46);
   const im=avs&&avs[i];let tx=150;if(im){x.save();x.beginPath();x.arc(178,y+34,28,0,7);x.clip();x.drawImage(im,150,y+6,56,56);x.restore();tx=226}
   x.fillStyle='#ffffff';x.font='700 34px "Barlow",sans-serif';let n=r.name;while(x.measureText(n).width>560-(tx-150)&&n.length>3)n=n.slice(0,-2);if(n!==r.name)n+='…';x.fillText(n,tx,y+32);
@@ -575,8 +577,8 @@ async function card(type){let c,x,text;const sc=SCOPE(),K=D.kpis||{};
   const Bh=(D.board||[]).slice().sort((a,b)=>b.hw-a.hw).slice(0,3).map(b=>({name:b.name,sub:fmt(b.hw)+'h · '+(NAMES[b.platform]||''),logo:b.logo,platform:b.platform}));
   const lead=K.peak_lead;
   [c,x]=await statCard({title:CAT?CATNAME:SEC?SECNAME[SEC]:'Live streaming',sub:(GL?'Worldwide':'India')+' · YouTube, Kick and Twitch',
-   pill:['LIVE VIEWERSHIP',ist(Date.now()/1000,{day:'numeric',month:'short',year:'numeric'}).toUpperCase()],
-   peak:K.peak_today,peakSub:(K.peak_today_at?'TODAY AT '+ist(K.peak_today_at,{hour:'numeric',minute:'2-digit'}).toUpperCase()+' IST':'TODAY')+(lead?' · LED BY '+lead.name.toUpperCase():''),
+   pill:['LIVE VIEWERSHIP',ctm(Date.now()/1000,{day:'numeric',month:'short',year:'numeric'}).toUpperCase()],
+   peak:K.peak_today,peakSub:(K.peak_today_at?'TODAY AT '+ctm(K.peak_today_at,{hour:'numeric',minute:'2-digit'}).toUpperCase()+' '+CZ.lb:'TODAY')+(lead?' · LED BY '+lead.name.toUpperCase():''),
    now:K.watching,
    rows:[['avg','AVERAGE VIEWERS',full(K.avg_today!=null?K.avg_today:K.hw_today/Math.max(1,(Date.now()/1000-((D.daily||[]).length?new Date(D.daily[D.daily.length-1].day+'T00:00:00+05:30').getTime()/1000:Date.now()/1000-3600))/3600))],['hw','HOURS WATCHED',full(K.hw_today)],['air','AIR TIME',hmTxt(K.air_today!=null?K.air_today:per==='today'?(D.board||[]).reduce((a,b)=>a+(b.airtime_h||0),0):0)]],
    a:{label:esp?'TOURNAMENTS LIVE NOW':'TOP CHANNELS BY PEAK VIEWERS',rows:A},
