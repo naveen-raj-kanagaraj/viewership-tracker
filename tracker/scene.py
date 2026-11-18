@@ -2551,7 +2551,9 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
     period = period if period in PERIODS else "today"
     region, sec = _region(region), _sec(sec)
     game = category_name(cat) if cat else None
+    T = [("start", time.time())]
     lv = _live_part(game, region, sec)
+    T.append(("live", time.time()))
     blk, live = lv["_blk"], lv["_live"]
     today = datetime.now(events.REPORT_TZ).date()
     # "today" is the last 24 hours on every page and card (owner, 19 Nov: a calendar day starting at midnight showed
@@ -2582,23 +2584,34 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
             q += " AND COALESCE(c.india, 1)=1" if region == "in" else ""
             rows = c.execute(q + (" AND d.game = ?" if game else "") + " GROUP BY d.sid, d.game",
                              (d0, game) if game else (d0,)).fetchall()
+        T.append(("daily_rows", time.time()))
         series = _series_any(c, tbl, w, a, key, period)
+        T.append(("series", time.time()))
         daily = _daily(c, tbl, w, a, key)
+        T.append(("daily", time.time()))
         p0 = time.time() - 86400 if period == "today" else \
             datetime.combine(today - timedelta(days=PERIODS[period]), datetime.min.time(), events.REPORT_TZ).timestamp()
         rt, rw, ra = _totals_sql(region)
         scans = c.execute(f"SELECT COUNT(*) FROM {rt} WHERE game=? AND ts>=?{rw}", (ALL, p0, *ra)).fetchone()[0] or 0
+        T.append(("scans", time.time()))
         cstats = c.execute(f"SELECT game, SUM(viewers) s, MAX(viewers) pk FROM {rt} WHERE ts>=? AND game!=?{rw} GROUP BY game",
                            (p0, ALL, *ra)).fetchall()
+        T.append(("cstats", time.time()))
         tracked = c.execute("SELECT COUNT(*) FROM sc_channels" + (" WHERE COALESCE(india,1)=1" if region == "in" else "")
                             ).fetchone()[0]
         pk = c.execute(f"SELECT ts, viewers FROM {tbl} WHERE game=? AND ts>=?{w} ORDER BY viewers DESC LIMIT 1",
                        (key, time.time() - SERIES_SEC[period], *a)).fetchone()
+        T.append(("tracked_pk", time.time()))
         pk_all = c.execute(f"SELECT ts, viewers FROM {tbl} WHERE game=?{w} ORDER BY viewers DESC LIMIT 1", (key, *a)).fetchone()
+        T.append(("pk_all", time.time()))
         tour_day = [{"name": r[0], "tslug": slug(r[0]), "named": named_tour(r[0]), "peak": r[1], "at": r[2]} for r in c.execute(
             "SELECT game, MAX(viewers), ts FROM sc_reg WHERE region=? AND ts>=? GROUP BY game ORDER BY MAX(viewers) DESC LIMIT 20",
             (f"tour:{region}", p0))]
+        T.append(("tours", time.time()))
         kp = _kpis(c, region, sec, game, lv, ct=ctday)
+        T.append(("kpis", time.time()))
+    if T[-1][1] - T[0][1] > 5:                # which step is slow (19 Nov: 20-40 s builds)
+        print("Slow scene.data " + f"{region}:{sec}:{game}:{period} " + " ".join(f"{n}={b - a_:.1f}" for (_, a_), (n, b) in zip(T, T[1:])))
     ch, games = {}, {}
     for r in rows:
         if r["sid"] in blk or (sec and sec != "esports" and section_of(r["game"]) != sec):
