@@ -2579,6 +2579,8 @@ def live_data(cat: str = "", region: str = "in", sec: str = "") -> dict:
 
 _DR = {}
 _DRL = threading.Lock()
+_CS = {}
+_CSL = threading.Lock()
 
 
 def _day_rows(c, d0: str, region: str, game):
@@ -2648,8 +2650,22 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
         rt, rw, ra = _totals_sql(region)
         scans = c.execute(f"SELECT COUNT(*) FROM {rt} WHERE game=? AND ts>=?{rw}", (ALL, p0, *ra)).fetchone()[0] or 0
         T.append(("scans", time.time()))
-        cstats = c.execute(f"SELECT game, SUM(viewers) s, MAX(viewers) pk FROM {rt} WHERE ts>=? AND game!=?{rw} GROUP BY game",
-                           (p0, ALL, *ra)).fetchall()
+        ck = (region, period, _SCANMEM.get("ts"))   # same for every section and game of a region: once per scan
+        hit = _CS.get(ck)
+        if hit and time.time() - hit[0] < 300:
+            cstats = hit[1]
+        else:
+            with _CSL:
+                hit = _CS.get(ck)
+                if hit and time.time() - hit[0] < 300:
+                    cstats = hit[1]
+                else:
+                    cstats = [dict(r) for r in c.execute(
+                        f"SELECT game, SUM(viewers) s, MAX(viewers) pk FROM {rt} WHERE ts>=? AND game!=?{rw} GROUP BY game",
+                        (p0, ALL, *ra))]
+                    for kk in [kk for kk, v in _CS.items() if time.time() - v[0] > 900]:
+                        _CS.pop(kk, None)
+                    _CS[ck] = (time.time(), cstats)
         T.append(("cstats", time.time()))
         tracked = c.execute("SELECT COUNT(*) FROM sc_channels" + (" WHERE COALESCE(india,1)=1" if region == "in" else "")
                             ).fetchone()[0]
