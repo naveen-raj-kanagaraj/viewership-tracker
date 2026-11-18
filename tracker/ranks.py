@@ -289,7 +289,8 @@ def _keep(r, metric):
 
 def top(platform: str = "youtube", metric: str = "size", country: str = "", category: str = "", limit: int = 100, game: str = "") -> dict:
     from tracker import scene
-    by_game = bool(game) and metric.split("_")[0] in ("peak", "avg", "live")
+    by_game = bool(game) and metric.split("_")[0] in ("peak", "avg", "live") and \
+        any("games_live" in r for r in list(_R["rows"].values())[:50])    # rows from before this field: old filter
     with _lock:
         if by_game:                           # live metrics with a game: what each channel did while streaming it
             rows = []
