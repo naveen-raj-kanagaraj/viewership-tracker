@@ -190,6 +190,12 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 18 Nov 2026 (5): per-game channel rankings no longer precomputed (that made ranks.compute build a dict per channel
+  per game for millions of sc_daily rows, and it never finished on the server): ranks.game_live(game) reads only that
+  game's sc_daily rows (index sc_daily_game) when a game is chosen, cached 10 min (~0.8 s cold on the 270K-row test
+  DB). web._memo: rebuilds started by the background warm-up (header X-Warm: 1) go to _WARM_POOL (3) and are skipped
+  when 20 are queued; visitors' rebuilds use _SLOW_POOL (4), so a visitor's page is never hours old (a rankings answer
+  was 5 h stale behind the warm-up queue).
 - 18 Nov 2026 (4): channel rankings with a game chosen and a live metric (peak/avg/hours) rank each channel by what it
   did while streaming that game (ranks rows carry games_live from sc_daily per game, gaming/esports games only);
   before, the game filter used the channel's main game of the week, so GamerFleet (90K in GTA 6, mostly GTA V that
