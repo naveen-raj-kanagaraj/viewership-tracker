@@ -67,7 +67,7 @@ canvas.mob{display:none}@media(max-width:700px){canvas.mob{display:block;margin-
 <script>const G6=__G6__;
 const RP=__RPJ__,REGION=__REGION__,SECN=__SECN__;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const full=n=>Math.round(+n||0).toLocaleString('en-IN');
+const full=n=>Math.round(+n||0).toLocaleString(location.pathname.startsWith('/india')?'en-IN':'en-US');   // worldwide pages: 7,079,086; India: 70,79,086
 const CZ=location.pathname.startsWith('/india')?{tz:'Asia/Kolkata',lb:'IST',loc:'en-IN'}:{tz:'America/Chicago',lb:'CT',loc:'en-US'};   // share cards: Central Time on worldwide pages, IST on India
 const ctm=(ts,o)=>new Date(ts*1000).toLocaleString(CZ.loc,Object.assign({timeZone:CZ.tz},o));
 const PAL=[['#b6f23a','#5fb31f'],['#a58bff','#6b4fe0'],['#4cc9f0','#2a7fd4'],['#ffd23f','#f08c00'],['#ff8a9a','#e0405a'],['#53fc18','#1fae5b'],['#ff9f5a','#e0602a']];

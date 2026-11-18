@@ -190,6 +190,8 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 18 Nov 2026 (9): worldwide pages and cards write numbers the US way (7,079,086); India keeps 70,79,086 (full() in
+  each page picks en-US / en-IN from the address). Tournament trackers stay en-IN.
 - 18 Nov 2026 (8): worldwide "today" (overview, sections, game pages, their share cards) is the US Central day:
   scene keeps an in-memory rollup per (channel, game) since Central midnight (_CTD, updated in _store, rebuilt from
   sc_samples by ct_seed at start; data()/_kpis use it when region=global and period=today). India keeps the IST day.

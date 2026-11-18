@@ -96,7 +96,7 @@ const EMBED=__EMBED__;
 const COL={youtube:'#ff4d5e',kick:'#53fc18',twitch:'#a970ff'},RANKC=['#ffd23f','#d9dde8','#ff9f5a'];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>{n=+n||0;return n>=1e9?(n/1e9).toFixed(2)+'B':n>=1e7?(n/1e6).toFixed(1)+'M':n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e4?(n/1e3).toFixed(1)+'K':Math.round(n).toLocaleString('en-IN')};
-const full=n=>Math.round(+n||0).toLocaleString('en-IN');
+const full=n=>Math.round(+n||0).toLocaleString(location.pathname.startsWith('/india')?'en-IN':'en-US');   // worldwide pages: 7,079,086; India: 70,79,086
 const ini=s=>esc(String(s||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase()||'?');
 const av=x=>`<span class="av">${x.logo?`<img src="${esc(x.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=ph>${ini(x.name)}</span>'">`:`<span class="ph">${ini(x.name)}</span>`}</span>`;
 const cv=document.getElementById('gl'),ctx=cv.getContext('2d'),tip=document.getElementById('tip'),TOUCH=window.matchMedia('(hover:none)').matches;
