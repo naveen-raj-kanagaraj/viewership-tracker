@@ -193,7 +193,8 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 - 18 Nov 2026 (4): channel rankings with a game chosen and a live metric (peak/avg/hours) rank each channel by what it
   did while streaming that game (ranks rows carry games_live from sc_daily per game, gaming/esports games only);
   before, the game filter used the channel's main game of the week, so GamerFleet (90K in GTA 6, mostly GTA V that
-  week) was left out of GTA 6. The game list includes every game a channel streamed. tests/test_rank_game.py.
+  week) was left out of GTA 6. The game list includes every game a channel streamed. Owner rule: one stream of a game
+  is enough to be in that game's list, for every metric (views, subscribers ... too). tests/test_rank_game.py.
 - 18 Nov 2026 (3): GTA 6 launch audit vs YouTube's live search. Live counts matched (Mythpat 43K/44K, Carry 79K/82K,
   Speed 274K/265K) but streams read without a title (YouTube's Live page, live counter) were filed under Other: Kai
   Cenat Live (~115K) and TheBurntPeanut (~116K) were missing from GTA 6. Now _yt_add never wipes a known title

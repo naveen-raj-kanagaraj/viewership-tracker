@@ -301,7 +301,9 @@ def top(platform: str = "youtube", metric: str = "size", country: str = "", cate
         else:
             rows = [r for r in _R["rows"].values() if r["platform"] == platform and _keep(r, metric)
                     and (not country or r["country"] == country) and (not category or r["category"] == category)
-                    and (not game or r["game"] == game)]
+                    and (not game or r["game"] == game or game in (r.get("games_live") or {}))]
+            if game:                          # one stream of the game is enough to be in its list (owner, 18 Nov)
+                rows = [{**r, "game": game} for r in rows]
         cats = sorted({r["category"] for r in _R["rows"].values() if r["platform"] == platform and r["category"]}, key=str.lower)
         ctrs = sorted({(r["country"], r["country_name"]) for r in _R["rows"].values() if r["platform"] == platform and r["country"]},
                       key=lambda x: x[1])

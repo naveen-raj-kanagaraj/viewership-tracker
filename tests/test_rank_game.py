@@ -27,3 +27,10 @@ a = ranks.top("youtube", "avg_7d", game="GTA 6")
 assert {r["name"]: r["avg_7d"] for r in a["rows"]}["GamerFleet"] == round(131778 * 60 / 156)
 assert ranks.top("youtube", "peak_7d")["rows"][0]["peak_7d"] == 200000                      # no game: every game
 print("RANK BY GAME OK")
+c.executemany("INSERT INTO sc_chstats VALUES (?,?,?,?,?,?)", [(D(0), "yt:gf", 21000000, 3000000000, 1000, 0),
+              (D(0), "yt:my", 15000000, 2000000000, 900, 0)])
+c.execute("UPDATE sc_daily SET hw=hw*10 WHERE sid='yt:gf' AND game='GTA V'")        # most of his week: GTA V
+c.commit(); ranks.compute()
+v = ranks.top("youtube", "size", game="GTA 6")              # non-live metrics too: one GTA 6 stream is enough
+assert {r["name"] for r in v["rows"]} >= {"GamerFleet", "Mythpat"}, [r["name"] for r in v["rows"]]
+print("ANY STREAM OF THE GAME OK")
