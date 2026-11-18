@@ -190,7 +190,7 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
-- 19 Nov speed (2): the step log showed live=7-12 s and daily_rows=16 s per scene.data build, repeated by every page and section. Now `_live_base(region)` (everyone live, 2-second viewers) is built once per 2 s for all pages, and `_day_rows` (2-day per-channel rows without a game) once per scan; pages only filter them.
+- 19 Nov speed (2): the step log showed live=7-12 s and daily_rows=16 s per scene.data build, repeated by every page and section. Now `_live_base(region)` (everyone live, 2-second viewers) is built once per 2 s for all pages, and `_day_rows` (2-day per-channel rows without a game) once per scan; per-category 24h/7d/30d stats (`_CS`, 4-15 s: sc_reg has no ts-first index) once per scan per region and period. Pages only filter them.
 
 - 19 Nov speed: /api/scene (overview/section/game data) took 20-40 s to build and was not saved across restarts, so pages showed blanks after every deploy. Now page data (memo ttl 10-29 s) is saved every minute to memo_cache.pkl.live and served up to 30 min old while it rebuilds; 2-second answers have their own pool (_FAST_POOL); dataexport reads no longer hold the write lock (held it 44 s). scene.data logs "Slow scene.data ... step=seconds" when a build takes over 5 s: use it to find the slow query.
 
