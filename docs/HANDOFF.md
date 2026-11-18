@@ -190,6 +190,9 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 18 Nov 2026 (11): _store wrote every live channel to sc_channels every scan (100K+ on GTA 6 day: "Slow write lock:
+  62 s held by _store"). Now only new/changed channels, plus last_live every 10 min (_CHSIG). sc_daily can be buffered
+  (_DBUF, SCENE_DAILY_FLUSH seconds; default 0 = every scan) if writes are still slow.
 - 18 Nov 2026 (10): scene.ct_seed reads sc_samples in 10-minute slices and adds up in Python (a single GROUP BY over a
   day of readings sorted 10M+ rows on disk and coincided with scans stalling after the restart).
 - 18 Nov 2026 (9): worldwide pages and cards write numbers the US way (7,079,086); India keeps 70,79,086 (full() in

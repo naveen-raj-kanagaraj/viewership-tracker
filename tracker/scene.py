@@ -1681,6 +1681,21 @@ def ct_rows(game=None) -> list:
     return [(k[0], k[1], *v) for k, v in list(_CTD["m"].items()) if not game or k[1] == game]
 
 
+_CHSIG = {}          # sid -> (what was last written to sc_channels, when)
+_DBUF = {}           # sc_daily rows added up in memory between writes
+DAILY_FLUSH = int(os.getenv("SCENE_DAILY_FLUSH", "0"))     # 0 = every scan (boards stay live); raise if writes get slow
+
+
+def _flush_daily(c):
+    """Write the buffered daily totals (caller holds the write lock)."""
+    buf = _DBUF.pop("rows", {})
+    if buf:
+        c.executemany("""INSERT INTO sc_daily VALUES (?,?,?,?,?,?,?) ON CONFLICT(day, sid, game) DO UPDATE SET
+                         peak_at=CASE WHEN excluded.peak > sc_daily.peak THEN excluded.peak_at ELSE sc_daily.peak_at END,
+                         peak=MAX(sc_daily.peak, excluded.peak), mins=sc_daily.mins+excluded.mins, hw=sc_daily.hw+excluded.hw""",
+                      [(k[0], k[1], k[2], *v) for k, v in buf.items()])
+
+
 def _store(rows, now, last):
     if not rows:
         return
@@ -1699,20 +1714,42 @@ def _store(rows, now, last):
         sw = set(sweep_games())               # a launch game's thousands of tiny streams: counted everywhere (totals, daily
         c.executemany("INSERT INTO sc_samples VALUES (?,?,?,?)",          # peaks, live lists) but not kept scan by scan
                       [(int(now), x["sid"], x["viewers"], x["game"]) for x in rows if x["viewers"] >= SAMPLE_MIN or x["game"] not in sw])
+        # Channels: only new or changed ones are written, plus everyone's last_live every 10 minutes (with 100,000+
+        # live streams on GTA 6 launch day, rewriting every channel every scan held the write lock for a minute).
+        chg = []
+        for x in rows:
+            sig = (x["name"], x["url"], x.get("logo") or "", x.get("title", ""), x["game"], x.get("country"),
+                   1 if x.get("india", True) else 0, x.get("language") or "")
+            old_ = _CHSIG.get(x["sid"])
+            if old_ is None or old_[0] != sig or now - old_[1] >= 600:
+                chg.append((x["sid"], x["platform"], x["name"], x["url"], x.get("logo") or "", now, now, x.get("title", ""),
+                            x["game"], x.get("country"), 1 if x.get("india", True) else 0, x.get("language") or ""))
+                _CHSIG[x["sid"]] = (sig, now)
+        if len(_CHSIG) > 400000:
+            _CHSIG.clear()
         c.executemany("""INSERT INTO sc_channels (sid, platform, name, url, logo, first_seen, last_live, title, game,
                          country, india, language) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(sid) DO UPDATE SET
                          name=excluded.name, url=excluded.url,
                          logo=CASE WHEN excluded.logo!='' THEN excluded.logo ELSE sc_channels.logo END,
                          last_live=excluded.last_live, title=excluded.title, game=excluded.game,
                          country=COALESCE(excluded.country, sc_channels.country), india=excluded.india,
-                         language=excluded.language""",
-                      [(x["sid"], x["platform"], x["name"], x["url"], x.get("logo") or "", now, now, x.get("title", ""),
-                        x["game"], x.get("country"), 1 if x.get("india", True) else 0, x.get("language") or "") for x in rows])
-        c.executemany("""INSERT INTO sc_daily VALUES (?,?,?,?,?,?,?) ON CONFLICT(day, sid, game) DO UPDATE SET
-                         peak_at=CASE WHEN excluded.peak > sc_daily.peak THEN excluded.peak_at ELSE sc_daily.peak_at END,
-                         peak=MAX(sc_daily.peak, excluded.peak), mins=sc_daily.mins+excluded.mins, hw=sc_daily.hw+excluded.hw""",
-                      [(day, x["sid"], x["game"], max(x["viewers"], fpk.get(x["sid"], 0)), int(now), dt / 60,
-                        x["viewers"] * dt / 3600) for x in rows])
+                         language=excluded.language""", chg)
+        # Daily totals: added up in memory and written every DAILY_FLUSH seconds (and at the day's change)
+        buf = _DBUF.setdefault("rows", {})
+        for x in rows:
+            k = (day, x["sid"], x["game"])
+            pk = max(x["viewers"], fpk.get(x["sid"], 0))
+            e = buf.get(k)
+            if e is None:
+                buf[k] = [pk, int(now), dt / 60, x["viewers"] * dt / 3600]
+            else:
+                if pk > e[0]:
+                    e[0], e[1] = pk, int(now)
+                e[2] += dt / 60
+                e[3] += x["viewers"] * dt / 3600
+        if now - _DBUF.get("at", 0) >= DAILY_FLUSH or _DBUF.get("day") not in (None, day):
+            _flush_daily(c)
+            _DBUF.update(at=now, day=day)
         for x in rows:                        # each YouTube stream on its own: peak CCV, hours watched, duration
             if not x["sid"].startswith("yt:"):
                 continue
