@@ -849,7 +849,7 @@ def api_topch():
     """Top channels: /api/topch?platform=youtube|twitch|kick&metric=size|views|vday|v7|growth|live&country=IN&category=Gaming&game=BGMI"""
     from tracker import ranks
     g = request.args.get
-    plat = g("platform", "youtube") if g("platform") in ("youtube", "twitch", "kick") else "youtube"
+    plat = g("platform", "youtube") if g("platform") in ("youtube", "twitch", "kick", "all") else "youtube"
     metric = g("metric", "size") if g("metric") in ranks.METRICS + ranks.PMETRICS else "size"
     country = (g("country") or "")[:2].upper()
     category, game = (g("category") or "")[:40], (g("game") or "")[:60]

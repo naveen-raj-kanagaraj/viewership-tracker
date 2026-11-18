@@ -190,6 +190,10 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 18 Nov 2026 (7): rankings default to ALL PLATFORMS by PEAK LIVE (platform=all in /api/topch and ranks.top: YouTube,
+  Twitch and Kick in one list for peak / average / hours watched; categories hidden). Share has a range picker
+  (#srange: 1-10, 11-20 ... up to 100) for post and story; ranges after the first are ten rows without the podium.
+  tests/test_rank_all.py. tests/test_vstreams.py fails around IST midnight (its samples straddle the day): known.
 - 18 Nov 2026 (6): rankings page is one list (owner): the Channels/Live streamers toggle is gone; old ?mode=live links
   map to the channel list (hw->HOURS WATCHED, peak, avg; day->24h, week->7d, month->30d; cat slug -> game). Rows show
   "LIVE n" when the channel is live now (ranks._now_live from scene._LIVE). The game picker is a type-to-search box
