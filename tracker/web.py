@@ -230,7 +230,15 @@ def _html(build):
 
 from concurrent.futures import ThreadPoolExecutor as _TPE
 _LIVE_POOL = _TPE(max_workers=6, thread_name_prefix="memo-live")
-_SLOW_POOL = _TPE(max_workers=4, thread_name_prefix="memo-slow")
+_SLOW_POOL = _TPE(max_workers=4, thread_name_prefix="memo-slow")      # pages visitors asked for
+_WARM_POOL = _TPE(max_workers=3, thread_name_prefix="memo-warm")      # the background warm-up
+
+
+def _is_warm() -> bool:
+    try:
+        return request.headers.get("X-Warm") == "1"
+    except Exception:
+        return False
 
 
 def _memo(key, ttl, build, mimetype):
@@ -244,7 +252,10 @@ def _memo(key, ttl, build, mimetype):
     stale_max = _STALE_MAX if ttl < 30 else _STALE_LONG
     if hit and now - hit[0] >= ttl and now - hit[0] < stale_max:
         lock = _MLOCK.setdefault(key, threading.Lock())
-        if lock.acquire(blocking=False):
+        warm = _is_warm()
+        if warm and _WARM_POOL._work_queue.qsize() > 20:
+            pass                              # the warm-up is behind: don't pile up more (visitors' rebuilds go first)
+        elif lock.acquire(blocking=False):
             def bg():
                 try:
                     _memo_build(key, build)
@@ -255,7 +266,9 @@ def _memo(key, ttl, build, mimetype):
             # Bounded pools: after a restart every cached page is stale at once, and one thread per page (hundreds)
             # made every build take minutes (420 s), freezing live pages like the CEGC tracker. Live answers have
             # their own pool so they never queue behind channel pages.
-            (_LIVE_POOL if ttl < 30 else _SLOW_POOL).submit(bg)
+            # Pages a visitor asked for and the background warm-up have separate pools, so a long warm-up queue
+            # (hundreds of channel pages) never leaves a visitor's page hours old.
+            (_LIVE_POOL if ttl < 30 else _WARM_POOL if warm else _SLOW_POOL).submit(bg)
     elif not hit or now - hit[0] >= ttl:
         lock = _MLOCK.setdefault(key, threading.Lock())
         with lock:
@@ -1297,7 +1310,7 @@ def _warm_more():
     from tracker import scene
     time.sleep(90)
     c = app.test_client()
-    H = {"Accept-Encoding": "gzip"}
+    H = {"Accept-Encoding": "gzip", "X-Warm": "1"}
     while True:
         t0 = time.time()
         try:
@@ -1334,7 +1347,7 @@ def _warm_forever():
     while True:
         for u in WARM:
             try:
-                c.get(u, headers={"Accept-Encoding": "gzip"})
+                c.get(u, headers={"Accept-Encoding": "gzip", "X-Warm": "1"})
             except Exception:
                 pass
         time.sleep(10)
