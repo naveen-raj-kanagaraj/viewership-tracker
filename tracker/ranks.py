@@ -305,6 +305,29 @@ def game_live(game: str) -> dict:
     hit = _GL.get(game)
     if hit and time.time() - hit[0] < 600:
         return hit[1]
+    if hit:                                   # expired: answer with the last one, refresh once in the background
+        if not _GLB.get(game):
+            _GLB[game] = True
+            threading.Thread(target=_gl_refresh, args=(game,), daemon=True).start()
+        return hit[1]
+    with _GLL.setdefault(game, threading.Lock()):  # first build: one thread builds, the others wait for it
+        hit = _GL.get(game)
+        if hit:
+            return hit[1]
+        return _gl_build(game)
+
+
+_GLB, _GLL = {}, {}
+
+
+def _gl_refresh(game):
+    try:
+        _gl_build(game)
+    finally:
+        _GLB[game] = False
+
+
+def _gl_build(game: str) -> dict:
     from tracker import scene
     today = datetime.now(events.REPORT_TZ).date()
     pcols = [p for p in PERIODS if p != "all"]

@@ -3787,3 +3787,9 @@ def top(period: str = "today", n: int = 20) -> str:
             f"{events.fmt_n(x['hw'])}h / {events.fmt_n(x['peak'])} / {events.fmt_n(x['avg'])}"
             for i, x in enumerate(d["board"][:n])]
     return "\n".join(out)
+
+
+# Changes whenever the rules for who is listed change, so saved ranking answers made under older rules are never shown.
+import hashlib as _hl
+RULES_V = _hl.md5(repr((sorted((k, sorted(v)) for k, v in GAME_NOT.items()), sorted(NAME_BLOCK), _NEWSNAME.pattern,
+                        _G6NEWS.pattern, _G6NOT.pattern, _G6PLAY.pattern)).encode()).hexdigest()[:8]
