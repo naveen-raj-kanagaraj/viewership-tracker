@@ -1147,7 +1147,8 @@ def name_blocked(name) -> bool:
 
 
 # Channels the owner checked did not play a game, kept out of that game's lists only (19 Nov: Willy Gaming, GTA 6).
-GAME_NOT = {"GTA 6": {"willygaming"}}
+GAME_NOT = {"GTA 6": {"willygaming", "vizagpropertyfinder", "arpitachoudhury", "omstudiocreation", "ajaykhutail",
+                      "crushziytgaming", "asaddangerlive"}}   # owner, 19 Nov: not GTA 6 streamers (copied titles, fake "launch day live")
 
 
 def not_in_game(name, game, sid: str = "") -> bool:
