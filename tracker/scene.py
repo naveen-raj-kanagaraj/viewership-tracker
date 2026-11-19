@@ -1087,6 +1087,11 @@ def is_gaming(game: str) -> bool:
 
 
 _G6RX = re.compile(r"\bgta ?(vi|6)\b|grand theft auto (vi|6)\b")
+# Titles that only talk about GTA 6 while playing something else (19 Nov: Indian channels in the GTA 6 list that never
+# played it). Only for titles: a platform category of GTA VI always counts.
+_G6NOT = re.compile(r"\b(waiting|wait for|countdown|trailer|react|reaction|reacting|leaks?|news|rumou?rs?|before|until|till|"
+                    r"tomorrow|soon|coming|days? (left|to go)|hours? (left|to go)|release date|price|preload|pre-?order|"
+                    r"giveaway|predictions?|vs)\b")
 
 
 def classify(category: str, title: str) -> str:
@@ -1101,6 +1106,8 @@ def classify(category: str, title: str) -> str:
         if g in _hidden():
             continue                        # "GTA 6 soon" titles before release are GTA V
         if any(w in t for w in words) or (g == "GTA 6" and _G6RX.search(t)):   # "GTA VI🌴": an emoji right after
+            if g == "GTA 6" and _G6NOT.search(t):  # talking about GTA 6, not playing it
+                return "GTA V" if re.search(r"\bgta ?(v|5)\b|\brp\b|roleplay|soul ?city", t) else "Other"
             return g
     return "Other"
 
@@ -1128,6 +1135,14 @@ NAME_BLOCK = {"dinoprasad"}
 
 def name_blocked(name) -> bool:
     return re.sub(r"[^a-z0-9]", "", (name or "").lower()) in NAME_BLOCK
+
+
+# Channels the owner checked did not play a game, kept out of that game's lists only (19 Nov: Willy Gaming, GTA 6).
+GAME_NOT = {"GTA 6": {"willygaming"}}
+
+
+def not_in_game(name, game) -> bool:
+    return bool(game) and re.sub(r"[^a-z0-9]", "", (name or "").lower()) in GAME_NOT.get(game, ())
 
 
 # ---------- YouTube ----------
@@ -2694,7 +2709,8 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
         print("Slow scene.data " + f"{region}:{sec}:{game}:{period} " + " ".join(f"{n}={b - a_:.1f}" for (_, a_), (n, b) in zip(T, T[1:])))
     ch, games = {}, {}
     for r in rows:
-        if r["sid"] in blk or name_blocked(r["name"]) or (sec and sec != "esports" and section_of(r["game"]) != sec):
+        if r["sid"] in blk or name_blocked(r["name"]) or not_in_game(r["name"], r["game"]) \
+                or (sec and sec != "esports" and section_of(r["game"]) != sec):
             continue
         x = ch.setdefault(r["sid"], {"sid": r["sid"], "name": r["name"] or r["sid"], "platform": r["platform"] or "",
                                       "url": r["url"] or "", "logo": _logo({"sid": r["sid"], "logo": r["logo"]}),
