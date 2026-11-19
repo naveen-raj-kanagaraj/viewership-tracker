@@ -490,7 +490,8 @@ def api_tour():
 def api_sweep():
     """Launch sweep status: which games are swept and how many streams each source found (no secrets)."""
     from tracker import scene
-    return _json(scene.sweep_status())
+    return _json({**scene.sweep_status(), "yt_fast": scene._YTF.get("last"),
+                  "yt_fast_set": {"global": scene.YT_FAST_N, "india": scene.YT_FAST_IN, "mid": scene.YT_MID_N}})
 
 
 @app.route("/api/tours")
