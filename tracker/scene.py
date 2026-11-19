@@ -1159,9 +1159,22 @@ GAME_NOT = {"GTA 6": {"willygaming", "vizagpropertyfinder", "arpitachoudhury", "
                       "crushziytgaming", "asaddangerlive"}}   # owner, 19 Nov: not GTA 6 streamers (copied titles, fake "launch day live")
 
 
+# News / TV channel names (19 Nov: DD News and Bangla Tribune ran GTA 6 launch bulletins whose titles had no news word)
+_NEWSNAME = re.compile(r"\b(news|tribune|times|samachar|khabar|doordarshan|dd \w+|aaj tak|ndtv|tv ?9|zee|abp|republic (bharat|tv|world|bangla)|somoy|jamuna|ekattor|channel ?24|ntv|rtv|atn bangla|dbc|"
+                       r"express|herald|gazette|chronicle|bbc|cnn|reuters|al jazeera|sky news|fox|cnbc|wion|india tv|"
+                       r"news ?18|live ?news|24x7|24 ?news|television|broadcast|media|patrika|jagran|bhaskar|prothom alo)\b|"
+                       r"সংবাদ|খবর|সময়|টিভি|समाचार|ख़बर|खबर|न्यूज़|न्यूज|టీవీ|வார்த்தை|செய்தி", re.I)
+
+
+def news_name(name) -> bool:
+    return bool(name and _NEWSNAME.search(name))
+
+
 def not_in_game(name, game, sid: str = "") -> bool:
     if not game:
         return False
+    if news_name(name) and game not in ("News", "Other"):
+        return True                         # a news channel is never in a game's lists
     if game == "GTA 6" and sid and (sid in _g6_not() or sid in _news_sids()):
         return True
     return re.sub(r"[^a-z0-9]", "", (name or "").lower()) in GAME_NOT.get(game, ())
