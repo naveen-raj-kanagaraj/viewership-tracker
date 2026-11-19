@@ -117,8 +117,44 @@ def main() -> sqlite3.Connection:
             # Wait rather than raising "database is locked".
             _conn.execute("PRAGMA busy_timeout=5000")
             _conn.execute("PRAGMA synchronous=NORMAL")
+            # Checkpoints run in their own thread (checkpointer), not inside commits made under the write lock: on
+            # 19 Nov the WAL had grown to 5 GB (bigger than the 4 GB database) and commits stalled 40 s copying it.
+            _conn.execute("PRAGMA wal_autocheckpoint=0")
+            _conn.execute("PRAGMA journal_size_limit=268435456")
             _init(_conn)
         return _conn
+
+
+_CKPT = {"on": False}
+
+
+def checkpointer(every: int = 30):
+    """Copy the WAL into the database every `every` seconds on a separate connection, outside the write lock, and
+    reset the WAL file whenever no page is mid-read (TRUNCATE, short wait), so it stays small and reads stay fast."""
+    if _CKPT["on"] or not os.path.exists(DB_PATH):
+        return
+    _CKPT["on"] = True
+
+    def loop():
+        import time as _t
+        c = sqlite3.connect(DB_PATH, check_same_thread=False, isolation_level=None)
+        c.execute("PRAGMA busy_timeout=200")
+        n = 0
+        while True:
+            t0 = _t.time()
+            try:
+                busy, log, done = c.execute("PRAGMA wal_checkpoint(PASSIVE)").fetchone()
+                n += 1
+                if done == log and n % 4 == 0:  # everything copied: try to reset the file (needs a moment with no reader)
+                    with _lock:
+                        c.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                took = _t.time() - t0
+                if took > 5:
+                    print(f"WAL checkpoint: {took:.0f}s, {log} pages in the WAL, {done} copied")
+            except Exception as e:
+                print(f"WAL checkpoint: {str(e)[:100]}")
+            _t.sleep(every)
+    threading.Thread(target=loop, name="wal-checkpoint", daemon=True).start()
 
 
 def _init(c):
