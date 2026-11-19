@@ -145,12 +145,16 @@ def checkpointer(every: int = 30):
             try:
                 busy, log, done = c.execute("PRAGMA wal_checkpoint(PASSIVE)").fetchone()
                 n += 1
-                if done == log and n % 4 == 0:  # everything copied: try to reset the file (needs a moment with no reader)
+                tr = None
+                if done == log and n % 4 == 0:  # everything copied: reset the file (waits up to 3 s for readers to move off it)
                     with _lock:
-                        c.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                        c.execute("PRAGMA busy_timeout=3000")
+                        tr = c.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+                        c.execute("PRAGMA busy_timeout=200")
                 took = _t.time() - t0
-                if took > 5:
-                    print(f"WAL checkpoint: {took:.0f}s, {log} pages in the WAL, {done} copied")
+                if took > 5 or tr is not None or n % 10 == 1:
+                    print(f"WAL checkpoint: {took:.0f}s, {log} pages in the WAL, {done} copied"
+                          + (f", reset {'done' if tr and not tr[0] else 'busy'}" if tr is not None else ""))
             except Exception as e:
                 print(f"WAL checkpoint: {str(e)[:100]}")
             _t.sleep(every)
