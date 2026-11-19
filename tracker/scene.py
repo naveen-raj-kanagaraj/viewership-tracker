@@ -1185,16 +1185,25 @@ _NS = {"at": 0, "v": set()}
 
 
 def _news_sids() -> set:
-    """Channels that run news or devotional streams (any such day since 1 Nov): never in a game's lists."""
-    if time.time() - _NS["at"] > 600:
-        _NS["at"] = time.time()
-        try:
-            with store.reading():
-                _NS["v"] = {r[0] for r in store.conn().execute(
-                    "SELECT DISTINCT sid FROM sc_daily WHERE day>='2026-11-01' AND game IN ('News','Devotional')")}
-        except Exception as e:
-            print(f"News channels: {str(e)[:80]}")
+    """Channels that run news or devotional streams (any such day since 1 Nov): never in a game's lists. Read in the
+    background through the (game, day) index; a request never waits for it (19 Nov: an inline full read of sc_daily
+    made the GTA 6 rankings time out)."""
+    if time.time() - _NS["at"] > 600 and not _NS.get("busy"):
+        _NS["busy"] = True
+        threading.Thread(target=_news_read, daemon=True).start()
     return _NS["v"]
+
+
+def _news_read():
+    try:
+        with store.reading():
+            _NS["v"] = {r[0] for r in store.conn().execute(
+                "SELECT DISTINCT sid FROM sc_daily WHERE game IN ('News','Devotional') AND day>='2026-11-01'")}
+        _NS["at"] = time.time()
+    except Exception as e:
+        print(f"News channels: {str(e)[:80]}")
+    finally:
+        _NS["busy"] = False
 
 
 def _g6_not() -> set:
@@ -1304,7 +1313,8 @@ def refile_cards(since: int = None, max_vids: int = 2000) -> int:
 def unnews_g6(since_day: str = "2026-11-18") -> int:
     """One-time repair (19 Nov): news / devotional channels whose GTA 6 coverage was counted as GTA 6 (title rule of
     19 Nov morning, and unfile_g6) get those day rows and readings back under News."""
-    ns = _news_sids()
+    _news_read()
+    ns = _NS["v"]
     with store.reading():
         c = store.conn()
         sids = [r[0] for r in c.execute("SELECT DISTINCT sid FROM sc_daily WHERE day>=? AND game='GTA 6'", (since_day,))]
