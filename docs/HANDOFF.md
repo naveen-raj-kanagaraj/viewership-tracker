@@ -190,6 +190,8 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 19 Nov: every hard restart (systemctl restart kills the process without closing SQLite) rebuilds the WAL index, so the whole 5 GB WAL was copied again after each deploy while serving, starving the disk ("paused"). `scripts/wal_reset.sh` folds it in once with the tracker stopped; afterwards the checkpointer keeps it small and restarts are cheap.
+
 - 19 Nov: `scene.verify_g6()` (every 15 min, web.run) checks the top 400 YouTube channels in GTA 6 lists against their own streams since launch (sc_vstreams vids): YouTube's game card says GTA VI → kept; another game → out; no card → title must be about playing GTA 6, and a title copied word for word from a bigger channel (re-streams) → out. Results in kv `g6_check`; `not_in_game(name, game, sid)` applies them. `#gta6` hashtags no longer count. Checkpointer logs progress (`WAL checkpoint: ... reset done/busy`); the WAL file only shrinks when a reset succeeds.
 
 - 19 Nov: titles that only talk about GTA 6 (waiting, countdown, trailer, reaction, soon ...: `_G6NOT`) no longer file a stream as GTA 6 (GTA V if it's RP/GTA 5, else Other); a GTA VI platform category still always counts. `scene.GAME_NOT` keeps named channels out of one game's lists (Willy Gaming, GTA 6). The one-time `refile_gta6` startup repair is off (it used today's title for past days). India rankings show the worldwide rank only when it is #50 or better.
