@@ -27,6 +27,7 @@ from datetime import date, datetime, timedelta, timezone
 from tracker import events, platforms, store
 
 SCENE_SEC = int(os.getenv("SCENE_SEC", "120"))
+FRESH_SEC = int(os.getenv("SCENE_FRESH_SEC", "900"))
 SCENE_YT_SEC = int(os.getenv("SCENE_YT_SEC", "300"))
 MIN_VIEWERS = int(os.getenv("SCENE_MIN_VIEWERS", "20"))
 KEEP_DAYS = int(os.getenv("SCENE_KEEP_DAYS", "3"))         # raw per-scan readings; per-day totals are kept for good
@@ -2213,6 +2214,9 @@ def run_forever():
             print(f"Compaction: {str(e)[:120]}")
         try:
             r = cycle()
+            took = time.time() - t0
+            if took > SCENE_SEC * 2:
+                print(f"Scan took {took:.0f}s ({r.get('live')} live)")
             if r["errors"]:                  # shown in the tracker window so a failing source is visible
                 print("India scan problems: " + "; ".join(f"{k}: {v}" for k, v in list(r["errors"].items())[:6]))
         except Exception as e:
@@ -2384,7 +2388,10 @@ def _live_base_build(region: str):
                 r["tour"] = tournament(r.get("title") or "", r["game"])
                 r["section"] = section_of(r["game"], r["tour"])
             _SCAN["ts"] = last
-    fresh = time.time() - last < SCENE_SEC * 3
+    # Shown up to 15 minutes after the last full scan (19 Nov: a scan after a restart or under load took over 6 minutes
+    # and pages showed "-" and "Nothing live"). Kick/Twitch viewers are the 2-second readings anyway, and streams that
+    # ended there drop out at once; only YouTube numbers can be up to one scan old.
+    fresh = time.time() - last < max(SCENE_SEC * 3, FRESH_SEC)
     now, seen, live = time.time(), set(), []
     for r in (_SCAN["rows"] if fresh else []):
         if r["sid"] in blk or r["sid"] in seen or (region == "in" and not r["india"]) or name_blocked(r.get("name")):
