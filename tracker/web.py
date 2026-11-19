@@ -886,7 +886,8 @@ def api_topch():
         limit = max(10, min(1000, int(g("limit") or 100)))
     except ValueError:
         limit = 100
-    return _memo(f"/api/topch:{plat}:{metric}:{country}:{category}:{game}:{limit}", 120,
+    from tracker import scene as sc_
+    return _memo(f"/api/topch:{plat}:{metric}:{country}:{category}:{game}:{limit}:{sc_.RULES_V}", 120,
                  _jdump(lambda: ranks.top(plat, metric, country, category, limit=limit, game=game)), "application/json")
 
 
@@ -1329,6 +1330,8 @@ WARM = ["/global", "/india", "/api/cats?region=global&range=24h", "/api/cats?reg
         "/api/topch?platform=youtube&metric=views_7d", "/api/topch?platform=youtube&metric=views_7d&country=IN",
         "/api/topch?platform=twitch&metric=subs_7d&country=IN", "/api/topch?platform=kick&metric=subs_7d&country=IN"] + (
         ["/global/c/gta-6", "/india/c/gta-6", "/api/scene?region=global&cat=gta-6&period=today", "/api/scene?region=in&cat=gta-6&period=today"]
+        + [f"/api/topch?platform=all&metric={m}_{p}{c}&game=GTA%206" for m in ("peak", "avg", "live") for p in ("24h", "7d")
+           for c in ("&country=IN", "")]          # the GTA 6 rankings people share
         if __import__("tracker.scene", fromlist=["x"]).gta6_on() else [])
 
 
