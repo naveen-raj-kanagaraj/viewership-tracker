@@ -190,6 +190,8 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 19 Nov fix: the first GTA 6 check removed real GTA 6 channels (Mythpat, CarryisLive, GamerFleet ...) from avg/hours lists: a watch page read without its title counted as "not GTA 6". Now only clear evidence removes a channel (another game's card on every stream, or real titles that aren't GTA 6, or a copied title); unreadable pages leave it in. Verdicts restarted under kv `g6_check2`.
+
 - 19 Nov: every hard restart (systemctl restart kills the process without closing SQLite) rebuilds the WAL index, so the whole 5 GB WAL was copied again after each deploy while serving, starving the disk ("paused"). `scripts/wal_reset.sh` folds it in once with the tracker stopped; afterwards the checkpointer keeps it small and restarts are cheap.
 
 - 19 Nov: `scene.verify_g6()` (every 15 min, web.run) checks the top 400 YouTube channels in GTA 6 lists against their own streams since launch (sc_vstreams vids): YouTube's game card says GTA VI → kept; another game → out; no card → title must be about playing GTA 6, and a title copied word for word from a bigger channel (re-streams) → out. Results in kv `g6_check`; `not_in_game(name, game, sid)` applies them. `#gta6` hashtags no longer count. Checkpointer logs progress (`WAL checkpoint: ... reset done/busy`); the WAL file only shrinks when a reset succeeds.

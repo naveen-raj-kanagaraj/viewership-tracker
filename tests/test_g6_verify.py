@@ -22,10 +22,16 @@ assert scene.verify_g6() == 3
 ranks.compute()
 names = [r["name"] for r in ranks.top("all", "peak_7d", country="IN", game="GTA 6")["rows"]]
 assert names == ["Real Gamer", "No Card Player"], names
-h = '..."style":"RICH_METADATA_RENDERER_STYLE_BOX_ART","thumbnail":{},"title":{"simpleText":"Grand Theft Auto VI"}...<meta name="title" content="GTA 6 &amp; chill">'
+h = 'var ytInitialData = {"style":"RICH_METADATA_RENDERER_STYLE_BOX_ART","thumbnail":{},"title":{"simpleText":"Grand Theft Auto VI"}...<meta name="title" content="GTA 6 &amp; chill">'
 class R: status_code = 200; text = h
 events._http.get = lambda *a, **k: R()
 import importlib; importlib.reload(scene)
 assert scene._yt_game("x") == ("Grand Theft Auto VI", "GTA 6 & chill"), scene._yt_game("x")
+class J: status_code = 200; text = "<html>consent</html>"
+events._http.get = lambda *a, **k: J()
+assert scene._yt_game("x") is None                       # not a real watch page: unknown, never "not GTA 6"
+class N: status_code = 200; text = 'var ytInitialData = {};<meta property="og:title" content="GTA 6 LIVE">'
+events._http.get = lambda *a, **k: N()
+assert scene._yt_game("x") == ("", "GTA 6 LIVE")
 assert scene.classify("", "Gta v Panther live #shorts #gtav #gta6") == "GTA V"
 print("GTA 6 VERIFY OK")

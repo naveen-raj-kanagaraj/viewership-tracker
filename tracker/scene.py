@@ -1158,14 +1158,14 @@ _G6N = {"at": 0, "v": set()}
 
 def _g6_not() -> set:
     if time.time() - _G6N["at"] > 60:
-        _G6N["v"] = {s for s, x in (store.kv_get("g6_check") or {}).items() if not x[0]}
+        _G6N["v"] = {s for s, x in (store.kv_get("g6_check2") or {}).items() if not x[0]}
         _G6N["at"] = time.time()
     return _G6N["v"]
 
 
 _BOXART = re.compile(r'"RICH_METADATA_RENDERER_STYLE_BOX_ART"')
 _SIMPLE = re.compile(r'"title":\{"simpleText":"((?:[^"\\]|\\.)*)"')
-_MTITLE = re.compile(r'<meta name="title" content="([^"]*)"')
+_MTITLE = re.compile(r'<meta name="title" content="([^"]*)"|<meta property="og:title" content="([^"]*)"|<title>([^<]*?)(?: - YouTube)?</title>')
 
 
 def _yt_game(vid: str):
@@ -1178,13 +1178,16 @@ def _yt_game(vid: str):
         h = r.text
     except Exception:
         return None
+    if "ytInitialData" not in h:
+        return None                             # consent / bot page: not a real answer
     game = ""
     m = _BOXART.search(h)
     if m:
         g = _SIMPLE.search(h, m.end(), m.end() + 4000)
         game = json.loads('"' + g.group(1) + '"') if g else ""
     t = _MTITLE.search(h)
-    return game, html.unescape(t.group(1)) if t else ""
+    title = html.unescape(next((g for g in t.groups() if g), "")).strip() if t else ""
+    return game, title
 
 
 def verify_g6(limit: int = 400, recheck: int = 6 * 3600) -> int:
@@ -1198,7 +1201,7 @@ def verify_g6(limit: int = 400, recheck: int = 6 * 3600) -> int:
         c = store.conn()
         sids = [r[0] for r in c.execute("SELECT sid, MAX(peak) p FROM sc_daily WHERE game='GTA 6' AND day>=? AND sid LIKE 'yt:%' "
                                          "GROUP BY sid ORDER BY p DESC LIMIT ?", (day0, limit))]
-    chk = store.kv_get("g6_check") or {}
+    chk = store.kv_get("g6_check2") or {}
     todo = [s for s in sids if s not in chk or time.time() - chk[s][1] > recheck]
     if not todo:
         return 0
@@ -1215,13 +1218,16 @@ def verify_g6(limit: int = 400, recheck: int = 6 * 3600) -> int:
             seen += 1
             if x[0]:
                 games.add(x[0].lower())
-            titles.append(x[1])
+            if x[1]:
+                titles.append(x[1])
         if not seen:
             return None                         # could not check: leave as is
         if any("grand theft auto vi" in g or "gta vi" in g or "gta 6" in g for g in games):
             return True
         if games:
             return False                        # YouTube says another game on every stream
+        if not titles:
+            return None                         # nothing to judge by: keep (only clear evidence removes a channel)
         t6 = [t for t in titles if classify("", t) == "GTA 6"]
         return ("title", re.sub(r"\W+", " ", t6[0].lower()).strip()) if t6 else False
 
@@ -1242,7 +1248,7 @@ def verify_g6(limit: int = 400, recheck: int = 6 * 3600) -> int:
             chk[sid] = [bool(ok), now, keys.get(sid, "")]
             if not ok:
                 bad.append(sid)
-    store.kv_set("g6_check", chk)
+    store.kv_set("g6_check2", chk)
     _G6N["at"] = 0
     print(f"GTA 6 check: {len(todo)} channels checked, {len(bad)} kept out: {', '.join(bad[:15])}")
     return len(bad)
