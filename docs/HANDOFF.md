@@ -190,6 +190,8 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 19 Nov bug + repair: `_G6NOT` had generic words (until, till, before, soon, coming, giveaway, vs) that filed real GTA 6 streams as Other ("Playing GTA 6 Until i Finish It": Casetoo; "UNTIL FINISHING GTA 6"). Now only clearly-not-playing words, and `_G6PLAY` (playing, gameplay, part N, day N, marathon, finish, vice city ...) always wins; all 21 real India titles in the list classify as GTA 6. `unfile_g6()` (one-time, kv `g6_unfile_v1`) moves those channels' Other rows/samples since 19 Nov 00:00 UTC back to GTA 6; verifier verdicts restarted (`g6_check3`).
+
 - 19 Nov: YouTube middle tier in `yt_fast_once`: beyond the 2-second set (top 40 + top 40 Indian), up to SCENE_YT_MID_N (400) more streams (Indian from 300 watching, others from 2,000) are re-counted every SCENE_YT_MID_SEC (20 s), so their in-between peaks reach `_FPEAK` and the daily rows. Before this, smaller YouTube streams were only read once per full scan (4+ min) and peaks were missed (Red parasite ~4,900 shown as ~2,200).
 
 - 19 Nov (deployed 1011135, verified): WAL reset done (5.25 GB -> 0), checkpointer keeps it small. Live numbers stay up to SCENE_FRESH_SEC (900 s) after the last scan instead of going blank; scans over 2x SCENE_SEC log "Scan took". India GTA 6 top 10 by peak/avg/hours checked on the server: Mythpat, CarryisLive, GamerFleet lead; world rank only when <= 50 (`ranks._world50`, heap). Mobile game search has its own suggestion list.
