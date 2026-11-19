@@ -70,7 +70,7 @@ __PANEL_CSS__
 <p class="intro" id="intro">Ranked by what people actually watched live. Tap a streamer for their full numbers.</p>
 <div class="filters"><div class="seg" id="mode"></div></div>
 <div class="filters" id="cf" style="display:none"><div class="seg" id="cplat"></div><div class="seg" id="cmetric"></div><select id="cper" aria-label="Period"></select>
- <select id="ccat"><option value="">All categories</option></select><input id="cgame" list="cgames" placeholder="All games (type to search)" autocomplete="off" style="background:var(--card,#16161f);color:inherit;border:1px solid #2a2a3a;border-radius:8px;padding:8px 10px;font:inherit;min-width:220px"><datalist id="cgames"></datalist><select id="cctry"><option value="">All countries</option></select>
+ <select id="ccat"><option value="">All categories</option></select><span style="position:relative;display:inline-block"><input id="cgame" placeholder="All games (type to search)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="background:var(--card,#16161f);color:inherit;border:1px solid #2a2a3a;border-radius:8px;padding:8px 10px;font:inherit;min-width:220px;width:100%;box-sizing:border-box"><div id="cgsug" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;z-index:50;background:#16161f;border:1px solid #2a2a3a;border-radius:8px;max-height:280px;overflow-y:auto;-webkit-overflow-scrolling:touch"></div></span><datalist id="cgames"></datalist><select id="cctry"><option value="">All countries</option></select>
  <select id="srange" title="Which ten to share"></select><button class="btn" id="cshare">SHARE</button></div>
 <div class="filters" id="lf">
  <div class="seg" id="period"></div>
@@ -150,7 +150,16 @@ async function goCh(){if(!CMS().some(x=>x[0]===C.base))C.base=CMS()[0][0];C.metr
  const cg=document.getElementById('cgame');if(C.game&&!(CR.games||[]).includes(C.game)&&!(CR.games||[]).length){C.game=''}
  document.getElementById('cgames').innerHTML=(CR.games||[]).map(x=>`<option value="${esc(x)}">`).join('');if(document.activeElement!==cg)cg.value=C.game||'';cg.style.display=(CR.games||[]).length?'':'none';
  const ct=document.getElementById('cctry');ct.innerHTML='<option value="">All countries</option>'+(CR.countries||[]).map(x=>`<option value="${x.code}"${x.code===C.country?' selected':''}>${esc(x.name)}</option>`).join('');
- cc.onchange=e=>{C.category=e.target.value;goCh()};cg.onchange=e=>{const v=e.target.value.trim().toLowerCase(),G=CR.games||[];const g=!v?'':G.find(x=>x.toLowerCase()===v)||G.find(x=>x.toLowerCase().startsWith(v))||G.find(x=>x.toLowerCase().includes(v));if(g===undefined){cg.value=C.game||'';return}C.game=g;cg.value=g;goCh()};cg.onfocus=()=>cg.select();ct.onchange=e=>{C.country=e.target.value;goCh()};
+ cc.onchange=e=>{C.category=e.target.value;goCh()};cg.onchange=e=>{const v=e.target.value.trim().toLowerCase(),G=CR.games||[];const g=!v?'':G.find(x=>x.toLowerCase()===v)||G.find(x=>x.toLowerCase().startsWith(v))||G.find(x=>x.toLowerCase().includes(v));if(g===undefined){cg.value=C.game||'';return}C.game=g;cg.value=g;goCh()};cg.onfocus=()=>{cg.select();sug()};
+ // Suggestions drawn by the page (phones don't show <datalist> suggestions while typing)
+ const sb=document.getElementById('cgsug'),sug=()=>{const v=cg.value.trim().toLowerCase(),G=CR.games||[];
+  const L=(!v?G:[...G.filter(x=>x.toLowerCase().startsWith(v)),...G.filter(x=>!x.toLowerCase().startsWith(v)&&x.toLowerCase().includes(v))]).slice(0,30);
+  sb.innerHTML=(v?'':'<div data-g="" style="padding:10px 12px;cursor:pointer;color:#8d8ca3">All games</div>')+L.map(x=>`<div data-g="${esc(x)}" style="padding:10px 12px;cursor:pointer;border-top:1px solid #222230">${esc(x)}</div>`).join('');
+  sb.style.display=L.length||!v?'':'none'};
+ cg.oninput=sug;cg.onblur=()=>setTimeout(()=>{sb.style.display='none'},200);
+ cg.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();const f=sb.querySelector('[data-g]:not([data-g=""])');if(f&&cg.value.trim()){cg.value=f.dataset.g}cg.blur();cg.onchange({target:cg})}};
+ sb.onpointerdown=e=>{const d=e.target.closest('[data-g]');if(!d)return;e.preventDefault();sb.style.display='none';cg.value=d.dataset.g;cg.blur();
+  if(!d.dataset.g){C.game='';goCh()}else cg.onchange({target:cg})};ct.onchange=e=>{C.country=e.target.value;goCh()};
  const others=OTHERS();
  ['h1c','h2c','h3c'].forEach((id,i)=>document.getElementById(id).textContent=CML([C.metric,...others][i]).replace(', '+PLAB(C.per),''));
  document.getElementById('span').textContent=`${full(CR.total)} ${NAMES[C.platform]} channels${C.category?' in '+C.category:''}${C.game?' making '+C.game:''}${C.country?' from '+((CR.countries.find(x=>x.code===C.country)||{}).name||C.country):''} · ranked by ${CML(C.metric).toLowerCase()} · updated ${CR.updated?Math.round((Date.now()/1000-CR.updated)/60)+' min ago':'soon'}`+(()=>{const H=CR.history_from,need={'3d':3,'7d':7,'30d':30,'3m':90,'6m':180,'1y':365}[C.per]??(C.per==='ytd'?Math.floor((Date.now()-new Date(new Date().getFullYear(),0,1))/864e5):0);
