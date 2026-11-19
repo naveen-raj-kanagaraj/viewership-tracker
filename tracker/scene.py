@@ -1955,7 +1955,11 @@ def _fast_seen(sid: str, v: int):
 
 YT_FAST_N = int(os.getenv("SCENE_YT_FAST_N", "40"))   # biggest YouTube channels re-counted every FAST_SEC
 YT_FAST_IN = int(os.getenv("SCENE_YT_FAST_IN", "40"))  # plus the biggest Indian ones (most of this site's audience)
-_YTF = {"next": 0.0, "slow": 0}
+_YTF = {"next": 0.0, "slow": 0, "mid": 0.0}
+# Middle tier (19 Nov: Red parasite peaked near 4,900 between scans and the site showed ~2,200): the next YouTube streams,
+# Indian ones from 300 watching and others from 2,000, re-counted every YT_MID_SEC so their peaks are caught too.
+YT_MID_N = int(os.getenv("SCENE_YT_MID_N", "400"))
+YT_MID_SEC = int(os.getenv("SCENE_YT_MID_SEC", "20"))
 
 
 HOT = {}              # sid -> until: channels whose page someone has open; their YouTube count is read every 2 s too
@@ -2009,8 +2013,14 @@ def yt_fast_once(now: float = None) -> int:
     with _lock:
         top = [(sid, list(x["streams"])) for sid, x in sorted(_LIVE.items(), key=lambda kv: -kv[1]["viewers"])
                if x["platform"] == "youtube"]
-        top = top[:YT_FAST_N] + [(sid, v) for sid, v in top[YT_FAST_N:] if _LIVE[sid].get("india")][:YT_FAST_IN]
+        rest = top[YT_FAST_N:]
+        top = top[:YT_FAST_N] + [(sid, v) for sid, v in rest if _LIVE[sid].get("india")][:YT_FAST_IN]
         have = {sid for sid, _ in top}
+        if t >= _YTF["mid"]:
+            _YTF["mid"] = t + YT_MID_SEC * (2 ** _YTF["slow"])
+            top += [(sid, v) for sid, v in rest if sid not in have and
+                    _LIVE[sid]["viewers"] >= (300 if _LIVE[sid].get("india") else 2000)][:YT_MID_N]
+            have = {sid for sid, _ in top}
         top += [(sid, list(_LIVE[sid]["streams"])) for sid, exp in list(HOT.items())   # channel pages open right now
                 if exp > t and sid in _LIVE and sid not in have and sid.startswith("yt:")][:20]
     jobs = [(sid, vid, _YFPOOL.submit(_safe_count, vid)) for sid, vids in top for vid in vids]
