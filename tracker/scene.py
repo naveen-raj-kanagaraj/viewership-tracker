@@ -1122,6 +1122,14 @@ def blocked() -> set:
     return set(store.kv_get("scene_blocked") or [])
 
 
+# Removed by the owner from every list (not streamers / scams), matched by name on any platform. 19 Nov: Dino Prasad.
+NAME_BLOCK = {"dinoprasad"}
+
+
+def name_blocked(name) -> bool:
+    return re.sub(r"[^a-z0-9]", "", (name or "").lower()) in NAME_BLOCK
+
+
 # ---------- YouTube ----------
 
 _SEARCH_LIVE = "EgJAAQ=="       # search filter: live now
@@ -2255,7 +2263,7 @@ def _live_base_build(region: str):
     fresh = time.time() - last < SCENE_SEC * 3
     now, seen, live = time.time(), set(), []
     for r in (_SCAN["rows"] if fresh else []):
-        if r["sid"] in blk or r["sid"] in seen or (region == "in" and not r["india"]):
+        if r["sid"] in blk or r["sid"] in seen or (region == "in" and not r["india"]) or name_blocked(r.get("name")):
             continue
         seen.add(r["sid"])
         x = dict(r)
@@ -2579,6 +2587,7 @@ def live_data(cat: str = "", region: str = "in", sec: str = "") -> dict:
 
 _DR = {}
 _DRL = threading.Lock()
+_DRK = {}
 _CS = {}
 _CSL = threading.Lock()
 
@@ -2589,18 +2598,19 @@ def _day_rows(c, d0: str, region: str, game):
     q = """SELECT d.sid, d.game, MAX(d.peak) peak, SUM(d.mins) mins, SUM(d.hw) hw, c.name, c.platform,
            c.url, c.logo, c.last_live FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid WHERE d.day >= ?"""
     q += " AND COALESCE(c.india, 1)=1" if region == "in" else ""
-    if game:
-        return c.execute(q + " AND d.game = ? GROUP BY d.sid, d.game", (d0, game)).fetchall()
-    k = (d0, region, _SCANMEM.get("ts"))       # a new scan reads them again
+    k = (d0, region, game, _SCANMEM.get("ts"))     # a new scan reads them again
     hit = _DR.get(k)
     if hit and time.time() - hit[0] < 120:
         return hit[1]
     with _DRL:
+        lk = _DRK.setdefault(k[:3], threading.Lock())
+    with lk:
         hit = _DR.get(k)
         if hit and time.time() - hit[0] < 120:
             return hit[1]
-        rows = [dict(r) for r in c.execute(q + " GROUP BY d.sid, d.game", (d0,))]
-        for kk in [kk for kk, v in _DR.items() if time.time() - v[0] > 600]:
+        rows = [dict(r) for r in (c.execute(q + " AND d.game = ? GROUP BY d.sid, d.game", (d0, game)) if game
+                                  else c.execute(q + " GROUP BY d.sid, d.game", (d0,)))]
+        for kk in [kk for kk, v in list(_DR.items()) if time.time() - v[0] > 600 or kk[3] != k[3]]:
             _DR.pop(kk, None)
         _DR[k] = (time.time(), rows)
         return rows
@@ -2663,7 +2673,7 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
                     cstats = [dict(r) for r in c.execute(
                         f"SELECT game, SUM(viewers) s, MAX(viewers) pk FROM {rt} WHERE ts>=? AND game!=?{rw} GROUP BY game",
                         (p0, ALL, *ra))]
-                    for kk in [kk for kk, v in _CS.items() if time.time() - v[0] > 900]:
+                    for kk in [kk for kk, v in list(_CS.items()) if time.time() - v[0] > 900]:
                         _CS.pop(kk, None)
                     _CS[ck] = (time.time(), cstats)
         T.append(("cstats", time.time()))
@@ -2684,7 +2694,7 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
         print("Slow scene.data " + f"{region}:{sec}:{game}:{period} " + " ".join(f"{n}={b - a_:.1f}" for (_, a_), (n, b) in zip(T, T[1:])))
     ch, games = {}, {}
     for r in rows:
-        if r["sid"] in blk or (sec and sec != "esports" and section_of(r["game"]) != sec):
+        if r["sid"] in blk or name_blocked(r["name"]) or (sec and sec != "esports" and section_of(r["game"]) != sec):
             continue
         x = ch.setdefault(r["sid"], {"sid": r["sid"], "name": r["name"] or r["sid"], "platform": r["platform"] or "",
                                       "url": r["url"] or "", "logo": _logo({"sid": r["sid"], "logo": r["logo"]}),
@@ -2932,7 +2942,23 @@ def rankings(region="global", metric="hw", period="day", date="", cat="", countr
             "totals": {"hw": sum(x["hw"] for x in cur), "channels": len(cur)}, "money": "INR" if region == "in" else "USD"}
 
 
+_DY = {}
+
+
 def _daily(c, tbl, w, a, key, days: int = 30) -> list:
+    """Per IST day for the last `days` days (cached until the next scan: 4-17 s under load on 19 Nov)."""
+    k = (tbl, w, a, key, days, _SCANMEM.get("ts"))
+    hit = _DY.get(k)
+    if hit and time.time() - hit[0] < 300:
+        return hit[1]
+    v = _daily_read(c, tbl, w, a, key, days)
+    if len(_DY) > 2000:
+        _DY.clear()
+    _DY[k] = (time.time(), v)
+    return v
+
+
+def _daily_read(c, tbl, w, a, key, days: int = 30) -> list:
     """Per IST day for the last `days` days: peak watching at once, when, and hours watched. Oldest first."""
     t0 = datetime.combine(datetime.now(events.REPORT_TZ).date() - timedelta(days=days - 1), datetime.min.time(),
                           events.REPORT_TZ).timestamp()

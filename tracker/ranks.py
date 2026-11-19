@@ -351,6 +351,7 @@ def top(platform: str = "youtube", metric: str = "size", country: str = "", cate
         ctrs = sorted({(r["country"], r["country_name"]) for r in _R["rows"].values() if (platform == "all" or r["platform"] == platform) and r["country"]},
                       key=lambda x: x[1])
         at = _R["at"]
+    rows = [r for r in rows if not scene.name_blocked(r.get("name"))]
     rows.sort(key=lambda r: -r[metric])
     if country and rows:                      # each channel's place worldwide in the same list (India cards show it)
         try:

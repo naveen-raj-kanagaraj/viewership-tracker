@@ -21,4 +21,7 @@ assert [r["world_rank"] for r in ranks.top("all", "peak_7d", country="IN", game=
 assert "world_rank" not in ranks.top("all", "peak_7d")["rows"][0]
 j = web.app.test_client().get("/api/topch?platform=all&metric=peak_7d").json
 assert j["platform"] == "all" and j["total"] == 3, j
+c.execute("INSERT INTO sc_channels (sid, platform, name, india) VALUES ('kick:d','kick','Dino Prasad',1)")
+c.execute("INSERT INTO sc_daily VALUES (?,?,?,?,?,?,?)", (d, "kick:d", "GTA 6", 99999, 1, 60, 500)); c.commit(); ranks.compute()
+assert all(r["name"] != "Dino Prasad" for r in ranks.top("all", "peak_7d", country="IN")["rows"])     # removed by the owner
 print("ALL PLATFORMS OK")
