@@ -190,6 +190,8 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 19 Nov (deployed 1011135, verified): WAL reset done (5.25 GB -> 0), checkpointer keeps it small. Live numbers stay up to SCENE_FRESH_SEC (900 s) after the last scan instead of going blank; scans over 2x SCENE_SEC log "Scan took". India GTA 6 top 10 by peak/avg/hours checked on the server: Mythpat, CarryisLive, GamerFleet lead; world rank only when <= 50 (`ranks._world50`, heap). Mobile game search has its own suggestion list.
+
 - 19 Nov fix: the first GTA 6 check removed real GTA 6 channels (Mythpat, CarryisLive, GamerFleet ...) from avg/hours lists: a watch page read without its title counted as "not GTA 6". Now only clear evidence removes a channel (another game's card on every stream, or real titles that aren't GTA 6, or a copied title); unreadable pages leave it in. Verdicts restarted under kv `g6_check2`.
 
 - 19 Nov: every hard restart (systemctl restart kills the process without closing SQLite) rebuilds the WAL index, so the whole 5 GB WAL was copied again after each deploy while serving, starving the disk ("paused"). `scripts/wal_reset.sh` folds it in once with the tracker stopped; afterwards the checkpointer keeps it small and restarts are cheap.
