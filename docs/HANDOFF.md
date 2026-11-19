@@ -190,6 +190,8 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 19 Nov ROOT CAUSE of slow reads: the WAL file was 5.25 GB (database 4 GB) because it never reset with readers always open, and commits under the write lock did the checkpoint copying (40 s holds). Now `store.checkpointer()` (started in web.run) checkpoints every 30 s on its own connection and TRUNCATEs when it can; the main connection has wal_autocheckpoint=0 and journal_size_limit 256 MB. Memo capped at MEMO_MB (default 500 MB): the process was at 9.3 GB RSS, 76% of RAM, leaving no page cache. Server: no swap, ~17% CPU steal.
+
 - 19 Nov: `scene.NAME_BLOCK` removes channels by name from rankings, live lists and boards on every platform (owner: Dino Prasad). India rankings page podium shows "#N worldwide". Game daily rows and `_daily` cached per scan; chat_aud writes in 5000-row slices (one write held the lock 48 s).
 
 - 19 Nov speed (2): the step log showed live=7-12 s and daily_rows=16 s per scene.data build, repeated by every page and section. Now `_live_base(region)` (everyone live, 2-second viewers) is built once per 2 s for all pages, and `_day_rows` (2-day per-channel rows without a game) once per scan; per-category 24h/7d/30d stats (`_CS`, 4-15 s: sc_reg has no ts-first index) once per scan per region and period. Pages only filter them.

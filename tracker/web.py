@@ -123,6 +123,8 @@ _STALE_MAX = 600      # live responses (ttl under 30 s): an expired copy is serv
 _STALE_PAGE = 1800    # page data (ttl 10-29 s, e.g. /api/scene, a 20-40 s build): served this old while it rebuilds
 _STALE_LONG = 6 * 3600   # everything else: a page or API answer up to 6 hours old is shown at once while it rebuilds
 _MEMO_TTL = {}
+_MSIZE = [0]
+_MEMO_BYTES = int(os.getenv("MEMO_MB", "500")) * 1024 * 1024
 _MEMO_FILE = os.path.join(os.path.dirname(os.path.abspath(store.DB_PATH)), "memo_cache.pkl")
 
 
@@ -195,6 +197,15 @@ def _memo_build(key, build):
             _MEMO.pop(k, None)
             _MLOCK.pop(k, None)
     _MEMO[key] = hit
+    _MSIZE[0] += len(body) + len(hit[2] or b"")
+    if _MSIZE[0] > _MEMO_BYTES:               # memory: 9 GB RSS on 19 Nov left no page cache for the database
+        tot, keep = 0, {}
+        for k, v in sorted(list(_MEMO.items()), key=lambda kv: -kv[1][0]):
+            tot += len(v[1]) + len(v[2] or b"")
+            if tot > _MEMO_BYTES * 0.7 and _MEMO_TTL.get(k, 0) >= 10:
+                _MEMO.pop(k, None)
+                _MLOCK.pop(k, None)
+        _MSIZE[0] = sum(len(v[1]) + len(v[2] or b"") for v in list(_MEMO.values()))
     return hit
 
 
@@ -1373,6 +1384,7 @@ def _warm_forever():
 def run():
     print(f"Event dashboard: http://localhost:{PORT}")
     _memo_load()
+    store.checkpointer()
     threading.Thread(target=_memo_save, daemon=True).start()
     def once():
         from tracker import events as ev_, scene as sc_, ytextra as yx_
