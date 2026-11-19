@@ -190,6 +190,8 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 19 Nov: titles that only talk about GTA 6 (waiting, countdown, trailer, reaction, soon ...: `_G6NOT`) no longer file a stream as GTA 6 (GTA V if it's RP/GTA 5, else Other); a GTA VI platform category still always counts. `scene.GAME_NOT` keeps named channels out of one game's lists (Willy Gaming, GTA 6). The one-time `refile_gta6` startup repair is off (it used today's title for past days). India rankings show the worldwide rank for the top 20 only.
+
 - 19 Nov ROOT CAUSE of slow reads: the WAL file was 5.25 GB (database 4 GB) because it never reset with readers always open, and commits under the write lock did the checkpoint copying (40 s holds). Now `store.checkpointer()` (started in web.run) checkpoints every 30 s on its own connection and TRUNCATEs when it can; the main connection has wal_autocheckpoint=0 and journal_size_limit 256 MB. Memo capped at MEMO_MB (default 500 MB): the process was at 9.3 GB RSS, 76% of RAM, leaving no page cache. Server: no swap, ~17% CPU steal.
 
 - 19 Nov: `scene.NAME_BLOCK` removes channels by name from rankings, live lists and boards on every platform (owner: Dino Prasad). India rankings page podium shows "#N worldwide". Game daily rows and `_daily` cached per scan; chat_aud writes in 5000-row slices (one write held the lock 48 s).

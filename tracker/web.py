@@ -1395,7 +1395,7 @@ def run():
         def g6_refile():                     # after a few scans have looked up the missing titles
             time.sleep(420)
             try:
-                if not store.kv_get("refile_g6_v1"):
+                if False and not store.kv_get("refile_g6_v1"):   # off: it used today's title for past days (19 Nov)
                     sc_.refile_gta6()
                     store.kv_set("refile_g6_v1", time.time())
             except Exception as e:

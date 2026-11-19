@@ -105,3 +105,5 @@ assert st["games"] == ["GTA 6"] and "youtube known:GTA 6" in st["stats"] and "ki
 from tracker.web import app as app2
 assert app2.test_client().get("/api/sweep").json["games"] == ["GTA 6"]
 print("GTA6 YOUTUBE MEMORY OK", len(a), len(b))
+assert scene.classify("", "WAITING FOR GTA 6 | chill stream") == "Other" and scene.classify("", "GTA 6 countdown | soulcity rp") == "GTA V"
+assert scene.classify("Grand Theft Auto VI", "waiting") == "GTA 6" and scene.not_in_game("Willy Gaming", "GTA 6")
