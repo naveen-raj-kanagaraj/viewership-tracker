@@ -328,6 +328,31 @@ def game_live(game: str) -> dict:
     return out
 
 
+def _world50(platform, metric, category, game, gl, by_game) -> dict:
+    """sid -> rank for the top 50 worldwide of the same list. Only the top values are sorted (heapq), not 100k rows
+    (19 Nov: building the whole world list for every India request made cold loads hang)."""
+    import heapq
+    from tracker import scene
+    cand = []
+    with _lock:
+        for r in _R["rows"].values():
+            if not (platform == "all" or r["platform"] == platform) or (category and r["category"] != category):
+                continue
+            if by_game:
+                v = (gl.get(r["sid"]) or {}).get(metric)
+            else:
+                if not _keep(r, metric) or (game and not (r["game"] == game or r["sid"] in gl)):
+                    continue
+                v = r.get(metric)
+            if v:
+                cand.append((v, r["sid"], r.get("name")))
+    out = []
+    for v, sid, name in heapq.nlargest(80, cand):
+        if not scene.name_blocked(name) and not scene.not_in_game(name, game, sid):
+            out.append(sid)
+    return {sid: i + 1 for i, sid in enumerate(out[:50])}
+
+
 def top(platform: str = "youtube", metric: str = "size", country: str = "", category: str = "", limit: int = 100, game: str = "") -> dict:
     from tracker import scene
     by_game = bool(game) and metric.split("_")[0] in ("peak", "avg", "live")
@@ -355,8 +380,7 @@ def top(platform: str = "youtube", metric: str = "size", country: str = "", cate
     rows.sort(key=lambda r: -r[metric])
     if country and rows:                      # each channel's place worldwide in the same list (India cards show it)
         try:
-            w = top(platform, metric, "", category, limit=100000, game=game)["rows"]
-            wr = {r["sid"]: r["rank"] for r in w}
+            wr = _world50(platform, metric, category, game, gl, by_game)
             rows = [{**r, "world_rank": wr.get(r["sid"]) if (wr.get(r["sid"]) or 99) <= 50 else None} for r in rows]   # top 50 worldwide only
         except Exception as e:
             print(f"World ranks: {str(e)[:80]}")
