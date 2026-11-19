@@ -357,7 +357,7 @@ def top(platform: str = "youtube", metric: str = "size", country: str = "", cate
         try:
             w = top(platform, metric, "", category, limit=100000, game=game)["rows"]
             wr = {r["sid"]: r["rank"] for r in w}
-            rows = [{**r, "world_rank": wr.get(r["sid"]) if i < 20 else None} for i, r in enumerate(rows)]   # top 20 only
+            rows = [{**r, "world_rank": wr.get(r["sid"]) if (wr.get(r["sid"]) or 99) <= 50 else None} for r in rows]   # top 50 worldwide only
         except Exception as e:
             print(f"World ranks: {str(e)[:80]}")
     # games: real games only (not News, Music, Devotional, Cricket ...), and only those of the chosen category
