@@ -1121,7 +1121,7 @@ def classify(category: str, title: str) -> str:
     return "Other"
 
 
-ALWAYS = {"kick": ["skyesports", "cegc", "rntxrohit", "jonathangaming", "kaashplays", "regaltos", "neyoo_gaming", "rakazone", "tbone_gaming"]}   # Indian Kick channels: tracked (and Indian) even if the seed list was edited
+ALWAYS = {"kick": ["skyesports", "cegc", "rntxrohit", "jonathangaming", "kaashplays", "regaltos", "neyoo_gaming", "rakazone", "tbone_gaming", "eaglegaming"]}   # Indian Kick channels: tracked (and Indian) even if the seed list was edited
 
 
 def seeds() -> dict:
@@ -1193,6 +1193,76 @@ def _yt_game(vid: str):
     t = _MTITLE.search(h)
     title = html.unescape(next((g for g in t.groups() if g), "")).strip() if t else ""
     return game, title
+
+
+_YCARD = {}          # YouTube video -> the game YouTube shows under it ("" = none shown); read once per video
+_YCARD_TRY = {}      # video -> when an unreadable page was last tried
+
+
+def _card_get(vids, n: int = 4) -> int:
+    from concurrent.futures import ThreadPoolExecutor
+    vids = [v for v in vids if v not in _YCARD and time.time() - _YCARD_TRY.get(v, 0) > 1800]
+    if not vids:
+        return 0
+    with ThreadPoolExecutor(n) as ex:
+        res = list(ex.map(_yt_game, vids))
+    for v, r in zip(vids, res):
+        if r is None:
+            _YCARD_TRY[v] = time.time()
+        else:
+            _YCARD[v] = r[0] or ""
+    if len(_YCARD) > 60000:
+        _YCARD.clear()
+    return len(vids)
+
+
+def cards_once(limit: int = 150) -> int:
+    """Live YouTube streams that matter (Indian ones, or 1,000+ watching): read the game YouTube shows under each
+    once, so the next scan files it by that game instead of guessing from the title (19 Nov: Red parasite's "I
+    EXPLORED VICE CITY FOR THE FIRST TIME" never says GTA 6 and was filed as Other)."""
+    with _lock:
+        cand = sorted(((x["viewers"], v) for sid, x in _LIVE.items() if x.get("platform") == "youtube"
+                       and (x.get("india") or x["viewers"] >= 1000) for v in x.get("streams", {})), reverse=True)
+    return _card_get([v for _, v in cand][:limit])
+
+
+def refile_cards(since: int = None, max_vids: int = 2000) -> int:
+    """Past streams since GTA 6's release by Indian YouTube channels (100+ peak): read each one's game card, and where
+    YouTube says Grand Theft Auto VI, move that channel's Other readings of the stream, and its Other day row when
+    every stream that day is GTA VI, to GTA 6."""
+    since = since or GTA6_RELEASE
+    with store.reading():
+        rows = store.conn().execute("""SELECT v.vid, v.sid, v.first_ts, v.last_ts FROM sc_vstreams v JOIN sc_channels ch
+            ON ch.sid=v.sid WHERE v.last_ts>=? AND COALESCE(ch.india,0)=1 AND v.peak>=100 ORDER BY v.peak DESC LIMIT ?""",
+                                    (since, max_vids)).fetchall()
+    _card_get([r[0] for r in rows])
+    g6 = lambda v: classify(_YCARD.get(v) or "", "") == "GTA 6" if _YCARD.get(v) else None
+    day = lambda ts: datetime.fromtimestamp(ts, events.REPORT_TZ).strftime("%Y-%m-%d")
+    by = {}
+    for vid, sid, a, b in rows:
+        for d in {day(a), day(b)}:
+            by.setdefault((sid, d), []).append((vid, a, b))
+    moved = 0
+    for (sid, d), vs in by.items():
+        if not any(g6(v) for v, _, _ in vs):
+            continue
+        with store._lock:
+            c = store.main()
+            for v, a, b in vs:
+                if g6(v):
+                    c.execute("UPDATE sc_samples SET game='GTA 6' WHERE sid=? AND ts BETWEEN ? AND ? AND game='Other'", (sid, a, b))
+            if all(g6(v) is not False for v, _, _ in vs):
+                r = c.execute("SELECT peak, peak_at, mins, hw FROM sc_daily WHERE day=? AND sid=? AND game='Other'", (d, sid)).fetchone()
+                if r:
+                    c.execute("""INSERT INTO sc_daily VALUES (?,?,'GTA 6',?,?,?,?) ON CONFLICT(day, sid, game) DO UPDATE SET
+                                 peak_at=CASE WHEN excluded.peak>sc_daily.peak THEN excluded.peak_at ELSE sc_daily.peak_at END,
+                                 peak=MAX(sc_daily.peak, excluded.peak), mins=sc_daily.mins+excluded.mins, hw=sc_daily.hw+excluded.hw""",
+                              (d, sid, *tuple(r)))
+                    c.execute("DELETE FROM sc_daily WHERE day=? AND sid=? AND game='Other'", (d, sid))
+                    moved += 1
+            c.commit()
+    print(f"GTA 6 game cards: {len(rows)} past Indian YouTube streams read, {moved} channel-days moved from Other to GTA 6")
+    return moved
 
 
 def unfile_g6(since: int = 1795046400) -> int:
@@ -1709,6 +1779,10 @@ def cycle(now: float = None) -> dict:
         if sid in blk or x["viewers"] < (1 if swept else MIN_VIEWERS):
             continue
         x["country"] = _CTRY.get(sid[3:]) if sid.startswith("yt:") else None
+        if x["platform"] == "youtube" and not x.get("category"):       # the game YouTube shows under the video
+            card = next((_YCARD[v] for v in sorted(x["streams"], key=lambda v: -x["streams"][v]) if _YCARD.get(v)), "")
+            if card:
+                x["category"] = card
         x["game"] = classify(x.get("category", ""), x.get("title", ""))   # first pass (BGMI streams are Indian)
         x["india"] = verdict(x, x["country"], allow)
         if not x["india"] and x["viewers"] < GLOBAL_MIN and not swept:

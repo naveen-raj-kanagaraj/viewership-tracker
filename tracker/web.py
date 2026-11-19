@@ -1419,6 +1419,24 @@ def run():
                     print(f"GTA 6 check: {str(e)[:120]}")
                 time.sleep(900)
         threading.Thread(target=g6_verify, daemon=True).start()
+
+        def yt_cards():                      # the game YouTube shows under each stream: read once per stream
+            time.sleep(60)
+            try:
+                if not store.kv_get("g6_cards_v1"):
+                    sc_.refile_cards()
+                    store.kv_set("g6_cards_v1", time.time())
+                    from tracker import ranks as rk_
+                    rk_.compute()
+            except Exception as e:
+                print(f"GTA 6 game cards: {str(e)[:120]}")
+            while True:
+                try:
+                    sc_.cards_once()
+                except Exception as e:
+                    print(f"Game cards: {str(e)[:120]}")
+                time.sleep(60)
+        threading.Thread(target=yt_cards, daemon=True).start()
         try:
             sc_.merge_aliases()
         except Exception as e:
