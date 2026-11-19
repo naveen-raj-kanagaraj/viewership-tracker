@@ -24,3 +24,5 @@ assert scene.cards_once() == 1 and scene._YCARD["vr2"] == "Grand Theft Auto VI"
 assert scene.classify(scene._YCARD["vr2"], "I EXPLORED VICE CITY") == "GTA 6"
 assert "eaglegaming" in scene.ALWAYS["kick"]
 print("CARDS OK")
+assert scene.not_in_game("DD News", "GTA 6") and scene.not_in_game("Bangla Tribune", "GTA 6") and not scene.not_in_game("Republic of Games", "GTA 6")
+print("NEWS NAMES OK")
