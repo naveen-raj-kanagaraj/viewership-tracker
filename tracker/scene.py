@@ -1092,6 +1092,11 @@ _G6RX = re.compile(r"\bgta ?(vi|6)\b|grand theft auto (vi|6)\b")
 # played it). Only for titles: a platform category of GTA VI always counts.
 _G6NOT = re.compile(r"\b(waiting|wait for|countdown|trailer|react|reaction|reacting|leaks?|news|rumou?rs?|"
                     r"days? (left|to go)|hours? (left|to go)|release date|price|preload|pre-?order|predictions?)\b")
+# Coverage, not play: these always win, even with "live" or "launch" in the title (19 Nov: news channels' "GTA 6
+# launch LIVE" bulletins were counted as GTA 6 streams).
+_G6NEWS = re.compile(r"\b(news|bulletin|debate|live updates?|trailer|reaction|react|reacts|reacting|leaks?|explained|"
+                     r"price in india|launch event|store|stores|queue|crowd)\b")
+_NEWSW = ("khabar", "samachar", "headlines", "breaking", "aaj tak", "ndtv", "republic", "tv9", "abp ", "zee ", "india tv")
 # Words that mean the stream is playing it: they win over the words above ("until", "before", "giveaway" were removed
 # on 19 Nov: "Playing GTA 6 Until i Finish It" was filed as Other and Casetoo dropped out of the GTA 6 lists).
 _G6PLAY = re.compile(r"\b(gameplay|playing|plays|played|walkthrough|part ?\d+|episode|ep ?\d+|epi ?\d+|mission|marathon|"
@@ -1115,6 +1120,9 @@ def classify(category: str, title: str) -> str:
             if not (any(w in t6 for w in words) or _G6RX.search(t6)):
                 continue
         if any(w in t for w in words) or (g == "GTA 6" and _G6RX.search(t)):   # "GTA VI🌴": an emoji right after
+            if g == "GTA 6" and (_G6NEWS.search(t) or any(w in t for w in _NEWSW)):
+                return "News" if (re.search(r"\b(news|bulletin|debate|live updates?)\b", t) or any(w in t for w in _NEWSW)) \
+                    else "Other"            # news / reaction / trailer coverage of GTA 6: never GTA 6 (owner, 19 Nov)
             if g == "GTA 6" and _G6NOT.search(t) and not _G6PLAY.search(t):   # talking about it, not playing it
                 return "GTA V" if re.search(r"\bgta ?(v|5)\b|\brp\b|roleplay|soul ?city", t) else "Other"
             return g
@@ -1154,12 +1162,26 @@ GAME_NOT = {"GTA 6": {"willygaming", "vizagpropertyfinder", "arpitachoudhury", "
 def not_in_game(name, game, sid: str = "") -> bool:
     if not game:
         return False
-    if game == "GTA 6" and sid and sid in _g6_not():
+    if game == "GTA 6" and sid and (sid in _g6_not() or sid in _news_sids()):
         return True
     return re.sub(r"[^a-z0-9]", "", (name or "").lower()) in GAME_NOT.get(game, ())
 
 
 _G6N = {"at": 0, "v": set()}
+_NS = {"at": 0, "v": set()}
+
+
+def _news_sids() -> set:
+    """Channels that run news or devotional streams (any such day since 1 Nov): never in a game's lists."""
+    if time.time() - _NS["at"] > 600:
+        _NS["at"] = time.time()
+        try:
+            with store.reading():
+                _NS["v"] = {r[0] for r in store.conn().execute(
+                    "SELECT DISTINCT sid FROM sc_daily WHERE day>='2026-11-01' AND game IN ('News','Devotional')")}
+        except Exception as e:
+            print(f"News channels: {str(e)[:80]}")
+    return _NS["v"]
 
 
 def _g6_not() -> set:
@@ -1264,6 +1286,36 @@ def refile_cards(since: int = None, max_vids: int = 2000) -> int:
             c.commit()
     print(f"GTA 6 game cards: {len(rows)} past Indian YouTube streams read, {moved} channel-days moved from Other to GTA 6")
     return moved
+
+
+def unnews_g6(since_day: str = "2026-11-18") -> int:
+    """One-time repair (19 Nov): news / devotional channels whose GTA 6 coverage was counted as GTA 6 (title rule of
+    19 Nov morning, and unfile_g6) get those day rows and readings back under News."""
+    ns = _news_sids()
+    with store.reading():
+        c = store.conn()
+        sids = [r[0] for r in c.execute("SELECT DISTINCT sid FROM sc_daily WHERE day>=? AND game='GTA 6'", (since_day,))]
+        more = [r[0] for r in c.execute("SELECT sid, title FROM sc_channels WHERE sid IN (SELECT DISTINCT sid FROM sc_daily "
+                                        "WHERE day>=? AND game='GTA 6')", (since_day,))
+                if r[1] and classify("", r[1]) == "News"]
+    bad = sorted({s for s in sids if s in ns} | set(more))
+    t0 = int(datetime.strptime(since_day, "%Y-%m-%d").replace(tzinfo=events.REPORT_TZ).timestamp())
+    for i in range(0, len(bad), 200):
+        part = bad[i:i + 200]
+        q = ",".join("?" * len(part))
+        with store._lock:
+            c = store.main()
+            for day, sid, pk, pa, mn, hw in c.execute(f"SELECT day, sid, peak, peak_at, mins, hw FROM sc_daily WHERE day>=? AND "
+                                                      f"game='GTA 6' AND sid IN ({q})", (since_day, *part)).fetchall():
+                c.execute("""INSERT INTO sc_daily VALUES (?,?,'News',?,?,?,?) ON CONFLICT(day, sid, game) DO UPDATE SET
+                             peak_at=CASE WHEN excluded.peak>sc_daily.peak THEN excluded.peak_at ELSE sc_daily.peak_at END,
+                             peak=MAX(sc_daily.peak, excluded.peak), mins=sc_daily.mins+excluded.mins, hw=sc_daily.hw+excluded.hw""",
+                          (day, sid, pk, pa, mn, hw))
+            c.execute(f"DELETE FROM sc_daily WHERE day>=? AND game='GTA 6' AND sid IN ({q})", (since_day, *part))
+            c.execute(f"UPDATE sc_samples SET game='News' WHERE ts>=? AND game='GTA 6' AND sid IN ({q})", (t0, *part))
+            c.commit()
+    print(f"GTA 6 news repair: {len(bad)} news/devotional channels moved out of GTA 6")
+    return len(bad)
 
 
 def unfile_g6(since: int = 1795046400) -> int:

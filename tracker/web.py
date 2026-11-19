@@ -1406,6 +1406,14 @@ def run():
         def g6_verify():                     # every 15 min: YouTube channels in GTA 6 lists checked against their streams
             time.sleep(90)
             try:
+                if not store.kv_get("g6_unnews_v1"):
+                    sc_.unnews_g6()
+                    store.kv_set("g6_unnews_v1", time.time())
+                    from tracker import ranks as rk_
+                    rk_.compute()
+            except Exception as e:
+                print(f"GTA 6 news repair: {str(e)[:120]}")
+            try:
                 if not store.kv_get("g6_unfile_v1"):
                     sc_.unfile_g6()
                     store.kv_set("g6_unfile_v1", time.time())
