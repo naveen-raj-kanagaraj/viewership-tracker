@@ -1090,9 +1090,13 @@ def is_gaming(game: str) -> bool:
 _G6RX = re.compile(r"\bgta ?(vi|6)\b|grand theft auto (vi|6)\b")
 # Titles that only talk about GTA 6 while playing something else (19 Nov: Indian channels in the GTA 6 list that never
 # played it). Only for titles: a platform category of GTA VI always counts.
-_G6NOT = re.compile(r"\b(waiting|wait for|countdown|trailer|react|reaction|reacting|leaks?|news|rumou?rs?|before|until|till|"
-                    r"tomorrow|soon|coming|days? (left|to go)|hours? (left|to go)|release date|price|preload|pre-?order|"
-                    r"giveaway|predictions?|vs)\b")
+_G6NOT = re.compile(r"\b(waiting|wait for|countdown|trailer|react|reaction|reacting|leaks?|news|rumou?rs?|"
+                    r"days? (left|to go)|hours? (left|to go)|release date|price|preload|pre-?order|predictions?)\b")
+# Words that mean the stream is playing it: they win over the words above ("until", "before", "giveaway" were removed
+# on 19 Nov: "Playing GTA 6 Until i Finish It" was filed as Other and Casetoo dropped out of the GTA 6 lists).
+_G6PLAY = re.compile(r"\b(gameplay|playing|plays|played|walkthrough|part ?\d+|episode|ep ?\d+|epi ?\d+|mission|marathon|"
+                     r"story ?mode|free ?roam|first (look|day|hour|time|stream|live)|is here|launch|day ?\d+|finish|"
+                     r"100%|speedrun|online|exploring|exploration|vice city)\b")
 
 
 def classify(category: str, title: str) -> str:
@@ -1111,7 +1115,7 @@ def classify(category: str, title: str) -> str:
             if not (any(w in t6 for w in words) or _G6RX.search(t6)):
                 continue
         if any(w in t for w in words) or (g == "GTA 6" and _G6RX.search(t)):   # "GTA VI🌴": an emoji right after
-            if g == "GTA 6" and _G6NOT.search(t):  # talking about GTA 6, not playing it
+            if g == "GTA 6" and _G6NOT.search(t) and not _G6PLAY.search(t):   # talking about it, not playing it
                 return "GTA V" if re.search(r"\bgta ?(v|5)\b|\brp\b|roleplay|soul ?city", t) else "Other"
             return g
     return "Other"
@@ -1159,7 +1163,7 @@ _G6N = {"at": 0, "v": set()}
 
 def _g6_not() -> set:
     if time.time() - _G6N["at"] > 60:
-        _G6N["v"] = {s for s, x in (store.kv_get("g6_check2") or {}).items() if not x[0]}
+        _G6N["v"] = {s for s, x in (store.kv_get("g6_check3") or {}).items() if not x[0]}
         _G6N["at"] = time.time()
     return _G6N["v"]
 
@@ -1191,6 +1195,35 @@ def _yt_game(vid: str):
     return game, title
 
 
+def unfile_g6(since: int = 1795046400) -> int:
+    """One-time repair (19 Nov): from 19 Nov 00:00 UTC the stricter title rule filed real GTA 6 YouTube streams such as
+    "Playing GTA 6 Until i Finish It" as Other. For YouTube channels whose current title is GTA 6 under the corrected
+    rule, that period's Other readings and day rows go back to GTA 6 (merged with any GTA 6 row of the same day)."""
+    day0 = datetime.fromtimestamp(since, events.REPORT_TZ).strftime("%Y-%m-%d")
+    with store.reading():
+        c = store.conn()
+        cand = c.execute("""SELECT DISTINCT d.sid, ch.title FROM sc_daily d JOIN sc_channels ch ON ch.sid=d.sid
+                            WHERE d.day>=? AND d.game='Other' AND d.sid LIKE 'yt:%'""", (day0,)).fetchall()
+    sids = [s for s, t in cand if t and classify("", t) == "GTA 6"]
+    for i in range(0, len(sids), 200):
+        part = sids[i:i + 200]
+        q = ",".join("?" * len(part))
+        with store._lock:
+            c = store.main()
+            rows = c.execute(f"SELECT day, sid, peak, peak_at, mins, hw FROM sc_daily WHERE day>=? AND game='Other' "
+                             f"AND sid IN ({q})", (day0, *part)).fetchall()
+            for day, sid, pk, pts, mn, hw in rows:
+                c.execute("""INSERT INTO sc_daily VALUES (?,?,'GTA 6',?,?,?,?) ON CONFLICT(day, sid, game) DO UPDATE SET
+                             peak_at=CASE WHEN excluded.peak>sc_daily.peak THEN excluded.peak_at ELSE sc_daily.peak_at END,
+                             peak=MAX(sc_daily.peak, excluded.peak), mins=sc_daily.mins+excluded.mins, hw=sc_daily.hw+excluded.hw""",
+                          (day, sid, pk, pts, mn, hw))
+            c.execute(f"DELETE FROM sc_daily WHERE day>=? AND game='Other' AND sid IN ({q})", (day0, *part))
+            c.execute(f"UPDATE sc_samples SET game='GTA 6' WHERE ts>=? AND game='Other' AND sid IN ({q})", (since, *part))
+            c.commit()
+    print(f"GTA 6 repair: {len(sids)} YouTube channels moved back from Other to GTA 6 since {day0}")
+    return len(sids)
+
+
 def verify_g6(limit: int = 400, recheck: int = 6 * 3600) -> int:
     """Checks each YouTube channel in the GTA 6 lists against its own streams since launch (owner, 19 Nov: channels
     that never played it were listed). A stream counts when YouTube's game card says Grand Theft Auto VI, or, with no
@@ -1202,7 +1235,7 @@ def verify_g6(limit: int = 400, recheck: int = 6 * 3600) -> int:
         c = store.conn()
         sids = [r[0] for r in c.execute("SELECT sid, MAX(peak) p FROM sc_daily WHERE game='GTA 6' AND day>=? AND sid LIKE 'yt:%' "
                                          "GROUP BY sid ORDER BY p DESC LIMIT ?", (day0, limit))]
-    chk = store.kv_get("g6_check2") or {}
+    chk = store.kv_get("g6_check3") or {}
     todo = [s for s in sids if s not in chk or time.time() - chk[s][1] > recheck]
     if not todo:
         return 0
@@ -1249,7 +1282,7 @@ def verify_g6(limit: int = 400, recheck: int = 6 * 3600) -> int:
             chk[sid] = [bool(ok), now, keys.get(sid, "")]
             if not ok:
                 bad.append(sid)
-    store.kv_set("g6_check2", chk)
+    store.kv_set("g6_check3", chk)
     _G6N["at"] = 0
     print(f"GTA 6 check: {len(todo)} channels checked, {len(bad)} kept out: {', '.join(bad[:15])}")
     return len(bad)
