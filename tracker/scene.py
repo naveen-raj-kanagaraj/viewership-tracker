@@ -834,7 +834,7 @@ _LIVE = {}            # sid -> {"sid","platform","name","url","logo","game","tit
 _STATE = {"last": 0.0, "yt": 0.0, "seeds": 0.0, "errors": {}, "running": False}
 _lock = threading.Lock()
 _pool = ThreadPoolExecutor(max_workers=8)
-_YFPOOL = ThreadPoolExecutor(max_workers=16)  # YouTube's 2-second counts (own threads: never wait behind a scan)
+_YFPOOL = ThreadPoolExecutor(max_workers=int(os.getenv("SCENE_YT_POOL", "16")))  # YouTube's 2-second counts (own threads: never wait behind a scan)
 _YPOOL = ThreadPoolExecutor(max_workers=6)   # sweep searches on YouTube
 _SCANMEM = {"ts": 0, "rows": None}        # the latest scan, as stored (pages read it from here, not the database)
 SAMPLE_MIN = int(os.getenv("SCENE_SAMPLE_MIN", "10"))   # swept streams below this aren't written to the per-scan table
@@ -2155,6 +2155,7 @@ def yt_fast_once(now: float = None) -> int:
     _YTF["slow"] = min(_YTF["slow"] + 1, 4) if jobs and errs > len(jobs) // 2 else max(_YTF["slow"] - 1, 0)
     base = FAST_SEC                           # every 2 s, tournament or not (owner, 13 Nov 2026); backs off only if YouTube refuses
     _YTF["next"] = t + base * (2 ** _YTF["slow"])
+    _YTF["last"] = {"n": len(jobs), "errs": errs, "took": round(time.time() - t, 2), "slow": _YTF["slow"]}
     return len(got)
 
 
