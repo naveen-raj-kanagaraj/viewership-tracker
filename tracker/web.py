@@ -1401,6 +1401,16 @@ def run():
             except Exception as e:
                 print(f"GTA 6 refile: {str(e)[:120]}")
         threading.Thread(target=g6_refile, daemon=True).start()
+
+        def g6_verify():                     # every 15 min: YouTube channels in GTA 6 lists checked against their streams
+            time.sleep(90)
+            while True:
+                try:
+                    sc_.verify_g6()
+                except Exception as e:
+                    print(f"GTA 6 check: {str(e)[:120]}")
+                time.sleep(900)
+        threading.Thread(target=g6_verify, daemon=True).start()
         try:
             sc_.merge_aliases()
         except Exception as e:

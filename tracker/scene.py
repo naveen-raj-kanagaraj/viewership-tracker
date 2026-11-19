@@ -1105,6 +1105,10 @@ def classify(category: str, title: str) -> str:
     for g, words in GAMES:
         if g in _hidden():
             continue                        # "GTA 6 soon" titles before release are GTA V
+        if g == "GTA 6":                    # "#gta6" tags on a GTA V short are not GTA 6
+            t6 = re.sub(r"#\S+", " ", t)
+            if not (any(w in t6 for w in words) or _G6RX.search(t6)):
+                continue
         if any(w in t for w in words) or (g == "GTA 6" and _G6RX.search(t)):   # "GTA VI🌴": an emoji right after
             if g == "GTA 6" and _G6NOT.search(t):  # talking about GTA 6, not playing it
                 return "GTA V" if re.search(r"\bgta ?(v|5)\b|\brp\b|roleplay|soul ?city", t) else "Other"
@@ -1141,8 +1145,107 @@ def name_blocked(name) -> bool:
 GAME_NOT = {"GTA 6": {"willygaming"}}
 
 
-def not_in_game(name, game) -> bool:
-    return bool(game) and re.sub(r"[^a-z0-9]", "", (name or "").lower()) in GAME_NOT.get(game, ())
+def not_in_game(name, game, sid: str = "") -> bool:
+    if not game:
+        return False
+    if game == "GTA 6" and sid and sid in _g6_not():
+        return True
+    return re.sub(r"[^a-z0-9]", "", (name or "").lower()) in GAME_NOT.get(game, ())
+
+
+_G6N = {"at": 0, "v": set()}
+
+
+def _g6_not() -> set:
+    if time.time() - _G6N["at"] > 60:
+        _G6N["v"] = {s for s, x in (store.kv_get("g6_check") or {}).items() if not x[0]}
+        _G6N["at"] = time.time()
+    return _G6N["v"]
+
+
+_BOXART = re.compile(r'"RICH_METADATA_RENDERER_STYLE_BOX_ART"')
+_SIMPLE = re.compile(r'"title":\{"simpleText":"((?:[^"\\]|\\.)*)"')
+_MTITLE = re.compile(r'<meta name="title" content="([^"]*)"')
+
+
+def _yt_game(vid: str):
+    """(game YouTube shows under the video or '', title) from the watch page. None if the page could not be read."""
+    try:
+        r = events._http.get(f"https://www.youtube.com/watch?v={vid}", timeout=10,
+                             headers={"User-Agent": events._UA, "Accept-Language": "en"})
+        if r.status_code != 200:
+            return None
+        h = r.text
+    except Exception:
+        return None
+    game = ""
+    m = _BOXART.search(h)
+    if m:
+        g = _SIMPLE.search(h, m.end(), m.end() + 4000)
+        game = json.loads('"' + g.group(1) + '"') if g else ""
+    t = _MTITLE.search(h)
+    return game, html.unescape(t.group(1)) if t else ""
+
+
+def verify_g6(limit: int = 400, recheck: int = 6 * 3600) -> int:
+    """Checks each YouTube channel in the GTA 6 lists against its own streams since launch (owner, 19 Nov: channels
+    that never played it were listed). A stream counts when YouTube's game card says Grand Theft Auto VI, or, with no
+    card, when its title is about playing GTA 6. A channel with none of those is kept out of GTA 6 lists."""
+    if not gta6_on():
+        return 0
+    day0 = datetime.fromtimestamp(GTA6_RELEASE, events.REPORT_TZ).strftime("%Y-%m-%d")
+    with store.reading():
+        c = store.conn()
+        sids = [r[0] for r in c.execute("SELECT sid, MAX(peak) p FROM sc_daily WHERE game='GTA 6' AND day>=? AND sid LIKE 'yt:%' "
+                                         "GROUP BY sid ORDER BY p DESC LIMIT ?", (day0, limit))]
+    chk = store.kv_get("g6_check") or {}
+    todo = [s for s in sids if s not in chk or time.time() - chk[s][1] > recheck]
+    if not todo:
+        return 0
+
+    def one(sid):
+        with store.reading():
+            vids = [r[0] for r in store.conn().execute(
+                "SELECT vid FROM sc_vstreams WHERE sid=? AND last_ts>=? ORDER BY peak DESC LIMIT 4", (sid, GTA6_RELEASE))]
+        seen, games, titles = 0, set(), []
+        for v in vids:
+            x = _yt_game(v)
+            if x is None:
+                continue
+            seen += 1
+            if x[0]:
+                games.add(x[0].lower())
+            titles.append(x[1])
+        if not seen:
+            return None                         # could not check: leave as is
+        if any("grand theft auto vi" in g or "gta vi" in g or "gta 6" in g for g in games):
+            return True
+        if games:
+            return False                        # YouTube says another game on every stream
+        t6 = [t for t in titles if classify("", t) == "GTA 6"]
+        return ("title", re.sub(r"\W+", " ", t6[0].lower()).strip()) if t6 else False
+
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(4) as ex:
+        res = list(ex.map(one, todo))
+    # Re-streams copy a bigger channel's title word for word: with no game card, only the biggest channel (sids are
+    # in peak order) keeps a title shared with other channels.
+    taken = {}
+    keys = {sid: ok[1] for sid, ok in zip(todo, res) if isinstance(ok, tuple)}
+    keys.update({s: x[2] for s, x in chk.items() if len(x) > 2 and x[2] and s not in keys and s in sids})
+    for sid in sorted(keys, key=sids.index):
+        taken.setdefault(keys[sid], sid)
+    res = [(taken.get(ok[1]) == sid) if isinstance(ok, tuple) else ok for sid, ok in zip(todo, res)]
+    now, bad = time.time(), []
+    for sid, ok in zip(todo, res):
+        if ok is not None:
+            chk[sid] = [bool(ok), now, keys.get(sid, "")]
+            if not ok:
+                bad.append(sid)
+    store.kv_set("g6_check", chk)
+    _G6N["at"] = 0
+    print(f"GTA 6 check: {len(todo)} channels checked, {len(bad)} kept out: {', '.join(bad[:15])}")
+    return len(bad)
 
 
 # ---------- YouTube ----------
@@ -2709,7 +2812,7 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
         print("Slow scene.data " + f"{region}:{sec}:{game}:{period} " + " ".join(f"{n}={b - a_:.1f}" for (_, a_), (n, b) in zip(T, T[1:])))
     ch, games = {}, {}
     for r in rows:
-        if r["sid"] in blk or name_blocked(r["name"]) or not_in_game(r["name"], r["game"]) \
+        if r["sid"] in blk or name_blocked(r["name"]) or not_in_game(r["name"], r["game"], r["sid"]) \
                 or (sec and sec != "esports" and section_of(r["game"]) != sec):
             continue
         x = ch.setdefault(r["sid"], {"sid": r["sid"], "name": r["name"] or r["sid"], "platform": r["platform"] or "",
