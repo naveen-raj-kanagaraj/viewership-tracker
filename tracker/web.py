@@ -567,7 +567,7 @@ def admin_health():
     return Response(_HEALTH_PAGE, mimetype="text/html")
 
 
-_HEALTH_PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+_HEALTH_PAGE = r"""<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
 <title>Tracker health</title><style>body{background:#0e0e14;color:#e8e8f0;font:14px/1.45 system-ui;margin:16px;max-width:1000px}
 h1{font-size:20px}.k{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}.c{background:#16161f;border:1px solid #2a2a3a;
 border-radius:10px;padding:10px}.c b{display:block;font-size:22px}.bad{border-color:#ff5d5d}.bad b{color:#ff5d5d}.ok b{color:#b6f23a}
