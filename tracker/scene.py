@@ -1310,6 +1310,18 @@ def refile_cards(since: int = None, max_vids: int = 2000) -> int:
     return moved
 
 
+def _samples_regame(sids, since: int, old: str, new: str, per: int = 10):
+    """Re-label one channel's readings at a time through the (sid, ts) index, a few channels per hold of the write
+    lock (19 Nov: one UPDATE over all channels went through the ts index, held the lock for minutes and paused scans)."""
+    for i in range(0, len(sids), per):
+        with store._lock:
+            c = store.main()
+            for sid in sids[i:i + per]:
+                c.execute("UPDATE sc_samples INDEXED BY sc_samples_sid SET game=? WHERE sid=? AND ts>=? AND game=?",
+                          (new, sid, since, old))
+            c.commit()
+
+
 def unnews_g6(since_day: str = "2026-11-18") -> int:
     """One-time repair (19 Nov): news / devotional channels whose GTA 6 coverage was counted as GTA 6 (title rule of
     19 Nov morning, and unfile_g6) get those day rows and readings back under News."""
@@ -1335,8 +1347,8 @@ def unnews_g6(since_day: str = "2026-11-18") -> int:
                              peak=MAX(sc_daily.peak, excluded.peak), mins=sc_daily.mins+excluded.mins, hw=sc_daily.hw+excluded.hw""",
                           (day, sid, pk, pa, mn, hw))
             c.execute(f"DELETE FROM sc_daily WHERE day>=? AND game='GTA 6' AND sid IN ({q})", (since_day, *part))
-            c.execute(f"UPDATE sc_samples SET game='News' WHERE ts>=? AND game='GTA 6' AND sid IN ({q})", (t0, *part))
             c.commit()
+        _samples_regame(part, t0, "GTA 6", "News")
     print(f"GTA 6 news repair: {len(bad)} news/devotional channels moved out of GTA 6")
     return len(bad)
 
@@ -1390,8 +1402,8 @@ def unfile_g6(since: int = 1795046400) -> int:
                              peak=MAX(sc_daily.peak, excluded.peak), mins=sc_daily.mins+excluded.mins, hw=sc_daily.hw+excluded.hw""",
                           (day, sid, pk, pts, mn, hw))
             c.execute(f"DELETE FROM sc_daily WHERE day>=? AND game='Other' AND sid IN ({q})", (day0, *part))
-            c.execute(f"UPDATE sc_samples SET game='GTA 6' WHERE ts>=? AND game='Other' AND sid IN ({q})", (since, *part))
             c.commit()
+        _samples_regame(part, since, "Other", "GTA 6")
     print(f"GTA 6 repair: {len(sids)} YouTube channels moved back from Other to GTA 6 since {day0}")
     return len(sids)
 
