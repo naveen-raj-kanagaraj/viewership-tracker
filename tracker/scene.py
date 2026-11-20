@@ -1341,6 +1341,32 @@ def unnews_g6(since_day: str = "2026-11-18") -> int:
     return len(bad)
 
 
+def fix_switch_peaks(since: int = None) -> int:
+    """One-time repair (19 Nov): GTA 6 day peaks that came from another game's stream on the same day (the channel
+    switched category between two scans and the in-between peak was booked to GTA 6). Where a GTA 6 day peak is over
+    1.25x every GTA 6 reading of that day AND the channel had a reading in another game that day at 80%+ of that peak,
+    the peak is set to the highest GTA 6 reading."""
+    since = since or GTA6_RELEASE
+    day = lambda ts: datetime.fromtimestamp(ts, events.REPORT_TZ).strftime("%Y-%m-%d")
+    g6, other = {}, {}
+    with store.reading():
+        c = store.conn()
+        for ts, sid, v, g in c.execute("SELECT ts, sid, viewers, game FROM sc_samples WHERE ts>=? AND viewers>=1000", (since,)):
+            k = (sid, day(ts))
+            d = g6 if g == "GTA 6" else other
+            if v > d.get(k, (0, 0))[0]:
+                d[k] = (v, ts)
+        rows = c.execute("SELECT day, sid, peak FROM sc_daily WHERE game='GTA 6' AND day>=? AND peak>=1000", (day(since),)).fetchall()
+    fix = [(g6[(sid, d)][0], g6[(sid, d)][1], d, sid) for d, sid, pk in rows
+           if (sid, d) in g6 and pk > 1.25 * g6[(sid, d)][0] and other.get((sid, d), (0,))[0] >= 0.8 * pk]
+    with store._lock:
+        c = store.main()
+        c.executemany("UPDATE sc_daily SET peak=?, peak_at=? WHERE day=? AND sid=? AND game='GTA 6'", fix)
+        c.commit()
+    print(f"GTA 6 peak repair: {len(fix)} channel-days had another game's peak; set to their highest GTA 6 reading")
+    return len(fix)
+
+
 def unfile_g6(since: int = 1795046400) -> int:
     """One-time repair (19 Nov): from 19 Nov 00:00 UTC the stricter title rule filed real GTA 6 YouTube streams such as
     "Playing GTA 6 Until i Finish It" as Other. For YouTube channels whose current title is GTA 6 under the corrected
@@ -2019,6 +2045,13 @@ def _store(rows, now, last):
     day = datetime.fromtimestamp(now, events.REPORT_TZ).strftime("%Y-%m-%d")
     fpk = dict(_FPEAK)                        # 2-second readings since the last scan: the true peak in between
     _FPEAK.clear()
+    for x in rows:                            # a channel that switched game since the last scan: its in-between readings
+        pg = _PREVGAME.get(x["sid"])          # may belong to the old game, so they don't set the new game's peak
+        if pg is not None and pg != x["game"]:  # (19 Nov: neyoo's 40K Bigg Boss watch party showed up as a GTA 6 peak)
+            fpk.pop(x["sid"], None)
+        _PREVGAME[x["sid"]] = x["game"]
+    if len(_PREVGAME) > 400000:
+        _PREVGAME.clear()
     vpk = dict(_VPEAK)
     _VPEAK.clear()
     try:
@@ -2127,6 +2160,7 @@ def _store(rows, now, last):
 
 FAST_SEC = float(os.getenv("SCENE_FAST_SEC", "2"))
 _FASTV = {}          # sid -> [ts, viewers or None, misses]: Kick/Twitch re-read every FAST_SEC between scans
+_PREVGAME = {}       # sid -> its game at the last stored scan
 _FPEAK = {}          # sid -> highest 2-second reading since the last scan was stored (so daily peaks catch short spikes)
 _VPEAK = {}          # YouTube video id -> highest 2-second reading since the last scan (per-stream peak CCV)
 
