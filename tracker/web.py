@@ -1409,6 +1409,9 @@ def run():
         def g6_verify():                     # every 15 min: YouTube channels in GTA 6 lists checked against their streams
             time.sleep(90)
             try:
+                if not store.kv_get("g6_peaks_v1"):
+                    sc_.fix_switch_peaks()
+                    store.kv_set("g6_peaks_v1", time.time())
                 if not store.kv_get("g6_unnews_v1"):
                     sc_.unnews_g6()
                     store.kv_set("g6_unnews_v1", time.time())
