@@ -190,6 +190,8 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 20 Nov: after the 19 GB WAL was folded in (scripts/wal_reset.sh, 204 s) the checkpointer reported `0 copied, reset busy` with the WAL growing ~25 MB/min: something held an old snapshot. Per-thread read connections are now replaced every 60 s (at the start of a reading block), and before each reset an uncommitted write left open on the main connection is committed (logged). Watch /admin/health: WAL should stay under ~100 MB.
+
 - 20 Nov: WAL back at 19 GB; the forced reset held writes 5 s every ~35 s and still failed (a reader is always active), and each restart spent 6 min in SQLite WAL recovery (`Slow write lock: 368s held by store.py:115 main`) = the Cloudflare 530 outages. Now: normal reset every 2 min with a 2 s wait; when the WAL is over ~1 GB, one 20 s attempt every 10 min. Run scripts/wal_reset.sh (tracker stopped) when it is huge. Open issue: some long read transactions keep the WAL from resetting; find them with /admin/health busy threads.
 
 - 20 Nov: health without ssh. `/api/health` (public JSON, no secrets or data) and `/admin/health` (auto-refreshing page): last scan saved, scan running for / last took, who holds the write lock right now (`store.HOLDER`) and for how long, WAL and DB size, disk free, memory, load, YouTube 2-second round, what each busy thread is doing (from sys._current_frames, tracker frames only), and the last 40 warning lines (stdout tee). Check this first when the site says paused.
