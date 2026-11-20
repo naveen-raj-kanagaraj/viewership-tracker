@@ -80,6 +80,14 @@ class reading:
 
     def __enter__(self):
         _tl.depth = getattr(_tl, "depth", 0) + 1
+        if _tl.depth == 1:                      # a fresh read connection now and then: a cursor left half-read in a
+            c = getattr(_tl, "rc", None)        # long-lived thread keeps its snapshot open, and the database log can't
+            if c is not None and time.time() - getattr(_tl, "rc_at", 0) > 60:   # reset past it (20 Nov: 19 GB log)
+                try:
+                    c.close()
+                except Exception:
+                    pass
+                _tl.rc = None
         return self
 
     def __exit__(self, *exc):
@@ -99,7 +107,7 @@ def _reader() -> sqlite3.Connection:
         c.row_factory = sqlite3.Row                                                    # the latest data, never an old snapshot
         c.execute("PRAGMA busy_timeout=5000")
         c.execute("PRAGMA query_only=1")
-        _tl.rc, _tl.rc_path = c, DB_PATH
+        _tl.rc, _tl.rc_path, _tl.rc_at = c, DB_PATH, time.time()
     return c
 
 
@@ -158,6 +166,9 @@ def checkpointer(every: int = 30):
                     # old readers to finish instead of 5 s every 30 s (20 Nov: that held writes 5 s of every 35 s and
                     # still never reset; the log reached 19 GB and every restart spent 6 minutes recovering it).
                     with _lock:
+                        if _conn is not None and _conn.in_transaction:   # a write left uncommitted keeps an old
+                            print(f"WAL checkpoint: committed a write left open on the main connection")   # snapshot
+                            _conn.commit()
                         c.execute(f"PRAGMA busy_timeout={20000 if big else 2000}")
                         tr = c.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
                         c.execute("PRAGMA busy_timeout=200")
