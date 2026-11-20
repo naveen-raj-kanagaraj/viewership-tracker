@@ -151,9 +151,14 @@ def checkpointer(every: int = 30):
                 busy, log, done = c.execute("PRAGMA wal_checkpoint(PASSIVE)").fetchone()
                 n += 1
                 tr = None
-                if n % 4 == 0 or log > 250000:  # every 2 minutes (or when large): copy the rest and reset the file, with the
-                    with _lock:                  # tracker's writes held; waits up to 5 s for readers (20 Nov: the reset only
-                        c.execute("PRAGMA busy_timeout=5000")   # ran when a passive copy had caught up, never did, WAL hit 21 GB)
+                big = log > 250000                # ~1 GB
+                if (n % 4 == 0 and not big) or (big and n % 20 == 0):
+                    # Reset the file with the tracker's writes held. Normally there is little to copy, so 2 s is plenty.
+                    # When it has grown (a long read kept it from resetting), wait up to 20 s every 10 minutes for the
+                    # old readers to finish instead of 5 s every 30 s (20 Nov: that held writes 5 s of every 35 s and
+                    # still never reset; the log reached 19 GB and every restart spent 6 minutes recovering it).
+                    with _lock:
+                        c.execute(f"PRAGMA busy_timeout={20000 if big else 2000}")
                         tr = c.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
                         c.execute("PRAGMA busy_timeout=200")
                 took = _t.time() - t0
