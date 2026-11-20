@@ -161,7 +161,7 @@ def checkpointer(every: int = 30):
                 n += 1
                 tr = None
                 big = log > 250000                # ~1 GB
-                if (n % 4 == 0 and not big) or (big and n % 20 == 0):
+                if (n % 4 == 0 and not big) or (big and n % 30 == 0):
                     # Reset the file with the tracker's writes held. Normally there is little to copy, so 2 s is plenty.
                     # When it has grown (a long read kept it from resetting), wait up to 20 s every 10 minutes for the
                     # old readers to finish instead of 5 s every 30 s (20 Nov: that held writes 5 s of every 35 s and
@@ -170,7 +170,9 @@ def checkpointer(every: int = 30):
                         if _conn is not None and _conn.in_transaction:   # a write left uncommitted keeps an old
                             print(f"WAL checkpoint: committed a write left open on the main connection")   # snapshot
                             _conn.commit()
-                        c.execute(f"PRAGMA busy_timeout={20000 if big else 2000}")
+                        # big: wait up to 90 s, once every 15 min. Only reads that began before the copy finished
+                        # block the reset (20 Nov: page reads of 60-130 s outlasted a 20 s wait every time)
+                        c.execute(f"PRAGMA busy_timeout={90000 if big else 2000}")
                         tr = c.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
                         c.execute("PRAGMA busy_timeout=200")
                 took = _t.time() - t0
