@@ -23,6 +23,9 @@ DB_PATH = os.getenv("TRACKER_DB", os.path.join("data", "tracker.db"))
 _tl = threading.local()
 
 
+HOLDER = {}          # who holds the write lock right now (health page)
+
+
 class _Lock:
     """The write lock (a re-entrant lock that remembers, per thread, that it is held): code that takes it inside a
     store.reading() block gets the read-write connection again, so nested writes keep working."""
@@ -37,12 +40,14 @@ class _Lock:
             if _tl.held == 1:
                 f = sys._getframe(2) if hasattr(sys, "_getframe") else None
                 _tl.since = (time.time(), f"{os.path.basename(f.f_code.co_filename)}:{f.f_lineno} {f.f_code.co_name}" if f else "?")
+                HOLDER.update(at=_tl.since[0], where=_tl.since[1], thread=threading.current_thread().name)
         return ok
 
     def release(self):
         _tl.held -= 1
         if _tl.held == 0 and getattr(_tl, "since", None):
             dt = time.time() - _tl.since[0]
+            HOLDER.clear()
             if dt > 2:                          # everyone else waited this long: name the culprit in the log
                 print(f"Slow write lock: {dt:.1f}s held by {_tl.since[1]}")
         self._l.release()

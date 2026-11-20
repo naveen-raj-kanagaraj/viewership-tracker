@@ -190,6 +190,8 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 20 Nov: health without ssh. `/api/health` (public JSON, no secrets or data) and `/admin/health` (auto-refreshing page): last scan saved, scan running for / last took, who holds the write lock right now (`store.HOLDER`) and for how long, WAL and DB size, disk free, memory, load, YouTube 2-second round, what each busy thread is doing (from sys._current_frames, tracker frames only), and the last 40 warning lines (stdout tee). Check this first when the site says paused.
+
 - 20 Nov: neyoo's 46,043 GTA 6 peak was his first GTA 6 reading right after switching from a 47K watch party (readings checked on the server). After a mid-stream category switch (same channel seen within 30 min under another game), the new game's peak is not set for SCENE_SWITCH_GRACE (900 s); minutes and hours watched still count. One-time `fix_switch_peaks2()` (kv `g6_peaks_v2`) applies the same rule to GTA 6 days since launch.
 
 - 19 Nov: in-between 2-second peaks (`_FPEAK`, per channel) were booked to whatever game the next scan saw, so a channel that switched category between scans got its old stream's peak on the new game (neyoo: a ~40K Bigg Boss watch party showed as a GTA 6 peak). `_store` now drops the in-between peak when the game changed since the last scan (`_PREVGAME`). One-time `fix_switch_peaks()` (kv `g6_peaks_v1`) resets GTA 6 day peaks to the highest GTA 6 reading where they were >1.25x it and another game that day reached 80%+ of the peak.
