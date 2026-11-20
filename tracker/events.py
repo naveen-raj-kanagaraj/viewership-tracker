@@ -136,6 +136,8 @@ PRESETS = {
     },
     "cegc": {
         "name": "CEGC",
+        "game": "BGMI",
+        "hist": ["CEGC", "26"],                 # in the BGMI tournaments chart (owner, 20 Nov)
         "auto": True,                           # created on startup if missing (no command needed)
         "home": True,                           # the event at / while it runs
         # official broadcast on Kick (Sky Esports). Permitted watch parties (owner's list, 3 Nov) stream only on Kick.

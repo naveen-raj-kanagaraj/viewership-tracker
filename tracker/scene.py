@@ -2532,7 +2532,7 @@ GAME_HISTORY = {"BGMI": [["LAUNCH", "21", 540], ["BGIS", "21", 460], ["BMPS", "2
                          ["BGIS", "23", 235], ["BMPS", "23", 201], ["INKR", "23", 178], ["BGIS", "24", 275],
                          ["BMPS", "24", 495], ["BGIS", "25", 485], ["BMPS", "25", 320], ["BMSD", "25", 380],
                          ["BMIC", "25", 372], ["BGIS", "26", 578], ["BMPS", "26", 730], ["BMSD", "26", 653]]}
-SERIES_NAMES = {"LAUNCH": "BGMI Launch Party", "INKR": "INKR Invitational"}
+SERIES_NAMES = {"LAUNCH": "BGMI Launch Party", "INKR": "INKR Invitational", "CEGC": "CEGC"}
 
 
 def game_history(game: str) -> list:
