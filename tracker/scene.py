@@ -836,6 +836,7 @@ _lock = threading.Lock()
 _pool = ThreadPoolExecutor(max_workers=8)
 _YFPOOL = ThreadPoolExecutor(max_workers=int(os.getenv("SCENE_YT_POOL", "16")))  # YouTube's 2-second counts (own threads: never wait behind a scan)
 _YPOOL = ThreadPoolExecutor(max_workers=6)   # sweep searches on YouTube
+CYCLE = {}           # the scan loop: when the current/last scan started, how long it took (health page)
 _SCANMEM = {"ts": 0, "rows": None}        # the latest scan, as stored (pages read it from here, not the database)
 SAMPLE_MIN = int(os.getenv("SCENE_SAMPLE_MIN", "10"))   # swept streams below this aren't written to the per-scan table
 _SPOOL = ThreadPoolExecutor(max_workers=4)   # the launch-game sweep (its own threads, so scans don't wait)
@@ -2503,8 +2504,10 @@ def run_forever():
         except Exception as e:
             print(f"Compaction: {str(e)[:120]}")
         try:
+            CYCLE.update(started=t0, running=True)
             r = cycle()
             took = time.time() - t0
+            CYCLE.update(running=False, took=round(took), done=time.time(), live=r.get("live"))
             if took > SCENE_SEC * 2:
                 print(f"Scan took {took:.0f}s ({r.get('live')} live)")
             if r["errors"]:                  # shown in the tracker window so a failing source is visible

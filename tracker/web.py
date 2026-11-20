@@ -11,6 +11,7 @@ import gzip
 import json
 import logging
 import os
+import sys
 import threading
 import time
 import queue
@@ -484,6 +485,106 @@ def api_tour():
     if not name:
         return Response("{}", status=404, mimetype="application/json")
     return _memo(f"/api/tour:{region}:{sl}", 10, _jdump(lambda: scene.tour_data(name, region)), "application/json")
+
+
+class _Tee:
+    """Keeps the last warning lines the tracker prints (slow locks, slow scans, failures) for the health page."""
+    PAT = ("Slow write lock", "Scan took", "WAL checkpoint", "failed", "Traceback", "Error", "repair", "Slow page build: ")
+
+    def __init__(self, out):
+        self.out, self.lines = out, __import__("collections").deque(maxlen=120)
+
+    def write(self, s):
+        if any(p in s for p in self.PAT) and not s.startswith("Slow page build: 2") and not s.startswith("Slow page build: 3"):
+            self.lines.append((time.time(), s.strip()[:220]))
+        return self.out.write(s)
+
+    def flush(self):
+        return self.out.flush()
+
+    def __getattr__(self, k):
+        return getattr(self.out, k)
+
+
+if not isinstance(sys.stdout, _Tee):
+    sys.stdout = _Tee(sys.stdout)
+
+
+def _health() -> dict:
+    """Where the tracker is right now: scans, the write lock, the database log, disk, memory, what each busy thread is
+    doing, and the latest warnings. No secrets and no data."""
+    import shutil, threading as th
+    from tracker import scene as sc_
+    now = time.time()
+    db = store.DB_PATH
+    wal = os.path.getsize(db + "-wal") if os.path.exists(db + "-wal") else 0
+    du = shutil.disk_usage(os.path.dirname(db) or ".")
+    mem = {}
+    try:
+        for ln in open("/proc/meminfo"):
+            k, v = ln.split(":")
+            if k in ("MemTotal", "MemAvailable", "SwapTotal", "SwapFree"):
+                mem[k] = int(v.split()[0]) // 1024
+    except Exception:
+        pass
+    cyc = dict(sc_.CYCLE)
+    frames, names = sys._current_frames(), {t.ident: t.name for t in th.enumerate()}
+    busy = []
+    for tid, f in frames.items():
+        stack, g = [], f
+        while g:
+            fn = g.f_code.co_filename
+            if "/tracker/" in fn:
+                stack.append(f"{os.path.basename(fn)}:{g.f_lineno} {g.f_code.co_name}")
+            g = g.f_back
+        if stack and not any(w in stack[0] for w in ("sleep", "_health")):
+            busy.append({"thread": names.get(tid, str(tid)), "at": stack[:4]})
+    h = dict(store.HOLDER)
+    return {
+        "code": api_version().get_json().get("code"), "up_min": round((now - _STARTED) / 60),
+        "scan": {"last_saved_min_ago": round((now - (sc_._SCANMEM.get("ts") or 0)) / 60, 1),
+                 "running_for_s": round(now - cyc["started"]) if cyc.get("running") else 0,
+                 "last_took_s": cyc.get("took"), "live": cyc.get("live")},
+        "write_lock": {"held_s": round(now - h["at"], 1), "by": h.get("where"), "thread": h.get("thread")} if h.get("at") else "free",
+        "wal_mb": round(wal / 1e6), "db_mb": round(os.path.getsize(db) / 1e6) if os.path.exists(db) else 0,
+        "disk_free_gb": round(du.free / 1e9, 1), "disk_used_pct": round(100 * du.used / du.total),
+        "memory_mb": mem, "load": os.getloadavg(),
+        "youtube_2s": sc_._YTF.get("last"),
+        "busy_threads": busy[:40],
+        "recent": [f"{time.strftime('%H:%M:%S', time.gmtime(t))}Z {s}" for t, s in list(sys.stdout.lines)[-40:]]
+                  if isinstance(sys.stdout, _Tee) else [],
+    }
+
+
+@app.route("/api/health")
+def api_health():
+    return _json(_health())
+
+
+@app.route("/admin/health")
+def admin_health():
+    """Owner page: the same as /api/health, refreshed every 5 seconds, with problems in red."""
+    return Response(_HEALTH_PAGE, mimetype="text/html")
+
+
+_HEALTH_PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>Tracker health</title><style>body{background:#0e0e14;color:#e8e8f0;font:14px/1.45 system-ui;margin:16px;max-width:1000px}
+h1{font-size:20px}.k{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}.c{background:#16161f;border:1px solid #2a2a3a;
+border-radius:10px;padding:10px}.c b{display:block;font-size:22px}.bad{border-color:#ff5d5d}.bad b{color:#ff5d5d}.ok b{color:#b6f23a}
+pre{background:#16161f;border:1px solid #2a2a3a;border-radius:10px;padding:10px;white-space:pre-wrap;font-size:12px}</style>
+<h1>Tracker health <span id=t style="font-size:13px;color:#8d8ca3"></span></h1><div class=k id=k></div><h3>Busy threads</h3><pre id=b></pre>
+<h3>Recent warnings (UTC)</h3><pre id=r></pre><script>
+const card=(n,v,bad)=>`<div class="c ${bad?'bad':'ok'}">${n}<b>${v}</b></div>`;
+async function go(){try{const d=await fetch('/api/health',{cache:'no-store'}).then(r=>r.json());const s=d.scan,w=d.write_lock;
+document.getElementById('k').innerHTML=card('Last scan saved',s.last_saved_min_ago+' min ago',s.last_saved_min_ago>8)
++card('Scan running for',s.running_for_s+' s',s.running_for_s>480)+card('Last scan took',(s.last_took_s??'-')+' s',s.last_took_s>400)
++card('Write lock',w==='free'?'free':w.held_s+' s · '+w.by,w!=='free'&&w.held_s>5)+card('Database log (WAL)',d.wal_mb+' MB',d.wal_mb>1500)
++card('Disk free',d.disk_free_gb+' GB',d.disk_free_gb<5)+card('Memory free',(d.memory_mb.MemAvailable||0)+' MB',(d.memory_mb.MemAvailable||0)<2000)
++card('Load (1 min)',d.load[0].toFixed(1),d.load[0]>6)+card('YouTube 2s round',d.youtube_2s?d.youtube_2s.took+' s · '+d.youtube_2s.errs+' errors':'-',d.youtube_2s&&d.youtube_2s.errs>5)
++card('Code',d.code+' · up '+d.up_min+' min',false);
+document.getElementById('b').textContent=d.busy_threads.map(x=>x.thread+'\n   '+x.at.join('\n   ')).join('\n');
+document.getElementById('r').textContent=d.recent.slice().reverse().join('\n');document.getElementById('t').textContent='updated '+new Date().toLocaleTimeString()}
+catch(e){document.getElementById('t').textContent='no answer: '+e}}go();setInterval(go,5000)</script>"""
 
 
 @app.route("/api/version")
