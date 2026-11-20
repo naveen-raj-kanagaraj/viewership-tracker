@@ -486,6 +486,22 @@ def api_tour():
     return _memo(f"/api/tour:{region}:{sl}", 10, _jdump(lambda: scene.tour_data(name, region)), "application/json")
 
 
+@app.route("/api/version")
+def api_version():
+    """Which code is running and which one-time repairs have finished (public: no secrets, no data)."""
+    import subprocess
+    try:
+        sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=5,
+                             cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))).stdout.strip()
+    except Exception:
+        sha = ""
+    rep = {k: bool(store.kv_get(k)) for k in ("g6_peaks_v2", "g6_peaks_v1", "g6_unnews_v1", "g6_unfile_v1", "g6_cards_v1")}
+    return _json({"code": sha, "started": _STARTED, "repairs": rep})
+
+
+_STARTED = time.time()
+
+
 @app.route("/api/sweep")
 def api_sweep():
     """Launch sweep status: which games are swept and how many streams each source found (no secrets)."""
