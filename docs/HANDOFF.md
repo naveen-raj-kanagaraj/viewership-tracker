@@ -190,6 +190,8 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 20 Nov: WAL back at 19 GB; the forced reset held writes 5 s every ~35 s and still failed (a reader is always active), and each restart spent 6 min in SQLite WAL recovery (`Slow write lock: 368s held by store.py:115 main`) = the Cloudflare 530 outages. Now: normal reset every 2 min with a 2 s wait; when the WAL is over ~1 GB, one 20 s attempt every 10 min. Run scripts/wal_reset.sh (tracker stopped) when it is huge. Open issue: some long read transactions keep the WAL from resetting; find them with /admin/health busy threads.
+
 - 20 Nov: health without ssh. `/api/health` (public JSON, no secrets or data) and `/admin/health` (auto-refreshing page): last scan saved, scan running for / last took, who holds the write lock right now (`store.HOLDER`) and for how long, WAL and DB size, disk free, memory, load, YouTube 2-second round, what each busy thread is doing (from sys._current_frames, tracker frames only), and the last 40 warning lines (stdout tee). Check this first when the site says paused.
 
 - 20 Nov: neyoo's 46,043 GTA 6 peak was his first GTA 6 reading right after switching from a 47K watch party (readings checked on the server). After a mid-stream category switch (same channel seen within 30 min under another game), the new game's peak is not set for SCENE_SWITCH_GRACE (900 s); minutes and hours watched still count. One-time `fix_switch_peaks2()` (kv `g6_peaks_v2`) applies the same rule to GTA 6 days since launch.
