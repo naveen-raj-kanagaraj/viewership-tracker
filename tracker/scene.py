@@ -1379,6 +1379,47 @@ def fix_switch_peaks(since: int = None) -> int:
     return len(fix)
 
 
+def fix_switch_peaks2(since: int = None) -> int:
+    """One-time repair (20 Nov): a GTA 6 day peak taken in the first SWITCH_GRACE seconds after the channel switched to
+    GTA 6 from another category mid-stream (the old stream's audience) is replaced by its highest GTA 6 reading after
+    that window."""
+    since = since or GTA6_RELEASE
+    day = lambda ts: datetime.fromtimestamp(ts, events.REPORT_TZ).strftime("%Y-%m-%d")
+    with store.reading():
+        c = store.conn()
+        sids = [r[0] for r in c.execute("SELECT DISTINCT sid FROM sc_daily WHERE game='GTA 6' AND day>=? AND peak>=1000", (day(since),))]
+        rows = {(r[0], r[1]): r[2] for r in c.execute("SELECT day, sid, peak FROM sc_daily WHERE game='GTA 6' AND day>=? AND peak>=1000",
+                                                       (day(since),))}
+        samp = {}
+        for sid in sids:
+            samp[sid] = c.execute("SELECT ts, viewers, game FROM sc_samples INDEXED BY sc_samples_sid WHERE sid=? AND ts>=? ORDER BY ts",
+                                  (sid, since - 3600)).fetchall()
+    fix = []
+    for sid, S in samp.items():
+        best, early, pg, pts, sw = {}, {}, None, 0, None
+        for ts, v, g in S:
+            if g == "GTA 6" and pg not in (None, "GTA 6") and ts - pts < 3600:
+                sw = ts
+            elif g != "GTA 6":
+                sw = None
+            if g == "GTA 6" and ts >= since:
+                d = (day(ts), sid)
+                tgt = early if (sw and ts - sw < SWITCH_GRACE) else best
+                tgt[d] = max(tgt.get(d, 0), v)
+            pg, pts = g, ts
+        for d, e in early.items():
+            pk = rows.get(d)
+            if pk and d in best and pk > best[d] and e >= 0.9 * pk:
+                fix.append((best[d], d[0], sid))
+    with store._lock:
+        c = store.main()
+        c.executemany("UPDATE sc_daily SET peak=? WHERE day=? AND sid=? AND game='GTA 6'", fix)
+        c.commit()
+    print(f"GTA 6 switch-peak repair: {len(fix)} channel-days had a peak from just after switching to GTA 6: "
+          + ", ".join(f"{s} {d} -> {p:,}" for p, d, s in fix[:12]))
+    return len(fix)
+
+
 def unfile_g6(since: int = 1795046400) -> int:
     """One-time repair (19 Nov): from 19 Nov 00:00 UTC the stricter title rule filed real GTA 6 YouTube streams such as
     "Playing GTA 6 Until i Finish It" as Other. For YouTube channels whose current title is GTA 6 under the corrected
@@ -2057,13 +2098,20 @@ def _store(rows, now, last):
     day = datetime.fromtimestamp(now, events.REPORT_TZ).strftime("%Y-%m-%d")
     fpk = dict(_FPEAK)                        # 2-second readings since the last scan: the true peak in between
     _FPEAK.clear()
-    for x in rows:                            # a channel that switched game since the last scan: its in-between readings
-        pg = _PREVGAME.get(x["sid"])          # may belong to the old game, so they don't set the new game's peak
-        if pg is not None and pg != x["game"]:  # (19 Nov: neyoo's 40K Bigg Boss watch party showed up as a GTA 6 peak)
-            fpk.pop(x["sid"], None)
-        _PREVGAME[x["sid"]] = x["game"]
+    grace = set()
+    for x in rows:                            # a channel that switched game mid-stream: for SWITCH_GRACE seconds the
+        sid = x["sid"]                        # audience is still the old stream's, so it doesn't set the new game's peak
+        pg, seen = _PREVGAME.get(sid, (None, 0))  # (19 Nov: neyoo went from a 47K watch party to GTA 6 and the first
+        if pg is not None and pg != x["game"] and now - seen < 1800:     # GTA 6 reading, 46K, became his GTA 6 peak)
+            _SWITCH[sid] = (x["game"], now)
+        sw_ = _SWITCH.get(sid)
+        if sw_ and sw_[0] == x["game"] and now - sw_[1] < SWITCH_GRACE:
+            grace.add(sid)
+            fpk.pop(sid, None)
+        _PREVGAME[sid] = (x["game"], now)
     if len(_PREVGAME) > 400000:
         _PREVGAME.clear()
+        _SWITCH.clear()
     vpk = dict(_VPEAK)
     _VPEAK.clear()
     try:
@@ -2099,7 +2147,7 @@ def _store(rows, now, last):
         buf = _DBUF.setdefault("rows", {})
         for x in rows:
             k = (day, x["sid"], x["game"])
-            pk = max(x["viewers"], fpk.get(x["sid"], 0))
+            pk = 0 if x["sid"] in grace else max(x["viewers"], fpk.get(x["sid"], 0))
             e = buf.get(k)
             if e is None:
                 buf[k] = [pk, int(now), dt / 60, x["viewers"] * dt / 3600]
@@ -2172,7 +2220,9 @@ def _store(rows, now, last):
 
 FAST_SEC = float(os.getenv("SCENE_FAST_SEC", "2"))
 _FASTV = {}          # sid -> [ts, viewers or None, misses]: Kick/Twitch re-read every FAST_SEC between scans
-_PREVGAME = {}       # sid -> its game at the last stored scan
+_PREVGAME = {}       # sid -> (its game, when) at the last stored scan
+_SWITCH = {}         # sid -> (game switched to mid-stream, when)
+SWITCH_GRACE = int(os.getenv("SCENE_SWITCH_GRACE", "900"))
 _FPEAK = {}          # sid -> highest 2-second reading since the last scan was stored (so daily peaks catch short spikes)
 _VPEAK = {}          # YouTube video id -> highest 2-second reading since the last scan (per-stream peak CCV)
 

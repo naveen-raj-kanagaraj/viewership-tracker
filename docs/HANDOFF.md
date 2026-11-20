@@ -190,6 +190,8 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 20 Nov: neyoo's 46,043 GTA 6 peak was his first GTA 6 reading right after switching from a 47K watch party (readings checked on the server). After a mid-stream category switch (same channel seen within 30 min under another game), the new game's peak is not set for SCENE_SWITCH_GRACE (900 s); minutes and hours watched still count. One-time `fix_switch_peaks2()` (kv `g6_peaks_v2`) applies the same rule to GTA 6 days since launch.
+
 - 19 Nov: in-between 2-second peaks (`_FPEAK`, per channel) were booked to whatever game the next scan saw, so a channel that switched category between scans got its old stream's peak on the new game (neyoo: a ~40K Bigg Boss watch party showed as a GTA 6 peak). `_store` now drops the in-between peak when the game changed since the last scan (`_PREVGAME`). One-time `fix_switch_peaks()` (kv `g6_peaks_v1`) resets GTA 6 day peaks to the highest GTA 6 reading where they were >1.25x it and another game that day reached 80%+ of the peak.
 
 - 19 Nov: saved /api/topch answers made under older listing rules were served for hours (fakes still in 7-day GTA 6 lists after they were removed). The memo key now carries `scene.RULES_V` (hash of GAME_NOT, NAME_BLOCK and the title/news patterns), so a rules change never shows old lists. `ranks.game_live` builds once (lock) and serves the last answer while it refreshes in the background (cold GTA 6 builds were timing out at Cloudflare's 100 s). GTA 6 ranking lists (peak/avg/hours, 24h/7d, India/global) are in the warm-up list. The owner's built-in browser can read live.letsgrowesports.com/api/* for checks.
