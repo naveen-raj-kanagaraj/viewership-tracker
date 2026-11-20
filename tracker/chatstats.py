@@ -202,11 +202,11 @@ def flush(ended_after: int = 900):
         c = _db()
         c.executemany("INSERT OR REPLACE INTO chat_stream VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
         c.commit()
-    for i in range(0, len(aud), 5000):        # in slices: one big write held the lock 48 s after a restart (19 Nov)
+    for i in range(0, len(aud), 500):         # small slices: 5,000 rows still held the lock 14-36 s (20 Nov)
         with store._lock:
             c = _db()
             c.executemany("INSERT INTO chat_aud VALUES (?,?,?) ON CONFLICT(sid, h) DO UPDATE SET day=excluded.day",
-                          aud[i:i + 5000])
+                          aud[i:i + 500])
             c.commit()
     with _LOCK:
         for vid, a in items:

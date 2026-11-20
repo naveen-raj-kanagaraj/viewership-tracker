@@ -102,7 +102,8 @@ def is_reading() -> bool:
 def _reader() -> sqlite3.Connection:
     c = getattr(_tl, "rc", None)
     if c is None or getattr(_tl, "rc_path", None) != DB_PATH:
-        main()                                  # tables exist before anyone reads them
+        if _conn is None:                       # tables exist before anyone reads them; never wait on the write lock
+            main()                              # otherwise (20 Nov: every new reader queued behind 36 s writes)
         c = sqlite3.connect(DB_PATH, check_same_thread=False, isolation_level=None)   # autocommit: every read sees
         c.row_factory = sqlite3.Row                                                    # the latest data, never an old snapshot
         c.execute("PRAGMA busy_timeout=5000")
