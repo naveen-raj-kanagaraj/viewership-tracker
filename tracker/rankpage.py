@@ -150,13 +150,13 @@ async function goCh(){if(!CMS().some(x=>x[0]===C.base))C.base=CMS()[0][0];C.metr
  const cg=document.getElementById('cgame');if(C.game&&!(CR.games||[]).includes(C.game)&&!(CR.games||[]).length){C.game=''}
  document.getElementById('cgames').innerHTML=(CR.games||[]).map(x=>`<option value="${esc(x)}">`).join('');if(document.activeElement!==cg)cg.value=C.game||'';cg.style.display=(CR.games||[]).length?'':'none';
  const ct=document.getElementById('cctry');ct.innerHTML='<option value="">All countries</option>'+(CR.countries||[]).map(x=>`<option value="${x.code}"${x.code===C.country?' selected':''}>${esc(x.name)}</option>`).join('');
- cc.onchange=e=>{C.category=e.target.value;goCh()};cg.onchange=e=>{const v=e.target.value.trim().toLowerCase(),G=CR.games||[];const g=!v?'':G.find(x=>x.toLowerCase()===v)||G.find(x=>x.toLowerCase().startsWith(v))||G.find(x=>x.toLowerCase().includes(v));if(g===undefined){cg.value=C.game||'';return}C.game=g;cg.value=g;goCh()};cg.onfocus=()=>{cg.select();sug()};
+ cc.onchange=e=>{C.category=e.target.value;goCh()};cg.onchange=e=>{const v=e.target.value.trim().toLowerCase(),G=CR.games||[];const g=!v?'':G.find(x=>x.toLowerCase()===v)||G.find(x=>x.toLowerCase().startsWith(v))||G.find(x=>x.toLowerCase().includes(v));if(g===undefined){cg.value=C.game||'';return}C.game=g;cg.value=g;goCh()};cg.onfocus=()=>{cg.select();typed=false;sug()};
  // Suggestions drawn by the page (phones don't show <datalist> suggestions while typing)
- const sb=document.getElementById('cgsug'),sug=()=>{const v=cg.value.trim().toLowerCase(),G=CR.games||[];
+ let typed=false;const sb=document.getElementById('cgsug'),sug=()=>{const v=typed?cg.value.trim().toLowerCase():'',G=CR.games||[];
   const L=(!v?G:[...G.filter(x=>x.toLowerCase().startsWith(v)),...G.filter(x=>!x.toLowerCase().startsWith(v)&&x.toLowerCase().includes(v))]).slice(0,30);
-  sb.innerHTML=(v?'':'<div data-g="" style="padding:10px 12px;cursor:pointer;color:#8d8ca3">All games</div>')+L.map(x=>`<div data-g="${esc(x)}" style="padding:10px 12px;cursor:pointer;border-top:1px solid #222230">${esc(x)}</div>`).join('');
-  sb.style.display=L.length||!v?'':'none'};
- cg.oninput=sug;cg.onblur=()=>setTimeout(()=>{sb.style.display='none'},200);
+  sb.innerHTML='<div data-g="" style="padding:10px 12px;cursor:pointer;color:#b6f23a;font-weight:600">All games</div>'+L.map(x=>`<div data-g="${esc(x)}" style="padding:10px 12px;cursor:pointer;border-top:1px solid #222230">${esc(x)}</div>`).join('');
+  sb.style.display=''};
+ cg.oninput=()=>{typed=true;sug()};cg.onblur=()=>setTimeout(()=>{sb.style.display='none'},200);
  cg.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();const f=sb.querySelector('[data-g]:not([data-g=""])');if(f&&cg.value.trim()){cg.value=f.dataset.g}cg.blur();cg.onchange({target:cg})}};
  sb.onpointerdown=e=>{const d=e.target.closest('[data-g]');if(!d)return;e.preventDefault();sb.style.display='none';cg.value=d.dataset.g;cg.blur();
   if(!d.dataset.g){C.game='';goCh()}else cg.onchange({target:cg})};ct.onchange=e=>{C.country=e.target.value;goCh()};
