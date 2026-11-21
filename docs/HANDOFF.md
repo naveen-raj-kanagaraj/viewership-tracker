@@ -190,6 +190,8 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 21 Nov 02:00, measured by sampling /api/health busy threads for 40 s: the page-build pools were saturated by `_rank_base_build` (7/30-day sc_daily windows: millions of rows since the GTA 6 sweep counts 1-viewer streams, looped in Python per rankings request) and by scene.data's per-row loop with regex checks. Now: ranking windows keep only channel-game rows with peak >= RANK_MIN_PEAK (10) and are cached 300 s; _day_rows precomputes `_sec`/`_bad` once per scan; boards skip streams under RANK_MIN_PEAK (they still count in game totals).
+
 - 21 Nov 01:00: section pages (Gaming, News ...) timed out: every page waited on the global live list, whose build read today's peaks from sc_daily under its lock after each scan; that read now runs in the background (`_scan_peaks`). `ytextra.rss_once` held the write lock 86 s: now `store.write_slices` (500 rows). The checkpointer's interrupt step also closes and reopens the shared main connection (a half-read cursor on it pinned the log even after readers were interrupted).
 
 - 21 Nov: Moments removed at the owner's request: no detection in the 2-second loop (moments.observe no longer called), no nav link or overview card, /moments and /india/moments redirect to the overviews, /api/moments returns an empty list, and the moments table is dropped once on startup (kv `moments_dropped`). All Moments code stays: MOMENTS=1 in .env switches detection, /api/moments and the pages back on (the nav link and overview card in scenepage.py were taken out; put them back too). moments.py also serves the Twitch login helper.
