@@ -837,6 +837,7 @@ _pool = ThreadPoolExecutor(max_workers=8)
 _YFPOOL = ThreadPoolExecutor(max_workers=int(os.getenv("SCENE_YT_POOL", "16")))  # YouTube's 2-second counts (own threads: never wait behind a scan)
 _YPOOL = ThreadPoolExecutor(max_workers=6)   # sweep searches on YouTube
 CYCLE = {}           # the scan loop: when the current/last scan started, how long it took (health page)
+MOMENTS_ON = os.getenv("MOMENTS", "0") == "1"
 _SCANMEM = {"ts": 0, "rows": None}
 _FASTAT = [0.0]      # when the last 2-second round started        # the latest scan, as stored (pages read it from here, not the database)
 SAMPLE_MIN = int(os.getenv("SCENE_SAMPLE_MIN", "10"))   # swept streams below this aren't written to the per-scan table
@@ -2392,6 +2393,12 @@ def run_fast():
             yt_fast_once()
         except Exception as e:
             print(f"YouTube fast count failed: {str(e)[:120]}")
+        if MOMENTS_ON:                        # Moments: off since 21 Nov (owner); MOMENTS=1 in .env turns it back on
+            try:
+                from tracker import moments
+                moments.observe()             # sudden jumps in viewers -> Moments
+            except Exception as e:
+                print(f"Moments: {str(e)[:120]}")
         time.sleep(max(0.2, wait - (time.time() - t0)))
 
 
