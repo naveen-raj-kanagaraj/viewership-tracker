@@ -951,7 +951,9 @@ def scene_ytsearch():
 @app.route("/api/moments")
 def api_moments():
     """Sudden viewer jumps: /api/moments?region=global|in&period=today|7d|30d&game=&sid="""
-    return _json({"moments": [], "removed": True})   # Moments removed (owner, 21 Nov)
+    from tracker import scene as _sc
+    if not _sc.MOMENTS_ON:
+        return _json({"moments": [], "removed": True})   # Moments off (owner, 21 Nov); MOMENTS=1 in .env restores it
     from tracker import moments, scene
     g = request.args.get
     region = g("region", "global") if g("region") in scene.REGIONS else "global"
@@ -965,20 +967,18 @@ def api_moments():
 @app.route("/moments")
 @app.route("/global/moments")
 def moments_page():
-    return redirect("/global", 302)          # Moments removed (owner, 21 Nov)
-
-
-def _moments_page_old():
+    from tracker import scene as _sc
+    if not _sc.MOMENTS_ON:
+        return redirect("/global", 302)      # Moments off (owner, 21 Nov)
     from tracker import momentpage
     return _memo("/moments:global", 300, lambda: momentpage.build_html("global"), "text/html")
 
 
 @app.route("/india/moments")
 def moments_page_india():
-    return redirect("/india", 302)
-
-
-def _moments_page_india_old():
+    from tracker import scene as _sc
+    if not _sc.MOMENTS_ON:
+        return redirect("/india", 302)
     from tracker import momentpage
     return _memo("/moments:in", 300, lambda: momentpage.build_html("in"), "text/html")
 
