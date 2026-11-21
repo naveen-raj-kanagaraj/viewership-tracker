@@ -3057,6 +3057,9 @@ def _day_rows(c, d0: str, region: str, game):
             return hit[1]
         rows = [dict(r) for r in (c.execute(q + " AND d.game = ? GROUP BY d.sid, d.game", (d0, game)) if game
                                   else c.execute(q + " GROUP BY d.sid, d.game", (d0,)))]
+        for r in rows:                        # worked out once per scan, not on every page build (21 Nov: regex checks
+            r["_sec"] = section_of(r["game"])  # per row per page kept the page builders busy)
+            r["_bad"] = name_blocked(r["name"]) or not_in_game(r["name"], r["game"], r["sid"])
         for kk in [kk for kk, v in list(_DR.items()) if time.time() - v[0] > 600 or kk[3] != k[3]]:
             _DR.pop(kk, None)
         _DR[k] = (time.time(), rows)
@@ -3141,8 +3144,16 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
         print("Slow scene.data " + f"{region}:{sec}:{game}:{period} " + " ".join(f"{n}={b - a_:.1f}" for (_, a_), (n, b) in zip(T, T[1:])))
     ch, games = {}, {}
     for r in rows:
-        if r["sid"] in blk or name_blocked(r["name"]) or not_in_game(r["name"], r["game"], r["sid"]) \
-                or (sec and sec != "esports" and section_of(r["game"]) != sec):
+        if r["sid"] in blk or r.get("_bad") or (sec and sec != "esports" and r.get("_sec") != sec):
+            continue
+        g = games.get(r["game"])
+        if g is None:
+            g = games[r["game"]] = {"game": r["game"], "slug": slug(r["game"]), "hw": 0.0, "peak_stream": 0,
+                                    "channels": 0, "art": cat_art(r["game"]), "section": r.get("_sec") or section_of(r["game"])}
+        g["hw"] += r["hw"]
+        g["peak_stream"] = max(g["peak_stream"], r["peak"])
+        g["channels"] += 1
+        if (r["peak"] or 0) < RANK_MIN_PEAK:  # tiny streams count in the totals above, not in the boards
             continue
         x = ch.setdefault(r["sid"], {"sid": r["sid"], "name": r["name"] or r["sid"], "platform": r["platform"] or "",
                                       "url": r["url"] or "", "logo": _logo({"sid": r["sid"], "logo": r["logo"]}),
@@ -3151,11 +3162,6 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
         x["mins"] += r["mins"]
         x["hw"] += r["hw"]
         x["games"][r["game"]] = x["games"].get(r["game"], 0) + r["hw"]
-        g = games.setdefault(r["game"], {"game": r["game"], "slug": slug(r["game"]), "hw": 0.0, "peak_stream": 0,
-                                         "channels": 0, "art": cat_art(r["game"]), "section": section_of(r["game"])})
-        g["hw"] += r["hw"]
-        g["peak_stream"] = max(g["peak_stream"], r["peak"])
-        g["channels"] += 1
     board = []
     for x in ch.values():
         x["avg"] = round(x["hw"] * 60 / x["mins"]) if x["mins"] else 0
@@ -3227,7 +3233,7 @@ def _rank_base(d0: str, d1: str, current: bool) -> list:
     changing a filter never touches the database."""
     key, now = ("base", d0, d1), time.time()
     hit = _RB.get(key)
-    if hit and now - hit[0] < (90 if current else 3600):
+    if hit and now - hit[0] < (300 if current else 3600):
         return hit[1]
     if hit and now - hit[0] < 3 * 3600:          # a bit old: answer now, refresh in the background (one at a time)
         if not _RB_BUSY.get(key):
@@ -3244,18 +3250,22 @@ def _rank_base(d0: str, d1: str, current: bool) -> list:
 
 
 _RB_BUSY = {}
+# Rankings leave out channel-game rows that never reached this many viewers at once. Since the GTA 6 sweep (every
+# stream from 1 viewer) a 7- or 30-day window was millions of rows, copied and looped in Python on every rankings
+# request; that kept the page builders busy and timed out category pages (21 Nov, measured on /admin/health).
+RANK_MIN_PEAK = int(os.getenv("RANK_MIN_PEAK", "10"))
 
 
 def _rank_base_build(key, d0, d1, current=None) -> list:
     with _RB_LOCK:
         hit = _RB.get(key)
-        if current is not None and hit and time.time() - hit[0] < (90 if current else 3600):
+        if current is not None and hit and time.time() - hit[0] < (300 if current else 3600):
             return hit[1]
         with store.reading():
             rows = [dict(r) for r in _db().execute(
                 """SELECT d.sid, d.game, MAX(d.peak) peak, SUM(d.mins) mins, SUM(d.hw) hw, c.name, c.platform, c.url, c.logo,
                    c.country, COALESCE(c.india,1) india, c.last_live FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid
-                   WHERE d.day BETWEEN ? AND ? GROUP BY d.sid, d.game""", (d0, d1))]
+                   WHERE d.day BETWEEN ? AND ? GROUP BY d.sid, d.game HAVING MAX(d.peak) >= ?""", (d0, d1, RANK_MIN_PEAK))]
         _RB[key] = (time.time(), rows)
         for k in [k for k, v in _RB.items() if isinstance(v, tuple) and time.time() - v[0] > 3 * 3600]:
             _RB.pop(k, None)
