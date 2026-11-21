@@ -837,7 +837,8 @@ _pool = ThreadPoolExecutor(max_workers=8)
 _YFPOOL = ThreadPoolExecutor(max_workers=int(os.getenv("SCENE_YT_POOL", "16")))  # YouTube's 2-second counts (own threads: never wait behind a scan)
 _YPOOL = ThreadPoolExecutor(max_workers=6)   # sweep searches on YouTube
 CYCLE = {}           # the scan loop: when the current/last scan started, how long it took (health page)
-_SCANMEM = {"ts": 0, "rows": None}        # the latest scan, as stored (pages read it from here, not the database)
+_SCANMEM = {"ts": 0, "rows": None}
+_FASTAT = [0.0]      # when the last 2-second round started        # the latest scan, as stored (pages read it from here, not the database)
 SAMPLE_MIN = int(os.getenv("SCENE_SAMPLE_MIN", "10"))   # swept streams below this aren't written to the per-scan table
 _SPOOL = ThreadPoolExecutor(max_workers=4)   # the launch-game sweep (its own threads, so scans don't wait)
 
@@ -1970,6 +1971,7 @@ def cycle(now: float = None) -> dict:
         _STATE["last"] = now
         _STATE["errors"] = errors
     _store(rows, now, last)
+    _SCANMEM["saved"] = time.time()
     if rejected:                              # remember them (and their country) so they aren't looked up again
         with store._lock:
             c = _db()
@@ -2335,6 +2337,7 @@ def yt_fast_once(now: float = None) -> int:
 def fast_once(now: float = None) -> int:
     """Re-read every live Kick/Twitch channel (one batched request per platform). Returns how many were read."""
     t_ = time.time()
+    _FASTAT[0] = t_
     kcap = _KFAST["cap"] if _KFAST["cap"] and t_ < _KFAST["until"] else FAST_KICK
     cap = {"twitch": FAST_TW, "kick": kcap}
     with _lock:
@@ -2746,7 +2749,10 @@ def _live_rest(live, secs, blk, last, fresh, now, region_total, now_map, game, s
         sections.append(z)
     return {"_blk": blk, "_live": live, "_by_game": by_game, "_by_plat": by_plat, "_tours": tours, "sections": sections,
             "_now": now_map,
-            "updated": last, "fresh": fresh, "india_total": region_total, "region_total": region_total,
+            # When the numbers on the page last changed: the 2-second readings, else the last saved scan. The scan's
+            # own stamp is when it started (4-10 min before it is saved), which showed "paused" while it was live.
+            "updated": max(last, _SCANMEM.get("saved") or 0, _FASTAT[0] if time.time() - _FASTAT[0] < 60 else 0),
+            "fresh": fresh, "india_total": region_total, "region_total": region_total,
             "live_total": sum(x["viewers"] for x in live), "now": now}
 
 
