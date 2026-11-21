@@ -109,6 +109,7 @@ class reading:
                     c.close()
                 except Exception:
                     pass
+                _READERS.discard(c)
                 _tl.rc = None
         return self
 
@@ -121,8 +122,15 @@ def is_reading() -> bool:
     return getattr(_tl, "depth", 0) > 0
 
 
+_READERS = set()     # every read-only connection, so the checkpointer can interrupt them
+_RGEN = [0]          # bumped when the checkpointer interrupts the readers: each thread then opens a fresh one
+
+
 def _reader() -> sqlite3.Connection:
     c = getattr(_tl, "rc", None)
+    if c is not None and getattr(_tl, "rc_gen", 0) != _RGEN[0]:
+        _READERS.discard(c)
+        c = _tl.rc = None                       # dropped: its statements are finalized, its snapshot released
     if c is None or getattr(_tl, "rc_path", None) != DB_PATH:
         if _conn is None:                       # tables exist before anyone reads them; never wait on the write lock
             main()                              # otherwise (20 Nov: every new reader queued behind 36 s writes)
@@ -130,7 +138,8 @@ def _reader() -> sqlite3.Connection:
         c.row_factory = sqlite3.Row                                                    # the latest data, never an old snapshot
         c.execute("PRAGMA busy_timeout=5000")
         c.execute("PRAGMA query_only=1")
-        _tl.rc, _tl.rc_path, _tl.rc_at = c, DB_PATH, time.time()
+        _tl.rc, _tl.rc_path, _tl.rc_at, _tl.rc_gen = c, DB_PATH, time.time(), _RGEN[0]
+        _READERS.add(c)
     return c
 
 
@@ -175,7 +184,7 @@ def checkpointer(every: int = 30):
         import time as _t
         c = sqlite3.connect(DB_PATH, check_same_thread=False, isolation_level=None)
         c.execute("PRAGMA busy_timeout=200")
-        n = 0
+        n, fails = 0, 0
         while True:
             t0 = _t.time()
             try:
@@ -183,7 +192,28 @@ def checkpointer(every: int = 30):
                 n += 1
                 tr = None
                 big = log > 250000                # ~1 GB
-                if (n % 4 == 0 and not big) or (big and n % 30 == 0):
+                if fails >= 2 and n % 4 == 0:
+                    # Two resets in a row found readers in the way (a page read running for minutes or a cursor left
+                    # half-read keeps an old snapshot). Stop them: interrupt every read connection's running query
+                    # (that page build fails once and is served from its last copy), make every thread open a fresh
+                    # connection, then reset while the tracker's writes are held. (20 Nov: the log grew 70 MB a
+                    # minute for hours because a reset never found a moment without old readers.)
+                    with _lock:
+                        _RGEN[0] += 1
+                        for rc in list(_READERS):
+                            try:
+                                rc.interrupt()          # a query running now stops ...
+                                rc.close()              # ... and a cursor left half-read is finalized with it
+                            except Exception:
+                                pass
+                        _READERS.clear()
+                        if _conn is not None and _conn.in_transaction:
+                            _conn.commit()
+                        c.execute("PRAGMA busy_timeout=15000")
+                        tr = c.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+                        c.execute("PRAGMA busy_timeout=200")
+                    print(f"WAL checkpoint: readers interrupted, reset {'done' if tr and not tr[0] else 'busy'}")
+                elif (n % 4 == 0 and not big) or (big and n % 30 == 0):
                     # Reset the file with the tracker's writes held. Normally there is little to copy, so 2 s is plenty.
                     # When it has grown (a long read kept it from resetting), wait up to 20 s every 10 minutes for the
                     # old readers to finish instead of 5 s every 30 s (20 Nov: that held writes 5 s of every 35 s and
@@ -197,6 +227,8 @@ def checkpointer(every: int = 30):
                         c.execute(f"PRAGMA busy_timeout={90000 if big else 2000}")
                         tr = c.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
                         c.execute("PRAGMA busy_timeout=200")
+                if tr is not None:
+                    fails = 0 if not tr[0] else fails + 1
                 took = _t.time() - t0
                 if took > 5 or tr is not None or n % 10 == 1:
                     print(f"WAL checkpoint: {took:.0f}s, {log} pages in the WAL, {done} copied"
