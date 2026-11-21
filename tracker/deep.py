@@ -193,7 +193,7 @@ def channel_metrics(sid: str, subs=None) -> dict:
     return out
 
 
-def metrics_once(limit: int = 20000) -> int:
+def metrics_once(limit: int = int(os.getenv("DEEP_METRICS_N", "3000"))) -> int:
     """Recompute ch_metrics for ranked channels with posts, then the benchmarks. Every 3 hours."""
     a, b = ranked_set()
     sids = (a + b)[:limit]
