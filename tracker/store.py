@@ -26,6 +26,28 @@ _tl = threading.local()
 HOLDER = {}          # who holds the write lock right now (health page)
 
 
+def write_slices(sql: str, rows, n: int = 1000):
+    """executemany in slices, taking and releasing the write lock per slice, so a big write never stalls the scans
+    (20 Nov: one 'INSERT OR REPLACE' of every channel's period metrics held the lock for 14 minutes)."""
+    rows = list(rows)
+    for i in range(0, len(rows), n):
+        with _lock:
+            c = main()
+            c.executemany(sql, rows[i:i + n])
+            c.commit()
+
+
+def delete_slices(table: str, where: str, args=(), n: int = 2000):
+    """DELETE ... WHERE in slices of n rows, releasing the write lock between them."""
+    while True:
+        with _lock:
+            c = main()
+            k = c.execute(f"DELETE FROM {table} WHERE rowid IN (SELECT rowid FROM {table} WHERE {where} LIMIT {n})", args).rowcount
+            c.commit()
+        if k < n:
+            return
+
+
 class _Lock:
     """The write lock (a re-entrant lock that remembers, per thread, that it is held): code that takes it inside a
     store.reading() block gets the read-write connection again, so nested writes keep working."""
