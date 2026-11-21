@@ -35,6 +35,8 @@ def write_slices(sql: str, rows, n: int = 1000):
             c = main()
             c.executemany(sql, rows[i:i + n])
             c.commit()
+        if i + n < len(rows):
+            time.sleep(0.3)                     # let the scans and pages in between slices
 
 
 def delete_slices(table: str, where: str, args=(), n: int = 2000):
