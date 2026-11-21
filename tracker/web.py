@@ -951,6 +951,7 @@ def scene_ytsearch():
 @app.route("/api/moments")
 def api_moments():
     """Sudden viewer jumps: /api/moments?region=global|in&period=today|7d|30d&game=&sid="""
+    return _json({"moments": [], "removed": True})   # Moments removed (owner, 21 Nov)
     from tracker import moments, scene
     g = request.args.get
     region = g("region", "global") if g("region") in scene.REGIONS else "global"
@@ -962,13 +963,22 @@ def api_moments():
 
 
 @app.route("/moments")
+@app.route("/global/moments")
 def moments_page():
+    return redirect("/global", 302)          # Moments removed (owner, 21 Nov)
+
+
+def _moments_page_old():
     from tracker import momentpage
     return _memo("/moments:global", 300, lambda: momentpage.build_html("global"), "text/html")
 
 
 @app.route("/india/moments")
 def moments_page_india():
+    return redirect("/india", 302)
+
+
+def _moments_page_india_old():
     from tracker import momentpage
     return _memo("/moments:in", 300, lambda: momentpage.build_html("in"), "text/html")
 
@@ -1441,8 +1451,7 @@ def robots():
 
 WARM = ["/global", "/india", "/api/cats?region=global&range=24h", "/api/cats?region=in&range=24h", "/global/categories", "/india/categories", "/api/home?region=global", "/api/home?region=in", "/api/scene?region=global&period=today", "/api/scene?region=in&period=today",
         "/api/scene/live?region=global", "/api/scene/live?region=in", "/global/rankings", "/api/rank?region=global&period=day&metric=hw",
-        "/api/rank?region=in&period=day&metric=hw", "/map", "/api/geo", "/global/moments", "/api/moments?region=global&period=7d",
-        "/api/moments?region=global&period=today&sort=views", "/api/moments?region=in&period=today&sort=views", "/e/pic/data",
+        "/api/rank?region=in&period=day&metric=hw", "/map", "/api/geo", "/e/pic/data",
         "/india/rankings", "/api/rank?region=in&period=week&metric=peak", "/api/rank?region=global&period=week&metric=hw",
         "/api/topch?platform=youtube&metric=views_7d", "/api/topch?platform=youtube&metric=views_7d&country=IN",
         "/api/topch?platform=twitch&metric=subs_7d&country=IN", "/api/topch?platform=kick&metric=subs_7d&country=IN"] + (
@@ -1556,6 +1565,20 @@ def run():
                     print(f"GTA 6 check: {str(e)[:120]}")
                 time.sleep(900)
         threading.Thread(target=g6_verify, daemon=True).start()
+
+        def drop_moments():                  # Moments removed by the owner (21 Nov): its stored data goes too
+            time.sleep(120)
+            try:
+                if not store.kv_get("moments_dropped"):
+                    with store._lock:
+                        c = store.main()
+                        c.execute("DROP TABLE IF EXISTS moments")
+                        c.commit()
+                    store.kv_set("moments_dropped", time.time())
+                    print("Moments: table dropped")
+            except Exception as e:
+                print(f"Moments drop: {str(e)[:120]}")
+        threading.Thread(target=drop_moments, daemon=True).start()
 
         def yt_cards():                      # the game YouTube shows under each stream: read once per stream
             time.sleep(60)

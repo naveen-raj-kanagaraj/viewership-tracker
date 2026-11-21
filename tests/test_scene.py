@@ -387,7 +387,7 @@ with store._lock:
     tw = dict(mo._db().execute("SELECT * FROM moments WHERE sid='twitch:spiker'").fetchone())
 assert tw["kind"] == "chat" and tw["chat_peak"] > 5 * tw["chat_base"] and tw["embed"] == "tw_vod" and "?t=" in tw["link"], tw
 
-assert c.get("/api/moments?region=global&period=7d").get_json()["moments"] and c.get("/global/moments").status_code == 200 and c.get("/india/moments").status_code == 200
+assert c.get("/api/moments?region=global&period=7d").get_json()["moments"] == [] and c.get("/global/moments").status_code == 302   # Moments removed (21 Nov)
 # compaction keeps the highest reading per 10 minutes for old days
 with store._lock:
     cc = sc._db(); old = int(time.time()) - 40 * 86400
@@ -533,7 +533,7 @@ assert {x["sid"]: x["views_day"] for x in hl["channels_today"]}.get("yt:UCaman")
 assert c.get("/api/home?region=global").get_json()["channels_today"]
 cp = c.get("/api/compare?c=yt:UCffindia000000000000000,twitch:newguy,bad id&range=1y").get_json()
 assert [x["sid"] for x in cp["channels"]] == ["yt:UCffindia000000000000000", "twitch:newguy"] and cp["channels"][0]["posts"]["count"] == 4, cp["channels"][0]["posts"]
-for u in ("/global/compare?c=yt:UCaman", "/india/compare", "/", "/india", "/global/moments?id=1"):
+for u in ("/global/compare?c=yt:UCaman", "/india/compare", "/", "/india"):
     r_ = c.get(u); assert r_.status_code == 200 and b"__" not in r_.data.replace(b"__F", b"").replace(b"__name__", b""), u
 from tracker import moments as mo
 with store._lock:
