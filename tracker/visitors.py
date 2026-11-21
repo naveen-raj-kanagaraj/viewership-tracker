@@ -46,23 +46,23 @@ def hit(sid: str, country: str = "", ref: str = "", ua: str = "", width: int = 0
         s["last"] = now
         if page:
             s["page"] = page[:80]
-        active = sum(1 for x in _sess.values() if now - x["last"] < ACTIVE_SEC)
+        due = now - _flush["ts"] > 30
+        if due:
+            _flush["ts"] = now
+            active = sum(1 for x in _sess.values() if now - x["last"] < ACTIVE_SEC)
+            today = _day(now)
+            todays = sum(1 for x in _sess.values() if x["day"] == today)
+            for k in [k for k, x in _sess.items() if now - x["last"] > 2 * 86400]:   # forget old tabs
+                _sess.pop(k, None)
+    # Database writes outside the lock, at most every 30 s (20 Nov: they ran inside it on every hit, so the owner's
+    # visitors page waited behind the tracker's database writes and the per-hit count of every session)
+    if due:
         best = store.kv_get("visitors_peak", {}) or {}
         if active > best.get("n", 0):
             store.kv_set("visitors_peak", {"n": active, "ts": int(now)})
-        if now - _flush["ts"] > 30:
-            _flush["ts"] = now
-            _save(now)
-
-
-def _save(now):
-    today = _day(now)
-    todays = [x for x in _sess.values() if x["day"] == today]
-    hist = store.kv_get("visitors_days", {}) or {}
-    hist[today] = max(hist.get(today, 0), len(todays))
-    store.kv_set("visitors_days", dict(sorted(hist.items())[-60:]))
-    for sid in [k for k, x in _sess.items() if now - x["last"] > 2 * 86400]:   # forget old tabs
-        _sess.pop(sid, None)
+        hist = store.kv_get("visitors_days", {}) or {}
+        hist[today] = max(hist.get(today, 0), todays)
+        store.kv_set("visitors_days", dict(sorted(hist.items())[-60:]))
 
 
 def stats() -> dict:

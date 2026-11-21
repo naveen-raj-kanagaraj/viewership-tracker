@@ -542,7 +542,7 @@ def _health() -> dict:
     h = dict(store.HOLDER)
     return {
         "code": api_version().get_json().get("code"), "up_min": round((now - _STARTED) / 60),
-        "scan": {"last_saved_min_ago": round((now - (sc_._SCANMEM.get("ts") or 0)) / 60, 1),
+        "scan": {"last_saved_min_ago": round((now - (sc_._SCANMEM.get("saved") or sc_._SCANMEM.get("ts") or 0)) / 60, 1),
                  "running_for_s": round(now - cyc["started"]) if cyc.get("running") else 0,
                  "last_took_s": cyc.get("took"), "live": cyc.get("live")},
         "write_lock": {"held_s": round(now - h["at"], 1), "by": h.get("where"), "thread": h.get("thread")} if h.get("at") else "free",
