@@ -3040,30 +3040,56 @@ _CSL = threading.Lock()
 
 
 def _day_rows(c, d0: str, region: str, game):
-    """Per channel and game since d0. Without a game the same rows serve the overview and every section, so they are
-    read once per scan for all of them (19 Nov: 16 s per page, every page reading them again)."""
+    """Per channel and game since d0, for channel-games that reached RANK_MIN_PEAK viewers. Read once per scan and
+    shared by the overview and every section; while a new scan's rows are being read, pages get the previous ones
+    (21 Nov: the global read took minutes, every section page waited on it and timed out)."""
+    k = (d0, region, game)
+    hit = _DR.get(k)
+    cur = _SCANMEM.get("ts")
+    if hit and hit[2] == cur:
+        return hit[1]
+    if hit and len(hit[1]) > 20000:           # older scan and a big read: answer now, read the new one in the background
+        if not _DRB.get(k):
+            _DRB[k] = True
+            threading.Thread(target=_day_rows_bg, args=(d0, region, game), daemon=True).start()
+        return hit[1]
+    with _DRL:
+        lk = _DRK.setdefault(k, threading.Lock())
+    with lk:
+        hit = _DR.get(k)
+        if hit and hit[2] == cur:
+            return hit[1]
+        return _day_rows_read(c, d0, region, game)
+
+
+_DRB = {}
+
+
+def _day_rows_bg(d0, region, game):
+    try:
+        with store.reading():
+            _day_rows_read(_db(), d0, region, game)
+    except Exception as e:
+        print(f"Day rows: {str(e)[:80]}")
+    finally:
+        _DRB.pop((d0, region, game), None)
+
+
+def _day_rows_read(c, d0: str, region: str, game):
+    cur = _SCANMEM.get("ts")
     q = """SELECT d.sid, d.game, MAX(d.peak) peak, SUM(d.mins) mins, SUM(d.hw) hw, c.name, c.platform,
            c.url, c.logo, c.last_live FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid WHERE d.day >= ?"""
     q += " AND COALESCE(c.india, 1)=1" if region == "in" else ""
-    k = (d0, region, game, _SCANMEM.get("ts"))     # a new scan reads them again
-    hit = _DR.get(k)
-    if hit and time.time() - hit[0] < 120:
-        return hit[1]
-    with _DRL:
-        lk = _DRK.setdefault(k[:3], threading.Lock())
-    with lk:
-        hit = _DR.get(k)
-        if hit and time.time() - hit[0] < 120:
-            return hit[1]
-        rows = [dict(r) for r in (c.execute(q + " AND d.game = ? GROUP BY d.sid, d.game", (d0, game)) if game
-                                  else c.execute(q + " GROUP BY d.sid, d.game", (d0,)))]
-        for r in rows:                        # worked out once per scan, not on every page build (21 Nov: regex checks
-            r["_sec"] = section_of(r["game"])  # per row per page kept the page builders busy)
-            r["_bad"] = name_blocked(r["name"]) or not_in_game(r["name"], r["game"], r["sid"])
-        for kk in [kk for kk, v in list(_DR.items()) if time.time() - v[0] > 600 or kk[3] != k[3]]:
-            _DR.pop(kk, None)
-        _DR[k] = (time.time(), rows)
-        return rows
+    rows = [dict(r) for r in (c.execute(q + " AND d.game = ? GROUP BY d.sid, d.game HAVING MAX(d.peak) >= ?",
+                                        (d0, game, RANK_MIN_PEAK)) if game
+                              else c.execute(q + " GROUP BY d.sid, d.game HAVING MAX(d.peak) >= ?", (d0, RANK_MIN_PEAK)))]
+    for r in rows:                            # worked out once per scan, not on every page build
+        r["_sec"] = section_of(r["game"])
+        r["_bad"] = name_blocked(r["name"]) or not_in_game(r["name"], r["game"], r["sid"])
+    for kk in [kk for kk, v in list(_DR.items()) if time.time() - v[0] > 3600]:
+        _DR.pop(kk, None)
+    _DR[(d0, region, game)] = (time.time(), rows, cur)
+    return rows
 
 
 def data(period: str = "today", cat: str = "", region: str = "in", sec: str = "") -> dict:
@@ -3212,12 +3238,23 @@ def _prev_ranks(c, region, game, sec, period) -> dict:
     if game:
         q += " AND d.game=?"
         args.append(game)
+    key = (region, game, sec, period, args[0])   # the period before doesn't change: read once an hour
+    hit = _PR.get(key)
+    if hit and time.time() - hit[0] < 3600:
+        return hit[1]
     tot = {}
-    for r in c.execute(q + " GROUP BY d.sid, d.game", args):
+    for r in c.execute(q + " GROUP BY d.sid, d.game HAVING MAX(d.peak) >= ?", args + [RANK_MIN_PEAK]):
         if sec and sec != "esports" and section_of(r["game"]) != sec:
             continue
         tot[r["sid"]] = tot.get(r["sid"], 0) + (r["hw"] or 0)
-    return {sid: i + 1 for i, (sid, _) in enumerate(sorted(tot.items(), key=lambda kv: -kv[1]))}
+    out = {sid: i + 1 for i, (sid, _) in enumerate(sorted(tot.items(), key=lambda kv: -kv[1]))}
+    if len(_PR) > 400:
+        _PR.clear()
+    _PR[key] = (time.time(), out)
+    return out
+
+
+_PR = {}
 
 
 RANK_PERIODS = {"day": 1, "3d": 3, "week": 7, "month": 30, "3m": 91, "6m": 182, "1y": 365, "all": 3650}
