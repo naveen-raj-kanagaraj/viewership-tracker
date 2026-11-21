@@ -2664,6 +2664,20 @@ def _live_part(game=None, region: str = "in", sec: str = "") -> dict:
     return _live_rest(live, secs, blk, last, fresh, now, region_total, now_map, game, sec)
 
 
+_PEAKBG = {}
+
+
+def _scan_peaks():
+    try:
+        day = datetime.now(events.REPORT_TZ).strftime("%Y-%m-%d")
+        with store.reading():
+            _SCAN["peak"] = dict(_db().execute("SELECT sid, MAX(peak) FROM sc_daily WHERE day=? GROUP BY sid", (day,)).fetchall())
+    except Exception as e:
+        print(f"Scan peaks: {str(e)[:80]}")
+    finally:
+        _PEAKBG["busy"] = False
+
+
 def _live_base_build(region: str):
     blk = blocked()
     mem = _SCANMEM.get("rows")
@@ -2672,8 +2686,9 @@ def _live_base_build(region: str):
         last = _SCANMEM["ts"] if mem else (c.execute("SELECT MAX(ts) FROM sc_samples").fetchone()[0] or 0)
         if _SCAN["ts"] != last and mem:       # the scan this process just made: straight from memory (every stream,
             _SCAN["rows"] = sorted((dict(r) for r in mem), key=lambda r: -r["viewers"])     # small ones included)
-            day = datetime.now(events.REPORT_TZ).strftime("%Y-%m-%d")
-            _SCAN["peak"] = dict(c.execute("SELECT sid, MAX(peak) FROM sc_daily WHERE day=? GROUP BY sid", (day,)).fetchall())
+            if not _PEAKBG.get("busy"):         # today's peaks: read in the background (every page waited 30 s+ on it)
+                _PEAKBG["busy"] = True
+                threading.Thread(target=_scan_peaks, daemon=True).start()
             _SCAN["ts"] = last
         if _SCAN["ts"] != last:
             _SCAN["rows"] = [dict(r) for r in c.execute(

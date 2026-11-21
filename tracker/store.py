@@ -207,8 +207,15 @@ def checkpointer(every: int = 30):
                             except Exception:
                                 pass
                         _READERS.clear()
-                        if _conn is not None and _conn.in_transaction:
-                            _conn.commit()
+                        global _conn
+                        if _conn is not None:             # the shared connection too: a cursor left half-read on it
+                            try:                          # (code reading through it outside the lock) pins the log
+                                if _conn.in_transaction:
+                                    _conn.commit()
+                                _conn.close()
+                            except Exception:
+                                pass
+                            _conn = None
                         c.execute("PRAGMA busy_timeout=15000")
                         tr = c.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
                         c.execute("PRAGMA busy_timeout=200")

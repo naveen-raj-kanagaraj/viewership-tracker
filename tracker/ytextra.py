@@ -1704,14 +1704,12 @@ def rss_once(n: int = 600) -> int:
     for sid, vids in got:
         rows += [(v["id"], sid, v["ts"], v["title"], v["views"], v["likes"], None, 0, 0, 1, now, v["short"], v["url"],
                   scene.classify("", v["title"]), None) for v in vids or []]
-    with store._lock:
-        c = _db()
-        c.executemany("""INSERT INTO yt_videos (vid, sid, ts, title, views, likes, comments, secs, live, approx, updated, short, url, game, cat)
+    _db()                                     # in slices: one write of every channel's new posts held the lock 86 s
+    store.write_slices("""INSERT INTO yt_videos (vid, sid, ts, title, views, likes, comments, secs, live, approx, updated, short, url, game, cat)
                          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(vid) DO UPDATE SET
                          views=MAX(COALESCE(excluded.views, 0), COALESCE(yt_videos.views, 0)),
                          likes=COALESCE(excluded.likes, yt_videos.likes), title=excluded.title,
-                         short=MAX(COALESCE(yt_videos.short, 0), excluded.short)""", rows)
-        c.commit()
+                         short=MAX(COALESCE(yt_videos.short, 0), excluded.short)""", rows, n=500)
     RSS_STATS.update(last=now, asked=len(cand), got=sum(1 for _, v in got if v), failed=sum(1 for _, v in got if v is None),
                      videos=len(rows))
     return RSS_STATS["got"]
