@@ -205,10 +205,8 @@ def metrics_once(limit: int = 20000) -> int:
         for fmt, m in channel_metrics(sid, subs.get(sid)).items():
             rows.append((sid, fmt, m["n"], m["med_views"], m["like_rate"], m["comment_rate"], m["eng_rate"], m["per_week"],
                          m["views_per_sub"], now))
-    with store._lock:
-        c = _db()
-        c.executemany("INSERT OR REPLACE INTO ch_metrics VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
-        c.commit()
+    _db()
+    store.write_slices("INSERT OR REPLACE INTO ch_metrics VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
     benchmarks()
     period_metrics(sids)
     return len(rows)
@@ -244,11 +242,9 @@ def period_metrics(sids: list) -> int:
                     continue
                 out.append((sid, p, len(use), _med([((r[3] or 0) + (r[4] or 0)) / r[2] for r in use if r[3] is not None]),
                             _med([r[3] / r[2] for r in use if r[3] is not None]), _med([r[2] for r in use]), int(now)))
-    with store._lock:
-        c = _db()
-        c.execute("DELETE FROM ch_period WHERE updated<?", (int(now) - 2 * 86400,))
-        c.executemany("INSERT OR REPLACE INTO ch_period VALUES (?,?,?,?,?,?,?)", out)
-        c.commit()
+    _db()
+    store.delete_slices("ch_period", "updated<?", (int(now) - 2 * 86400,))
+    store.write_slices("INSERT OR REPLACE INTO ch_period VALUES (?,?,?,?,?,?,?)", out)
     return len(out)
 
 
@@ -288,11 +284,9 @@ def benchmarks() -> int:
                     buckets.setdefault(k + (r["fmt"], met), []).append(r[met])
     now = int(time.time())
     out = [k + (len(v), _pct(v, .25), _pct(v, .5), _pct(v, .75), _pct(v, .9), now) for k, v in buckets.items() if len(v) >= 5]
-    with store._lock:
-        c = _db()
-        c.execute("DELETE FROM ch_bench")
-        c.executemany("INSERT INTO ch_bench VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", out)
-        c.commit()
+    _db()
+    store.delete_slices("ch_bench", "1")
+    store.write_slices("INSERT INTO ch_bench VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", out)
     return len(out)
 
 
@@ -391,10 +385,8 @@ def monthly(sid: str, since: float = None) -> list:
 def comments_once(max_calls: int = 60) -> int:
     """Top comments of ranked channels' videos posted 1 to 8 days ago, once per video. Text kept 30 days."""
     key = os.getenv("YOUTUBE_API_KEY")
-    with store._lock:
-        c = _db()
-        c.execute("DELETE FROM yt_comments WHERE fetched<?", (time.time() - COMMENTS_KEEP_DAYS * 86400,))
-        c.commit()
+    _db()
+    store.delete_slices("yt_comments", "fetched<?", (time.time() - COMMENTS_KEEP_DAYS * 86400,))
     if not key or not events.yt_quota_left(.5):
         return 0
     a, b = ranked_set()
