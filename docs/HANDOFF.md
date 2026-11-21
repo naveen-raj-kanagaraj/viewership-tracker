@@ -190,6 +190,8 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 21 Nov: Moments removed at the owner's request: no detection in the 2-second loop (moments.observe no longer called), no nav link or overview card, /moments and /india/moments redirect to the overviews, /api/moments returns an empty list, and the moments table is dropped once on startup (kv `moments_dropped`). moments.py stays for the Twitch login helper used by twitch_followers.
+
 - 20 Nov night: the WAL kept growing ~70 MB/min (health: long page reads in _rank_base_build, _gl_build, _live_base_build, _chan_rows, _day_rows always running, so no reset ever found a moment without old readers). After two busy resets in a row the checkpointer now interrupts and closes every read connection (`store._READERS`, generation `_RGEN`), with writes held, and resets; the interrupted page builds fail once and are served from their last copy. Tested (tests/test_wal_interrupt.py). A cursor left half-read but idle can't be released this way; none seen so far. Visitors: kv writes moved out of visitors._lock (the owner's visitors page waited on DB writes).
 
 - 20 Nov: /admin/health caught the pause: `deep.period_metrics` held the write lock 837 s (one DELETE + INSERT OR REPLACE of every channel's period metrics). `store.write_slices` / `store.delete_slices` take the lock per 1,000/2,000 rows; deep.py's ch_metrics, ch_period, ch_bench and yt_comments writes use them. Use them for any bulk write.

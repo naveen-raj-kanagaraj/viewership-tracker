@@ -2392,11 +2392,6 @@ def run_fast():
             yt_fast_once()
         except Exception as e:
             print(f"YouTube fast count failed: {str(e)[:120]}")
-        try:
-            from tracker import moments
-            moments.observe()                 # sudden jumps in viewers -> Moments
-        except Exception as e:
-            print(f"Moments: {str(e)[:120]}")
         time.sleep(max(0.2, wait - (time.time() - t0)))
 
 
