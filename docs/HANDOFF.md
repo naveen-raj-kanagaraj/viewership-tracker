@@ -190,6 +190,8 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 22 Nov: rankings were 51 h stale (the checkpointer's reader interrupt killed ranks.compute's all-history sc_daily read every time). Interrupting now only happens when the WAL is over WAL_INTERRUPT_PAGES (375,000 pages, ~1.5 GB), and ranks._rows reads only sc_daily rows with peak >= 10. Views gained needs a starting count > 0 and at most 60% of lifetime views (new channels showed their total as gained: MinevidZ +368M of 368M). YouTube rankings default to the Gaming category.
+
 - 21 Nov 02:20 (verified on the live site after 2629712: India sections fine, global sections still timing out): `_day_rows` for the global overview read millions of 2-day rows on every scan and every section page waited on it. Now it keeps only channel-games with peak >= RANK_MIN_PEAK, keyed (d0, region, game) and, for big reads, serves the previous scan's rows while the new ones are read in the background. `_prev_ranks` (rank arrows) is cached an hour and filtered the same way.
 
 - 21 Nov 02:00, measured by sampling /api/health busy threads for 40 s: the page-build pools were saturated by `_rank_base_build` (7/30-day sc_daily windows: millions of rows since the GTA 6 sweep counts 1-viewer streams, looped in Python per rankings request) and by scene.data's per-row loop with regex checks. Now: ranking windows keep only channel-game rows with peak >= RANK_MIN_PEAK (10) and are cached 300 s; _day_rows precomputes `_sec`/`_bad` once per scan; boards skip streams under RANK_MIN_PEAK (they still count in game totals).

@@ -24,6 +24,7 @@ _tl = threading.local()
 
 
 HOLDER = {}          # who holds the write lock right now (health page)
+INTERRUPT_PAGES = int(os.getenv("WAL_INTERRUPT_PAGES", "375000"))
 
 
 def write_slices(sql: str, rows, n: int = 1000):
@@ -194,7 +195,8 @@ def checkpointer(every: int = 30):
                 n += 1
                 tr = None
                 big = log > 250000                # ~1 GB
-                if fails >= 2 and n % 4 == 0:
+                if fails >= 2 and n % 4 == 0 and log > INTERRUPT_PAGES:   # only when the log is over ~1.5 GB: interrupting
+                    # also kills long background jobs (22 Nov: rankings hadn't finished in 51 hours)
                     # Two resets in a row found readers in the way (a page read running for minutes or a cursor left
                     # half-read keeps an old snapshot). Stop them: interrupt every read connection's running query
                     # (that page build fails once and is served from its last copy), make every thread open a fresh
