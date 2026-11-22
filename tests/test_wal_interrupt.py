@@ -17,6 +17,7 @@ for i in range(30):
     with store._lock:
         c.executemany("INSERT INTO t VALUES (?)", [("y" * 200,)] * 500); c.commit()
 w0 = os.path.getsize(store.DB_PATH + "-wal")
+store.INTERRUPT_PAGES = 0
 store.checkpointer(every=0.2)
 time.sleep(14)
 w1 = os.path.getsize(store.DB_PATH + "-wal")

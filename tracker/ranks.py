@@ -71,7 +71,8 @@ def _rows():
                          for _ in pcols)
         pstarts = [(period_start(p) if p != "24h" else today - timedelta(days=1)).strftime("%Y-%m-%d") for p in pcols]
         hwp, pkp, avp = {}, {}, {}           # per period: hours watched, peak live viewers, average live viewers
-        for r in c.execute(f"SELECT sid, {sums}, SUM(hw), MAX(peak), SUM(mins) FROM sc_daily GROUP BY sid",
+        # rows that never reached 10 viewers can't rank; leaving them out keeps this read (all history) to minutes
+        for r in c.execute(f"SELECT sid, {sums}, SUM(hw), MAX(peak), SUM(mins) FROM sc_daily WHERE peak >= 10 GROUP BY sid",
                            [d for d in pstarts for _ in range(3)]):
             v = list(r[1:])
             for i, p in enumerate(pcols + ["all"]):
@@ -155,7 +156,10 @@ def _rows():
                 if not (L and A) or L[i] is None or A[i] is None:
                     return None
                 d = L[i] - A[i]
-                return d if abs(d) <= .25 * max(L[i], 1000) or i == 1 and d >= 0 else None
+                if i == 1:                   # views gained: needs a real starting count, and a channel can't gain more
+                    return d if A[1] > 0 and 0 <= d <= .6 * L[1] else None   # than ~60% of its lifetime views in the
+                return d if abs(d) <= .25 * max(L[i], 1000) else None        # period (22 Nov: new channels showed total
+                                                                              # views as "views gained", e.g. +368M of 368M)
             if p == "24h":
                 pm["views_24h"], pm["subs_24h"] = (g1[0], g1[1]) if g1 else (None, None)
             elif p == "all":

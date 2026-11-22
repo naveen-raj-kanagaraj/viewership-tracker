@@ -115,7 +115,8 @@ let R=null,OPEN=null,ALL=false;
 // One list (owner, 18 Nov): every channel; streamers carry their live numbers (peak, average, hours watched) and a
 // LIVE tag, upload-only channels have none and sit out the live rankings. Old "live streamers" links open the same.
 const LIVEQ=Q.get('mode')==='live'||(!Q.get('mode')&&(Q.get('period')||Q.get('cat')||Q.get('sec')));
-let MODE='channels',C={platform:['youtube','twitch','kick','all'].includes(Q.get('platform'))?Q.get('platform'):(Q.get('metric')?'youtube':'all'),base:Q.get('platform')||Q.get('metric')?'views':'peak',per:'7d',country:Q.get('country')||(GL?'':'IN'),category:Q.get('category')||'',game:Q.get('game')||''},CR=null;
+let MODE='channels',C={platform:['youtube','twitch','kick','all'].includes(Q.get('platform'))?Q.get('platform'):(Q.get('metric')?'youtube':'all'),base:Q.get('platform')||Q.get('metric')?'views':'peak',per:'7d',country:Q.get('country')||(GL?'':'IN'),category:Q.get('category')??'',game:Q.get('game')||''},CR=null;
+if(C.platform==='youtube'&&!Q.has('category'))C.category='Gaming';   // YouTube rankings are gaming unless another category is picked
 if(MODE==='channels')S.metric='hw';
 if(LIVEQ){const PM={day:'24h','3d':'3d',week:'7d',month:'30d','3m':'3m','6m':'6m',ytd:'ytd','1y':'1y',all:'all'},BM={hw:'live',peak:'peak',avg:'avg'};
  C.base=BM[Q.get('metric')]||'live';C.per=PM[Q.get('period')]||'24h';C.platform=['youtube','twitch','kick'].includes(Q.get('platform'))?Q.get('platform'):'all';
@@ -142,7 +143,7 @@ async function goCh(){if(!CMS().some(x=>x[0]===C.base))C.base=CMS()[0][0];C.metr
  const my=++SEQ;busy(true);let J;try{J=await getJ('/api/topch?'+p,60000)}catch(e){busy(false);return}if(my!==SEQ)return;busy(false);CR=J;
  if(!CR.updated){setTimeout(()=>{if(MODE==='channels'){JC.delete('/api/topch?'+p);goCh()}},15000)}
  setTimeout(()=>CMS().forEach(([b])=>{if(b!==C.base){const q=new URLSearchParams(p);q.set('metric',b+'_'+C.per);pre('/api/topch?'+q,60000)}}),600);
- seg('cplat',[['all','ALL PLATFORMS'],['youtube','YOUTUBE'],['twitch','TWITCH'],['kick','KICK']],C.platform,v=>{if(v!==C.platform)C.base=v==='youtube'?'views':'peak';C.platform=v;C.category='';C.game='';goCh()});
+ seg('cplat',[['all','ALL PLATFORMS'],['youtube','YOUTUBE'],['twitch','TWITCH'],['kick','KICK']],C.platform,v=>{if(v!==C.platform)C.base=v==='youtube'?'views':'peak';C.platform=v;C.category=v==='youtube'?'Gaming':'';C.game='';goCh()});
  seg('cmetric',CMS(),C.base,v=>{C.base=v;goCh()});
  const cpe=document.getElementById('cper');cpe.innerHTML=PERS.map(([v,l])=>`<option value="${v}"${v===C.per?' selected':''}>${l}</option>`).join('');cpe.onchange=e=>{C.per=e.target.value;goCh()};
  const cc=document.getElementById('ccat');cc.innerHTML=`<option value="">${YT()?'All YouTube categories':'All sections'}</option>`+(CR.categories||[]).map(x=>`<option${x===C.category?' selected':''}>${esc(x)}</option>`).join('');
