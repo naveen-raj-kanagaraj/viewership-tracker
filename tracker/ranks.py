@@ -137,6 +137,10 @@ def _rows():
         live = hw.get(sid) or 0
         if size is None and not live:
             continue
+        top = (pkp.get(sid) or {}).get("all") or 0
+        if top < 10 and (size or 0) < 1000 and (ch["platform"] != "youtube" or size is None):   # never 10 viewers: can't rank
+            continue                          # (22 Nov: the GTA 6 sweep added every 1-viewer channel; ranking them all
+                                              # took hours per metric, and the rankings stopped updating for 2 days)
         ct = scene.country_of(ch["country"]) or (scene.country_of("IN") if ch["india"] else None)
         g = (top_game.get(sid) or (ch["game"], 0))[0] or ""
         g = "" if g == "Other" else g                 # "Other" is not a game: no rank for it
@@ -183,7 +187,22 @@ def _rows():
     return rows
 
 
+STATUS = {}
+
+
 def compute():
+    STATUS.update(started=time.time(), error=None)
+    t0 = time.time()
+    try:
+        n = _compute()
+        STATUS.update(done=time.time(), took=round(time.time() - t0), rows=n)
+        return n
+    except Exception as e:
+        STATUS.update(error=str(e)[:200], failed=time.time())
+        raise
+
+
+def _compute():
     rows = _rows()
     rank, tot = {}, {}
     for m in METRICS:
