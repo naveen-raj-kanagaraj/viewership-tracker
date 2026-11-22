@@ -489,7 +489,8 @@ def api_tour():
 
 class _Tee:
     """Keeps the last warning lines the tracker prints (slow locks, slow scans, failures) for the health page."""
-    PAT = ("Slow write lock", "Scan took", "WAL checkpoint", "failed", "Traceback", "Error", "repair", "Slow page build: ")
+    PAT = ("Slow write lock", "Scan took", "WAL checkpoint", "failed", "Traceback", "Error", "repair", "Slow page build: ",
+           "Ranks")
 
     def __init__(self, out):
         self.out, self.lines = out, __import__("collections").deque(maxlen=120)
@@ -550,6 +551,9 @@ def _health() -> dict:
         "disk_free_gb": round(du.free / 1e9, 1), "disk_used_pct": round(100 * du.used / du.total),
         "memory_mb": mem, "load": os.getloadavg(),
         "youtube_2s": sc_._YTF.get("last"),
+        "rankings": {"updated_min_ago": round((now - (__import__("tracker.ranks", fromlist=["x"])._R.get("at") or 0)) / 60),
+                     **{k: (round((now - v) / 60) if k in ("started", "done", "failed") and v else v)
+                        for k, v in __import__("tracker.ranks", fromlist=["x"]).STATUS.items()}},
         "busy_threads": busy[:40],
         "recent": [f"{time.strftime('%H:%M:%S', time.gmtime(t))}Z {s}" for t, s in list(sys.stdout.lines)[-40:]]
                   if isinstance(sys.stdout, _Tee) else [],
