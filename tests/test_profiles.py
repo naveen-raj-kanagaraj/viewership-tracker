@@ -23,3 +23,11 @@ profiles._P.clear(); profiles.load()
 assert profiles.bio("kick:k") == "Hindi streams gaming daily"
 assert scene.india_why({"sid": "kick:k", "platform": "kick", "title": "GTA 6", "name": "k"}) == (True, "bio: 'Hindi'")
 print("PROFILES OK")
+# a Twitch 'Hindi' tag alone doesn't decide; Portuguese / Spanish titles are foreign
+assert W("twitch:dr", "🔥[FREE + SUB DROPS]🔥 GRAND THEFT AUTO VI", "")[0] is False
+assert scene.india_why({"sid": "twitch:dr", "platform": "twitch", "title": "GTA VI", "name": "dr", "tags": "English Hindi", "bio": ""})[0] is False
+assert scene.india_hint({"sid": "twitch:dr", "title": "GTA VI", "tags": "English Hindi", "name": "dr"})      # its chat gets read
+assert scene.india_why({"sid": "twitch:india_noob_", "platform": "twitch", "title": "Live 812 -  Dando uma volta em Vice city",
+                        "name": "India_Noob_", "bio": ""}) == (False, "title / tags show another country")
+assert not scene.foreign_sign("bhai log aaj GTA 6 khelenge") and not scene.foreign_sign("Hindi stream de do like")
+print("TAGS + OTHER LANGUAGES OK")

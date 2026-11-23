@@ -67,7 +67,7 @@ print("INDIA RECHECK OK")
 # every flag has a reason in words; 'Indian Ocean' is a place; tags count only when they name an Indian language
 w = lambda **k: scene.india_why({"sid": "twitch:w", "platform": "twitch", "name": "w", **k})
 assert w(title="GTA 6 DAY ONE from Seychelles 🏝️ Indian Ocean stand up") == (False, "nothing Indian found")
-assert w(title="GTA 6", tags="English Hindi") == (True, "stream tag: Hindi")
+assert w(title="GTA 6", tags="English Hindi")[0] is False          # a tag alone doesn't decide (drtyeyeball)
 assert w(title="GTA 6", tags="English Indian Desi")[0] is False
 assert w(title="Bigg Boss watch party")[1] == "title: 'Bigg Boss'"
 assert scene.india_why({"sid": "yt:x", "platform": "youtube", "title": "", "name": "x"}, "IN") == (True, "YouTube channel country: India")
