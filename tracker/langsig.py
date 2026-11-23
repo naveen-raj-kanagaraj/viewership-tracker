@@ -91,6 +91,48 @@ def counts(sid: str):
         return tuple(_C.get(sid) or (0, 0))
 
 
+# YouTube: the live chat the site already reads (chatstats, Super Chat reader) records each message's language
+_YT = {}                  # sid -> [indian, other] over the last 30 days
+_YT_IND = {"Hindi / Marathi (Devanagari)", "Punjabi", "Gujarati", "Odia", "Tamil", "Telugu", "Kannada", "Malayalam",
+           "Hinglish"}
+
+
+def yt_load():
+    """Each YouTube channel's chat languages over its streams of the last 30 days (refreshed hourly)."""
+    import json
+    out = {}
+    try:
+        with store.reading():
+            c = store.conn()
+            if not c.execute("SELECT 1 FROM sqlite_master WHERE name='chat_stream'").fetchone():
+                return
+            since = time.strftime("%Y-%m-%d", time.gmtime(time.time() - 30 * 86400))
+            for sid, langs in c.execute("SELECT sid, langs FROM chat_stream WHERE day >= ?", (since,)):
+                try:
+                    L = json.loads(langs or "{}")
+                except ValueError:
+                    continue
+                a = out.setdefault(sid, [0, 0])
+                for k, n in L.items():
+                    if k in _YT_IND:
+                        a[0] += n
+                    elif k:
+                        a[1] += n
+    except Exception as e:
+        print(f"YouTube chat languages: {str(e)[:100]}")
+        return
+    _YT.clear()
+    _YT.update(out)
+
+
+def yt_verdict(sid: str):
+    c = _YT.get(sid)
+    if not c or c[0] + c[1] < MIN_MSGS:
+        return None
+    share = c[0] / (c[0] + c[1])
+    return True if share >= IND_SHARE else False if c[0] + c[1] >= 300 and share < NOT_SHARE else None
+
+
 SCHEMA = "CREATE TABLE IF NOT EXISTS chat_lang (sid TEXT PRIMARY KEY, ind INTEGER, oth INTEGER, updated INTEGER)"
 
 

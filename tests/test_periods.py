@@ -18,8 +18,13 @@ with store._lock:
         for n, (s, v) in {100: (1000, 10000), 20: (1500, 50000), 5: (1900, 80000), 0: (2000, 100000)}.items():
             mult = {"yt:a": 1, "yt:b": 2, "yt:c": 3}[sid]
             c.execute("INSERT INTO sc_chstats (sid, day, subs, views) VALUES (?,?,?,?)", (sid, D(n), s * mult, v * mult))
+        c.execute("INSERT INTO sc_daily VALUES (?,?,?,?,?,?,?)", (D(1), sid, "BGMI", 500, 0, 60, 100))   # they stream
+    c.execute("INSERT INTO sc_channels (sid, platform, name, country, india) VALUES ('yt:up','youtube','Uploader','IN',1)")
+    for n in (10, 0):
+        c.execute("INSERT INTO sc_chstats (sid, day, subs, views) VALUES (?,?,?,?)", ("yt:up", D(n), 9000, 9000000 + n))
     c.commit()
 ranks.compute()
+assert "yt:up" not in ranks._R["rows"]        # never streamed live: not in the rankings (owner, 23 Nov)
 r = ranks.top("youtube", "views_7d")
 assert [x["sid"] for x in r["rows"]] == ["yt:c", "yt:b", "yt:a"], r["rows"]
 assert r["rows"][0]["views_7d"] == 60000, r["rows"][0]["views_7d"]       # 300000 - 240000 (first reading inside 7 days)
@@ -42,6 +47,7 @@ with store._lock:
     row = {k: v for k, v in {"sid": "kick:anshyt", "platform": "kick", "name": "anshyt", "country": "IN", "india": 1, "game": "GTA V"}.items() if k in cols}
     c.execute(f"INSERT INTO sc_channels ({','.join(row)}) VALUES ({','.join('?' * len(row))})", list(row.values()))
     c.execute("INSERT INTO sc_chstats (sid, day, subs, views) VALUES ('kick:anshyt', ?, 60000, NULL)", (D(0),))
+    c.execute("INSERT INTO sc_daily VALUES (?,?,?,?,?,?,?)", (D(1), "kick:anshyt", "GTA V", 400, 0, 60, 100))
     for vid, age, v in (("k1", 2, 30000), ("k2", 20, 50000), ("k3", 200, 70000)):
         c.execute("INSERT INTO yt_videos (vid, sid, ts, title, views, live, approx) VALUES (?,?,?,?,?,1,0)", (vid, "kick:anshyt", int(_t.time() - age * 86400), vid, v))
     c.commit()

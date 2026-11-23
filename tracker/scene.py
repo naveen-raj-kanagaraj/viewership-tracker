@@ -230,6 +230,17 @@ def mark_known_india() -> int:
             wrong.append(sid)
         elif v and not ind:
             right.append(sid)
+    from tracker import langsig
+    langsig.yt_load()
+    with store.reading():
+        yrows = store.conn().execute("SELECT sid, COALESCE(india,0) FROM sc_channels WHERE platform='youtube' "
+                                     "AND COALESCE(country,'-') IN ('-','')").fetchall()
+    for sid, ind in yrows:                    # YouTube channels with no country: their chat decides when it can
+        cv = langsig.yt_verdict(sid)
+        if cv is True and not ind:
+            right.append(sid)
+        elif cv is False and ind and sid not in _curated():
+            wrong.append(sid)
     n = 0
     with store._lock:
         c = store.main()
@@ -359,6 +370,10 @@ def verdict(x: dict, country: str = None, allow: set = frozenset()) -> bool:
             return True
         if country and country != "-":
             return False                      # the channel says it is from another country
+        from tracker import langsig
+        cv = langsig.yt_verdict(sid)          # no country set: what its live chat is written in decides
+        if cv is not None:
+            return cv
     t = (t + " " + (x.get("tags") or "")).strip()       # Twitch / Kick tags: 'Hindi', 'India', 'Tamil' ...
     if foreign_sign(t, n):
         return False                          # beats an old BGMI stream or a past event (a misread can't stick)
