@@ -3152,13 +3152,19 @@ def tour_data(name: str, region: str = "global") -> dict:
         langs[lg] = langs.get(lg, 0) + (r[2] or 0)
     info = tournament_info(name) or {}
     g = info.get("game") or (live[0]["game"] if live else "")
-    trk = next(({"url": e["url"], "name": e["name"]} for e in _tracked_events("in")
-                if e["name"].lower() in name.lower() or name.lower() in e["name"].lower()), None)
+    ev = next((e for e in _tracked_events("in") if e["name"].lower() in name.lower() or name.lower() in e["name"].lower()), None)
+    trk = {"url": ev["url"], "name": ev["name"]} if ev else None
+    if ev:
+        # this site's own tracker of the event (official channels + every watch party, curated lists) knows it best:
+        # its game (CEGC is BGMI, not Liquipedia's 'PUBG Mobile') and its peak (23 Nov: 48,736 here vs 1.17 lakh there)
+        g = ev.get("game") or g
+        if (ev.get("peak") or 0) > (pk or 0):
+            pk, tot = ev["peak"], (ev["peak"], ev.get("peak_at")) + tuple(tot[2:] if tot else (None, None, None))
     return {"name": name, "slug": slug(name), "region": region, "game": g, "art": cat_art(g) if g else "",
             "liquipedia": info.get("url"), "start": info.get("start"), "end": info.get("end"), "status": info.get("status"),
             "now": nowv, "live_count": len(live), "peak": pk, "peak_at": tot[1] if tot else None,
             "peak_today": max([v for _, v in today] + [nowv]) if today or nowv else 0,
-            "hw": round(tot[4]) if tot else 0, "first_ts": tot[2] if tot else None, "last_ts": tot[3] if tot else None,
+            "hw": round(tot[4] or 0) if tot else 0, "first_ts": tot[2] if tot else None, "last_ts": tot[3] if tot else None,
             "series": [[a_, b_] for a_, b_ in today[::step]], "days": [{"day": d, "peak": v} for d, v, _ in days],
             "live": [{"sid": x["sid"], "name": x["name"], "platform": x["platform"], "url": x["url"], "logo": _logo(x),
                       "title": x.get("title") or "", "viewers": x["viewers"], "language": x.get("language") or "",
