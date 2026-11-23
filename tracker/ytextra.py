@@ -1843,7 +1843,57 @@ def _live_stats(sid: str, L: list, t0: float) -> list:
             pk, pat, hw, a, b = r
             hrs = max((b - a) / 3600, 0.05)
             v.update(peak=pk, peak_at=pat, hw=round(hw), live_hours=round(hrs, 1), avg_ccv=round(hw / hrs))
+    if not sid.startswith("yt:"):
+        _broadcast_peaks(sid, [v for v in L if v["live"] and v.get("ts")])
     return [{"day": d, "peak": pk or 0, "hw": round(hw or 0), "hours": round((m or 0) / 60, 1)} for d, pk, hw, m in D if pk]
+
+
+def _broadcast_peaks(sid: str, L: list):
+    """Kick / Twitch past broadcasts: their peak live viewers, from the channel's day totals (sc_daily). Exact when
+    it was the channel's only broadcast that day and the day's peak happened during it; otherwise left out ('-'),
+    never guessed (owner, 23 Nov: show the peak of each live)."""
+    if not L:
+        return
+    from tracker import scene
+    day = lambda t: datetime.fromtimestamp(t, events.REPORT_TZ).strftime("%Y-%m-%d")
+    span = {}
+    for v in L:
+        a = v["ts"]
+        b = a + max(int(v.get("secs") or 0), 0)
+        ds, t = [], a
+        while True:
+            ds.append(day(t))
+            if t >= b:
+                break
+            t = min(t + 86400, b)
+        span[v["vid"]] = (a, b, sorted(set(ds)))
+    used = {}
+    for a, b, ds in span.values():
+        for d in ds:
+            used[d] = used.get(d, 0) + 1
+    with store.reading():
+        rows = scene._db().execute("SELECT day, peak, peak_at, hw, mins FROM sc_daily WHERE sid=? AND day>=? AND day<=?",
+                                   (sid, min(min(x[2]) for x in span.values()), max(max(x[2]) for x in span.values()))).fetchall()
+    D = {}
+    for d, pk, pat, hw, mins in rows:
+        e = D.setdefault(d, [0, None, 0.0, 0.0])
+        if (pk or 0) > e[0]:
+            e[0], e[1] = pk, pat
+        e[2] += hw or 0
+        e[3] += mins or 0
+    for v in L:
+        if v.get("peak"):
+            continue
+        a, b, ds = span[v["vid"]]
+        if any(used[d] > 1 for d in ds) or not all(d in D for d in ds[:1]):
+            continue                              # two broadcasts that day: the day's peak can't be split between them
+        best = max((D[d] for d in ds if d in D), key=lambda e: e[0])
+        pk, pat = best[0], best[1]
+        if not pk or (pat and b > a and not a - 3600 <= pat <= b + 3600):
+            continue                              # the day's peak was outside this broadcast (a stream with no VOD)
+        hw = sum(D[d][2] for d in ds if d in D)
+        hrs = sum(D[d][3] for d in ds if d in D) / 60
+        v.update(peak=pk, peak_at=pat, hw=round(hw), live_hours=round(hrs, 1), avg_ccv=round(hw / hrs) if hrs else None)
 
 
 def _insights(L: list, kind_of) -> dict:
