@@ -126,6 +126,21 @@ def is_reading() -> bool:
 
 
 _READERS = set()     # every read-only connection, so the checkpointer can interrupt them
+
+
+class protected:
+    """Reads in this thread are never interrupted by the checkpointer (23 Nov: it killed the rankings job every
+    time, 'Ranks: interrupted', and the rankings went blank)."""
+
+    def __enter__(self):
+        _tl.protected = True
+        c = getattr(_tl, "rc", None)
+        if c is not None:
+            _READERS.discard(c)
+        return self
+
+    def __exit__(self, *a):
+        _tl.protected = False
 _RGEN = [0]          # bumped when the checkpointer interrupts the readers: each thread then opens a fresh one
 
 
@@ -142,7 +157,8 @@ def _reader() -> sqlite3.Connection:
         c.execute("PRAGMA busy_timeout=5000")
         c.execute("PRAGMA query_only=1")
         _tl.rc, _tl.rc_path, _tl.rc_at, _tl.rc_gen = c, DB_PATH, time.time(), _RGEN[0]
-        _READERS.add(c)
+        if not getattr(_tl, "protected", False):   # long background jobs (rankings) are never interrupted
+            _READERS.add(c)
     return c
 
 

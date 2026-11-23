@@ -194,7 +194,8 @@ def compute():
     STATUS.update(started=time.time(), error=None)
     t0 = time.time()
     try:
-        n = _compute()
+        with store.protected():
+            n = _compute()
         STATUS.update(done=time.time(), took=round(time.time() - t0), rows=n)
         return n
     except Exception as e:
@@ -240,10 +241,9 @@ def load_cache() -> bool:
     try:
         with open(CACHE, "rb") as f:
             d = pickle.load(f)
-        if time.time() - d.get("at", 0) < 2 * 86400:
-            with _lock:
-                _R.update(d)
-            return True
+        with _lock:                          # any age: last known rankings beat an empty page while they're recomputed
+            _R.update(d)
+        return True
     except Exception:
         pass
     return False
