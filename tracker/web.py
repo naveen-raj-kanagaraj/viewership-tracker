@@ -1018,8 +1018,15 @@ def api_topch():
     except ValueError:
         limit = 100
     from tracker import scene as sc_
-    return _memo(f"/api/topch:{plat}:{metric}:{country}:{category}:{game}:{limit}:{sc_.RULES_V}", 120,
-                 _jdump(lambda: ranks.top(plat, metric, country, category, limit=limit, game=game)), "application/json")
+    key = f"/api/topch:{plat}:{metric}:{country}:{category}:{game}:{limit}:{sc_.RULES_V}"
+    hit = _MEMO.get(key)
+    if hit and b'"updated":0,' in hit[1] and ranks._R["at"]:
+        _MEMO.pop(key, None)                  # built before the rankings loaded: never serve that empty answer again
+    r = _memo(key, 120, _jdump(lambda: ranks.top(plat, metric, country, category, limit=limit, game=game)), "application/json")
+    if b'"updated":0,' in (_MEMO.get(key) or (0, b""))[1]:
+        _MEMO.pop(key, None)                  # rankings not loaded yet: don't keep it here or at Cloudflare (22 Nov: 0 channels for hours)
+        r.headers["X-Short-Cache"] = "1"
+    return r
 
 
 SID_RX = r"(yt:UC[\w-]{22}|(twitch|kick):[a-z0-9_-]{2,40})"
