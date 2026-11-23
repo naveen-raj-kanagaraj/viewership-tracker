@@ -554,6 +554,7 @@ def _health() -> dict:
         "rankings": {"updated_min_ago": round((now - (__import__("tracker.ranks", fromlist=["x"])._R.get("at") or 0)) / 60),
                      **{k: (round((now - v) / 60) if k in ("started", "done", "failed") and v else v)
                         for k, v in __import__("tracker.ranks", fromlist=["x"]).STATUS.items()}},
+        "chat_lang": _chat_lang(),
         "busy_threads": busy[:40],
         "recent": [f"{time.strftime('%H:%M:%S', time.gmtime(t))}Z {s}" for t, s in list(sys.stdout.lines)[-40:]]
                   if isinstance(sys.stdout, _Tee) else [],
@@ -1002,6 +1003,19 @@ def api_videos():
     if b'"loading":true' in body or b'"oldest":null' in body:
         r.headers["X-Short-Cache"] = "1"        # still reading the channel: don't let the CDN keep this copy
     return r
+
+
+def _chat_lang() -> dict:
+    """Chat-language check of Kick / Twitch channels (is the chat Indian?): reader status and how many are decided."""
+    try:
+        from tracker import chat, langsig
+        with langsig._L:
+            sids = list(langsig._C)
+        v = [langsig.verdict(s_) for s_ in sids]
+        return {"twitch": chat.STATUS.get("twitch"), "kick": chat.STATUS.get("kick"), "watching": len(langsig.WANT),
+                "indian": v.count(True), "not_indian": v.count(False), "undecided": v.count(None)}
+    except Exception as e:
+        return {"error": str(e)[:100]}
 
 
 @app.route("/api/topch")

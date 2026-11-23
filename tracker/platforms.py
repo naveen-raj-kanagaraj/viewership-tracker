@@ -156,7 +156,8 @@ def _tw_streams(params) -> list:
         login = (s.get("user_login") or "").lower()
         out.append({"vid": f"twitch:{login}", "channel_id": f"twitch:{login}", "channel": s.get("user_name") or login,
                     "title": s.get("title") or "", "viewers": int(s.get("viewer_count") or 0),
-                    "category": s.get("game_name") or "", "platform": "twitch", "language": s.get("language") or ""})
+                    "category": s.get("game_name") or "", "platform": "twitch", "language": s.get("language") or "",
+                    "tags": " ".join(s.get("tags") or [])})
     return out
 
 
@@ -185,14 +186,15 @@ def _tw_logos(logins):
 
 # ---------- Kick ----------
 
-def _kick_row(slug, title, viewers, name="", category="", pic="", language="", uid=None):
+def _kick_row(slug, title, viewers, name="", category="", pic="", language="", uid=None, tags=None):
     slug = slug.lower()
     if pic:
         _logos[f"kick:{slug}"] = pic
     if uid:
         _kick_uid[f"kick:{slug}"] = uid
     return {"vid": f"kick:{slug}", "channel_id": f"kick:{slug}", "channel": name or slug, "title": title or "",
-            "viewers": int(viewers or 0), "category": category or "", "platform": "kick", "language": language or ""}
+            "viewers": int(viewers or 0), "category": category or "", "platform": "kick", "language": language or "",
+            "tags": " ".join(str(t_) for t_ in (tags or []) if isinstance(t_, str))}
 
 
 def _kick_api_slugs(slugs) -> list:
@@ -204,7 +206,7 @@ def _kick_api_slugs(slugs) -> list:
             if st.get("is_live"):
                 out.append(_kick_row(c.get("slug") or "", c.get("stream_title"), st.get("viewer_count"),
                                      category=(c.get("category") or {}).get("name", ""),
-                                     uid=c.get("broadcaster_user_id")))
+                                     uid=c.get("broadcaster_user_id"), tags=st.get("custom_tags") or c.get("custom_tags")))
     return out
 
 
