@@ -44,6 +44,11 @@ for t in ("Minecraft Anfängerin!✧˚.💚⋆|| NERDCRAFT mit @Hermi693 || ദ�
 for sl, t in (("mortal", "JASON AND LUCIA - GTA 6 India | Day 2  (PS5)"), ("hydrobgmi04", "PLAYING GTA 6 | FUN STREAM"),
               ("rachitroo_1", "GTA 6🔴BIGBOSS🔴30 DAYS RACHITROO IRL LIVE"), ("nonstopgaming", "INDIA 🇮🇳 vs BRU || FFWS WATCH PARTY")):
     assert scene.verdict({"sid": "kick:" + sl, "platform": "kick", "title": t, "name": sl}), sl
+for nm in ("indialovewestbrooks", "IndiaGutierDj", "INDIANTVCZ", "IndianDiorrr", "BigBossRobinson", "Lzindiario",
+           "iiindiao", "BigBossIncarnate", "BIGBOSS33", "Indianchewbacca70"):
+    assert not scene.verdict({"sid": "twitch:" + nm.lower(), "platform": "twitch", "title": "stream", "name": nm}), nm
+for nm in ("focusedindian", "India_Noob_", "hydrobgmi04", "s8ul_sid"):
+    assert scene.verdict({"sid": "kick:" + nm.lower(), "platform": "kick", "title": "stream", "name": nm}), nm
 print("INDIA VERDICT OK", len(NOT), len(YES))
 # the hourly re-check corrects saved flags: foreign ones unmarked, Indian ones kept
 from tracker import store

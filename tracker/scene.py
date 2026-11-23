@@ -321,6 +321,14 @@ def _hindi_words(t: str) -> int:
     return len(w & HINDI_WORDS) + (1 if re.search(r"\bbig boss\b", t or "", re.I) else 0)
 
 
+def _name_india(n: str) -> bool:
+    """A channel name that says India: ends in india / indian ('focusedindian'), starts with 'india_' / 'indian_', or
+    has an Indian esports / server name in it. Not just 'india' anywhere: 'indialovewestbrooks', 'Lzindiario',
+    'IndiaGutierDj', 'BigBossRobinson' are not Indian (23 Nov)."""
+    k = re.sub(r"[\d_]+$", "", (n or "").lower())
+    return bool(re.search(r"indian?$|^indian?_|^desi_|bgmi|s8ul|scoutop|soulcity|bharat", k))
+
+
 def foreign_sign(t: str, n: str = "") -> bool:
     """Clear sign of another country: a flag that isn't India's, Pakistan / Bangladesh / Nepal ..., another script,
     or Bengali without anything Indian (on Kick / Twitch Bengali streams are almost all from Bangladesh, e.g. FFWS
@@ -366,10 +374,10 @@ def verdict(x: dict, country: str = None, allow: set = frozenset()) -> bool:
     travel = (x.get("category") or x.get("game") or "").lower() in ("irl", "travel & outdoors")
     if travel and not (_ind_script(t) or _hindi_words(t) >= 2):
         return False                          # a traveller streaming from India ('Kochi, India 🇮🇳 Day 379')
-    if _ind_script(t + " " + n) or INDIA_STRONG.search(t) or INDIA_STRONG.search(n) or "\U0001F1EE\U0001F1F3" in t + n:
+    if _ind_script(t + " " + n) or INDIA_STRONG.search(t) or "\U0001F1EE\U0001F1F3" in t + n:
         return True
-    if INDIA_WEAK.search(n) or re.search(r"india(?!na)|bharat|bgmi|s8ul|scoutop|soulcity", n.lower()):
-        return True                           # the name says it ('focusedindian', 'hydrobgmi04')
+    if _name_india(n):
+        return True                           # the name says it ('focusedindian', 'hydrobgmi04', 'India_Noob_')
     weak = bool(INDIA_WEAK.search(t))
     hw = _hindi_words(t)
     if x.get("platform") == "youtube":
