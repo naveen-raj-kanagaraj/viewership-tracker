@@ -71,3 +71,11 @@ assert langsig._decide(5, 15) is True and langsig._decide(12, 20) is True
 assert langsig._decide(0, 45) is False and langsig._decide(2, 100) is False
 assert langsig._decide(3, 30) is None and langsig._decide(2, 10) is None
 print("SMALL CHATS OK")
+# a few Indian-looking titles among hundreds of foreign ones don't make a channel Indian (Greek, 23 Nov)
+c.executemany("INSERT INTO yt_videos (vid, sid, ts, title) VALUES (?,?,?,?)",
+              [(f"g{i}", "twitch:greekish", i, "ALGS Las Vegas match point") for i in range(50)] +
+              [("g90", "twitch:greekish", 90, "India vs EU scrims"), ("g91", "twitch:greekish", 91, "Hindi chat test")])
+c.commit()
+assert "twitch:greekish" not in scene._past_titles_india() and "kick:pastind" in scene._past_titles_india()
+assert scene.india_why({"sid": "twitch:invadingdarkness", "platform": "twitch", "title": "🇬🇧🇮🇳 British Indian Gamergirl", "name": "InvadingDarkness"}) == (True, "owner: Indian")
+print("SHARE OF TITLES OK")

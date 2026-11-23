@@ -202,7 +202,7 @@ def _past_titles_india() -> set:
     """Kick / Twitch channels whose past broadcasts (their VOD lists) say India at least twice: in Hindi or another
     Indian script, 'Hindi stream', Bigg Boss watch party, BGMI ..., with none of them clearly from another country.
     So a channel whose latest title is just 'GTA 6 Live' still counts (owner, 23 Nov: Indian streamers only, but all of them)."""
-    hits, bad = {}, set()
+    hits, bad, tot = {}, set(), {}
     with store.reading():
         c = store.conn()
         if not c.execute("SELECT 1 FROM sqlite_master WHERE name='yt_videos'").fetchone():
@@ -210,11 +210,13 @@ def _past_titles_india() -> set:
         for lo, hi in (("kick:", "kick;"), ("twitch:", "twitch;")):
             for sid, title in c.execute("SELECT sid, title FROM yt_videos WHERE sid >= ? AND sid < ?", (lo, hi)):
                 t = title or ""
+                tot[sid] = tot.get(sid, 0) + 1
                 if foreign_sign(t):
                     bad.add(sid)
                 elif _ind_script(t) or INDIA_STRONG.search(t) or _hindi_words(t) >= 2:
                     hits[sid] = hits.get(sid, 0) + 1
-    return {sid for sid, n in hits.items() if n >= 2 and sid not in bad}
+    # 2+ titles AND a fifth of them: 2 odd titles among 910 Apex streams made Greek 'Indian' (23 Nov)
+    return {sid for sid, n in hits.items() if n >= 2 and n >= 0.2 * tot[sid] and sid not in bad}
 
 
 def mark_known_india() -> int:
@@ -311,6 +313,8 @@ _PREV_IND = {"set": frozenset()}         # channels flagged Indian in the databa
 
 # Not Indian, says the owner (23 Nov), whatever their titles say
 NOT_INDIA_SIDS = {"twitch:guddu_kim", "twitch:olivescrossing"}
+# Indian, says the owner (23 Nov), whatever their titles say ('🇬🇧🇮🇳 British Indian Gamergirl')
+INDIA_SIDS = {"twitch:invadingdarkness"}
 
 _FLAG = re.compile(r"([\U0001F1E6-\U0001F1FF]{2})")
 NOT_INDIA = re.compile(r"\b(pakistan|pakistani|karachi|lahore|islamabad|urdu|bangladesh|bangladeshi|dhaka|nepal|nepali|"
@@ -378,6 +382,8 @@ def india_why(x: dict, country: str = None, allow: set = frozenset()) -> tuple:
     tags = x.get("tags") or ""
     if sid.lower() in NOT_INDIA_SIDS:
         return False, "owner: not Indian"
+    if sid.lower() in INDIA_SIDS:
+        return True, "owner: Indian"
     if x.get("seeded") or sid in _curated():
         return True, "added by hand / event channel list"
     if x.get("platform") == "youtube":
