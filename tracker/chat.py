@@ -22,10 +22,12 @@ import threading
 import time
 from collections import deque
 
-from tracker import events, platforms
+from tracker import events, langsig, platforms
 
 CHAT_TWITCH = int(os.getenv("CHAT_TWITCH", "150"))
 CHAT_KICK = int(os.getenv("CHAT_KICK", "80"))
+CHAT_IN = int(os.getenv("CHAT_IN", "250"))     # plus this many possibly-Indian channels per platform: their chat language
+                                               # decides if they count as Indian (langsig)
 CHAT_ON = os.getenv("CHAT", "true").lower() == "true"
 BUCKET = 5
 KEEP = 480                                   # buckets: 40 minutes
@@ -77,11 +79,21 @@ def raid(sid: str):
 
 # ---------- Twitch (IRC) ----------
 
-def _twitch_targets():
-    from tracker import scene
+def _targets(platform: str, top: int) -> list:
+    """The biggest live channels, plus the live ones that may be Indian (flagged Indian, or a hint of it) whose chat
+    hasn't been judged yet or is close to the line."""
+    from tracker import scene, langsig
     with scene._lock:
-        L = sorted(((sid, x["viewers"]) for sid, x in scene._LIVE.items() if x["platform"] == "twitch"), key=lambda kv: -kv[1])
-    return [sid.split(":", 1)[1] for sid, _ in L[:CHAT_TWITCH]]
+        L = sorted(((sid, x["viewers"], x.get("india") or x.get("india_hint")) for sid, x in scene._LIVE.items()
+                    if x["platform"] == platform), key=lambda kv: -kv[1])
+    out = [sid for sid, _, _ in L[:top]]
+    cand = [sid for sid, v, h in L[top:] if h and v >= 5 and langsig.verdict(sid) is None]
+    langsig.WANT.update({sid for sid, _, h in L if h})        # only these chats are judged (CPU)
+    return [sid.split(":", 1)[1] for sid in out + cand[:CHAT_IN]]
+
+
+def _twitch_targets():
+    return _targets("twitch", CHAT_TWITCH)
 
 
 def run_twitch():
@@ -126,6 +138,7 @@ def run_twitch():
                     sid = "twitch:" + m.group(2).lower()
                     if m.group(1) == "PRIVMSG":
                         add(sid)
+                        langsig.add(sid, t.split(f" PRIVMSG #{m.group(2)} :", 1)[-1])
                     elif "msg-id=raid" in t:
                         v = re.search(r"msg-param-viewerCount=(\d+)", t)
                         _RAID[sid] = (time.time(), int(v.group(1)) if v else 0)
@@ -209,10 +222,7 @@ class _WS:
 
 
 def _kick_targets():
-    from tracker import scene
-    with scene._lock:
-        L = sorted(((sid, x["viewers"]) for sid, x in scene._LIVE.items() if x["platform"] == "kick"), key=lambda kv: -kv[1])
-    return [sid.split(":", 1)[1] for sid, _ in L[:CHAT_KICK]]
+    return _targets("kick", CHAT_KICK)
 
 
 def run_kick():
@@ -226,9 +236,11 @@ def run_kick():
                 if now - last_sync > 60:
                     last_sync = now
                     want = _kick_targets()
+                    added = 0
                     for slug in want:
-                        if slug in subs:
+                        if slug in subs or added >= 30:   # each new one needs a chatroom lookup: 30 a minute
                             continue
+                        added += 1
                         rid = _room(slug)
                         if rid:
                             ws.send(json.dumps({"event": "pusher:subscribe", "data": {"auth": "", "channel": f"chatrooms.{rid}.v2"}}))
@@ -253,6 +265,10 @@ def run_kick():
                     slug = next((s for s, r in subs.items() if m and r == int(m.group(1))), None)
                     if slug:
                         add("kick:" + slug)
+                        try:
+                            langsig.add("kick:" + slug, (json.loads(j.get("data") or "{}") or {}).get("content") or "")
+                        except (ValueError, AttributeError):
+                            pass
         except Exception as e:
             STATUS["kick"] = f"reconnecting ({str(e)[:60]})"
             time.sleep(20)
@@ -261,5 +277,6 @@ def run_kick():
 def start():
     if not CHAT_ON:
         return
+    langsig.start()
     threading.Thread(target=run_twitch, daemon=True).start()
     threading.Thread(target=run_kick, daemon=True).start()

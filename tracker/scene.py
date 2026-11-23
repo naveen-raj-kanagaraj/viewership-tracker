@@ -182,6 +182,7 @@ def india_known() -> frozenset:
                     elif cid and cid.startswith("UC"):
                         out.add("yt:" + cid)
             out.update(r[0] for r in c.execute("SELECT DISTINCT sid FROM sc_daily WHERE game='BGMI'"))
+        out.update(_past_titles_india())
         out.update("kick:" + k.lower() for k in seeds().get("kick", []))
         out.update(allowed())
     except Exception as e:
@@ -189,6 +190,25 @@ def india_known() -> frozenset:
         return _KNOWN["set"]
     _KNOWN.update(at=time.time(), set=frozenset(out))
     return _KNOWN["set"]
+
+
+def _past_titles_india() -> set:
+    """Kick / Twitch channels whose past broadcasts (their VOD lists) say India at least twice: in Hindi or another
+    Indian script, 'Hindi stream', Bigg Boss watch party, BGMI ..., with none of them clearly from another country.
+    So a channel whose latest title is just 'GTA 6 Live' still counts (owner, 23 Nov: Indian streamers only, but all of them)."""
+    hits, bad = {}, set()
+    with store.reading():
+        c = store.conn()
+        if not c.execute("SELECT 1 FROM sqlite_master WHERE name='yt_videos'").fetchone():
+            return set()
+        for lo, hi in (("kick:", "kick;"), ("twitch:", "twitch;")):
+            for sid, title in c.execute("SELECT sid, title FROM yt_videos WHERE sid >= ? AND sid < ?", (lo, hi)):
+                t = title or ""
+                if foreign_sign(t):
+                    bad.add(sid)
+                elif _ind_script(t) or INDIA_STRONG.search(t) or _hindi_words(t) >= 2:
+                    hits[sid] = hits.get(sid, 0) + 1
+    return {sid for sid, n in hits.items() if n >= 2 and sid not in bad}
 
 
 def mark_known_india() -> int:
@@ -200,11 +220,12 @@ def mark_known_india() -> int:
         return 0
     wrong, right = [], []
     with store.reading():
-        rows = store.conn().execute("SELECT sid, name, title, country, language, COALESCE(india,0), game FROM sc_channels "
+        rows = store.conn().execute("SELECT sid, name, title, country, language, COALESCE(india,0), game, tags FROM sc_channels "
                                     "WHERE platform IN ('kick','twitch') AND COALESCE(title,'')<>''").fetchall()
-    for sid, nm, tt, ct, lg, ind, gm in rows:     # known ones too: a clearly foreign title beats an old BGMI stream
+    _PREV_IND["set"] = frozenset(r[0] for r in rows if r[5])
+    for sid, nm, tt, ct, lg, ind, gm, tg in rows:   # known ones too: a clearly foreign title beats an old BGMI stream
         v = verdict({"sid": sid, "platform": sid.split(":")[0], "name": nm or "", "title": tt or "", "language": lg or "",
-                     "game": gm or ""}, ct, known)
+                     "game": gm or "", "tags": tg or ""}, ct, known)
         if ind and not v:
             wrong.append(sid)
         elif v and not ind:
@@ -257,6 +278,20 @@ def _ind_script(t: str) -> bool:
     return n >= 4 and n > len(FOREIGN.findall(t or ""))
 
 
+IND_LANGS = set(LANGS) | {"hi", "ta", "te", "kn", "ml", "mr", "gu", "or", "hindi", "tamil", "telugu", "kannada",
+                          "malayalam", "marathi", "gujarati", "odia"}    # stream language tags (not Bengali / Punjabi / Urdu)
+
+
+def india_hint(x: dict) -> bool:
+    """Anything that might make a Kick / Twitch channel Indian: its chat is then read to decide (langsig)."""
+    s_ = (x.get("title") or "") + " " + (x.get("tags") or "") + " " + (x.get("name") or "")
+    return bool(_INDW.search(s_) or _hindi_words(s_) or INDIA_STRONG.search(s_) or INDIA_WEAK.search(s_)
+                or "\U0001F1EE\U0001F1F3" in s_ or (x.get("language") or "").lower() in IND_LANGS
+                or x.get("sid") in _PREV_IND["set"])
+
+
+_PREV_IND = {"set": frozenset()}         # channels flagged Indian in the database (refreshed hourly)
+
 # Not Indian, says the owner (23 Nov), whatever their titles say
 NOT_INDIA_SIDS = {"twitch:guddu_kim", "twitch:olivescrossing"}
 
@@ -291,7 +326,9 @@ def foreign_sign(t: str, n: str = "") -> bool:
     or Bengali without anything Indian (on Kick / Twitch Bengali streams are almost all from Bangladesh, e.g. FFWS
     watch parties; 23 Nov kuttush17, raadvai_yt)."""
     s = (t or "") + " " + (n or "")
-    if any(f != "\U0001F1EE\U0001F1F3" for f in _FLAG.findall(s)) or NOT_INDIA.search(s) or _LANG_TAG.search(s):
+    flags = [f for f in _FLAG.findall(s) if f != "\U0001F1EE\U0001F1F3"]
+    vs = re.search(r"\b(india|ind)\b.{0,12}\bvs?\b|\bvs?\b.{0,12}\b(india|ind)\b", s, re.I)   # 'India vs Pakistan': a match
+    if (flags and not vs) or (NOT_INDIA.search(s) and not vs) or _LANG_TAG.search(s):
         return True
     if FOREIGN.search(s) and not _ind_script(s):
         return True
@@ -314,11 +351,17 @@ def verdict(x: dict, country: str = None, allow: set = frozenset()) -> bool:
             return True
         if country and country != "-":
             return False                      # the channel says it is from another country
+    t = (t + " " + (x.get("tags") or "")).strip()       # Twitch / Kick tags: 'Hindi', 'India', 'Tamil' ...
     if foreign_sign(t, n):
         return False                          # beats an old BGMI stream or a past event (a misread can't stick)
-    if sid in allow or x.get("game") == "BGMI":   # BGMI is only played in India; event trackers' channels
+    if x.get("platform") in ("kick", "twitch"):
+        from tracker import langsig
+        cv = langsig.verdict(sid)             # what the chat is written in: Hindi / Hinglish / Indian scripts or not
+        if cv is not None:
+            return cv
+    if sid in allow or x.get("game") == "BGMI":   # BGMI is only played in India; event trackers; past titles
         return True
-    if x.get("platform") in ("kick", "twitch") and (x.get("language") or "").lower() in LANGS + ["hindi"]:
+    if x.get("platform") in ("kick", "twitch") and (x.get("language") or "").lower() in IND_LANGS:
         return True
     travel = (x.get("category") or x.get("game") or "").lower() in ("irl", "travel & outdoors")
     if travel and not (_ind_script(t) or _hindi_words(t) >= 2):
@@ -358,7 +401,8 @@ def _kick_live(params) -> list:
     j = platforms._get("kick", "https://api.kick.com/public/v1/livestreams", {"sort": "viewer_count", "limit": 100, **params})
     return [platforms._kick_row(s.get("slug") or "", s.get("stream_title"), s.get("viewer_count"),
                                 category=(s.get("category") or {}).get("name", ""), pic=s.get("profile_picture") or "",
-                                language=s.get("language") or "", uid=s.get("broadcaster_user_id"))
+                                language=s.get("language") or "", uid=s.get("broadcaster_user_id"),
+                                tags=s.get("custom_tags") or s.get("tags") or [])
             for s in j.get("data") or [] if s.get("slug")]
 
 
@@ -388,7 +432,8 @@ def platform_global(p: str, errors: dict) -> list:
                     login = (s_.get("user_login") or "").lower()
                     rows.append({"vid": f"twitch:{login}", "channel": s_.get("user_name") or login,
                                  "title": s_.get("title") or "", "viewers": int(s_.get("viewer_count") or 0),
-                                 "category": s_.get("game_name") or "", "language": s_.get("language") or ""})
+                                 "category": s_.get("game_name") or "", "language": s_.get("language") or "",
+                                 "tags": " ".join(s_.get("tags") or [])})
                 after = (j.get("pagination") or {}).get("cursor")
                 if not after or (j.get("data") and j["data"][-1].get("viewer_count", 0) < GLOBAL_MIN):
                     break
@@ -469,7 +514,7 @@ def sweep_platform(p: str, game: str, errors: dict) -> list:
                 login = (s_.get("user_login") or "").lower()
                 rows.append({"vid": f"twitch:{login}", "channel": s_.get("user_name") or login, "title": s_.get("title") or "",
                              "viewers": int(s_.get("viewer_count") or 0), "category": s_.get("game_name") or "",
-                             "language": s_.get("language") or ""})
+                             "language": s_.get("language") or "", "tags": " ".join(s_.get("tags") or [])})
             after = (j.get("pagination") or {}).get("cursor")
             if not after or not d:
                 break
@@ -1011,7 +1056,7 @@ def _schema(c):
         store.kv_set("scene_mig_cricket", True)
     if not _COLS:
         have = {r[1] for r in c.execute("PRAGMA table_info(sc_channels)")}
-        for col, typ in (("country", "TEXT"), ("india", "INTEGER"), ("language", "TEXT"), ("tracked", "INTEGER"), ("topic", "TEXT"), ("ytcat", "TEXT")):
+        for col, typ in (("country", "TEXT"), ("india", "INTEGER"), ("language", "TEXT"), ("tracked", "INTEGER"), ("topic", "TEXT"), ("ytcat", "TEXT"), ("tags", "TEXT")):
             if col not in have:
                 c.execute(f"ALTER TABLE sc_channels ADD COLUMN {col} {typ}")
         c.commit()
@@ -1933,7 +1978,7 @@ def cycle(now: float = None) -> dict:
             sid = r["vid"]
             found[sid] = {"sid": sid, "platform": p, "name": r["channel"], "url": platforms.link(sid),
                           "logo": platforms.logo(sid), "title": r["title"], "category": r.get("category", ""),
-                          "streams": {sid: r["viewers"]}, "language": r.get("language", ""),
+                          "streams": {sid: r["viewers"]}, "language": r.get("language", ""), "tags": r.get("tags", ""),
                           "seeded": sid.split(":", 1)[1] in [x.lower() for x in sd[p]]}
 
     # YouTube: streams already live are re-counted every cycle; searches and hand-added channels less often
@@ -1992,7 +2037,7 @@ def cycle(now: float = None) -> dict:
                 continue
             found[sid] = {"sid": sid, "platform": p_, "name": r["channel"], "url": platforms.link(sid),
                           "logo": platforms.logo(sid), "title": r["title"], "category": r.get("category", ""),
-                          "streams": {sid: r["viewers"]}, "language": r.get("language", ""),
+                          "streams": {sid: r["viewers"]}, "language": r.get("language", ""), "tags": r.get("tags", ""),
                           "seeded": (found.get(sid) or {}).get("seeded", False) or sid.split(":", 1)[1] in _KSEED}
     if now - _STATE.get("watch", 0) >= WATCH_SEC:
         _STATE["watch"] = now
@@ -2035,6 +2080,8 @@ def cycle(now: float = None) -> dict:
                 x["category"] = card
         x["game"] = classify(x.get("category", ""), x.get("title", ""))   # first pass (BGMI streams are Indian)
         x["india"] = verdict(x, x["country"], allow)
+        if x["platform"] != "youtube":
+            x["india_hint"] = bool(x["india"]) or india_hint(x)     # its chat is read to confirm or rule it out
         if not x["india"] and x["viewers"] < GLOBAL_MIN and not swept:
             rejected.append(x)                # too small to matter worldwide; remembered so it isn't looked up again
             continue
@@ -2224,21 +2271,22 @@ def _store(rows, now, last):
         chg = []
         for x in rows:
             sig = (x["name"], x["url"], x.get("logo") or "", x.get("title", ""), x["game"], x.get("country"),
-                   1 if x.get("india", True) else 0, x.get("language") or "")
+                   1 if x.get("india", True) else 0, x.get("language") or "", x.get("tags") or "")
             old_ = _CHSIG.get(x["sid"])
             if old_ is None or old_[0] != sig or now - old_[1] >= 600:
                 chg.append((x["sid"], x["platform"], x["name"], x["url"], x.get("logo") or "", now, now, x.get("title", ""),
-                            x["game"], x.get("country"), 1 if x.get("india", True) else 0, x.get("language") or ""))
+                            x["game"], x.get("country"), 1 if x.get("india", True) else 0, x.get("language") or "",
+                            x.get("tags") or ""))
                 _CHSIG[x["sid"]] = (sig, now)
         if len(_CHSIG) > 400000:
             _CHSIG.clear()
         c.executemany("""INSERT INTO sc_channels (sid, platform, name, url, logo, first_seen, last_live, title, game,
-                         country, india, language) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(sid) DO UPDATE SET
+                         country, india, language, tags) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(sid) DO UPDATE SET
                          name=excluded.name, url=excluded.url,
                          logo=CASE WHEN excluded.logo!='' THEN excluded.logo ELSE sc_channels.logo END,
                          last_live=excluded.last_live, title=excluded.title, game=excluded.game,
                          country=COALESCE(excluded.country, sc_channels.country), india=excluded.india,
-                         language=excluded.language""", chg)
+                         language=excluded.language, tags=excluded.tags""", chg)
         # Daily totals: added up in memory and written every DAILY_FLUSH seconds (and at the day's change)
         buf = _DBUF.setdefault("rows", {})
         for x in rows:
