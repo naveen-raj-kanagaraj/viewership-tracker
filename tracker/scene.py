@@ -319,6 +319,10 @@ INDIA_SIDS = {"twitch:invadingdarkness"}
 _FLAG = re.compile(r"([\U0001F1E6-\U0001F1FF]{2})")
 NOT_INDIA = re.compile(r"\b(pakistan|pakistani|karachi|lahore|islamabad|urdu|bangladesh|bangladeshi|dhaka|nepal|nepali|"
                        r"kathmandu|sri ?lanka|lankan)\b", re.I)
+# Words that only appear in titles written in Portuguese, Spanish, French or German (none are Hindi / English words)
+_OTHER_LANG_WORDS = set("""uma dando jogando jogo você voce não nao agora hoje vamos então galera los las con jugando
+ahora hoy una del pero también tambien siempre nosotros und mit ich nicht heute wir spielen avec les une aujourd nous
+pour sur très tres""".split())
 # Indians abroad count (owner, 23 Nov: 'InvadingDarkness is British Indian, add her')
 DIASPORA = re.compile(r"\b(british[- ]indian|indian[- ](american|canadian|australian|origin)|indo[- ](canadian|american)|nri)\b", re.I)
 # Words that alone say a stream is Indian (languages, Indian games / events / servers)
@@ -376,6 +380,9 @@ def foreign_sign(t: str, n: str = "") -> bool:
     vs = re.search(r"\b(india|ind)\b.{0,12}\bvs?\b|\bvs?\b.{0,12}\b(india|ind)\b", s, re.I)   # 'India vs Pakistan': a match
     if DIASPORA.search(s):
         return False
+    if len(set(re.findall(r"[a-zà-ÿ]+", s.lower())) & _OTHER_LANG_WORDS) >= 2:
+        return True                           # a title in Portuguese / Spanish / French / German ('Dando uma volta em
+                                              # Vice city': India_Noob_ is Brazilian, 23 Nov)
     if (flags and not vs and "\U0001F1EE\U0001F1F3" not in s) or (NOT_INDIA.search(s) and not vs) or _LANG_TAG.search(s):
         return True                           # 🇬🇧🇮🇳 together: an Indian abroad, not a foreign channel
     if FOREIGN.search(s) and not _ind_script(s):
@@ -437,8 +444,8 @@ def india_why(x: dict, country: str = None, allow: set = frozenset()) -> tuple:
         return True, (_KNOWN.get("why") or {}).get(sid) or "known Indian channel"
     if x.get("platform") in ("kick", "twitch") and (x.get("language") or "").lower() in IND_LANGS:
         return True, f"stream language: {x.get('language')}"
-    if _TAG_LANG.search(tags):
-        return True, f"stream tag: {_TAG_LANG.search(tags).group(0)}"
+    # A 'Hindi' / 'Tamil' tag alone doesn't decide: English-language channels use them too (drtyeyeball, a Tarkov
+    # streamer in a US tattoo studio, tagged 'Hindi'; 23 Nov). It only gets the channel's chat read (india_hint).
     travel = (x.get("category") or x.get("game") or "").lower() in ("irl", "travel & outdoors")
     if travel and not (_ind_script(t) or _hindi_words(t) >= 2):
         return False, "travel stream: being in India isn't being Indian"

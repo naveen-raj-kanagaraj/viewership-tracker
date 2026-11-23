@@ -29,7 +29,7 @@ assert v("twitch:guddu_kim", "aaj sabko giveaway") is False
 langsig.load(); langsig.save(); langsig._C.clear(); langsig.load()
 assert langsig.verdict("twitch:indguy") is True
 # tags: Twitch's 'Hindi' tag counts; 'India vs Pakistan' is a match, not a foreign channel
-assert scene.verdict({"sid": "twitch:t1", "platform": "twitch", "title": "GTA 6 day 3", "name": "t1", "tags": "Hindi English"})
+assert not scene.verdict({"sid": "twitch:t1", "platform": "twitch", "title": "GTA 6 day 3", "name": "t1", "tags": "Hindi English"})
 assert scene.verdict({"sid": "kick:t2", "platform": "kick", "title": "India vs Pakistan live reaction", "name": "t2"})
 assert not scene.verdict({"sid": "kick:t3", "platform": "kick", "title": "Pakistan zindabad stream", "name": "t3"})
 print("LANGSIG OK")
