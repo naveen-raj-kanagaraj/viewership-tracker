@@ -42,7 +42,15 @@ HI_WEAK = set("hai ho toh ka ki ke ko se me mein tum aap yeh ye wo woh bhi sab p
 _IND = re.compile(r"[ऀ-ॿ਀-ൿ]")         # Devanagari, Gurmukhi ... Malayalam (not Bengali: Bangladesh)
 _WORD = re.compile(r"[a-z]+")
 
+# Urdu typed in English letters reads like Hinglish, but Pakistani chat spells it its own way: 'kia', 'hy', 'sy',
+# 'ny', 'bohat' where Indian chat writes 'kya', 'hai', 'se', 'ne', 'bahut' (owner, 23 Nov: sig07tv / nozyGOAT, Hindi
+# channels on Twitch, are not Indian; Twitch has no Urdu, so Pakistani streamers pick Hindi)
+UR_MARK = set("""kia hy sy ny bohat mjhy tmhy mujhy tumhy rhy thy apky unhy pakistan pakistani lahore karachi
+islamabad pindi peshawar""".split())
+UR_SHARE = 0.20           # this share of the Indian-looking messages in Pakistani spelling: Pakistani chat
+
 _C = {}                   # sid -> [indian, other]
+_U = {}                   # sid -> messages in Pakistani (Urdu) spelling
 _L = threading.Lock()
 _DIRTY = set()
 
@@ -78,11 +86,15 @@ def add(sid: str, text: str):
     k = kind(text)
     if k is None:
         return
+    ur = k == "in" and bool(set(_WORD.findall((text or "").lower())) & UR_MARK)
     with _L:
         c = _C.setdefault(sid, [0, 0])
         c[0 if k == "in" else 1] += 1
+        if ur:
+            _U[sid] = _U.get(sid, 0) + 1
         if c[0] + c[1] > KEEP:
             c[0], c[1] = c[0] // 2, c[1] // 2
+            _U[sid] = _U.get(sid, 0) // 2
         _DIRTY.add(sid)
 
 
@@ -92,7 +104,17 @@ def verdict(sid: str):
         c = _C.get(sid)
     if not c:
         return None
-    return _decide(c[0], c[0] + c[1])
+    d = _decide(c[0], c[0] + c[1])
+    if d and pakistani(sid):
+        return False
+    return d
+
+
+def pakistani(sid: str) -> bool:
+    """The chat is Hindi / Urdu, but spelled the Pakistani way."""
+    with _L:
+        c, u = _C.get(sid) or (0, 0), _U.get(sid, 0)
+    return u >= 5 and u >= UR_SHARE * c[0]
 
 
 def counts(sid: str):
@@ -139,30 +161,35 @@ def yt_verdict(sid: str):
     return _decide(c[0], c[0] + c[1]) if c else None
 
 
-SCHEMA = "CREATE TABLE IF NOT EXISTS chat_lang (sid TEXT PRIMARY KEY, ind INTEGER, oth INTEGER, updated INTEGER)"
+SCHEMA = "CREATE TABLE IF NOT EXISTS chat_lang (sid TEXT PRIMARY KEY, ind INTEGER, oth INTEGER, updated INTEGER, urd INTEGER)"
 
 
 def load():
     try:
         with store._lock:
-            store.main().execute(SCHEMA)
-            store.main().commit()
+            m = store.main()
+            m.execute(SCHEMA)
+            if "urd" not in [r[1] for r in m.execute("PRAGMA table_info(chat_lang)")]:
+                m.execute("ALTER TABLE chat_lang ADD COLUMN urd INTEGER")
+            m.commit()
         with store.reading():
-            rows = store.conn().execute("SELECT sid, ind, oth FROM chat_lang").fetchall()
+            rows = store.conn().execute("SELECT sid, ind, oth, COALESCE(urd,0) FROM chat_lang").fetchall()
         with _L:
-            for sid, a, b in rows:
+            for sid, a, b, u in rows:
                 _C.setdefault(sid, [a, b])
+                _U.setdefault(sid, u)
     except Exception as e:
         print(f"Chat languages load: {str(e)[:100]}")
 
 
 def save():
     with _L:
-        rows = [(sid, _C[sid][0], _C[sid][1], int(time.time())) for sid in _DIRTY if sid in _C]
+        rows = [(sid, _C[sid][0], _C[sid][1], int(time.time()), _U.get(sid, 0)) for sid in _DIRTY if sid in _C]
         _DIRTY.clear()
     if rows:
-        store.write_slices("INSERT INTO chat_lang VALUES (?,?,?,?) ON CONFLICT(sid) DO UPDATE SET ind=excluded.ind, "
-                           "oth=excluded.oth, updated=excluded.updated", rows, n=500)
+        store.write_slices("INSERT INTO chat_lang (sid, ind, oth, updated, urd) VALUES (?,?,?,?,?) ON CONFLICT(sid) DO "
+                           "UPDATE SET ind=excluded.ind, oth=excluded.oth, updated=excluded.updated, urd=excluded.urd",
+                           rows, n=500)
 
 
 def run_forever():

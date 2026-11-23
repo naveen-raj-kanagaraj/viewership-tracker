@@ -45,6 +45,9 @@ FAST_IN = {"twitch": int(os.getenv("SCENE_FAST_IN_TW", "300")),   # extra Indian
            "kick": int(os.getenv("SCENE_FAST_IN_KICK", "200"))}
 _KFAST = {"cap": None, "until": 0.0}
 LANGS = [x.strip() for x in os.getenv("SCENE_LANGS", "hi").split(",") if x.strip()]
+# Twitch streams swept by language to find small Indian streams (they're judged by their chat after that)
+SWEEP_LANGS = [x.strip() for x in os.getenv("SCENE_SWEEP_LANGS", "hi,ta,te,ml,kn,mr,gu,or").split(",") if x.strip()]
+LANG_PAGES = int(os.getenv("SCENE_LANG_PAGES", "5"))
 # Kick and Twitch have no country filter. Besides the India languages above, the top streams overall and in the
 # categories Indians stream most are read, and a stream counts as Indian if its title is written in an Indian script
 # or says so (hindi, india, desi, tamil, bgmi ...).
@@ -312,7 +315,7 @@ def india_hint(x: dict) -> bool:
 _PREV_IND = {"set": frozenset()}         # channels flagged Indian in the database (refreshed hourly)
 
 # Not Indian, says the owner (23 Nov), whatever their titles say
-NOT_INDIA_SIDS = {"twitch:guddu_kim", "twitch:olivescrossing"}
+NOT_INDIA_SIDS = {"twitch:guddu_kim", "twitch:olivescrossing", "twitch:sig07tv", "twitch:nozygoat"}
 # Indian, says the owner (23 Nov), whatever their titles say ('🇬🇧🇮🇳 British Indian Gamergirl')
 INDIA_SIDS = {"twitch:invadingdarkness"}
 
@@ -428,6 +431,8 @@ def india_why(x: dict, country: str = None, allow: set = frozenset()) -> tuple:
         cv = langsig.verdict(sid)
         if cv is not None:
             a_, b_ = langsig.counts(sid)
+            if cv is False and langsig.pakistani(sid):
+                return False, "chat is Urdu spelled the Pakistani way ('kia', 'hy', 'bohat')"
             return cv, f"chat: {round(100 * a_ / max(1, a_ + b_))}% of {a_ + b_} messages in Hindi / Hinglish / Indian languages"
     if x.get("platform") in ("kick", "twitch"):
         from tracker import profiles
@@ -442,7 +447,10 @@ def india_why(x: dict, country: str = None, allow: set = frozenset()) -> tuple:
         return True, "streams BGMI (India only)"
     if sid in allow:
         return True, (_KNOWN.get("why") or {}).get(sid) or "known Indian channel"
-    if x.get("platform") in ("kick", "twitch") and (x.get("language") or "").lower() in IND_LANGS:
+    # Twitch / Kick language setting: only languages spoken just in India decide. 'Hindi' alone doesn't: Twitch has no
+    # Urdu, so Pakistani streamers pick Hindi (owner, 23 Nov: sig07tv, nozyGOAT are Hindi channels, not Indian); it
+    # gets the chat read instead (india_hint).
+    if x.get("platform") in ("kick", "twitch") and (x.get("language") or "").lower() in IND_LANGS - {"hi", "hindi"}:
         return True, f"stream language: {x.get('language')}"
     # A 'Hindi' / 'Tamil' tag alone doesn't decide: English-language channels use them too (drtyeyeball, a Tarkov
     # streamer in a US tattoo studio, tagged 'Hindi'; 23 Nov). It only gets the channel's chat read (india_hint).
@@ -760,9 +768,20 @@ def platform_india(p: str, errors: dict) -> list:
     Indian categories whose language or title marks them as Indian."""
     rows, wide = [], []
     get = (lambda prm: platforms._tw_streams({"first": 100, **prm})) if p == "twitch" else _kick_live
-    for lang in LANGS:
+    for lang in (SWEEP_LANGS if p == "twitch" else LANGS):
         try:
-            rows += get({"language": lang})
+            if p == "twitch":                 # every live stream in an Indian language, not just the first 100
+                after = None
+                for _ in range(LANG_PAGES):
+                    j = platforms._get("twitch", "https://api.twitch.tv/helix/streams",
+                                       {"first": 100, "language": lang, **({"after": after} if after else {})})
+                    got = [r for r in platforms._tw_rows(j) if r["viewers"] >= MIN_VIEWERS]
+                    rows += got
+                    after = (j.get("pagination") or {}).get("cursor")
+                    if not after or len(got) < len(j.get("data") or []):
+                        break
+            else:
+                rows += get({"language": lang})
         except Exception as e:
             errors[f"{p} language {lang}"] = str(e)[:120]
     try:
@@ -2169,7 +2188,7 @@ def cycle(now: float = None) -> dict:
         x["india"] = verdict(x, x["country"], allow)
         if x["platform"] != "youtube":
             x["india_hint"] = bool(x["india"]) or india_hint(x)     # its chat is read to confirm or rule it out
-        if not x["india"] and x["viewers"] < GLOBAL_MIN and not swept:
+        if not x["india"] and x["viewers"] < GLOBAL_MIN and not swept and not x.get("india_hint"):
             rejected.append(x)                # too small to matter worldwide; remembered so it isn't looked up again
             continue
         x["game"] = classify(x.get("category", ""), x.get("title", ""))

@@ -148,7 +148,10 @@ def _get(p, url, params):
 # ---------- Twitch (Helix) ----------
 
 def _tw_streams(params) -> list:
-    j = _get("twitch", "https://api.twitch.tv/helix/streams", params)
+    return _tw_rows(_get("twitch", "https://api.twitch.tv/helix/streams", params))
+
+
+def _tw_rows(j: dict) -> list:
     out = []
     for s in j.get("data") or []:
         if s.get("type") != "live":

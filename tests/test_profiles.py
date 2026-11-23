@@ -31,3 +31,22 @@ assert scene.india_why({"sid": "twitch:india_noob_", "platform": "twitch", "titl
                         "name": "India_Noob_", "bio": ""}) == (False, "title / tags show another country")
 assert not scene.foreign_sign("bhai log aaj GTA 6 khelenge") and not scene.foreign_sign("Hindi stream de do like")
 print("TAGS + OTHER LANGUAGES OK")
+# Twitch 'Hindi' language setting alone: not Indian (Pakistani streamers pick it), but its chat gets read;
+# a language only spoken in India still decides; the owner's list wins
+x = {"sid": "twitch:hi1", "platform": "twitch", "title": "GTA 6", "name": "hi1", "language": "hi", "bio": ""}
+assert scene.india_why(x)[0] is False and scene.india_hint(x)
+assert scene.india_why({**x, "sid": "twitch:ml1", "language": "ml"}) == (True, "stream language: ml")
+assert scene.india_why({**x, "sid": "twitch:sig07tv"}) == (False, "owner: not Indian")
+# the Twitch language sweep pages through every Indian-language stream down to the minimum viewers
+pages = []
+def fake(p, url, params):
+    pages.append(params.get("language"))
+    n = len([q for q in pages if q == params.get("language")])
+    return {"data": [{"type": "live", "user_login": f"{params['language']}{n}{i}", "viewer_count": 50 if n < 3 else 1,
+                      "title": "t", "game_name": "GTA 6", "language": params["language"]} for i in range(3)],
+            "pagination": {"cursor": "c"}}
+platforms._get = fake
+scene._category_id = lambda p, n: None
+rows = scene.platform_india("twitch", {})
+assert pages.count("hi") == 3 and pages.count("ta") == 3, pages          # stops at the page with small streams
+print("LANGUAGE SWEEP OK")

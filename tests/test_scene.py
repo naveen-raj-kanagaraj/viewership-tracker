@@ -41,7 +41,7 @@ def pget(url, params=None, headers=None, **k):
     if url.endswith("/public/v1/channels"):
         return R({"data": [{"slug": "skyesports", "stream_title": "BMIC qualifiers", "stream": {"is_live": True, "viewer_count": 3200}, "category": {"name": "PUBG Mobile"}}]})
     if url.endswith("/helix/streams"):
-        return R({"data": [{"type": "live", "user_login": "indiavalo", "user_name": "IndiaValo", "title": "ranked", "viewer_count": 1500, "game_name": "VALORANT", "language": "hi"},
+        return R({"data": [{"type": "live", "user_login": "indiavalo", "user_name": "IndiaValo", "title": "ranked | hindi", "viewer_count": 1500, "game_name": "VALORANT", "language": "hi"},
                            {"type": "live", "user_login": "smallguy", "user_name": "small", "title": "x", "viewer_count": 3, "game_name": "Minecraft", "language": "hi"}]})
     if url.endswith("/helix/users"): return R({"data": [{"login": "indiavalo", "profile_image_url": "https://t/iv.png"}]})
     raise AssertionError(url)
@@ -61,7 +61,8 @@ for x, ctry, exp in [({"platform": "youtube", "title": "FREE FIRE rush", "name":
                      ({"platform": "youtube", "title": "IND vs PAK live", "name": "PTV"}, "PK", False),
                      ({"platform": "youtube", "title": "BGMI live", "name": "x"}, "-", True),
                      ({"platform": "twitch", "title": "ranked", "name": "a", "language": "en"}, None, False),
-                     ({"platform": "twitch", "title": "ranked", "name": "a", "language": "hi"}, None, True),
+                     ({"platform": "twitch", "title": "ranked", "name": "a", "language": "hi"}, None, False),   # Hindi alone: no (Pakistan)
+                     ({"platform": "twitch", "title": "ranked", "name": "a", "language": "ta"}, None, True),
                      ({"platform": "kick", "title": "ranked", "name": "七兔", "language": "hi"}, None, False)]:
     assert scene.verdict(x, ctry) == exp, (x, ctry)
 print("VERDICT OK")
