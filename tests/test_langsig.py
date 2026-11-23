@@ -66,3 +66,8 @@ assert got == {"yt:UCnocountry": 1, "yt:UCforeign": 0}, got
 assert scene.verdict({"sid": "yt:UCforeign", "platform": "youtube", "title": "Hindi stream", "name": "b"}, "-") is False
 assert scene.verdict({"sid": "yt:UCforeign", "platform": "youtube", "title": "x", "name": "b"}, "IN") is True     # its country setting wins
 print("YOUTUBE CHAT OK")
+# small chats are decided as soon as they're clear (owner, 23 Nov: small channels never reach 150 messages)
+assert langsig._decide(5, 15) is True and langsig._decide(12, 20) is True
+assert langsig._decide(0, 45) is False and langsig._decide(2, 100) is False
+assert langsig._decide(3, 30) is None and langsig._decide(2, 10) is None
+print("SMALL CHATS OK")

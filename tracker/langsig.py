@@ -13,9 +13,26 @@ import unicodedata
 from tracker import store
 
 KEEP = 3000
-MIN_MSGS = 150            # judged after this many messages with words in them
-IND_SHARE = 0.20          # 20%+ of messages Indian: an Indian channel
-NOT_SHARE = 0.03          # under 3% Indian (after 300+ messages): not an Indian channel
+# Decided as soon as the chat is clear enough, not after a fixed number of messages: small channels rarely get 150
+# (owner, 23 Nov). With n messages of which k are Indian, the 95% range of the true Indian share (Wilson) must sit
+# above IND_SHARE (Indian) or below NOT_SHARE (not Indian). 5 of 15 Indian decides; 0 of 45 decides the other way.
+MIN_MSGS = 15             # never on fewer messages than this
+IND_SHARE = 0.15
+NOT_SHARE = 0.08
+
+
+def _decide(k: int, n: int):
+    """True / False / None from k Indian messages out of n."""
+    if n < MIN_MSGS:
+        return None
+    import math
+    z, p = 1.96, k / n
+    mid, half = (p + z * z / (2 * n)) / (1 + z * z / n), z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / (1 + z * z / n)
+    if mid - half >= IND_SHARE:
+        return True
+    if mid + half <= NOT_SHARE:
+        return False
+    return None
 
 # Hindi in English letters: words that are Hindi and nothing else ('hai' alone is also Italian, so it needs a partner)
 HI_STRONG = set("""bhai bhaiya bhaiyo bhaiyon kya kyu kyun nahi nhi nahin bahut bohot bhot yaar yr accha acha achha kaise
@@ -75,15 +92,7 @@ def verdict(sid: str):
         c = _C.get(sid)
     if not c:
         return None
-    n = c[0] + c[1]
-    if n < MIN_MSGS:
-        return None
-    share = c[0] / n
-    if share >= IND_SHARE:
-        return True
-    if n >= 300 and share < NOT_SHARE:
-        return False
-    return None
+    return _decide(c[0], c[0] + c[1])
 
 
 def counts(sid: str):
@@ -127,10 +136,7 @@ def yt_load():
 
 def yt_verdict(sid: str):
     c = _YT.get(sid)
-    if not c or c[0] + c[1] < MIN_MSGS:
-        return None
-    share = c[0] / (c[0] + c[1])
-    return True if share >= IND_SHARE else False if c[0] + c[1] >= 300 and share < NOT_SHARE else None
+    return _decide(c[0], c[0] + c[1]) if c else None
 
 
 SCHEMA = "CREATE TABLE IF NOT EXISTS chat_lang (sid TEXT PRIMARY KEY, ind INTEGER, oth INTEGER, updated INTEGER)"
