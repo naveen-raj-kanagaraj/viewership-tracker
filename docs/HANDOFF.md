@@ -190,6 +190,7 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 23 Nov: YouTube streamer's ranking category = what it streams (top game by hours watched, 30 d -> section), both ways; YouTube's own label only when its streams don't say (CarryisLive: label Entertainment, streams GTA 6 -> Gaming). Test: tests/test_ranks_category.py.
 - 23 Nov: past-titles rule needs 2+ Indian titles AND 20%+ of the channel's saved titles (Greek had 2 odd ones among 910 Apex streams). scene.INDIA_SIDS = owner's 'Indian' list (invadingdarkness), next to NOT_INDIA_SIDS.
 - 23 Nov: india_known no longer takes every ev_streams channel (event trackers record streams they merely came across: Greek, an Apex streamer, got in via a 'WATCH PARTY' title). Only kind='official' or titles naming the Indian event / game (INDIA_STRONG). Each known channel keeps its source (_KNOWN['why']), shown in india_why.
 - 23 Nov: langsig decides by confidence, not a fixed 150 messages (small channels never get there): Wilson 95% range of the Indian share above 15% = Indian (5 of 15 is enough), below 8% = not (0 of 45). Counts add up across streams and are saved.
