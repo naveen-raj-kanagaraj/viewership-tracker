@@ -190,6 +190,7 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 23 Nov: separate-process rankings run took 127 s (191,220 channels). But /api/topch kept serving the pre-restart memo copy (stale-while-revalidate, rebuild queue busy). The topch memo key now includes int(ranks._R['at']), so new rankings are served immediately.
 - 23 Nov: on the server the single-pass reads were still slow (chstats pass 12 min) because the job shared the tracker's GIL with ~100 threads at load ~4/4 cores. ranks.SEPARATE (set in track.py) runs _compute in its own `python -c 'from tracker import ranks; ranks._child()'` process (read-only; writes data/ranks_cache.pkl), then the tracker load_cache()s it. Test: tests/test_ranks_separate.py.
 - 23 Nov: after the sc_daily fix the job moved on to 8 GROUP BY reads of sc_chstats (latest + first reading per period), 2+ min each. Now one NOT INDEXED scan of sc_chstats (5 s per 3M rows locally); tests/test_ranks_pass.py checks it matches the old queries.
 - 23 Nov: rankings job sat 20+ min on `SELECT sid, SUM(hw) FROM sc_daily WHERE day>=? GROUP BY sid` (walks the (sid, day) index through millions of 1-viewer rows) every run; rankings stayed 57 h old. ranks._rows now does one straight `SELECT ... FROM sc_daily WHERE peak >= 10` (SCAN) and sums periods, 30-day hours and top game in Python (3.6 s per 3M rows locally).

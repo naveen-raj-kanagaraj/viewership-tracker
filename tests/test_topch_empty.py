@@ -18,8 +18,15 @@ c.execute("INSERT INTO sc_channels (sid, platform, name, india, country) VALUES 
 c.execute("INSERT INTO sc_daily VALUES (?,?,?,?,?,?,?)", (d, "kick:c", "BGMI", 2000, 1, 60, 1000)); c.commit()
 ranks.compute()
 # an empty copy left from before (e.g. restored from disk) is dropped once the rankings exist
-key = f"/api/topch:kick:peak_7d:IN:::100:{scene.RULES_V}"
+key = f"/api/topch:kick:peak_7d:IN:::100:{scene.RULES_V}:{int(ranks._R['at'])}"
 web._MEMO[key] = (0, b'{"platform":"kick","metric":"peak_7d","total":0,"updated":0,"games":[],"rows":[]}', None)
 j = cl.get(u).json
 assert j["total"] >= 1 and j["updated"], j
+# new rankings: the old answer is never served again
+old = cl.get(u).json["updated"]
+c.execute("INSERT INTO sc_channels (sid, platform, name, india, country) VALUES ('kick:e','kick','E',1,'IN')")
+c.execute("INSERT INTO sc_daily VALUES (?,?,?,?,?,?,?)", (d, "kick:e", "BGMI", 9000, 1, 60, 1000)); c.commit()
+import time; time.sleep(1.1); ranks.compute()
+j = cl.get(u).json
+assert j["updated"] > old and j["rows"][0]["name"] == "E", j["rows"]
 print("TOPCH EMPTY OK")
