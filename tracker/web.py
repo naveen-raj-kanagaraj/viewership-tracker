@@ -129,6 +129,21 @@ _MEMO_BYTES = int(os.getenv("MEMO_MB", "500")) * 1024 * 1024
 _MEMO_FILE = os.path.join(os.path.dirname(os.path.abspath(store.DB_PATH)), "memo_cache.pkl")
 
 
+_CODE = {}
+
+
+def _code() -> str:
+    """The running code's git commit (cached)."""
+    if "sha" not in _CODE:
+        import subprocess
+        try:
+            _CODE["sha"] = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=5,
+                                          cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))).stdout.strip()
+        except Exception:
+            _CODE["sha"] = ""
+    return _CODE["sha"]
+
+
 def _memo_save():
     """Every 10 minutes: the built pages and API answers (not the live ones) to disk, so after a restart or deploy
     visitors get them instantly (and they rebuild in the background) instead of every page being cold."""
@@ -143,7 +158,7 @@ def _memo_save():
                 if 10 <= _MEMO_TTL.get(k, 0) < 30 and now - ts < _STALE_PAGE:
                     out.append((k, ts, body, gz, _MEMO_TTL[k]))
             with open(_MEMO_FILE + ".live.tmp", "wb") as f:
-                pickle.dump(out, f, protocol=pickle.HIGHEST_PROTOCOL)
+                pickle.dump({"code": _code(), "rows": out}, f, protocol=pickle.HIGHEST_PROTOCOL)
             os.replace(_MEMO_FILE + ".live.tmp", _MEMO_FILE + ".live")
         except Exception as e:
             print(f"Memo save (live): {str(e)[:120]}")
@@ -160,7 +175,7 @@ def _memo_save():
                 out.append((k, ts, body, gz, _MEMO_TTL.get(k, 60)))
             tmp = _MEMO_FILE + ".tmp"
             with open(tmp, "wb") as f:
-                pickle.dump(out, f, protocol=pickle.HIGHEST_PROTOCOL)
+                pickle.dump({"code": _code(), "rows": out}, f, protocol=pickle.HIGHEST_PROTOCOL)
             os.replace(tmp, _MEMO_FILE)
         except Exception as e:
             print(f"Memo save: {str(e)[:120]}")
@@ -171,12 +186,17 @@ def _memo_load():
     for path, age in ((_MEMO_FILE + ".live", _STALE_PAGE), (_MEMO_FILE, _STALE_LONG)):
         try:
             with open(path, "rb") as f:
-                rows = pickle.load(f)
-            now = time.time()
+                saved = pickle.load(f)
+            rows = saved.get("rows", []) if isinstance(saved, dict) else saved
+            same = isinstance(saved, dict) and saved.get("code") == _code()
+            now, n = time.time(), 0
             for k, ts, body, gz, ttl in rows:
-                if now - ts < age and k not in _MEMO:
+                if not same and not k.startswith("/api/"):
+                    continue                  # a page built by older code: never show the old page after a deploy
+                if now - ts < age and k not in _MEMO:   # (23 Nov: removed buttons kept showing on CarryisLive's page)
                     _MEMO[k], _MEMO_TTL[k] = (ts, body, gz), ttl
-            print(f"Memo: {len(rows)} saved responses loaded from {os.path.basename(path)}")
+                    n += 1
+            print(f"Memo: {n} of {len(rows)} saved responses loaded from {os.path.basename(path)}")
         except FileNotFoundError:
             pass
         except Exception as e:
@@ -595,12 +615,7 @@ catch(e){document.getElementById('t').textContent='no answer: '+e}}go();setInter
 @app.route("/api/version")
 def api_version():
     """Which code is running and which one-time repairs have finished (public: no secrets, no data)."""
-    import subprocess
-    try:
-        sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=5,
-                             cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))).stdout.strip()
-    except Exception:
-        sha = ""
+    sha = _code()
     rep = {k: bool(store.kv_get(k)) for k in ("g6_peaks_v2", "g6_peaks_v1", "g6_unnews_v1", "g6_unfile_v1", "g6_cards_v1")}
     return _json({"code": sha, "started": _STARTED, "repairs": rep})
 
