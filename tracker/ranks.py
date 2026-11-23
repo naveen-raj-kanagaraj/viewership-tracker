@@ -54,17 +54,27 @@ def _rows():
     with store.reading():
         c = scene._db()
         ytextra._db()
-        latest = {r[0]: (r[1], r[2]) for r in c.execute(
-            """SELECT s.sid, s.subs, s.views FROM sc_chstats s JOIN (SELECT sid, MAX(day) d FROM sc_chstats GROUP BY sid) m
-               ON m.sid=s.sid AND m.d=s.day""")}
-        def first_since(d):
-            return {r[0]: (r[1], r[2], r[3]) for r in c.execute(
-                """SELECT s.sid, s.subs, s.views, s.day FROM sc_chstats s JOIN (SELECT sid, MIN(day) d FROM sc_chstats WHERE day>=? GROUP BY sid) m
-                   ON m.sid=s.sid AND m.d=s.day""", (d,))}
-        old, old7 = first_since(d30), first_since((today - timedelta(days=7)).strftime("%Y-%m-%d"))
+        # One straight read of sc_chstats: each channel's latest reading and its first reading since each period start.
+        # (Seven GROUP BY queries each walked the whole (sid, day) index: 2+ minutes apiece on 23 Nov.)
         starts = {p: period_start(p).strftime("%Y-%m-%d") for p in PERIODS if p not in ("24h", "all")}
-        firsts = {p: first_since(d) for p, d in starts.items() if p not in ("7d", "30d")}
-        firsts["7d"], firsts["30d"] = old7, old
+        d7 = (today - timedelta(days=7)).strftime("%Y-%m-%d")
+        keys = sorted(set(starts.values()) | {d30, d7})
+        lo = keys[0]
+        latest, firstd = {}, {k: {} for k in keys}
+        for sid, day, subs, views in c.execute("SELECT sid, day, subs, views FROM sc_chstats NOT INDEXED"):
+            L = latest.get(sid)
+            if L is None or day > L[2]:
+                latest[sid] = (subs, views, day)
+            if day < lo:
+                continue
+            for k in keys:
+                if day >= k:
+                    f = firstd[k].get(sid)
+                    if f is None or day < f[2]:
+                        firstd[k][sid] = (subs, views, day)
+        latest = {sid: (v[0], v[1]) for sid, v in latest.items()}
+        old, old7 = firstd[d30], firstd[d7]
+        firsts = {p: firstd[d] for p, d in starts.items()}
         pcols = [p for p in PERIODS if p != "all"]
         pstarts = [(period_start(p) if p != "24h" else today - timedelta(days=1)).strftime("%Y-%m-%d") for p in pcols]
         # One straight read of sc_daily (rows that reached 10 viewers; the rest can't rank), summed here. Three GROUP BY
