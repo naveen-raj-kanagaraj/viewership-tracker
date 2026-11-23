@@ -205,6 +205,7 @@ def compute():
 
 def _compute():
     rows = _rows()
+    _clean({i: r for i, r in enumerate(rows)})
     rank, tot = {}, {}
     for m in METRICS:
         for scope in ("world", "country", "category", "game"):
@@ -237,10 +238,28 @@ def _compute():
 CACHE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "ranks_cache.pkl")
 
 
+def _clean(rows: dict) -> int:
+    """Views gained can't be (nearly) the channel's lifetime views: that means the period's first reading was missing
+    and the whole total was counted (22 Nov: Rajat khiladi +2.29B of 2.29B, MinevidZ +368M of 368M in 7 days).
+    Cleans rankings saved by older code, so they are right the moment they load."""
+    n = 0
+    for r in rows.values():
+        tot = r.get("views_all") or r.get("views") or 0
+        for k in [k for k in r if k.startswith("views_") and k != "views_all"]:
+            v = r.get(k)
+            if v and r.get("platform") == "youtube" and (not tot or v > .6 * tot):
+                r[k] = None
+                n += 1
+    return n
+
+
 def load_cache() -> bool:
     try:
         with open(CACHE, "rb") as f:
             d = pickle.load(f)
+        n = _clean(d.get("rows") or {})
+        if n:
+            print(f"Ranks cache: {n} impossible views-gained values removed")
         with _lock:                          # any age: last known rankings beat an empty page while they're recomputed
             _R.update(d)
         return True
