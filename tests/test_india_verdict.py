@@ -16,7 +16,7 @@ NOT = [("twitch", "olivescrossing", "IT'S MY BIRTHDAY (੭ˊᵕˋ)੭🎂 !rewar
        ("kick", "apollogamingbd", "GTA 5 Rolepaly Bangla | Kala Jahangir in the City", ""),
        ("kick", "aponunaq", "৻ꪆ Nefes al nefes verr ৻ꪆ | !donate !youtube !dc", ""),
        ("kick", "rodiksama", "FINAL ORACULO, MI PC ME ODIA y ME DUERMO 💤 | EXTENSIBLE 5: Edicion Esclavitud", ""),
-       ("twitch", "invadingdarkness", "Playing GTA 6!!!! | 🇬🇧🇮🇳 British Indian Gamergirl", ""),
+       ("twitch", "someoneuk", "Playing GTA 6!!!! | 🇬🇧🇮🇳 British Indian Gamergirl", ""),
        ("kick", "x", "Pakistani bhai aaj khelenge", "")]
 YES = [("kick", "someone", "aaj sabko giveaway", ""),           # Hindi: Indian unless the owner says otherwise
        ("kick", "tg_delete25", "baat krte h aur tournament khelenge", ""),

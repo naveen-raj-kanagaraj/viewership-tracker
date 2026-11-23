@@ -190,6 +190,7 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 23 Nov: past-titles rule needs 2+ Indian titles AND 20%+ of the channel's saved titles (Greek had 2 odd ones among 910 Apex streams). scene.INDIA_SIDS = owner's 'Indian' list (invadingdarkness), next to NOT_INDIA_SIDS.
 - 23 Nov: india_known no longer takes every ev_streams channel (event trackers record streams they merely came across: Greek, an Apex streamer, got in via a 'WATCH PARTY' title). Only kind='official' or titles naming the Indian event / game (INDIA_STRONG). Each known channel keeps its source (_KNOWN['why']), shown in india_why.
 - 23 Nov: langsig decides by confidence, not a fixed 150 messages (small channels never get there): Wilson 95% range of the Indian share above 15% = Indian (5 of 15 is enough), below 8% = not (0 of 45). Counts add up across streams and are saved.
 - 23 Nov: Kick chat moved from Pusher (key 32cbd69e... now rejected: 'not in this cluster') to Centrifugo. chat.run_kick: POST web.kick.com/api/v1/realtime/auth/connection {client_id} -> guest token; wss://realtime.us-west-2.platform.kick.com/connection/websocket; {id:1,connect:{token,name:'js'}}; subscribe chatrooms.<chatroom id>.v2 (chatroom id from kick.com/api/v2/channels/<slug>); '{}' = ping, answer '{}'; reconnect every 40 min. Verified in a browser 23 Nov; server reachability of web.kick.com unverified (health chat_lang.kick shows it). India flag reasons: scene.india_why, /api/channel india_why.
