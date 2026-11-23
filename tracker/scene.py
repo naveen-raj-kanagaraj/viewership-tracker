@@ -87,7 +87,6 @@ def pinned() -> list:                     # always first in Categories
 # same words, so a title that says Pakistan is not counted.
 HINGLISH = re.compile(r"\b(bhai|bhaiyo|bhaiya|yaar|dosto|aaj|kya|nahi|karenge|khelenge|chalo|masti|pagal|paisa|dhamaka|"
                       r"bigg? ?boss|ipl|gareeb|jeetenge)\b", re.I)
-NOT_INDIA = re.compile(r"\b(pakistan|pakistani|karachi|lahore|islamabad|urdu)\b", re.I)
 FOREIGN = re.compile(r"[\u0400-\u04FF\u0600-\u06FF\u0E00-\u0E7F\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7AF]")
 
 
@@ -201,13 +200,11 @@ def mark_known_india() -> int:
         return 0
     wrong, right = [], []
     with store.reading():
-        rows = store.conn().execute("SELECT sid, name, title, country, language, COALESCE(india,0) FROM sc_channels "
+        rows = store.conn().execute("SELECT sid, name, title, country, language, COALESCE(india,0), game FROM sc_channels "
                                     "WHERE platform IN ('kick','twitch') AND COALESCE(title,'')<>''").fetchall()
-    for sid, nm, tt, ct, lg, ind in rows:
-        if sid in known:
-            continue
-        v = verdict({"sid": sid, "platform": sid.split(":")[0], "name": nm or "", "title": tt or "", "language": lg or ""},
-                    ct, known)
+    for sid, nm, tt, ct, lg, ind, gm in rows:     # known ones too: a clearly foreign title beats an old BGMI stream
+        v = verdict({"sid": sid, "platform": sid.split(":")[0], "name": nm or "", "title": tt or "", "language": lg or "",
+                     "game": gm or ""}, ct, known)
         if ind and not v:
             wrong.append(sid)
         elif v and not ind:
@@ -215,7 +212,7 @@ def mark_known_india() -> int:
     n = 0
     with store._lock:
         c = store.main()
-        L = sorted(known)
+        L = sorted(set(known) - set(wrong) - {r[0] for r in rows if r[5] == 0 and r[0] not in right})
         for i in range(0, len(L), 500):
             part = L[i:i + 500]
             n += c.execute(f"UPDATE sc_channels SET india=1 WHERE COALESCE(india,0)=0 AND sid IN ({','.join('?' * len(part))})",
@@ -234,32 +231,127 @@ _IND_LETTERS = re.compile(r"[\u0900-\u0D7F]")
 _IND_SYMBOLS = "\u0950\u0AD0\u0BD0\u0964\u0965"     # Om signs and danda: decoration, used by non-Indian streamers too
 
 
+_INDW = re.compile(r"[\u0900-\u0D7F]+")
+_BENGALI = re.compile(r"[\u0980-\u09FF]")
+
+
+def _ind_letters(t: str) -> str:
+    """Real letters of Indian scripts that form words (2+ in a row): digits (୨୧, ੭), symbols (৻, ॐ, ।) and kaomoji
+    eyes (ಠ_ಠ) are decoration used by streamers everywhere (23 Nov: OlivesCrossing, mochi_miu, DerDummbabbler were
+    counted as Indian because of them)."""
+    import unicodedata
+    out = []
+    t = (t or "").replace("\u0D26\u0D4D\u0D26\u0D3F", " ")      # 'ദ്ദി(' is a kaomoji arm (TheClumsyFellow, Pamiette)
+    for w in _INDW.findall(t):
+        w = "".join(ch for ch in w if unicodedata.category(ch)[0] in "LM" and ch != "\u0CA0" and ch not in _IND_SYMBOLS)
+        if len(w) >= 2:
+            out.append(w)
+    return "".join(out)
+
+
 def _ind_script(t: str) -> bool:
-    """Written in an Indian script: at least 2 Indian letters (not just an Om sign), and more of them than letters in
-    another non-Latin script ('ૐ Витус Бритва' is Russian)."""
-    n = sum(1 for ch in _IND_LETTERS.findall(t or "") if ch not in _IND_SYMBOLS)
-    return n >= 2 and n > len(FOREIGN.findall(t or ""))
+    """Written in an Indian script: at least 3 real Indian letters in words, and more of them than letters in another
+    non-Latin script ('ૐ Витус Бритва' is Russian)."""
+    import unicodedata
+    n = sum(1 for ch in _ind_letters(t) if unicodedata.category(ch)[0] == "L")
+    return n >= 4 and n > len(FOREIGN.findall(t or ""))
+
+
+# Not Indian, says the owner (23 Nov), whatever their titles say
+NOT_INDIA_SIDS = {"twitch:guddu_kim", "twitch:olivescrossing"}
+
+_FLAG = re.compile(r"([\U0001F1E6-\U0001F1FF]{2})")
+NOT_INDIA = re.compile(r"\b(pakistan|pakistani|karachi|lahore|islamabad|urdu|bangladesh|bangladeshi|dhaka|nepal|nepali|"
+                       r"kathmandu|sri ?lanka|lankan|british|uk based)\b", re.I)
+# Words that alone say a stream is Indian (languages, Indian games / events / servers)
+INDIA_STRONG = re.compile(r"\b(hindi|hinglish|tamil|telugu|kannada|malayalam|marathi|gujarati|assamese|bhojpuri|haryanvi|"
+                          r"bgmi|bmps|bgis|bmsd|bmic|cegc|soulcity|lifeinsoulcity|yatrarp|yatra rp|showtown|s8ul|upthrust|"
+                          r"battlin|sc[o0]ut ?op|bigg ?boss|bigg?bos\w*|big boss (20|19|tamil|telugu|kannada|malayalam|marathi)|"
+                          r"weekend ka vaar|india|bharat|indian(?! (tts|accent|voice))|"
+                          r"indian (streamer|gamer|gaming|girl|boy|guy|creator|audience)|ind vs (nz|aus|eng|sa|pak|wi|sl|ban))\b", re.I)
+# Another language's tag: 'EN / DE', '[GER/ENG]', 'ENG/ESP' ('Hindi man Yes' in a German title is a joke)
+_LANG_TAG = re.compile(r"(\[|\b)(ger|deu|esp|es|pt|br|fr|vtafr|ita|tr|ru|my)\s*(/|\])|\b(en|eng)\s*/\s*(de|ger|es|esp|pt|br|fr|my)\b", re.I)
+# Words that need a second sign (travellers say 'India', diaspora says 'Indian', Pakistanis say 'desi')
+INDIA_WEAK = re.compile(r"\b(mumbai|delhi|bangalore|bengaluru|hyderabad|chennai|kolkata|pune)\b", re.I)
+HINDI_WORDS = set("""aaj aaja aajao abhi acha accha apna apne aapka aapke aur baad baat bahot bahut bhai bhaiyo bhaiyon bhaiya
+bhi bhot bilkul bohot chalo chalte chalenge dekho dekhte dekhenge didi dobara dost dosto doston dhamaka gareeb gaya gayi gye
+hamara hamare hai hain hoga hogi humko jaldi jeet jeetenge jyada zyada kaha kahan kaise kaisa karenge karna karne karo karte
+karu krte khatam khelenge khelo khelna khelte kitna kitne kuch kya kyun kyunki lekin logo logon magar masti matlab mera meri
+milte milenge mujhe nahi nahin nhi paaji pagal paisa pakka patakhe pehle phir raha rahe rhe saath sabke sabko sabse sach shuru
+suno tera teri thoda tujhe tumhara unka unke wala wale wali wapas yaar yaaro yaaron""".split())
+
+
+def _hindi_words(t: str) -> int:
+    w = set(re.findall(r"[a-z]+", (t or "").lower()))
+    return len(w & HINDI_WORDS) + (1 if re.search(r"\bbig boss\b", t or "", re.I) else 0)
+
+
+def foreign_sign(t: str, n: str = "") -> bool:
+    """Clear sign of another country: a flag that isn't India's, Pakistan / Bangladesh / Nepal ..., another script,
+    or Bengali without anything Indian (on Kick / Twitch Bengali streams are almost all from Bangladesh, e.g. FFWS
+    watch parties; 23 Nov kuttush17, raadvai_yt)."""
+    s = (t or "") + " " + (n or "")
+    if any(f != "\U0001F1EE\U0001F1F3" for f in _FLAG.findall(s)) or NOT_INDIA.search(s) or _LANG_TAG.search(s):
+        return True
+    if FOREIGN.search(s) and not _ind_script(s):
+        return True
+    ind = _ind_letters(s)
+    if ind and all(_BENGALI.match(ch) for ch in ind) and "\U0001F1EE\U0001F1F3" not in s and not INDIA_STRONG.search(s) \
+            and not INDIA_WEAK.search(s):
+        return True
+    return False
 
 
 def verdict(x: dict, country: str = None, allow: set = frozenset()) -> bool:
     """True if this live channel counts as Indian."""
     sid, t, n = x.get("sid", ""), x.get("title") or "", x.get("name") or ""
-    if sid in allow or x.get("seeded"):
-        return True
-    if x.get("game") == "BGMI":                  # BGMI is only played in India
-        return True
+    if sid.lower() in NOT_INDIA_SIDS:
+        return False                          # the owner says this channel is not Indian
+    if x.get("seeded") or sid in _curated():
+        return True                           # added or allowed by hand
     if x.get("platform") == "youtube":
         if country == "IN":
             return True
         if country and country != "-":
             return False                      # the channel says it is from another country
-    elif (x.get("language") or "").lower() in LANGS and not FOREIGN.search(t + " " + n):
+    if foreign_sign(t, n):
+        return False                          # beats an old BGMI stream or a past event (a misread can't stick)
+    if sid in allow or x.get("game") == "BGMI":   # BGMI is only played in India; event trackers' channels
         return True
-    if FOREIGN.search(t + " " + n) and not _ind_script(t + " " + n):
-        return False
-    if _ind_script(t + " " + n) or INDIA_MARK.search(_IND_LETTERS.sub(" ", t)) or INDIA_MARK.search(_IND_LETTERS.sub(" ", n)):
+    if x.get("platform") in ("kick", "twitch") and (x.get("language") or "").lower() in LANGS + ["hindi"]:
         return True
-    return x.get("platform") in ("kick", "twitch") and bool(HINGLISH.search(t)) and not NOT_INDIA.search(t + " " + n)
+    travel = (x.get("category") or x.get("game") or "").lower() in ("irl", "travel & outdoors")
+    if travel and not (_ind_script(t) or _hindi_words(t) >= 2):
+        return False                          # a traveller streaming from India ('Kochi, India 🇮🇳 Day 379')
+    if _ind_script(t + " " + n) or INDIA_STRONG.search(t) or INDIA_STRONG.search(n) or "\U0001F1EE\U0001F1F3" in t + n:
+        return True
+    if INDIA_WEAK.search(n) or re.search(r"india(?!na)|bharat|bgmi|s8ul|scoutop|soulcity", n.lower()):
+        return True                           # the name says it ('focusedindian', 'hydrobgmi04')
+    weak = bool(INDIA_WEAK.search(t))
+    hw = _hindi_words(t)
+    if x.get("platform") == "youtube":
+        return weak or hw >= 1
+    return hw >= 2 or (weak and hw >= 1)       # Kick / Twitch: two Hindi words, or 'India' plus one
+
+
+_CUR = {"at": 0, "set": frozenset()}
+
+
+def _curated() -> frozenset:
+    """Channels marked Indian by hand: allowed ones, the seed lists, the events' own Kick lists."""
+    if time.time() - _CUR["at"] < 300:
+        return _CUR["set"]
+    out = set()
+    try:
+        out |= allowed()
+        out |= {"kick:" + k.lower() for k in seeds().get("kick", [])} | {"twitch:" + k.lower() for k in seeds().get("twitch", [])}
+        for v in events.PRESETS.values():
+            kk = v.get("kick") or {}
+            out |= {"kick:" + s_.lower() for s_ in list(kk.get("official") or []) + list(kk.get("channels") or [])}
+    except Exception:
+        return _CUR["set"]
+    _CUR.update(at=time.time(), set=frozenset(out))
+    return _CUR["set"]
 
 
 def _kick_live(params) -> list:
