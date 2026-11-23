@@ -331,6 +331,19 @@ def load_cache() -> bool:
     return False
 
 
+EVERY = 1800                              # seconds between runs
+DAILY_AT = (0, 5)                         # and always a run at 00:05 India time, when the day's numbers roll over (owner, 23 Nov)
+
+
+def _next_wait(now: float) -> float:
+    """Seconds to the next run: EVERY from now, or 00:05 India time if that comes first."""
+    t = datetime.fromtimestamp(now, events.REPORT_TZ)
+    at = t.replace(hour=DAILY_AT[0], minute=DAILY_AT[1], second=0, microsecond=0)
+    if at <= t:
+        at += timedelta(days=1)
+    return max(1.0, min(EVERY, at.timestamp() - now))
+
+
 def run_forever():
     load_cache()
     time.sleep(5 if _R["at"] else 20)
@@ -339,7 +352,7 @@ def run_forever():
             compute()
         except Exception as e:
             print(f"Ranks: {str(e)[:150]}")
-        time.sleep(1800)
+        time.sleep(_next_wait(time.time()))
 
 
 def start():
