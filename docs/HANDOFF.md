@@ -190,6 +190,7 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 23 Nov: after the sc_daily fix the job moved on to 8 GROUP BY reads of sc_chstats (latest + first reading per period), 2+ min each. Now one NOT INDEXED scan of sc_chstats (5 s per 3M rows locally); tests/test_ranks_pass.py checks it matches the old queries.
 - 23 Nov: rankings job sat 20+ min on `SELECT sid, SUM(hw) FROM sc_daily WHERE day>=? GROUP BY sid` (walks the (sid, day) index through millions of 1-viewer rows) every run; rankings stayed 57 h old. ranks._rows now does one straight `SELECT ... FROM sc_daily WHERE peak >= 10` (SCAN) and sums periods, 30-day hours and top game in Python (3.6 s per 3M rows locally).
 - 23 Nov: saved rankings (ranks_cache.pkl) had YouTube views gained = lifetime views (first reading missing: Rajat khiladi +2.29B of 2.29B). ranks._clean drops any YouTube views_* > 60% of views_all, on load_cache and after every compute. Test: tests/test_views_clean.py.
 - 23 Nov: rankings page showed 0 channels for hours after a deploy: /api/topch answers built before ranks.load_cache finished (updated=0) were kept in the memo and at Cloudflare. web.api_topch now never keeps an updated=0 answer (dropped from _MEMO, X-Short-Cache) and drops a stale empty copy once rankings exist. Test: tests/test_topch_empty.py.
