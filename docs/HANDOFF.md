@@ -190,6 +190,7 @@ Other games and platforms: `track.py new <key> "<Name>" --game ...`, then `track
 
 ## Current state (update this)
 
+- 23 Nov: rankings page showed 0 channels for hours after a deploy: /api/topch answers built before ranks.load_cache finished (updated=0) were kept in the memo and at Cloudflare. web.api_topch now never keeps an updated=0 answer (dropped from _MEMO, X-Short-Cache) and drops a stale empty copy once rankings exist. Test: tests/test_topch_empty.py.
 - 23 Nov: health showed `Ranks: interrupted` (the checkpointer's reader interrupt) after a 30-min run; the 2-day-old cache was also refused, so rankings went blank. `store.protected()` keeps a thread's reads out of the interrupt list; ranks.compute runs inside it. load_cache now loads any age.
 
 - 22 Nov: rankings still not updating after 74d777c: ranks.compute ranks every channel for every metric and scope in Python, and the GTA 6 sweep added hundreds of thousands of 1-viewer channels, so a run never finished. Channels that never reached 10 viewers and have under 1,000 subs/followers (or no YouTube stats) are now left out. /api/health has a `rankings` block (updated_min_ago, started/done/failed minutes ago, took, rows, error) and Ranks lines are kept in its recent warnings.
