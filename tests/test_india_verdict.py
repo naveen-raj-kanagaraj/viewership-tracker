@@ -72,3 +72,16 @@ assert w(title="GTA 6", tags="English Indian Desi")[0] is False
 assert w(title="Bigg Boss watch party")[1] == "title: 'Bigg Boss'"
 assert scene.india_why({"sid": "yt:x", "platform": "youtube", "title": "", "name": "x"}, "IN") == (True, "YouTube channel country: India")
 print("REASONS OK")
+# event trackers: only official channels and streams about the Indian event count; the reason names the source
+from tracker import events as ev_
+ev_._db()
+c.executemany("INSERT INTO ev_streams (event, vid, channel, channel_id, title, kind) VALUES (?,?,?,?,?,?)",
+              [("cegc", "twitch:greek", "Greek", "twitch:greek", "🚨 NA LCQ MP FINALS WATCH PARTY 🚨", "watch party"),
+               ("cegc", "kick:wp1", "wp1", "kick:wp1", "CEGC WATCHPARTY w WP1", "watch party")]); c.commit()
+scene._KNOWN["at"] = 0
+k = scene.india_known()
+assert "twitch:greek" not in k and "kick:wp1" in k, k
+assert scene.india_why({"sid": "kick:wp1", "platform": "kick", "title": "GTA 6", "name": "wp1"}, None, k) == \
+    (True, "streamed the CEGC event ('CEGC WATCHPARTY w WP1')")
+assert scene.india_why({"sid": "twitch:greek", "platform": "twitch", "title": "🚨 NA LCQ MP FINALS WATCH PARTY 🚨", "name": "Greek"}, None, k)[0] is False
+print("EVENT SOURCES OK")
