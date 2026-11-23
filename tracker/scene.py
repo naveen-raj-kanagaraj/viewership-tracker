@@ -318,7 +318,9 @@ INDIA_SIDS = {"twitch:invadingdarkness"}
 
 _FLAG = re.compile(r"([\U0001F1E6-\U0001F1FF]{2})")
 NOT_INDIA = re.compile(r"\b(pakistan|pakistani|karachi|lahore|islamabad|urdu|bangladesh|bangladeshi|dhaka|nepal|nepali|"
-                       r"kathmandu|sri ?lanka|lankan|british|uk based)\b", re.I)
+                       r"kathmandu|sri ?lanka|lankan)\b", re.I)
+# Indians abroad count (owner, 23 Nov: 'InvadingDarkness is British Indian, add her')
+DIASPORA = re.compile(r"\b(british[- ]indian|indian[- ](american|canadian|australian|origin)|indo[- ](canadian|american)|nri)\b", re.I)
 # Words that alone say a stream is Indian (languages, Indian games / events / servers)
 INDIA_STRONG = re.compile(r"\b(hindi|hinglish|tamil|telugu|kannada|malayalam|marathi|gujarati|assamese|bhojpuri|haryanvi|"
                           r"bgmi|bmps|bgis|bmsd|bmic|cegc|soulcity|lifeinsoulcity|yatrarp|yatra rp|showtown|s8ul|upthrust|"
@@ -350,6 +352,21 @@ def _name_india(n: str) -> bool:
     return bool(re.search(r"indian?$|^indian?_|^desi_|bgmi|s8ul|scoutop|soulcity|bharat", k))
 
 
+def _bio_india(b: str) -> str:
+    """What in a streamer's own bio says India ('' if nothing): a bio is about the person, so a city or 'India' there
+    means where they're from, unlike a stream title ('Kochi, India' from a traveller)."""
+    m = DIASPORA.search(b) or INDIA_STRONG.search(b) or INDIA_WEAK.search(b) or re.search(r"\+91[\s-]?\d", b)
+    if m:
+        return f"'{m.group(0)}'"
+    if "\U0001F1EE\U0001F1F3" in b:
+        return "India's flag"
+    if _ind_script(b):
+        return "written in an Indian script"
+    if _hindi_words(b) >= 2:
+        return "written in Hindi"
+    return ""
+
+
 def foreign_sign(t: str, n: str = "") -> bool:
     """Clear sign of another country: a flag that isn't India's, Pakistan / Bangladesh / Nepal ..., another script,
     or Bengali without anything Indian (on Kick / Twitch Bengali streams are almost all from Bangladesh, e.g. FFWS
@@ -357,8 +374,10 @@ def foreign_sign(t: str, n: str = "") -> bool:
     s = (t or "") + " " + (n or "")
     flags = [f for f in _FLAG.findall(s) if f != "\U0001F1EE\U0001F1F3"]
     vs = re.search(r"\b(india|ind)\b.{0,12}\bvs?\b|\bvs?\b.{0,12}\b(india|ind)\b", s, re.I)   # 'India vs Pakistan': a match
-    if (flags and not vs) or (NOT_INDIA.search(s) and not vs) or _LANG_TAG.search(s):
-        return True
+    if DIASPORA.search(s):
+        return False
+    if (flags and not vs and "\U0001F1EE\U0001F1F3" not in s) or (NOT_INDIA.search(s) and not vs) or _LANG_TAG.search(s):
+        return True                           # 🇬🇧🇮🇳 together: an Indian abroad, not a foreign channel
     if FOREIGN.search(s) and not _ind_script(s):
         return True
     ind = _ind_letters(s)
@@ -403,6 +422,15 @@ def india_why(x: dict, country: str = None, allow: set = frozenset()) -> tuple:
         if cv is not None:
             a_, b_ = langsig.counts(sid)
             return cv, f"chat: {round(100 * a_ / max(1, a_ + b_))}% of {a_ + b_} messages in Hindi / Hinglish / Indian languages"
+    if x.get("platform") in ("kick", "twitch"):
+        from tracker import profiles
+        b = x.get("bio") if "bio" in x else profiles.bio(sid)
+        if b:
+            bi = _bio_india(b)
+            if bi:
+                return True, f"bio: {bi}"
+            if foreign_sign(b):
+                return False, "bio shows another country"
     if x.get("game") == "BGMI":
         return True, "streams BGMI (India only)"
     if sid in allow:
@@ -416,7 +444,7 @@ def india_why(x: dict, country: str = None, allow: set = frozenset()) -> tuple:
         return False, "travel stream: being in India isn't being Indian"
     if _ind_script(t + " " + n):
         return True, "title written in an Indian script"
-    m = INDIA_STRONG.search(t)
+    m = DIASPORA.search(t) or INDIA_STRONG.search(t)
     if m:
         return True, f"title: '{m.group(0)}'"
     if "\U0001F1EE\U0001F1F3" in t + n:
@@ -3959,6 +3987,7 @@ def channel(sid: str) -> dict:
             "country": (country_of(ch["country"]) or ("", 0, ""))[2] or ("India" if ch["india"] else ""),
             "country_code": (country_of(ch["country"]) or ("", 0, ""))[0] or ("IN" if ch["india"] else ""),
             "india_why": _why(dict(ch)),
+            "profile": _profile(sid),
             "first_seen": ch["first_seen"], "last_live": ch["last_live"], "now": now,
             "periods": {"today": agg(1), "7d": agg(7), "30d": agg(30), "all": agg(0)},
             "days": [{"day": z["day"], "peak": z["peak"], "at": z["at"], "hours": round(z["mins"] / 60, 1),
@@ -3967,6 +3996,11 @@ def channel(sid: str) -> dict:
                      for d, z in sorted(by.items()) if d >= (today - timedelta(days=29)).strftime("%Y-%m-%d")],
             "recent": [[r[0], r[1]] for r in samp[::step]], "ranks": _ranks_of(sid), "linked": _linked(sid),
             **(_yt_extra(sid) if sid.startswith("yt:") else _other_extra(sid))}
+
+
+def _profile(sid: str) -> dict:
+    from tracker import profiles
+    return {"bio": profiles.bio(sid), "links": profiles.links(sid)}
 
 
 def _why(ch: dict) -> str:
