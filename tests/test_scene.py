@@ -561,7 +561,9 @@ with store._lock:
     cc.commit()
 rk.compute()
 tv_ = c.get("/api/topch?platform=youtube&metric=vday&category=People%20%26%20Blogs").get_json()
-assert tv_["rows"][0]["sid"] == "yt:UCaman" and tv_["rows"][0]["vday"] == 50000 and "People & Blogs" in tv_["categories"], tv_["rows"][:2]
+# what a channel streams decides its category, not YouTube's label: Soul Aman (label People & Blogs) streams BGMI -> Gaming
+assert tv_["rows"][0]["sid"] == "yt:UCfill000000000000000011" and "People & Blogs" in tv_["categories"], tv_["rows"][:2]
+assert rk._R["rows"]["yt:UCaman"]["category"] == "Gaming"
 assert c.get("/api/topch?platform=youtube&metric=views").get_json()["rows"][0]["views"] >= 10**9
 ho = c.get("/api/home?region=global&topic=People%20%26%20Blogs").get_json()
 assert [x["sid"] for x in ho["channels_today"]][0] == "yt:UCaman" and ho["channels"] and ho["topics"] == yx.CATEGORIES
@@ -569,9 +571,9 @@ from tracker import badge as bg
 bo = bg.options("yt:UCaman")
 assert bo and bo[0]["rank"] == 1 and all(o["of"] >= 10 for o in bo), bo
 F11 = "yt:UCfill" + "%018d" % 11
-assert any(o["rank"] == 2 and o["s"] == "category" and o["m"] == "vday" for o in bg.options(F11)), bg.options(F11)
+assert any(o["rank"] == 1 and o["s"] == "category" and o["m"] == "vday" for o in bg.options(F11)), bg.options(F11)
 sv = c.get(f"/badge/{F11}.svg?m=vday&s=category").data.decode()
-assert sv.startswith("<svg") and "#2" in sv and "People &amp; Blogs" in sv and "letsgrowesports".upper() in sv.upper(), sv[:200]
+assert sv.startswith("<svg") and "#1" in sv and "People &amp; Blogs" in sv and "letsgrowesports".upper() in sv.upper(), sv[:200]
 assert c.get("/badge/bad.svg").status_code == 404 and c.get(f"/api/badges?sid={F11}").get_json()
 assert "badges()" in c.get(f"/global/ch/{F11}").data.decode()
 print("BADGES OK")
