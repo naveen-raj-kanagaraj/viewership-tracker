@@ -47,6 +47,13 @@ def period_start(p: str):
     return today - timedelta(days=PERIOD_DAYS[p])
 
 
+def _tuples(c, sql, args=()):
+    """Plain tuples (not sqlite3.Row objects) for reads of millions of rows: about twice as fast to go through."""
+    cur = c.cursor()
+    cur.row_factory = None
+    return cur.execute(sql, args)
+
+
 def _rows():
     from tracker import scene, ytextra
     today = datetime.now(events.REPORT_TZ).date()
@@ -61,7 +68,7 @@ def _rows():
         keys = sorted(set(starts.values()) | {d30, d7})
         lo = keys[0]
         latest, firstd = {}, {k: {} for k in keys}
-        for sid, day, subs, views in c.execute("SELECT sid, day, subs, views FROM sc_chstats NOT INDEXED"):
+        for sid, day, subs, views in _tuples(c, "SELECT sid, day, subs, views FROM sc_chstats NOT INDEXED"):
             L = latest.get(sid)
             if L is None or day > L[2]:
                 latest[sid] = (subs, views, day)
@@ -82,7 +89,7 @@ def _rows():
         # on the first one for 20+ minutes on every run and the rankings stayed 57 hours old.
         hw, top_game, acc = {}, {}, {}
         tg = {}
-        for sid, day, game, h, pk, mn in c.execute("SELECT sid, day, game, hw, peak, mins FROM sc_daily WHERE peak >= 10"):
+        for sid, day, game, h, pk, mn in _tuples(c, "SELECT sid, day, game, hw, peak, mins FROM sc_daily WHERE peak >= 10"):
             a = acc.get(sid)
             if a is None:
                 a = acc[sid] = [[None, None, None] for _ in range(len(pcols) + 1)]
@@ -215,12 +222,43 @@ def _rows():
 STATUS = {}
 
 
+# On the server the job runs in its own Python process (track.py sets this): inside the tracker it shared one CPU core
+# (Python's GIL) with ~100 other threads, and on 23 Nov one read of channel stats took 12+ minutes there.
+SEPARATE = False
+
+
+def _child():
+    """Entry point of the separate process: read-only work, then the result goes to the cache file."""
+    from tracker import scene, ytextra, deep
+    scene._SCHEMA_OK[store.DB_PATH] = True     # the tracker made the tables; the child never writes the database
+    ytextra._ready = deep._ready = True
+    before = os.path.getmtime(CACHE) if os.path.exists(CACHE) else 0
+    n = _compute()
+    if not os.path.exists(CACHE) or os.path.getmtime(CACHE) == before:
+        raise SystemExit("rankings cache was not written")
+    print(f"Ranks: {n} channels ranked (separate process)", flush=True)
+
+
+def _compute_separate():
+    import subprocess, sys
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    r = subprocess.run([sys.executable, "-c", "from tracker import ranks; ranks._child()"], cwd=root,
+                       timeout=4 * 3600, capture_output=True, text=True)
+    for line in (r.stdout or "").splitlines()[-5:]:
+        print(line)
+    if r.returncode != 0:
+        raise RuntimeError(f"rankings process failed: {(r.stderr or '').strip().splitlines()[-1:] or r.returncode}")
+    if not load_cache():
+        raise RuntimeError("rankings cache unreadable")
+    return len(_R["rows"])
+
+
 def compute():
     STATUS.update(started=time.time(), error=None)
     t0 = time.time()
     try:
         with store.protected():
-            n = _compute()
+            n = _compute_separate() if SEPARATE else _compute()
         STATUS.update(done=time.time(), took=round(time.time() - t0), rows=n)
         return n
     except Exception as e:

@@ -114,6 +114,7 @@ def cmd_run(args) -> int:
         from tracker import chat
         chat.start()                       # chat speed (Twitch IRC, Kick websocket) for Moments
         from tracker import ranks
+        ranks.SEPARATE = True             # its own process: a full CPU core, not a slice of the tracker's
         ranks.start()                      # channel ranks (worldwide / country / category), every 30 min
 
     from tracker import autoupdate, backup
