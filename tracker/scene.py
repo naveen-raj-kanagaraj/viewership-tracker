@@ -313,7 +313,7 @@ NOT_INDIA = re.compile(r"\b(pakistan|pakistani|karachi|lahore|islamabad|urdu|ban
 INDIA_STRONG = re.compile(r"\b(hindi|hinglish|tamil|telugu|kannada|malayalam|marathi|gujarati|assamese|bhojpuri|haryanvi|"
                           r"bgmi|bmps|bgis|bmsd|bmic|cegc|soulcity|lifeinsoulcity|yatrarp|yatra rp|showtown|s8ul|upthrust|"
                           r"battlin|sc[o0]ut ?op|bigg ?boss|bigg?bos\w*|big boss (20|19|tamil|telugu|kannada|malayalam|marathi)|"
-                          r"weekend ka vaar|india|bharat|indian(?! (tts|accent|voice))|"
+                          r"weekend ka vaar|india|bharat|indian(?! (tts|accent|voice|ocean))|"
                           r"indian (streamer|gamer|gaming|girl|boy|guy|creator|audience)|ind vs (nz|aus|eng|sa|pak|wi|sl|ban))\b", re.I)
 # Another language's tag: 'EN / DE', '[GER/ENG]', 'ENG/ESP' ('Hindi man Yes' in a German title is a joke)
 _LANG_TAG = re.compile(r"(\[|\b)(ger|deu|esp|es|pt|br|fr|vtafr|ita|tr|ru|my)\s*(/|\])|\b(en|eng)\s*/\s*(de|ger|es|esp|pt|br|fr|my)\b", re.I)
@@ -360,44 +360,61 @@ def foreign_sign(t: str, n: str = "") -> bool:
 
 def verdict(x: dict, country: str = None, allow: set = frozenset()) -> bool:
     """True if this live channel counts as Indian."""
+    return india_why(x, country, allow)[0]
+
+
+_TAG_LANG = re.compile(r"\b(hindi|tamil|telugu|kannada|malayalam|marathi|gujarati|bhojpuri|haryanvi|hinglish)\b", re.I)
+
+
+def india_why(x: dict, country: str = None, allow: set = frozenset()) -> tuple:
+    """(Indian?, the reason in words). The reason is shown with the channel's data, so every flag can be checked."""
     sid, t, n = x.get("sid", ""), x.get("title") or "", x.get("name") or ""
+    tags = x.get("tags") or ""
     if sid.lower() in NOT_INDIA_SIDS:
-        return False                          # the owner says this channel is not Indian
+        return False, "owner: not Indian"
     if x.get("seeded") or sid in _curated():
-        return True                           # added or allowed by hand
+        return True, "added by hand / event channel list"
     if x.get("platform") == "youtube":
         if country == "IN":
-            return True
+            return True, "YouTube channel country: India"
         if country and country != "-":
-            return False                      # the channel says it is from another country
+            return False, f"YouTube channel country: {country}"
         from tracker import langsig
-        cv = langsig.yt_verdict(sid)          # no country set: what its live chat is written in decides
+        cv = langsig.yt_verdict(sid)
         if cv is not None:
-            return cv
-    t = (t + " " + (x.get("tags") or "")).strip()       # Twitch / Kick tags: 'Hindi', 'India', 'Tamil' ...
-    if foreign_sign(t, n):
-        return False                          # beats an old BGMI stream or a past event (a misread can't stick)
+            return cv, "live chat " + ("is" if cv else "is not") + " in Hindi / Hinglish / Indian languages"
+    if foreign_sign(t + " " + tags, n):
+        return False, "title / tags show another country"
     if x.get("platform") in ("kick", "twitch"):
         from tracker import langsig
-        cv = langsig.verdict(sid)             # what the chat is written in: Hindi / Hinglish / Indian scripts or not
+        cv = langsig.verdict(sid)
         if cv is not None:
-            return cv
-    if sid in allow or x.get("game") == "BGMI":   # BGMI is only played in India; event trackers; past titles
-        return True
+            a_, b_ = langsig.counts(sid)
+            return cv, f"chat: {round(100 * a_ / max(1, a_ + b_))}% of {a_ + b_} messages in Hindi / Hinglish / Indian languages"
+    if x.get("game") == "BGMI":
+        return True, "streams BGMI (India only)"
+    if sid in allow:
+        return True, "seen in an Indian event, streaming BGMI, or past titles in Hindi / Indian languages"
     if x.get("platform") in ("kick", "twitch") and (x.get("language") or "").lower() in IND_LANGS:
-        return True
+        return True, f"stream language: {x.get('language')}"
+    if _TAG_LANG.search(tags):
+        return True, f"stream tag: {_TAG_LANG.search(tags).group(0)}"
     travel = (x.get("category") or x.get("game") or "").lower() in ("irl", "travel & outdoors")
     if travel and not (_ind_script(t) or _hindi_words(t) >= 2):
-        return False                          # a traveller streaming from India ('Kochi, India 🇮🇳 Day 379')
-    if _ind_script(t + " " + n) or INDIA_STRONG.search(t) or "\U0001F1EE\U0001F1F3" in t + n:
-        return True
+        return False, "travel stream: being in India isn't being Indian"
+    if _ind_script(t + " " + n):
+        return True, "title written in an Indian script"
+    m = INDIA_STRONG.search(t)
+    if m:
+        return True, f"title: '{m.group(0)}'"
+    if "\U0001F1EE\U0001F1F3" in t + n:
+        return True, "India's flag in the title / name"
     if _name_india(n):
-        return True                           # the name says it ('focusedindian', 'hydrobgmi04', 'India_Noob_')
+        return True, "channel name"
     weak = bool(INDIA_WEAK.search(t))
     hw = _hindi_words(t)
-    if x.get("platform") == "youtube":
-        return weak or hw >= 1
-    return hw >= 2 or (weak and hw >= 1)       # Kick / Twitch: two Hindi words, or 'India' plus one
+    ok = (weak or hw >= 1) if x.get("platform") == "youtube" else (hw >= 2 or (weak and hw >= 1))
+    return ok, (f"{hw} Hindi words in the title" if ok else "nothing Indian found")
 
 
 _CUR = {"at": 0, "set": frozenset()}
@@ -3929,6 +3946,7 @@ def channel(sid: str) -> dict:
             "logo": _logo({"sid": sid, "logo": ch["logo"]}), "title": ch["title"], "game": ch["game"],
             "country": (country_of(ch["country"]) or ("", 0, ""))[2] or ("India" if ch["india"] else ""),
             "country_code": (country_of(ch["country"]) or ("", 0, ""))[0] or ("IN" if ch["india"] else ""),
+            "india_why": _why(dict(ch)),
             "first_seen": ch["first_seen"], "last_live": ch["last_live"], "now": now,
             "periods": {"today": agg(1), "7d": agg(7), "30d": agg(30), "all": agg(0)},
             "days": [{"day": z["day"], "peak": z["peak"], "at": z["at"], "hours": round(z["mins"] / 60, 1),
@@ -3937,6 +3955,18 @@ def channel(sid: str) -> dict:
                      for d, z in sorted(by.items()) if d >= (today - timedelta(days=29)).strftime("%Y-%m-%d")],
             "recent": [[r[0], r[1]] for r in samp[::step]], "ranks": _ranks_of(sid), "linked": _linked(sid),
             **(_yt_extra(sid) if sid.startswith("yt:") else _other_extra(sid))}
+
+
+def _why(ch: dict) -> str:
+    """Why this channel counts as Indian or not, in words (owner, 23 Nov: 'on what basis did you add it?')."""
+    try:
+        ok, why = india_why({"sid": ch["sid"], "platform": ch["platform"], "title": ch.get("title") or "",
+                             "name": ch.get("name") or "", "language": ch.get("language") or "", "game": ch.get("game") or "",
+                             "tags": ch.get("tags") or ""}, _norm_country(ch.get("country")) if ch.get("country") else None,
+                            india_known())
+        return ("Indian: " if ok else "Not Indian: ") + why
+    except Exception as e:
+        return f"unknown ({str(e)[:60]})"
 
 
 def _linked(sid: str) -> list:
