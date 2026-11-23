@@ -62,29 +62,44 @@ def _rows():
                 """SELECT s.sid, s.subs, s.views, s.day FROM sc_chstats s JOIN (SELECT sid, MIN(day) d FROM sc_chstats WHERE day>=? GROUP BY sid) m
                    ON m.sid=s.sid AND m.d=s.day""", (d,))}
         old, old7 = first_since(d30), first_since((today - timedelta(days=7)).strftime("%Y-%m-%d"))
-        hw = dict(c.execute("SELECT sid, SUM(hw) FROM sc_daily WHERE day>=? GROUP BY sid", (d30,)).fetchall())
         starts = {p: period_start(p).strftime("%Y-%m-%d") for p in PERIODS if p not in ("24h", "all")}
         firsts = {p: first_since(d) for p, d in starts.items() if p not in ("7d", "30d")}
         firsts["7d"], firsts["30d"] = old7, old
         pcols = [p for p in PERIODS if p != "all"]
-        sums = ", ".join(f"SUM(CASE WHEN day>=? THEN hw END), MAX(CASE WHEN day>=? THEN peak END), SUM(CASE WHEN day>=? THEN mins END)"
-                         for _ in pcols)
         pstarts = [(period_start(p) if p != "24h" else today - timedelta(days=1)).strftime("%Y-%m-%d") for p in pcols]
+        # One straight read of sc_daily (rows that reached 10 viewers; the rest can't rank), summed here. Three GROUP BY
+        # queries walked the (sid, day) index row by row through millions of 1-viewer rows: 22 Nov the rankings job sat
+        # on the first one for 20+ minutes on every run and the rankings stayed 57 hours old.
+        hw, top_game, acc = {}, {}, {}
+        tg = {}
+        for sid, day, game, h, pk, mn in c.execute("SELECT sid, day, game, hw, peak, mins FROM sc_daily WHERE peak >= 10"):
+            a = acc.get(sid)
+            if a is None:
+                a = acc[sid] = [[None, None, None] for _ in range(len(pcols) + 1)]
+            for i in range(len(pcols) + 1):
+                if i < len(pcols) and day < pstarts[i]:
+                    continue
+                x = a[i]
+                if h is not None:
+                    x[0] = (x[0] or 0) + h
+                if pk is not None and (x[1] is None or pk > x[1]):
+                    x[1] = pk
+                if mn is not None:
+                    x[2] = (x[2] or 0) + mn
+            if day >= d30 and h:
+                hw[sid] = hw.get(sid, 0) + h
+                tg[(sid, game)] = tg.get((sid, game), 0) + h
         hwp, pkp, avp = {}, {}, {}           # per period: hours watched, peak live viewers, average live viewers
-        # rows that never reached 10 viewers can't rank; leaving them out keeps this read (all history) to minutes
-        for r in c.execute(f"SELECT sid, {sums}, SUM(hw), MAX(peak), SUM(mins) FROM sc_daily WHERE peak >= 10 GROUP BY sid",
-                           [d for d in pstarts for _ in range(3)]):
-            v = list(r[1:])
+        for sid, a in acc.items():
             for i, p in enumerate(pcols + ["all"]):
-                h, pk, mn = v[3 * i], v[3 * i + 1], v[3 * i + 2]
-                hwp.setdefault(r[0], {})[p] = h
-                pkp.setdefault(r[0], {})[p] = pk
-                avp.setdefault(r[0], {})[p] = round(h * 60 / mn) if h and mn else None
-        first_day = c.execute("SELECT MIN(day) FROM sc_chstats").fetchone()[0]
-        top_game = {}
-        for sid, g, h in c.execute("SELECT sid, game, SUM(hw) FROM sc_daily WHERE day>=? GROUP BY sid, game", (d30,)):
-            if h and (sid not in top_game or h > top_game[sid][1]):
+                h, pk, mn = a[i]
+                hwp.setdefault(sid, {})[p] = h
+                pkp.setdefault(sid, {})[p] = pk
+                avp.setdefault(sid, {})[p] = round(h * 60 / mn) if h and mn else None
+        for (sid, g), h in tg.items():
+            if sid not in top_game or h > top_game[sid][1]:
                 top_game[sid] = (g, h)
+        first_day = c.execute("SELECT MIN(day) FROM sc_chstats").fetchone()[0]
         chans = {r["sid"]: dict(r) for r in c.execute(
             "SELECT sid, platform, name, logo, url, country, COALESCE(india,0) india, game, topic, ytcat FROM sc_channels")}
     day1 = ytextra._latest_gains()
