@@ -170,7 +170,9 @@ def _rows():
         if size is None and not live:
             continue
         top = (pkp.get(sid) or {}).get("all") or 0
-        if top < 10 and (size or 0) < 1000 and (ch["platform"] != "youtube" or size is None):   # never 10 viewers: can't rank
+        if top < 10:                          # never streamed live to 10+ viewers on our records: not ranked. The
+                                              # rankings are of streamers only (owner, 23 Nov: Short Malouniya, an
+                                              # uploader with no live streams, was #2 in India's YouTube Gaming).
             continue                          # (22 Nov: the GTA 6 sweep added every 1-viewer channel; ranking them all
                                               # took hours per metric, and the rankings stopped updating for 2 days)
         ct = scene.country_of(ch["country"]) or (scene.country_of("IN") if ch["india"] else None)

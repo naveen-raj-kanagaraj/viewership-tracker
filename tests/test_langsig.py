@@ -51,3 +51,18 @@ scene._LIVE["twitch:indguy"] = {"platform": "twitch", "viewers": 30, "india": Tr
 scene._LIVE["twitch:plain"] = {"platform": "twitch", "viewers": 50}
 assert chat._targets("twitch", 2) == ["big0", "big1", "hinty"], chat._targets("twitch", 2)
 print("PAST TITLES + CHAT TARGETS OK")
+# YouTube channels with no country: their live chat's languages (chatstats) decide
+import json
+from tracker import chatstats
+c.executescript(chatstats.SCHEMA); c.commit()
+day = __import__("time").strftime("%Y-%m-%d")
+c.execute("INSERT INTO chat_stream (vid, sid, day, langs) VALUES ('y1','yt:UCnocountry',?,?)", (day, json.dumps({"Hinglish": 120, "English / other Latin": 200, "Tamil": 20})))
+c.execute("INSERT INTO chat_stream (vid, sid, day, langs) VALUES ('y2','yt:UCforeign',?,?)", (day, json.dumps({"English / other Latin": 900, "Hinglish": 5})))
+c.execute("INSERT INTO sc_channels (sid, platform, name, country, india) VALUES ('yt:UCnocountry','youtube','a','-',0), ('yt:UCforeign','youtube','b','-',1)")
+c.commit()
+scene.mark_known_india()
+got = dict(c.execute("SELECT sid, india FROM sc_channels WHERE sid IN ('yt:UCnocountry','yt:UCforeign')").fetchall())
+assert got == {"yt:UCnocountry": 1, "yt:UCforeign": 0}, got
+assert scene.verdict({"sid": "yt:UCforeign", "platform": "youtube", "title": "Hindi stream", "name": "b"}, "-") is False
+assert scene.verdict({"sid": "yt:UCforeign", "platform": "youtube", "title": "x", "name": "b"}, "IN") is True     # its country setting wins
+print("YOUTUBE CHAT OK")

@@ -493,6 +493,7 @@ with store._lock:
     dd = datetime.now(events.REPORT_TZ).date()
     for k, (sid_, subs_) in enumerate([("yt:UCaman", 9000000), ("yt:UCtg", 40000000), ("yt:UCffindia000000000000000", 5200000)]):
         cc.execute("INSERT OR REPLACE INTO sc_chstats VALUES (?,?,?,?,?,?)", (dd.strftime("%Y-%m-%d"), sid_, subs_, 10**9 + k, 100, 0))
+        cc.execute("INSERT OR IGNORE INTO sc_daily VALUES (?,?,?,?,?,?,?)", (dd.strftime("%Y-%m-%d"), sid_, "Free Fire", 50, 0, 30, 10))
     cc.execute("UPDATE sc_channels SET topic='Gaming', country='IN' WHERE sid IN ('yt:UCaman','yt:UCtg','yt:UCffindia000000000000000')")
     cc.commit()
 assert rk.compute() > 0
@@ -556,6 +557,7 @@ with store._lock:
         cc.execute("INSERT OR IGNORE INTO sc_channels (sid, platform, name, country, topic) VALUES (?,?,?,?,?)", (f"yt:UCfill{k_:018d}", "youtube", f"Fill {k_}", "IN", "People & Blogs"))
         for dd_, vv in ((yd, 1000), (dd.strftime("%Y-%m-%d"), 1000 + 10 * k_)):
             cc.execute("INSERT OR REPLACE INTO sc_chstats VALUES (?,?,?,?,?,?)", (dd_, f"yt:UCfill{k_:018d}", 100 + k_, vv, 5, 0))
+        cc.execute("INSERT OR IGNORE INTO sc_daily VALUES (?,?,?,?,?,?,?)", (dd.strftime("%Y-%m-%d"), f"yt:UCfill{k_:018d}", "Other", 20, 0, 30, 5))
     cc.commit()
 rk.compute()
 tv_ = c.get("/api/topch?platform=youtube&metric=vday&category=People%20%26%20Blogs").get_json()

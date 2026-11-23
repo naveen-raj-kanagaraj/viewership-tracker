@@ -51,6 +51,7 @@ for i in range(60):
                  language, tracked, ytcat) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,?)""",
               (sid, "youtube", f"Ch{i}", "", "", now, None, "", "BGMI", "IN", 1, "", "Gaming"))
     c.execute("INSERT INTO sc_chstats VALUES (?,?,?,?,?,?)", (day, sid, subs, subs * 100, 50, int(now)))
+    c.execute("INSERT INTO sc_daily VALUES (?,?,?,?,?,?,?)", (day, sid, "BGMI", 100, 0, 60, 50))    # they stream
     for j in range(12):
         v = 10_000 + i * 1000 + j * 10
         vids.append((f"v{i:03d}{j:02d}x", sid, int(now - (5 + j * 6) * 86400), f"video {j}", v, int(v * (0.02 + i / 6000)),
