@@ -79,3 +79,15 @@ c.commit()
 assert "twitch:greekish" not in scene._past_titles_india() and "kick:pastind" in scene._past_titles_india()
 assert scene.india_why({"sid": "twitch:invadingdarkness", "platform": "twitch", "title": "🇬🇧🇮🇳 British Indian Gamergirl", "name": "InvadingDarkness"}) == (True, "owner: Indian")
 print("SHARE OF TITLES OK")
+# Pakistani chat: Urdu in English letters reads like Hinglish, but is spelled its own way
+langsig.WANT.update({"twitch:pkguy", "twitch:inguy2"})
+for i in range(40):
+    langsig.add("twitch:pkguy", "bhai ye kia hy yar" if i % 2 else "bohat acha bhai")
+    langsig.add("twitch:inguy2", "bhai ye kya hai yaar" if i % 2 else "bahut accha bhai")
+assert langsig.verdict("twitch:pkguy") is False and langsig.pakistani("twitch:pkguy")
+assert langsig.verdict("twitch:inguy2") is True
+assert scene.india_why({"sid": "twitch:pkguy", "platform": "twitch", "title": "GTA 6", "name": "pkguy", "bio": ""}) == \
+    (False, "chat is Urdu spelled the Pakistani way ('kia', 'hy', 'bohat')")
+langsig.save(); u = langsig._U["twitch:pkguy"]; langsig._C.clear(); langsig._U.clear(); langsig.load()
+assert langsig._U["twitch:pkguy"] == u and langsig.verdict("twitch:pkguy") is False
+print("PAKISTANI CHAT OK")

@@ -33,7 +33,7 @@ for p, sl, t, n in NOT:
     assert not scene.verdict({"sid": f"{p}:{sl}", "platform": p, "title": t, "name": n or sl}), (sl, t)
 for p, sl, t, n in YES:
     assert scene.verdict({"sid": f"{p}:{sl}", "platform": p, "title": t, "name": n or sl}), (sl, t)
-assert scene.verdict({"sid": "twitch:z", "platform": "twitch", "title": "ranked", "name": "z", "language": "hi"})
+assert scene.verdict({"sid": "twitch:z", "platform": "twitch", "title": "ranked", "name": "z", "language": "te"})
 # an old BGMI stream (known list) doesn't keep a clearly foreign channel Indian; a plain English title stays Indian
 assert not scene.verdict({"sid": "kick:k1", "platform": "kick", "title": "FFWS watch party 🇧🇩", "name": "k1"}, None, {"kick:k1"})
 assert scene.verdict({"sid": "kick:k2", "platform": "kick", "title": "Just chatting", "name": "k2"}, None, {"kick:k2"})
