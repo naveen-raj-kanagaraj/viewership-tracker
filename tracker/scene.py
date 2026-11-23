@@ -161,34 +161,40 @@ _KNOWN = {"at": 0, "set": frozenset()}
 
 
 def india_known() -> frozenset:
-    """Channels known to be Indian from what they did: every channel this site's Indian event trackers recorded
-    (official broadcasts and watch parties of BMSD, BMIC, CEGC, PIC on YouTube, Kick, Twitch), the events' own Kick
-    lists, and every channel that has streamed BGMI (only played in India). Kick and Twitch give no country, and many
-    Indian streamers there title in English, so this catches the ones the title / language checks miss."""
+    """Channels known to be Indian from what they did, each with its reason (_KNOWN['why']): the official channels of
+    this site's Indian event trackers and their streams whose title names the event (BMSD, BMIC, CEGC ... / BGMI), the
+    events' own Kick lists, every channel that has streamed BGMI (only played in India), past broadcast titles.
+    Not every stream an event tracker came across: on 23 Nov that let in Greek ('NA LCQ MP FINALS WATCH PARTY', Apex)."""
     if time.time() - _KNOWN["at"] < 3600:
         return _KNOWN["set"]
-    out = set()
+    why = {}
     try:
         for k, v in events.PRESETS.items():
             kk = v.get("kick") or {}
             for slug_ in list(kk.get("official") or []) + list(kk.get("channels") or []):
-                out.add("kick:" + slug_.lower())
+                why.setdefault("kick:" + slug_.lower(), f"on the {k.upper()} event's channel list")
         with store.reading():
             c = store.conn()
             if c.execute("SELECT 1 FROM sqlite_master WHERE name='ev_streams'").fetchone():
-                for vid, cid in c.execute("SELECT DISTINCT vid, channel_id FROM ev_streams"):
-                    if vid and vid.startswith(("kick:", "twitch:")):
-                        out.add(vid.lower())
-                    elif cid and cid.startswith("UC"):
-                        out.add("yt:" + cid)
-            out.update(r[0] for r in c.execute("SELECT DISTINCT sid FROM sc_daily WHERE game='BGMI'"))
-        out.update(_past_titles_india())
-        out.update("kick:" + k.lower() for k in seeds().get("kick", []))
-        out.update(allowed())
+                for ev, vid, cid, kind, title in c.execute("SELECT event, vid, channel_id, kind, title FROM ev_streams"):
+                    if kind != "official" and not INDIA_STRONG.search(title or ""):
+                        continue                  # a stream the tracker came across, not about the Indian event
+                    sid = vid.lower() if vid and vid.startswith(("kick:", "twitch:")) else \
+                        "yt:" + cid if cid and cid.startswith("UC") else None
+                    if sid:
+                        why.setdefault(sid, f"streamed the {str(ev).upper()} event ('{(title or '')[:40]}')")
+            for (sid,) in c.execute("SELECT DISTINCT sid FROM sc_daily WHERE game='BGMI'"):
+                why.setdefault(sid, "streamed BGMI (only played in India)")
+        for sid in _past_titles_india():
+            why.setdefault(sid, "2+ past broadcast titles in Hindi / Indian languages / about Indian events")
+        for k in seeds().get("kick", []):
+            why.setdefault("kick:" + k.lower(), "on the hand-made list of Indian streamers")
+        for sid in allowed():
+            why.setdefault(sid, "allowed by hand")
     except Exception as e:
         print(f"Known Indian channels: {str(e)[:100]}")
         return _KNOWN["set"]
-    _KNOWN.update(at=time.time(), set=frozenset(out))
+    _KNOWN.update(at=time.time(), set=frozenset(why), why=why)
     return _KNOWN["set"]
 
 
@@ -394,7 +400,7 @@ def india_why(x: dict, country: str = None, allow: set = frozenset()) -> tuple:
     if x.get("game") == "BGMI":
         return True, "streams BGMI (India only)"
     if sid in allow:
-        return True, "seen in an Indian event, streaming BGMI, or past titles in Hindi / Indian languages"
+        return True, (_KNOWN.get("why") or {}).get(sid) or "known Indian channel"
     if x.get("platform") in ("kick", "twitch") and (x.get("language") or "").lower() in IND_LANGS:
         return True, f"stream language: {x.get('language')}"
     if _TAG_LANG.search(tags):
