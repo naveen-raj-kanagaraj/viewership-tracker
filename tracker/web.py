@@ -1018,7 +1018,9 @@ def api_topch():
     except ValueError:
         limit = 100
     from tracker import scene as sc_
-    key = f"/api/topch:{plat}:{metric}:{country}:{category}:{game}:{limit}:{sc_.RULES_V}"
+    # the rankings' own time is in the key: new rankings are served the moment they exist, never a copy of the old ones
+    # (23 Nov: fresh rankings were ready but the page kept the pre-restart copy while the rebuild queue was busy)
+    key = f"/api/topch:{plat}:{metric}:{country}:{category}:{game}:{limit}:{sc_.RULES_V}:{int(ranks._R['at'])}"
     hit = _MEMO.get(key)
     if hit and b'"updated":0,' in hit[1] and ranks._R["at"]:
         _MEMO.pop(key, None)                  # built before the rankings loaded: never serve that empty answer again
