@@ -2,7 +2,7 @@
 
     Twitch   anonymous read-only IRC (irc.chat.twitch.tv:6697, user justinfan...), the top CHAT_TWITCH channels.
              Also sees raids (USERNOTICE msg-id=raid), so a raid's viewer jump isn't taken for a highlight.
-    Kick     Kick's chat websocket (Pusher, the same one kick.com uses; unofficial, may change), the top CHAT_KICK
+    Kick     Kick's chat websocket (Centrifugo with a guest token, as kick.com does; unofficial, may change), the top CHAT_KICK
              channels. Needs each channel's chatroom id from kick.com/api/v2/channels/<slug>; if Kick blocks that,
              Kick moments fall back to viewers only.
     YouTube  counted from the live chat already read for Super Chats (ytextra), the top SUPERCHAT_TOP streams.
@@ -147,9 +147,8 @@ def run_twitch():
             time.sleep(15)
 
 
-# ---------- Kick (Pusher websocket) ----------
+# ---------- Kick (chat websocket: Centrifugo) ----------
 
-PUSHER = os.getenv("KICK_PUSHER", "wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679?protocol=7&client=js&version=8.4.0&flash=false")
 _ROOMS = {}        # slug -> chatroom id (0 = couldn't get it)
 
 
@@ -225,13 +224,54 @@ def _kick_targets():
     return _targets("kick", CHAT_KICK)
 
 
+KICK_RT = os.getenv("KICK_REALTIME", "wss://realtime.us-west-2.platform.kick.com/connection/websocket")
+KICK_RT_AUTH = os.getenv("KICK_REALTIME_AUTH", "https://web.kick.com/api/v1/realtime/auth/connection")
+_EMOTE = re.compile(r"\[emote:\d+:[^\]]*\]")
+
+
+def _kick_token() -> str:
+    """A guest token for Kick's chat (Centrifugo since Nov 2026; the old Pusher key is gone): what kick.com itself does
+    for a visitor who isn't logged in."""
+    import uuid
+    r = events._http.post(KICK_RT_AUTH, json={"client_id": str(uuid.uuid4())}, timeout=15,
+                          headers={"User-Agent": events._UA, "Accept": "application/json", "Origin": "https://kick.com",
+                                   "Referer": "https://kick.com/"})
+    if r.status_code != 200:
+        raise ConnectionError(f"token HTTP {r.status_code}")
+    return r.json()["data"]["token"]
+
+
+def _kick_push(line: str, rooms: dict):
+    """One message from Kick's chat socket: count it (chat speed) and judge its language (langsig)."""
+    try:
+        j = json.loads(line)
+    except ValueError:
+        return
+    p = j.get("push") or {}
+    m = re.match(r"chatrooms\.(\d+)\.v2", p.get("channel") or "")
+    d = (p.get("pub") or {}).get("data") or {}
+    if not m or "ChatMessageEvent" not in (d.get("event") or ""):
+        return
+    slug = rooms.get(int(m.group(1)))
+    if not slug:
+        return
+    add("kick:" + slug)
+    try:
+        text = (json.loads(d.get("data") or "{}") or {}).get("content") or ""
+    except (ValueError, AttributeError):
+        text = ""
+    langsig.add("kick:" + slug, _EMOTE.sub(" ", text))
+
+
 def run_kick():
     while True:
         try:
-            ws = _WS(PUSHER)
-            subs, last_sync, last_ping = {}, 0, time.time()
+            tok = _kick_token()
+            ws = _WS(KICK_RT)
+            ws.send(json.dumps({"id": 1, "connect": {"token": tok, "name": "js"}}))
+            subs, last_sync, started, nid = {}, 0, time.time(), 10
             STATUS["kick"] = "connected"
-            while True:
+            while time.time() - started < 2400:           # the guest token lasts ~45 minutes: reconnect before
                 now = time.time()
                 if now - last_sync > 60:
                     last_sync = now
@@ -243,32 +283,26 @@ def run_kick():
                         added += 1
                         rid = _room(slug)
                         if rid:
-                            ws.send(json.dumps({"event": "pusher:subscribe", "data": {"auth": "", "channel": f"chatrooms.{rid}.v2"}}))
+                            nid += 1
+                            ws.send(json.dumps({"id": nid, "subscribe": {"channel": f"chatrooms.{rid}.v2"}}))
                             subs[slug] = rid
-                    for slug in [s for s in subs if s not in want]:
-                        ws.send(json.dumps({"event": "pusher:unsubscribe", "data": {"channel": f"chatrooms.{subs[slug]}.v2"}}))
+                    for slug in [s_ for s_ in subs if s_ not in want]:
+                        nid += 1
+                        ws.send(json.dumps({"id": nid, "unsubscribe": {"channel": f"chatrooms.{subs[slug]}.v2"}}))
                         subs.pop(slug)
-                    blocked = sum(1 for s in want if _ROOMS.get(s) == 0)
+                    blocked = sum(1 for s_ in want if _ROOMS.get(s_) == 0)
                     STATUS["kick"] = f"connected, reading {len(subs)} channels" + (f" ({blocked} chatroom ids blocked by Kick)" if blocked else "")
-                if now - last_ping > 60:
-                    ws.send(json.dumps({"event": "pusher:ping", "data": {}}))
-                    last_ping = now
                 msg = ws.recv()
                 if not msg:
                     continue
-                try:
-                    j = json.loads(msg)
-                except ValueError:
-                    continue
-                if "ChatMessageEvent" in (j.get("event") or ""):
-                    m = re.match(r"chatrooms\.(\d+)\.v2", j.get("channel") or "")
-                    slug = next((s for s, r in subs.items() if m and r == int(m.group(1))), None)
-                    if slug:
-                        add("kick:" + slug)
-                        try:
-                            langsig.add("kick:" + slug, (json.loads(j.get("data") or "{}") or {}).get("content") or "")
-                        except (ValueError, AttributeError):
-                            pass
+                rooms = {r: s_ for s_, r in subs.items()}
+                for line in msg.split("\n"):
+                    if line.strip() == "{}":
+                        ws.send("{}")                       # Centrifugo's ping
+                    elif '"push"' in line:
+                        _kick_push(line, rooms)
+                    elif '"error"' in line and '"id":1,' in line:
+                        raise ConnectionError(line[:80])
         except Exception as e:
             STATUS["kick"] = f"reconnecting ({str(e)[:60]})"
             time.sleep(20)
