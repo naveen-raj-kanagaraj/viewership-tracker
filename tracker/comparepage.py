@@ -199,9 +199,8 @@ async function makeCard(logos){const ST=FMT==='story',H=ST?1920:1350,L=J.channel
  x.fillStyle='#fff';x.fillText(shrink((n===2?L[0].name+' VS '+L[1].name:n>2?'HEAD TO HEAD':L[0].name).toUpperCase(),936,64,'700 #px "Barlow Condensed",sans-serif'),72,y0+100);
  const WM=(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\./,'')+location.pathname;
  x.font='600 22px "Barlow Condensed",sans-serif';const wmW=x.measureText(WM).width+28;
- const sub=(RNG==='all'?'ALL TIME':'LAST '+(RL[RNG]||RNG))+(J.days?' · ARROWS VS '+(PR[RNG]||'').replace(/^the /,'THE '):'');
- x.fillStyle='#b6f23a';x.fillText(shrink(sub.toUpperCase(),936-wmW,30,'700 #px "Barlow Condensed",sans-serif'),72,y0+145);
- x.textAlign='right';x.fillStyle='#a9a8be';x.font='600 22px "Barlow Condensed",sans-serif';x.fillText(WM,1008,y0+145);x.textAlign='left';
+ const sub=(RNG==='all'?'ALL TIME':'LAST '+(RL[RNG]||RNG))+(J.days?' · ▲▼ = % CHANGE FROM THE PREVIOUS '+(RNG==='1d'?'DAY':RL[RNG]):'');
+ x.fillStyle='#b6f23a';x.fillText(shrink(sub.toUpperCase(),936,30,'700 #px "Barlow Condensed",sans-serif'),72,y0+145);
  x.fillStyle='#262636';x.fillRect(72,y0+170,936,2);
  // channel heads, one column each
  const LW=n>3?210:240,GX=72+LW,CW=(936-LW)/n,ims=logos?await Promise.all(L.map(s=>loadImg(s.logo))):[],r0=n>2?38:44,hy=y0+196;
@@ -248,7 +247,7 @@ async function makeCard(logos){const ST=FMT==='story',H=ST?1920:1350,L=J.channel
   E.forEach(e=>{const yl=Y(Math.max(0,e.v));x.strokeStyle=col(e.z.s);x.lineWidth=2;x.setLineDash([3,4]);x.beginPath();x.moveTo(cx0+cw+6,yl);x.lineTo(lx-6,e.y+4);x.stroke();x.setLineDash([]);
    x.fillStyle=col(e.z.s);x.fillText(shrink(String(e.z.s.name).toUpperCase(),lw,19,'700 #px "Barlow Condensed",sans-serif'),lx,e.y-1);
    x.fillStyle='#fff';x.font='700 25px "Barlow Condensed",sans-serif';x.fillText(fit(ser[2](e.v),lw),lx,e.y+23)})}
- x.fillStyle='#8d8ca3';x.font='24px "Barlow Condensed",sans-serif';x.fillText('Recorded by '+WM.split('/')[0]+'  ·  '+new Date().toLocaleString(CZ.loc,{timeZone:CZ.tz,day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'})+' '+CZ.lb,72,foot+34);
+ x.fillStyle='#8d8ca3';x.font='24px "Barlow Condensed",sans-serif';x.fillText(WM+'  ·  '+new Date().toLocaleString(CZ.loc,{timeZone:CZ.tz,day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'})+' '+CZ.lb,72,foot+34);
  return new Promise(r=>{try{c.toBlob(r,'image/png')}catch(e){r(null)}})}
 async function showCard(){if(!J||!J.channels.length)return;try{await document.fonts.ready}catch(e){}blob=await makeCard(true)||await makeCard(false);
  if(blob){document.getElementById('mimg').src=URL.createObjectURL(blob);document.getElementById('modal').style.display='flex'}}
