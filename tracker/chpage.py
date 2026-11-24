@@ -150,7 +150,7 @@ const KINDC={uploads:'#a58bff',shorts:'#4cc9f0',live:'#ff4d5e'},kindOf=v=>v.live
 const engOf=v=>v.likes!=null&&v.views?100*((v.likes||0)+(v.comments||0))/v.views:null;
 const MET={views:['Views',v=>v.views||0,fmt],likes:['Likes',v=>v.likes||0,fmt],comments:['Comments',v=>v.comments||0,fmt],eng:['Engagement',v=>engOf(v)||0,v=>v.toFixed(1)+'%']};
 const RNAME={'7d':'last 7 days','30d':'last 30 days','90d':'last 90 days','1w':'last week','1m':'last month','3m':'last 3 months','6m':'last 6 months','ytd':'this year','1y':'last 12 months','all':'all time'};
-function renderLife(){const c=CDATA,j=VID;if(!c||!j)return;const S=c.stats||{},V=c.views||{},G=V.gains||[],sum=n=>G.filter(g=>g.day>=new Date(Date.now()-n*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})).reduce((a,g)=>a+g.views,0);
+function renderLife(){const c=CDATA,j=VID;if(!c||!j)return;const S=c.stats||{},V=c.views||{},G=(V.gains||[]).filter(g=>g.views!=null),sum=n=>G.filter(g=>g.day>=new Date(Date.now()-n*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})).reduce((a,g)=>a+g.views,0);
  if(c.platform!=='youtube'){const sn=V.snapshots||[],f=(sn[sn.length-1]||{}).subs,fg=n=>G.filter(g=>g.subs!=null&&g.day>=new Date(Date.now()-n*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})).reduce((a,g)=>a+g.subs,0),P=c.periods||{};
   document.getElementById('lifek').innerHTML=`<div><b>${f!=null?fmt(f):'-'}</b>followers</div><div><b class="up">${G.length?(fg(30)>=0?'+':'')+fmt(fg(30)):'-'}</b>followers, 30 days</div><div><b>${P.all&&P.all.peak?fmt(P.all.peak):'-'}</b>peak live viewers (this site)</div><div><b>${P['30d']?fmt(P['30d'].hw)+'h':'-'}</b>hours watched, 30 days</div><div><b>${full(j.count)}</b>broadcasts listed</div>`;return}
  document.getElementById('lifek').innerHTML=`<div><b>${S.views!=null?fmt(S.views):'-'}</b>lifetime views</div><div><b>${S.subs!=null?fmt(S.subs):'hidden'}</b>subscribers</div><div><b>${S.videos!=null?full(S.videos):'-'}</b>videos, lifetime</div>${G.length?`<div><b class="up">+${fmt(sum(30))}</b>channel views, ${G.length>=30?'30 days':'since '+dshortD(V.first)}</div><div><b class="up">+${fmt((G[G.length-1]||{}).views||0)}</b>channel views, last day</div>`:RVo(V)}`}
@@ -307,7 +307,7 @@ document.getElementById('sgo').onclick=async()=>{const f=new File([SBLOB],'chann
  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],text:t});return}catch(e){}}document.getElementById('sdl').click()};
 function viewsCard(c){const V=c.views,S=c.stats;const box=document.getElementById('vcard');if(!V||!(V.snapshots||[]).length){box.style.display='none';return}box.style.display='';
  if(c.platform!=='youtube')return followersCard(c);
- const G=V.gains||[],sum=n=>G.filter(g=>g.day>=new Date(Date.now()-n*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})).reduce((a,g)=>a+g.views,0),last=G[G.length-1];
+ const G=(V.gains||[]).filter(g=>g.views!=null),sum=n=>G.filter(g=>g.day>=new Date(Date.now()-n*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})).reduce((a,g)=>a+g.views,0),last=G[G.length-1];
  const sg=G.filter(g=>g.subs!=null).slice(-7).reduce((a,g)=>a+g.subs,0);
  const RV=V.recent||{},snap=(V.snapshots||[])[V.snapshots.length-1]||{},tv=(S&&S.views)||snap.views;
  const fh=h=>h>=1?Math.round(h)+(Math.round(h)===1?' hour':' hours'):Math.round(h*60)+' min';
