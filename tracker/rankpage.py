@@ -71,7 +71,7 @@ __PANEL_CSS__
 <div class="filters"><div class="seg" id="mode"></div></div>
 <div class="filters" id="cf" style="display:none"><div class="seg" id="cplat"></div><div class="seg" id="cmetric"></div><select id="cper" aria-label="Period"></select>
  <select id="ccat"><option value="">All categories</option></select><span style="position:relative;display:inline-block"><input id="cgame" placeholder="All games (type to search)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="background:var(--card,#16161f);color:inherit;border:1px solid #2a2a3a;border-radius:8px;padding:8px 10px;font:inherit;min-width:220px;width:100%;box-sizing:border-box"><div id="cgsug" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;z-index:50;background:#16161f;border:1px solid #2a2a3a;border-radius:8px;max-height:280px;overflow-y:auto;-webkit-overflow-scrolling:touch"></div></span><datalist id="cgames"></datalist><select id="cctry"><option value="">All countries</option></select>
- <select id="srange" title="Which ten to share"></select><button class="btn" id="cshare">SHARE</button></div>
+ <select id="srange" title="Which ranks to share"></select><button class="btn" id="cshare">SHARE</button></div>
 <div class="filters" id="lf">
  <div class="seg" id="period"></div>
  <div class="dt"><button id="prev" aria-label="Earlier">&#8249;</button><input type="date" id="date"><button id="next" aria-label="Later">&#8250;</button></div>
@@ -211,7 +211,7 @@ controls();setMode(MODE);setInterval(()=>{if(!document.hidden&&MODE==='live'&&R&
 let blob=null;
 function loadImg(u){return new Promise(r=>{if(!u)return r(null);const i=new Image();i.crossOrigin='anonymous';i.onload=()=>r(i);i.onerror=()=>r(null);i.src=u})}
 let FMT='post';
-async function makeCard(logos){const ST=FMT==='story',H=ST?1920:1350,OFF0=Math.max(0,+((document.getElementById('srange')||{}).value||0));
+async function makeCard(logos){const ST=FMT==='story',H=ST?1920:1350,RG=String((document.getElementById('srange')||{}).value||'0').split('-').map(Number),OFF0=Math.max(0,RG[0]||0),END0=RG[1]||OFF0+10;
  const c=document.createElement('canvas');c.width=2160;c.height=H*2;const x=c.getContext('2d');x.scale(2,2);
  x.fillStyle='#0b0b12';x.fillRect(0,0,1080,H);const g=x.createRadialGradient(860,ST?120:-60,10,860,ST?120:-60,760);g.addColorStop(0,'rgba(124,92,255,.24)');g.addColorStop(1,'rgba(124,92,255,0)');x.fillStyle=g;x.fillRect(0,0,1080,H);
  const fit=(t,w)=>{t=String(t||'');while(x.measureText(t).width>w&&t.length>2)t=t.slice(0,-1);return t};
@@ -223,12 +223,12 @@ async function makeCard(logos){const ST=FMT==='story',H=ST?1920:1350,OFF0=Math.m
  x.fillStyle='#fff';x.font='700 64px "Barlow Condensed",sans-serif';
  x.fillText(shrink(CH?'TOP '+(NAMES[C.platform]||'').toUpperCase()+' CHANNELS':['TOP',S.platform?(NAMES[S.platform]||'').toUpperCase():'',cat?cat.toUpperCase():({gaming:'GAMING',esports:'ESPORTS'})[S.sec]||'','STREAMERS'].filter(Boolean).join(' '),936,64,'700 #px "Barlow Condensed",sans-serif'),72,y0+100);
  const WM='For more: '+(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\./,'')+RP;x.font='600 22px "Barlow Condensed",sans-serif';const wmW=x.measureText(WM).width+28;
- if(CH){x.fillStyle='#b6f23a';x.fillText(shrink([OFF0?'#'+(OFF0+1)+' TO #'+Math.min(OFF0+10,((CH?CR.rows:R.rows)||[]).length):'',cat,where,'BY '+CML(C.metric).replace('PAST STREAM ','')].filter(Boolean).join(' · ').toUpperCase(),936-wmW,34,'700 #px "Barlow Condensed",sans-serif'),72,y0+145)}
+ if(CH){x.fillStyle='#b6f23a';x.fillText(shrink([OFF0?'#'+(OFF0+1)+' TO #'+Math.min(END0,((CH?CR.rows:R.rows)||[]).length):'',cat,where,'BY '+CML(C.metric).replace('PAST STREAM ','')].filter(Boolean).join(' · ').toUpperCase(),936-wmW,34,'700 #px "Barlow Condensed",sans-serif'),72,y0+145)}
  else{x.fillStyle='#8d8ca3';const pl=document.getElementById('period'),pt=pl&&pl.selectedOptions&&pl.selectedOptions[0]?pl.selectedOptions[0].text:'';
   x.fillText(shrink([where,pt+(R.date!==R.today?' TO '+dshortD(R.date):''),'BY '+MET[S.metric][0]].filter(Boolean).join(' · ').toUpperCase(),936-wmW,28,'#px "Barlow Condensed",sans-serif'),72,y0+145)}
  x.textAlign='right';x.fillStyle='#a9a8be';x.font='600 22px "Barlow Condensed",sans-serif';x.fillText(WM,1008,y0+145);x.textAlign='left';
  x.fillStyle='#262636';x.fillRect(72,y0+170,936,2);
- const OFF=Math.max(0,+((document.getElementById('srange')||{}).value||0)),L=(CH?CR.rows:R.rows).slice(OFF,OFF+10),ims=logos?await Promise.all(L.map(s=>loadImg(s.logo))):[];
+ const OFF=OFF0,L=(CH?CR.rows:R.rows).slice(OFF,END0),ims=logos?await Promise.all(L.map(s=>loadImg(s.logo))):[];
  const val=s=>CH?CMV(C.metric,s[C.metric]):MET[S.metric][1](s[S.metric]);
  const sub=s=>CH?[C.platform==='all'?NAMES[s.platform]:'',s.category,s.game&&s.game!==s.category?s.game:'',s.country_name].filter(Boolean).join(' · '):[s.game,'PEAK '+fmt(s.peak)].filter(Boolean).join(' · ');
  const dtxt=d=>d===null?['NEW','#a58bff']:d>0?['▲'+d,'#3ddc84']:d<0?['▼'+(-d),'#ff4d5e']:['=','#8d8ca3'];
@@ -247,8 +247,17 @@ async function makeCard(logos){const ST=FMT==='story',H=ST?1920:1350,OFF0=Math.m
   if(CH&&s.world_rank){x.fillStyle='#b6f23a';x.font=`700 ${ST?26:23}px "Barlow Condensed",sans-serif`;x.fillText(fit(('#'+s.world_rank+' WORLDWIDE · '+(NAMES[s.platform]||'')).toUpperCase(),W-24),cx,cy+r+O.n+O.v+O.s)}
   else{x.fillStyle='#8d8ca3';x.font=`600 ${ST?22:20}px "Barlow Condensed",sans-serif`;x.fillText(fit(sub(s).toUpperCase(),W-24),cx,cy+r+O.n+O.v+O.s)}x.textAlign='left'});
  // 4 to 10
- const B0=OFF?0:3,rS=OFF?pTop+(ST?20:6):pTop+pH+(ST?36:24),RH=ST?(OFF?118:100):(OFF?100:88);   // 11-20, 21-30 ...: ten rows, no podium
- L.slice(B0).forEach((s,k)=>{const i=k+B0,y=rS+k*RH;x.fillStyle='#8d8ca3';x.font='700 40px "Barlow Condensed",sans-serif';x.fillText(String(OFF+i+1).padStart(2,'0'),72,y+46);
+ const B0=OFF?0:3,rS=OFF?pTop+(ST?20:6):pTop+pH+(ST?36:24),RH=ST?(OFF?118:100):(OFF?100:88);   // 11-30, 31-50 ...: no podium
+ if(L.length>10){const PC=Math.ceil(L.length/2),CW=456;            // 15-20 rows: two columns of up to ten, same row height
+  L.forEach((s,i)=>{const col=i<PC?0:1,k=col?i-PC:i,x0=72+col*(CW+24),y=rS+k*RH;
+   x.textAlign='left';x.fillStyle='#8d8ca3';x.font='700 30px "Barlow Condensed",sans-serif';x.fillText(String(OFF+i+1).padStart(2,'0'),x0,y+44);
+   face(ims[i],s,x0+68,y+34,24,null);
+   x.fillStyle='#fff';x.fillText(shrink(s.name,CW-210,26,'700 #px "Barlow",sans-serif'),x0+102,y+30);
+   x.font='600 18px "Barlow Condensed",sans-serif';x.fillStyle=CH&&s.world_rank?'#b6f23a':'#8d8ca3';
+   x.fillText(fit((CH?(s.world_rank?'#'+s.world_rank+' WORLDWIDE':sub(s)):`${(NAMES[s.platform]||'').toUpperCase()} · PEAK ${fmt(s.peak)}`).toUpperCase(),CW-210),x0+102,y+56);
+   x.textAlign='right';x.fillStyle='#fff';x.font='700 32px "Barlow Condensed",sans-serif';x.fillText(val(s),x0+CW,y+44);x.textAlign='left';
+   x.fillStyle='#1d1d2b';x.fillRect(x0,y+RH-12,CW,1)})}
+ else L.slice(B0).forEach((s,k)=>{const i=k+B0,y=rS+k*RH;x.fillStyle='#8d8ca3';x.font='700 40px "Barlow Condensed",sans-serif';x.fillText(String(OFF+i+1).padStart(2,'0'),72,y+46);
   face(ims[i],s,180,y+34,30,null);
   x.fillStyle='#fff';x.font='700 34px "Barlow",sans-serif';x.fillText(fit(s.name,470),232,y+32);
   x.font='600 22px "Barlow Condensed",sans-serif';let sx=232;
@@ -263,8 +272,9 @@ document.getElementById('share').onclick=async()=>{const L0=MODE==='channels'?(C
  document.getElementById('mimg').src=URL.createObjectURL(blob);document.getElementById('modal').style.display='flex'};
 document.getElementById('cshare').onclick=()=>document.getElementById('share').onclick();
 function fillRange(){const e=document.getElementById('srange');if(!e)return;const n=Math.min(100,((CR&&CR.rows)||[]).length),v=e.value||'0';
- e.innerHTML=Array.from({length:Math.max(1,Math.ceil(n/10))},(_,i)=>`<option value="${i*10}">TOP ${i*10+1}-${Math.min(n,i*10+10)}</option>`).join('');
- e.value=[...e.options].some(o=>o.value===v)?v:'0'}
+ // 1-10 with the podium, then 11-30, 31-50, 51-70 (20 a slide) and 71-85, 86-100 (owner, 24 Nov)
+ e.innerHTML=[[0,10],[10,30],[30,50],[50,70],[70,85],[85,100]].filter(([a])=>a<Math.max(n,1)).map(([a,b])=>`<option value="${a}-${b}">TOP ${a+1}-${Math.min(n||b,b)}</option>`).join('');
+ e.value=[...e.options].some(o=>o.value===v)?v:'0-10'}
 document.getElementById('mfmt').onclick=async e=>{const b=e.target.closest('button');if(!b)return;FMT=b.dataset.f;
  document.querySelectorAll('#mfmt button').forEach(x=>x.classList.toggle('on',x===b));blob=await makeCard(true)||await makeCard(false);document.getElementById('mimg').src=URL.createObjectURL(blob)};
 document.getElementById('mcopy').onclick=async e=>{try{await navigator.clipboard.writeText(location.href);e.target.textContent='COPIED'}catch(x){prompt('Copy this link',location.href)}};

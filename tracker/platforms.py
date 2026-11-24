@@ -118,6 +118,50 @@ def _token(p):
     return j["access_token"]
 
 
+# ---------- the owner's Twitch login (read-only, no scopes) ----------
+# Follower counts need a logged-in user's token on Twitch (an app token can't read them). The owner connects once at
+# /admin/twitch-connect?key=...; the refresh token is kept in the private database (kv 'twitch_user'), never in git.
+
+def twitch_user_token():
+    """A user access token from the owner's connected Twitch account, refreshed when needed; None if not connected."""
+    from tracker import store
+    import json as _j
+    t = _tok.get("twitch_user")
+    if t and t[1] > time.time() + 60:
+        return t[0]
+    try:
+        saved = _j.loads(store.kv_get("twitch_user") or "{}")
+    except ValueError:
+        saved = {}
+    if not saved.get("refresh") or not _keys("twitch"):
+        return None
+    i, s = _keys("twitch")
+    r = _http.post("https://id.twitch.tv/oauth2/token", data={"client_id": i, "client_secret": s, "grant_type": "refresh_token",
+                                                               "refresh_token": saved["refresh"]}, timeout=10)
+    if r.status_code != 200:
+        print(f"Twitch login: refresh failed (HTTP {r.status_code}); reconnect at /admin/twitch-connect")
+        return None
+    j = r.json()
+    store.kv_set("twitch_user", _j.dumps({**saved, "refresh": j.get("refresh_token") or saved["refresh"]}))
+    _tok["twitch_user"] = (j["access_token"], time.time() + int(j.get("expires_in") or 3600))
+    return j["access_token"]
+
+
+def twitch_followers(user_id: str):
+    """Total followers of a Twitch channel (needs the owner's connected login), or None."""
+    tok = twitch_user_token()
+    if not tok or not user_id:
+        return None
+    r = _http.get("https://api.twitch.tv/helix/channels/followers", params={"broadcaster_id": user_id, "first": 1},
+                  headers={"Authorization": f"Bearer {tok}", "Client-Id": _keys("twitch")[0]}, timeout=10)
+    if r.status_code == 401:
+        _tok.pop("twitch_user", None)
+        return None
+    if r.status_code != 200:
+        return None
+    return r.json().get("total")
+
+
 def _get(p, url, params):
     for attempt in (0, 1, 2):
         h = {"Authorization": f"Bearer {_token(p)}"}

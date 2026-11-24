@@ -47,6 +47,13 @@ def period_start(p: str):
     return today - timedelta(days=PERIOD_DAYS[p])
 
 
+def _viewbot(followers: int, peak, avg) -> bool:
+    """Live viewers that a channel's followers can't explain: a peak above its follower count, or an average above a
+    quarter of it. Real channels average about 1-5% of their followers (24 Nov, checked on twitch.tv: Rachitroo_1 121K
+    followers / 2,476 avg; pepewwwpew 124 followers / 454 avg). Tiny streams (avg < 30, peak < 50) are left alone."""
+    return bool((peak or 0) >= 50 and peak > followers) or bool((avg or 0) >= 30 and avg > 0.25 * followers)
+
+
 def _tuples(c, sql, args=()):
     """Plain tuples (not sqlite3.Row objects) for reads of millions of rows: about twice as fast to go through."""
     cur = c.cursor()
@@ -90,6 +97,11 @@ def _rows():
         hw, top_game, acc = {}, {}, {}
         tg = {}
         for sid, day, game, h, pk, mn in _tuples(c, "SELECT sid, day, game, hw, peak, mins FROM sc_daily WHERE peak >= 10"):
+            # A peak only counts from a real stream: 10+ minutes live, and not 8x+ the day's own average (24 Nov:
+            # sazof36 '17,184' on a day it averaged 1,924; biggbosstelugulives one 6-minute reading). A long stream
+            # with a short big final can reach 5-6x its average, so the line is 8x.
+            if (mn is not None and mn < 10) or (h and mn and mn >= 30 and pk > 8 * h * 60 / mn):
+                pk = None
             a = acc.get(sid)
             if a is None:
                 a = acc[sid] = [[None, None, None] for _ in range(len(pcols) + 1)]
@@ -117,6 +129,15 @@ def _rows():
             if sid not in top_game or h > top_game[sid][1]:
                 top_game[sid] = (g, h)
         first_day = c.execute("SELECT MIN(day) FROM sc_chstats").fetchone()[0]
+        bad = set()
+        if c.execute("SELECT 1 FROM sqlite_master WHERE name='ch_profile'").fetchone():
+            cols = [r[1] for r in c.execute("PRAGMA table_info(ch_profile)")]
+            if "followers" in cols:
+                for sid, f, gone in _tuples(c, "SELECT sid, followers, COALESCE(gone,0) FROM ch_profile"):
+                    if gone:
+                        bad.add(sid)          # Twitch no longer has it: banned or deleted
+                    elif f is not None and _viewbot(f, (pkp.get(sid) or {}).get("30d"), (avp.get(sid) or {}).get("30d")):
+                        bad.add(sid)
         chans = {r["sid"]: dict(r) for r in c.execute(
             "SELECT sid, platform, name, logo, url, country, COALESCE(india,0) india, game, topic, ytcat FROM sc_channels")}
     day1 = ytextra._latest_gains()
@@ -170,6 +191,8 @@ def _rows():
         if size is None and not live:
             continue
         top = (pkp.get(sid) or {}).get("all") or 0
+        if sid in bad:
+            continue                          # banned / deleted, or live viewers far above its followers (viewbots)
         if top < 10:                          # never streamed live to 10+ viewers on our records: not ranked. The
                                               # rankings are of streamers only (owner, 23 Nov: Short Malouniya, an
                                               # uploader with no live streams, was #2 in India's YouTube Gaming).

@@ -14,9 +14,11 @@ import time
 
 from tracker import store
 
-SCHEMA = "CREATE TABLE IF NOT EXISTS ch_profile (sid TEXT PRIMARY KEY, bio TEXT, links TEXT, checked INTEGER)"
+SCHEMA = ("CREATE TABLE IF NOT EXISTS ch_profile (sid TEXT PRIMARY KEY, bio TEXT, links TEXT, checked INTEGER, "
+          "followers INTEGER, gone INTEGER)")
 EVERY = 7 * 86400
 _P = {}                   # sid -> (bio, links dict)
+_F = {}                   # sid -> (followers, gone)
 _L = threading.Lock()
 
 
@@ -32,32 +34,46 @@ def links(sid: str) -> dict:
 
 def _db():
     with store._lock:
-        store.main().execute(SCHEMA)
-        store.main().commit()
+        m = store.main()
+        m.execute(SCHEMA)
+        have = [r[1] for r in m.execute("PRAGMA table_info(ch_profile)")]
+        for col in ("followers", "gone"):
+            if col not in have:
+                m.execute(f"ALTER TABLE ch_profile ADD COLUMN {col} INTEGER")
+        m.commit()
 
 
 def load():
     try:
         _db()
         with store.reading():
-            rows = store.conn().execute("SELECT sid, bio, links FROM ch_profile").fetchall()
+            rows = store.conn().execute("SELECT sid, bio, links, followers, COALESCE(gone,0) FROM ch_profile").fetchall()
         with _L:
-            for sid, b, l in rows:
+            for sid, b, l, f, gone in rows:
                 try:
                     _P[sid] = (b or "", json.loads(l or "{}"))
                 except ValueError:
                     _P[sid] = (b or "", {})
+                _F[sid] = (f, gone)
     except Exception as e:
         print(f"Profiles load: {str(e)[:100]}")
 
 
 def _twitch(logins: list) -> dict:
+    """sid -> (bio, links, followers, gone). A login Twitch no longer returns is banned or deleted (gone)."""
     from tracker import platforms
     out = {}
     for i in range(0, len(logins), 100):
-        j = platforms._get("twitch", "https://api.twitch.tv/helix/users", [("login", x) for x in logins[i:i + 100]])
+        part = logins[i:i + 100]
+        j = platforms._get("twitch", "https://api.twitch.tv/helix/users", [("login", x) for x in part])
+        seen = set()
         for u in j.get("data") or []:
-            out["twitch:" + u["login"].lower()] = (u.get("description") or "", {})
+            lg = u["login"].lower()
+            seen.add(lg)
+            out["twitch:" + lg] = (u.get("description") or "", {}, platforms.twitch_followers(u.get("id")), 0)
+        for lg in part:
+            if lg.lower() not in seen:
+                out["twitch:" + lg.lower()] = ("", {}, None, 1)
     return out
 
 
@@ -68,15 +84,17 @@ def _kick(slugs: list) -> dict:
         try:
             j = platforms._get("kick", "https://api.kick.com/public/v1/channels", [("slug", x) for x in slugs[i:i + 50]])
             for c in j.get("data") or []:
-                out["kick:" + (c.get("slug") or "").lower()] = (c.get("channel_description") or "", {})
+                out["kick:" + (c.get("slug") or "").lower()] = (c.get("channel_description") or "", {}, None, 0)
         except Exception as e:
             print(f"Kick profiles: {str(e)[:100]}")
-    for s in slugs:                                   # kick.com's own JSON: the bio and social handles
-        u = (ytextra.kick_info(s) or {}).get("user") or {}
+    for s in slugs:                                   # kick.com's own JSON: bio, social handles, followers
+        ki = ytextra.kick_info(s) or {}
+        u = ki.get("user") or {}
         if u:
-            b0, _ = out.get("kick:" + s, ("", {}))
+            b0 = out.get("kick:" + s, ("", {}, None, 0))[0]
             ln = {k: u.get(k) for k in ("instagram", "twitter", "youtube", "tiktok", "facebook", "discord") if u.get(k)}
-            out["kick:" + s] = (" ".join(x for x in (b0, u.get("bio") or "") if x), ln)
+            f = ki.get("followers_count") or ki.get("followersCount")
+            out["kick:" + s] = (" ".join(x for x in (b0, u.get("bio") or "") if x), ln, int(f) if f else None, 0)
     return out
 
 
@@ -90,13 +108,24 @@ def refresh(sids: list):
         print(f"Twitch profiles: {str(e)[:100]}")
     got.update(_kick(kk))
     now = int(time.time())
-    rows = [(sid, got.get(sid, ("", {}))[0], json.dumps(got.get(sid, ("", {}))[1]), now) for sid in sids]
+    rows = []
+    for sid in sids:
+        b, l, f, gone = got.get(sid, ("", {}, None, 0))
+        rows.append((sid, b, json.dumps(l), now, f, gone))
     with _L:
-        for sid, b, l, _ in rows:
+        for sid, b, l, _, f, gone in rows:
             _P[sid] = (b, json.loads(l))
-    store.write_slices("INSERT INTO ch_profile VALUES (?,?,?,?) ON CONFLICT(sid) DO UPDATE SET bio=excluded.bio, "
-                       "links=excluded.links, checked=excluded.checked", rows, n=200)
+            _F[sid] = (f, gone)
+    store.write_slices("INSERT INTO ch_profile (sid, bio, links, checked, followers, gone) VALUES (?,?,?,?,?,?) "
+                       "ON CONFLICT(sid) DO UPDATE SET bio=excluded.bio, links=excluded.links, checked=excluded.checked, "
+                       "followers=COALESCE(excluded.followers, ch_profile.followers), gone=excluded.gone", rows, n=200)
     return len(got)
+
+
+def followers(sid: str):
+    """(followers or None, gone 0/1)."""
+    with _L:
+        return _F.get(sid, (None, 0))
 
 
 def due(limit: int = 400) -> list:
@@ -104,7 +133,8 @@ def due(limit: int = 400) -> list:
     from tracker import scene
     with store.reading():
         c = store.conn()
-        checked = dict(c.execute("SELECT sid, checked FROM ch_profile").fetchall())
+        checked = {sid: (t if f is not None or g else min(t or 0, time.time() - EVERY + 6 * 3600))   # no follower count yet:
+                   for sid, t, f, g in c.execute("SELECT sid, checked, followers, COALESCE(gone,0) FROM ch_profile")}   # retry in 6 h
         flagged = [r[0] for r in c.execute("SELECT sid FROM sc_channels WHERE platform IN ('kick','twitch') AND india=1 "
                                            "AND last_live > ?", (time.time() - 30 * 86400,))]
     with scene._lock:
