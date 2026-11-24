@@ -54,7 +54,7 @@ assert ch["7d"]["hours"] == 16.1 and ch["today"]["hours"] == 2.0 and ch["all"]["
 # compare(): only the video list is stubbed (the channel page is no longer read: 24 Nov, 81 s for three channels)
 vid = lambda days, v, live=0: {"ts": time.time() - days * 86400, "views": v, "live": live, "likes": None, "comments": None}
 VIDS = {"yt:A": [vid(1, 100), vid(3, 300, 1), vid(9, 1000), vid(12, 2000, 1)], "twitch:t": [vid(2, 50, 1), vid(9, 70, 1)], "twitch:n": []}
-yx.channel_videos = lambda sid: VIDS.get(sid, [])
+yx.channel_videos = lambda sid, **k: VIDS.get(sid, [])
 yx.history_loading = lambda sid: False
 from tracker import ranks
 ranks._R.update(at=time.time(), rows={
@@ -74,18 +74,25 @@ assert "count" not in T["prev"]                                           # Twit
 L = T["live"]
 assert L["peak"] == 400 and L["days"] == 8 and L["dpeak"] == 388 and L["dhw"] == 389 and L["dhours"] == 2.0, L   # 7x400 + 300 over 8 days
 assert T["prev"]["peak"] == 300 and T["prev"]["hours"] == 12.0 and T["prev"]["days"] == 6 and T["prev"]["dpeak"] == 300
-assert T["rank"] == {"rank": 2, "where": "Just Chatting", "metric": "live_7d"}, T["rank"]   # not a game: its category; bots and other countries left out
-assert N["rank"] == {"rank": 1, "where": "BGMI", "metric": "live_7d"} and N["live"]["peak"] == 50
+assert T["rank"] == {"rank": 2, "where": "Just Chatting"}, T["rank"]   # not a game: its category; bots and other countries left out
+assert N["rank"] == {"rank": 1, "where": "BGMI"} and N["live"]["peak"] == 50
 assert N["prev"]["peak"] is None                                          # first seen 3 days ago: no earlier week
 assert T["live"]["peak_all"] == 400                                       # the 5-minute 90,000 spike never counts
 Jall = yx.compare(["yt:A"], "all")
 assert Jall["channels"][0]["prev"] == {} and Jall["done"] == 0 and Jall["channels"][0]["posts"]["count"] == 4
+# every range in one answer per channel (what the page loads)
+JA = yx.compare_all(["twitch:t", "yt:A"])
+assert set(JA["ranges"]) == {"1d", "3d", "7d", "30d", "90d", "6m", "1y", "all"} and JA["ranges"]["7d"]["days"] == 7
+B = JA["channels"][0]
+assert set(B["R"]) == set(JA["ranges"]) and B["R"]["7d"]["live"]["peak"] == 400 and B["R"]["7d"]["rank"]["rank"] == 2
+assert B["daily"][-1][0] == D(0) and B["daily"][-1][2] == 400 and all(d[1] > 0 for d in B["daily"])   # live days only
+assert JA["channels"][1]["gains"][-1][0] == D(0)
 J1 = yx.compare(["twitch:t"], "1d")
 assert J1["days"] == 1 and 1 <= J1["done"] <= 2 and J1["channels"][0]["live"]["peak"] == 400
 
 from tracker import comparepage
 h = comparepage.build_html("in")
-for k in ("['1d','1D']", "['3d','3D']", "['7d','7D']", "makeCard", "id=\"share\"", "id=\"mfmt\"", "const chg=", "PEAK PER LIVE DAY", "prefetch"):
+for k in ("['1d','1D']", "['3d','3D']", "['7d','7D']", "makeCard", "id=\"share\"", "id=\"mfmt\"", "const chg=", "PEAK PER LIVE DAY", "ranges=all", "class=\"grip\"", "RUNNING TOTAL"):
     assert k in h, k
 assert "__" not in h.replace("__name__", "")
 print("COMPARE OK")

@@ -1104,6 +1104,8 @@ def api_compare():
     from tracker import ytextra
     re_ = __import__("re")
     sids = [x for x in (request.args.get("c") or "").split(",") if re_.fullmatch(SID_RX, x)][:4]
+    if request.args.get("ranges") == "all":       # every range at once, per channel: the page switches range instantly
+        return _memo(f"/api/compare-all:{','.join(sids)}", 20, _jdump(lambda: ytextra.compare_all(sids)), "application/json")
     rng = request.args.get("range", "90d") if request.args.get("range") in ytextra.RANGES else "90d"
     return _memo(f"/api/compare:{','.join(sids)}:{rng}", 30, _jdump(lambda: ytextra.compare(sids, rng)), "application/json")
 

@@ -1505,7 +1505,7 @@ def _refresh_videos(sid: str, full: bool, since_ts: float = None):
         _VBUSY.discard(sid)
 
 
-def channel_videos(sid: str, force: bool = False) -> list:
+def channel_videos(sid: str, force: bool = False, wait: bool = True) -> list:
     """Every stored video / Short / past stream of the channel. The first visit fetches the whole history (YouTube with
     YOUTUBE_API_KEY: up to 3,000 videos, exact; without it: what the channel tabs show, dates approximate). After that
     the page is served from the database at once, while the last 60 days are refreshed in the background every 6 hours
@@ -1517,7 +1517,15 @@ def channel_videos(sid: str, force: bool = False) -> list:
     elif not m.get("full"):
         # first visit: the last 60 days now (a second or two), the whole history in the background
         if not m.get("recent") and sid not in _VBUSY:
-            _refresh_videos(sid, full=False)
+            if wait:
+                _refresh_videos(sid, full=False)
+            else:                                   # compare: answer now with what is stored; the page re-asks
+                def first(s_=sid):
+                    _refresh_videos(s_, full=False)
+                    _refresh_videos(s_, full=True)
+                threading.Thread(target=first, daemon=True).start()
+                with store.reading():
+                    return [dict(r) for r in _db().execute("SELECT * FROM yt_videos WHERE sid=? ORDER BY ts DESC", (sid,))]
         if sid not in _VBUSY:
             threading.Thread(target=_refresh_videos, args=(sid, True), daemon=True).start()
     elif now - m["full"] > 7 * 86400:
@@ -2037,6 +2045,30 @@ def linked(sid: str) -> list:
     return list(best.values())
 
 
+def one_per_creator(rows: list, metric: str) -> list:
+    """All-platform lists: one entry per creator. `rows` sorted best first; a later row of the same creator on another
+    platform (linked by hand, or the same name / Kick slug / Twitch login once spaces and symbols are dropped, 5+
+    characters) is folded into the first one as `also` (owner, 24 Nov: LoLzZz Gaming on YouTube and lolzzzgaming on
+    Kick were #2 and #3 of the BGMI list)."""
+    gid = {x: "link:" + min(g) for g in (store.kv_get("chan_links") or []) for x in g}
+    seen, out = {}, []
+    for r in rows:
+        sid, pl = r["sid"], r.get("platform") or sid.split(":", 1)[0]
+        ks = {_norm(r.get("name"))}
+        if sid.startswith(("kick:", "twitch:")):
+            ks.add(_norm(sid.split(":", 1)[1]))
+        ks = {k for k in ks if len(k) >= 5} | ({gid[sid]} if sid in gid else set())
+        hit = next((seen[k] for k in ks if k in seen), None)
+        if hit is not None and pl != hit["platform"] and pl not in {a["platform"] for a in hit["also"]}:
+            hit["also"].append({"sid": sid, "platform": pl, "name": r.get("name"), "value": r.get(metric), "hw": r.get("hw")})
+            continue
+        r = {**r, "platform": pl, "also": []}
+        out.append(r)
+        for k in ks:
+            seen.setdefault(k, r)
+    return out
+
+
 def link(a: str, b: str, on: bool = True) -> list:
     groups = [set(g) for g in (store.kv_get("chan_links") or [])]
     ga = next((g for g in groups if a in g), None)
@@ -2146,19 +2178,10 @@ def _peak_ok(pk, hw, mins) -> bool:
     return scene.peak_ok(pk, hw, mins)
 
 
-def _window(sid: str, n: int, back: int = 0) -> dict:
-    """Live numbers over the rankings' window for n days (today and the n IST days before it; n=0: all days), or with
-    back=1 the n whole days before that window: peak, average, hours watched, hours live, and the fair-comparison
-    numbers per live day (a day with 10+ minutes live), so a daily streamer and a twice-a-month one compare fairly."""
-    from tracker import scene
-    today = datetime.now(events.REPORT_TZ).date()
-    d0, d1 = (today - timedelta(days=n) if n else date(2000, 1, 1)), today
-    if back:
-        d1 = today - timedelta(days=n + 1)
-        d0 = d1 - timedelta(days=n - 1)
+def _days_of(sid: str) -> dict:
+    """{day: [peak (rankings' rule), hours watched, minutes live]} for every day the channel was live."""
     with store.reading():
-        rows = scene._db().execute("SELECT day, peak, hw, mins FROM sc_daily WHERE sid=? AND day>=? AND day<=?",
-                                   (sid, d0.strftime("%Y-%m-%d"), d1.strftime("%Y-%m-%d"))).fetchall()
+        rows = _db().execute("SELECT day, peak, hw, mins FROM sc_daily WHERE sid=?", (sid,)).fetchall()
     by = {}
     for day, pk, hw, mins in rows:
         z = by.setdefault(day, [0, 0.0, 0.0])
@@ -2166,14 +2189,32 @@ def _window(sid: str, n: int, back: int = 0) -> dict:
             z[0] = max(z[0], pk)
         z[1] += hw or 0
         z[2] += mins or 0
-    hw, mins = sum(z[1] for z in by.values()), sum(z[2] for z in by.values())
-    live = [z for z in by.values() if z[2] >= 10]
+    return by
+
+
+def _agg(by: dict, n: int, back: int = 0) -> dict:
+    """Live numbers over the rankings' window for n days (today and the n IST days before it; n=0: all days), or with
+    back=1 the n whole days before that window: peak, average, hours watched, hours live, and the fair-comparison
+    numbers per live day (a day with 10+ minutes live), so a daily streamer and a twice-a-month one compare fairly."""
+    today = datetime.now(events.REPORT_TZ).date()
+    d0, d1 = (today - timedelta(days=n) if n else date(2000, 1, 1)), today
+    if back:
+        d1 = today - timedelta(days=n + 1)
+        d0 = d1 - timedelta(days=n - 1)
+    a, b = d0.strftime("%Y-%m-%d"), d1.strftime("%Y-%m-%d")
+    zs = [z for d, z in by.items() if a <= d <= b]
+    hw, mins = sum(z[1] for z in zs), sum(z[2] for z in zs)
+    live = [z for z in zs if z[2] >= 10]
     nd = len(live)
     pks = [z[0] for z in live if z[0]]
-    return {"peak": max([z[0] for z in by.values()] or [0]), "hw": round(hw), "hours": round(mins / 60, 1),
+    return {"peak": max([z[0] for z in zs] or [0]), "hw": round(hw), "hours": round(mins / 60, 1),
             "avg": round(hw * 60 / mins) if mins else 0, "days": nd,
             "dpeak": round(sum(pks) / len(pks)) if pks else 0,                  # average of each live day's peak
             "dhw": round(hw / nd) if nd else 0, "dhours": round(mins / 60 / nd, 1) if nd else 0}
+
+
+def _window(sid: str, n: int, back: int = 0) -> dict:
+    return _agg(_days_of(sid), n, back)
 
 
 def _gain(G: list, youtube: bool, n: int, back: int = 0):
@@ -2199,50 +2240,67 @@ def _gain(G: list, youtube: bool, n: int, back: int = 0):
 
 PER = {"1d": "24h", "3d": "3d", "7d": "7d", "30d": "30d", "90d": "3m", "6m": "6m", "ytd": "ytd", "1y": "1y", "all": "all",
        "1w": "7d", "1m": "30d", "3m": "3m"}
+UI_RANGES = ("1d", "3d", "7d", "30d", "90d", "6m", "1y", "all")
 _RK = {}
 
 
-def _rank(sid: str, rng: str):
-    """The channel's place in the rankings page for the range: by hours watched, on its platform, in its country,
-    among channels streaming its game (gaming / esports), else in its category. {"rank": 1, "where": "BGMI"} or None.
-    The same lists as ranks.top(), without the page's extras (country / game lists, world ranks)."""
+def _ranks(sid: str) -> dict:
+    """The channel's place in the rankings page for each range: by hours watched, on its platform, in its country,
+    among channels streaming its game (gaming / esports), else in its category: {"7d": {"rank": 1, "where": "BGMI"}}.
+    The same lists as ranks.top(), without the page's extras (country / game lists, world ranks), all ranges in one
+    pass and kept 10 minutes per list."""
     from tracker import ranks, scene
     with ranks._lock:
         r = ranks._R["rows"].get(sid)
         at = ranks._R["at"]
     if not r:
-        return None
-    metric = "live_" + PER.get(rng, "30d")
+        return {}
     game = r.get("game") or ""
     if game and scene.section_of(game) not in ("gaming", "esports"):
         game = ""
     cat = "" if game else (r.get("category") or "")
     plat, ctry = r["platform"], r.get("country") or ""
-    key = (plat, metric, ctry, cat, game, at)
+    key = (plat, ctry, cat, game, at)
     hit = _RK.get(key)
     if not hit or time.time() - hit[0] > 600:
-        cand = []
+        ms = ["live_" + PER[g] for g in UI_RANGES]
+        cand = {m: [] for m in ms}
         if game:                                  # hours watched while streaming the game, as the rankings page counts
             gl = ranks.game_live(game)
             with ranks._lock:
                 R = ranks._R["rows"]
                 for s2, gv in gl.items():
-                    x, v = R.get(s2), gv.get(metric)
-                    if x and v and x["platform"] == plat and (not ctry or x["country"] == ctry):
-                        cand.append((v, s2, x.get("name")))
+                    x = R.get(s2)
+                    if x and x["platform"] == plat and (not ctry or x["country"] == ctry):
+                        for m in ms:
+                            if gv.get(m):
+                                cand[m].append((gv[m], s2, x.get("name")))
         else:
             with ranks._lock:
                 for x in ranks._R["rows"].values():
-                    if x["platform"] == plat and (not ctry or x["country"] == ctry) and (not cat or x["category"] == cat) \
-                            and ranks._keep(x, metric):
-                        cand.append((x[metric], x["sid"], x.get("name")))
-        cand.sort(key=lambda c: -c[0])
-        order = [s2 for v, s2, nm in cand if not scene.name_blocked(nm) and not scene.not_in_game(nm, game, s2)]
-        hit = _RK[key] = (time.time(), {s2: i + 1 for i, s2 in enumerate(order)})
+                    if x["platform"] == plat and (not ctry or x["country"] == ctry) and (not cat or x["category"] == cat):
+                        for m in ms:
+                            if x.get(m):
+                                cand[m].append((x[m], x["sid"], x.get("name")))
+        bad = {}
+
+        def ok(s2, nm):
+            if s2 not in bad:
+                bad[s2] = scene.name_blocked(nm) or scene.not_in_game(nm, game, s2)
+            return not bad[s2]
+        res = {}
+        for m, L in cand.items():
+            L.sort(key=lambda c: -c[0])
+            res[m] = {s2: i + 1 for i, s2 in enumerate(s2 for v, s2, nm in L if ok(s2, nm))}
+        hit = _RK[key] = (time.time(), res)
         for k in [k for k, v in list(_RK.items()) if time.time() - v[0] > 900]:
             _RK.pop(k, None)
-    n = hit[1].get(sid)
-    return {"rank": n, "where": game or cat or r.get("country_name") or "", "metric": metric} if n else None
+    where = game or cat or r.get("country_name") or ""
+    return {g: {"rank": hit[1]["live_" + PER[g]][sid], "where": where} for g in UI_RANGES if sid in hit[1]["live_" + PER[g]]}
+
+
+def _rank(sid: str, rng: str):
+    return _ranks(sid).get(rng)
 
 
 def _head(sid: str):
@@ -2272,78 +2330,133 @@ def _posts(vids: list, t0: float, t1: float = None) -> dict:
             "streams": len(lv), "savg": round(sum(lv) / len(lv)) if lv else None}
 
 
-def compare(sids: list, rng: str = "90d") -> dict:
-    """Side by side: lifetime counters, growth, posts and live numbers over the range (with fair per-live-day
-    averages), each with the same numbers for the range just before it (the arrows), the rank and charts. Reads only
-    what the page shows: no full channel page per channel (24 Nov: 9 s for three channels)."""
-    from tracker import profiles
+def _span(rng: str):
+    """(days, t0) of a range: days 0 = all time."""
     days = RANGES.get(rng, 90)
-    now = time.time()
     if days is None:                                            # year to date
         days = max(1, (datetime.now(events.REPORT_TZ).date() - date(datetime.now().year, 1, 1)).days + 1)
-    t0 = now - (days or 3650) * 86400
-    size = max(86400 / 4, (now - t0) / 14)                      # ~14 points whatever the range
-    out, missing, T = [], [], {}
-    tick = [time.time()]
+    return days, time.time() - (days or 3650) * 86400
+
+
+def _block(sid: str):
+    """Everything compare shows for one channel, for every range at once: its videos, readings and live days are
+    read once and sliced per range, so switching range or adding a channel costs nothing extra."""
+    from tracker import profiles
+    T, tick = {}, [time.time()]
 
     def lap(k):                                                 # where the time goes, logged when slow
         T[k] = T.get(k, 0) + time.time() - tick[0]
         tick[0] = time.time()
-    for sid in sids[:4]:
-        h = _head(sid)
-        if not h:
-            missing.append(sid)
-            continue
-        yt = h["platform"] == "youtube"
-        lap("head")
-        vids = channel_videos(sid)
-        lap("videos")
-        c0 = t0 if days else min([v["ts"] for v in vids if v["ts"]] or [now])     # all time: since its first video
+    h = _head(sid)
+    if not h:
+        return None
+    yt = h["platform"] == "youtube"
+    lap("head")
+    vids = channel_videos(sid, wait=False)
+    loading = history_loading(sid)
+    lap("videos")
+    VS = views_series(sid, 760)
+    G, snaps = VS["gains"], VS["snapshots"]
+    last = snaps[-1] if snaps else {}
+    if yt:
+        stats = {"subs": last.get("subs"), "views": last.get("views"), "videos": last.get("videos")} if last else \
+            channel_extra(sid).get("stats")                     # never read yet: fetches it once
+    else:
+        f = last.get("subs") if last.get("subs") is not None else profiles.followers(sid)[0]
+        stats = {"subs": f} if f is not None else None
+    lap("growth")
+    by = _days_of(sid)
+    lap("live")
+    rk = _ranks(sid)
+    lap("rank")
+    R = {}
+    for rng in UI_RANGES:
+        days, t0 = _span(rng)
+        c0 = t0 if days else min([v["ts"] for v in vids if v["ts"]] or [time.time()])   # all time: since its first video
+        size = max(86400 / 4, (time.time() - t0) / 14)          # ~14 points whatever the range
         b = {}
         for v in vids:
             if v["ts"] and v["ts"] >= t0:
-                k = int((v["ts"] - t0) // size)
-                z = b.setdefault(k, [0, 0])
+                z = b.setdefault(int((v["ts"] - t0) // size), [0, 0])
                 z[0] += v["views"] or 0
                 z[1] += 1
-        series = [[int(t0 + (k + .5) * size), round(z[0] / z[1])] for k, z in sorted(b.items())]
-        VS = views_series(sid, min(2 * days, 730) if days else 730)
-        G, snaps = VS["gains"], VS["snapshots"]
-        lap("growth")
-        last = snaps[-1] if snaps else {}
-        if yt:
-            stats = {"subs": last.get("subs"), "views": last.get("views"), "videos": last.get("videos")} if last else \
-                channel_extra(sid).get("stats")                     # never read yet: fetches it once
-        else:
-            f = last.get("subs") if last.get("subs") is not None else profiles.followers(sid)[0]
-            stats = {"subs": f} if f is not None else None
-        lap("stats")
-        live = _window(sid, days)
         prev = {}
         if days:                                                # the same range just before: for the arrows
             p0 = t0 - days * 86400
             fs = h["first_seen"]
-            pl = _window(sid, days, 1) if fs and fs <= p0 + 86400 else {}      # live numbers only if tracked all along
+            pl = _agg(by, days, 1) if fs and fs <= p0 + 86400 else {}       # live numbers only if tracked all along
             prev = {"growth": _gain(G, yt, days, 1), **{k: pl.get(k2) or None for k, k2 in (
                 ("peak", "peak"), ("lavg", "avg"), ("hw", "hw"), ("hours", "hours"), ("days", "days"), ("dpeak", "dpeak"),
                 ("dhw", "dhw"), ("dhours", "dhours"))}}
             if yt:                                              # YouTube's video list is complete; Twitch / Kick VODs expire
                 pp = _posts(vids, p0, t0)
                 prev.update({"count": pp["count"], "views": pp["views"], "avg": pp["avg"], "savg": pp["savg"]})
-        lap("live")
-        rk = _rank(sid, rng)
-        lap("rank")
-        lo = (datetime.now(events.REPORT_TZ).date() - timedelta(days=days or 730)).strftime("%Y-%m-%d")
-        out.append({"sid": sid, "name": h["name"], "logo": h["logo"], "platform": h["platform"], "url": h["url"],
-                    "country": h["country"], "stats": stats, "views": [g for g in G if g["day"] > lo],
-                    "growth": _gain(G, yt, days) if days else None, "posts": _posts(vids, c0),
-                    "live": {**live, "peak_all": (_window(sid, 0) if days else live)["peak"]}, "prev": prev,
-                    "rank": rk, "series": series, "loading": history_loading(sid)})
-    if sum(T.values()) > 3:
-        print("Slow compare " + rng + ": " + ", ".join(f"{k} {v:.1f}s" for k, v in T.items()))
+        R[rng] = {"growth": _gain(G, yt, days) if days else None, "posts": _posts(vids, c0), "live": _agg(by, days),
+                  "prev": prev, "rank": rk.get(rng),
+                  "series": [[int(t0 + (k + .5) * size), round(z[0] / z[1])] for k, z in sorted(b.items())]}
+    lap("ranges")
+    if sum(T.values()) > 2:
+        print(f"Slow compare {sid}: " + ", ".join(f"{k} {v:.1f}s" for k, v in T.items()))
+    return {"sid": sid, "name": h["name"], "logo": h["logo"], "platform": h["platform"], "url": h["url"], "country": h["country"],
+            "stats": stats, "peak_all": _agg(by, 0)["peak"], "loading": loading, "R": R,
+            "gains": [[g["day"], g["views"], g["subs"]] for g in G],                    # charts: per day
+            "daily": sorted([d, round(z[1]), z[0]] for d, z in by.items() if z[2] >= 10),  # live days: hours watched, peak
+            "took": {k: round(v, 2) for k, v in T.items()}}
+
+
+_CB = {}                                                        # sid -> (time, block)
+
+
+def blocks(sids: list) -> list:
+    """Blocks of up to four channels, read in parallel and kept 2 minutes (20 s while the video history loads)."""
+    from concurrent.futures import ThreadPoolExecutor
+    todo = [s for s in sids if not (_CB.get(s) and time.time() - _CB[s][0] < (20 if (_CB[s][1] or {}).get("loading") else 120))]
+
+    def one(s):
+        try:
+            return s, _block(s)
+        except Exception as e:
+            print(f"Compare {s}: {str(e)[:150]}")
+            return s, None
+    if todo:
+        with ThreadPoolExecutor(max_workers=min(4, len(todo))) as ex:
+            for s, b in ex.map(one, todo):
+                _CB[s] = (time.time(), b)
+    for s in [s for s, v in list(_CB.items()) if time.time() - v[0] > 600]:
+        _CB.pop(s, None)
+    return [(_CB.get(s) or (0, None))[1] for s in sids]
+
+
+def ranges_meta() -> dict:
+    """Per range: days, since, and how many days the current numbers cover (today counts in part): live windows are
+    today plus n whole days, growth runs from the reading n days ago to now (n - 1 whole days plus today's part)."""
     ist = datetime.now(events.REPORT_TZ)
     f = (ist.hour * 3600 + ist.minute * 60 + ist.second) / 86400
-    # days the current numbers cover, to compare totals with the whole range before: live windows are today (in part)
-    # plus n whole days, growth runs from the reading n days ago to now (n - 1 whole days plus today's part)
-    return {"range": rng, "days": days, "done": round(days + f, 3) if days else 0, "done_g": round(days - 1 + f, 3) if days else 0,
-            "since": int(t0), "channels": out, "missing": missing}
+    out = {}
+    for rng in UI_RANGES:
+        days, t0 = _span(rng)
+        out[rng] = {"days": days, "since": int(t0), "done": round(days + f, 3) if days else 0,
+                    "done_g": round(days - 1 + f, 3) if days else 0}
+    return out
+
+
+def compare_all(sids: list) -> dict:
+    """Every range for up to four channels; the page slices it per range (/api/compare?c=...&ranges=all)."""
+    B = blocks(sids[:4])
+    return {"ranges": ranges_meta(), "channels": [b for b in B if b], "missing": [s for s, b in zip(sids[:4], B) if not b]}
+
+
+def compare(sids: list, rng: str = "90d") -> dict:
+    """One range, the older answer's shape: lifetime counters, growth, posts and live numbers (with per-live-day
+    averages), the same numbers for the range just before (arrows), the rank and charts."""
+    rng = rng if rng in UI_RANGES else "90d"
+    J = compare_all(sids)
+    m = J["ranges"][rng]
+    lo = (datetime.now(events.REPORT_TZ).date() - timedelta(days=m["days"] or 730)).strftime("%Y-%m-%d")
+    out = []
+    for b in J["channels"]:
+        x = b["R"][rng]
+        out.append({**{k: b[k] for k in ("sid", "name", "logo", "platform", "url", "country", "stats", "loading")},
+                    **x, "live": {**x["live"], "peak_all": b["peak_all"]},
+                    "views": [{"day": d, "views": v, "subs": s} for d, v, s in b["gains"] if d > lo]})
+    return {"range": rng, **m, "channels": out, "missing": J["missing"]}
