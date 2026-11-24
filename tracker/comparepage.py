@@ -64,26 +64,42 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const fmt=n=>{if(n==null)return '-';n=+n||0;return n>=1e9?(n/1e9).toFixed(2)+'B':n>=1e7?(n/1e6).toFixed(1)+'M':n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e4?(n/1e3).toFixed(1)+'K':Math.round(n).toLocaleString('en-IN')};
 const ini=s=>esc(String(s||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase()||'?');
 const Q=new URLSearchParams(location.search);let C=(Q.get('c')||'').split(',').filter(Boolean).slice(0,4),RNG=Q.get('range')||'90d',J=null;
+const KEEP={};   // answers already loaded, per channels + range: switching range is instant
+const getC=async(rg,fresh)=>{const k=C.join(',')+'|'+rg;if(!fresh&&KEEP[k])return KEEP[k];const j=await (await fetch('/api/compare?c='+encodeURIComponent(C.join(','))+'&range='+rg)).json();
+ if(!j.channels.some(c=>c.loading))KEEP[k]=j;return j};
+let PRE='';async function prefetch(){const k=C.join(',');if(PRE===k)return;PRE=k;for(const [rg] of RANGES){if(PRE!==k)return;try{await getC(rg)}catch(e){}}}
 const RANGES=[['1d','1D'],['3d','3D'],['7d','7D'],['30d','30D'],['90d','90D'],['6m','6M'],['1y','1Y'],['all','ALL']];
 const RL={'1d':'24 hours','3d':'3 days','7d':'7 days','30d':'30 days','90d':'90 days','6m':'6 months','1y':'1 year','all':'all time'};
 const PR={'1d':'the day before','3d':'the 3 days before','7d':'the 7 days before','30d':'the 30 days before','90d':'the 90 days before','6m':'the 6 months before','1y':'the year before'};
 // rows of the table (and the share card: `card` is its label there, in that order)
+const hrs=v=>v==null?'-':fmt(v)+'h';
+// rows of the table, in this order; `card` = [place on the share card, its label there]. low: smaller is better (rank).
+// Per live day: the range's totals divided by the days the channel went live (10+ minutes), so a daily streamer and
+// one who streams twice a month compare fairly (owner, 24 Nov).
 const ROWS=R=>[
- {lab:'Subscribers / followers',card:[1,'FOLLOWERS / SUBS'],f:c=>c.stats?c.stats.subs:null,fm:fmt},
+ {lab:`Rank in its game, by hours watched, ${R}`,card:[1,'RANK'],f:c=>c.rank?c.rank.rank:null,fm:(v,c)=>v==null?'-':'#'+v+(c&&c.rank&&c.rank.where?' '+esc(c.rank.where):''),low:1},
+ {lab:'Subscribers / followers',card:[11,'FOLLOWERS / SUBS'],f:c=>c.stats?c.stats.subs:null,fm:fmt},
  {lab:'Lifetime views',f:c=>c.stats?c.stats.views:null,fm:fmt},
  {lab:'Videos, lifetime',f:c=>c.stats?c.stats.videos:null,fm:fmt},
- {lab:`Growth, ${R} (views gained on YouTube, followers on Twitch / Kick)`,card:[2,'GROWTH'],u:1,f:c=>c.growth,fm:v=>v==null?'-':'+'+fmt(v),p:'growth',k:'pace',g:1},
- {lab:`Posts, ${R}`,card:[8,'POSTS'],f:c=>c.posts.count,fm:fmt,p:'count',k:'count'},
+ {lab:`Growth, ${R} (views gained on YouTube, followers on Twitch / Kick)`,card:[5,'GROWTH'],u:1,f:c=>c.growth,fm:v=>v==null?'-':'+'+fmt(v),p:'growth',k:'pace',g:1},
+ {lab:`Peak live viewers, ${R}`,card:[2,'PEAK VIEWERS'],f:c=>c.live.peak||null,fm:fmt,p:'peak',k:'peak'},
+ {lab:`Average live viewers, ${R}`,card:[3,'AVG LIVE VIEWERS'],f:c=>c.live.avg||null,fm:fmt,p:'lavg',k:'rate'},
+ {lab:`Days live, ${R}`,card:[6,'DAYS LIVE'],f:c=>c.live.days||null,fm:fmt,p:'days',k:'pace'},
+ {lab:'Average peak per live day',card:[7,'PEAK PER LIVE DAY'],f:c=>c.live.dpeak||null,fm:fmt,p:'dpeak',k:'rate'},
+ {lab:'Hours watched per live day',card:[8,'WATCH HRS PER LIVE DAY'],f:c=>c.live.dhw||null,fm:hrs,p:'dhw',k:'rate'},
+ {lab:'Hours streamed per live day',f:c=>c.live.dhours||null,fm:v=>v==null?'-':v+'h',p:'dhours',k:'rate'},
+ {lab:`Hours watched live, ${R}`,card:[10,'HOURS WATCHED'],f:c=>c.live.hw||null,fm:hrs,p:'hw',k:'pace'},
+ {lab:`Hours streamed, ${R}`,card:[12,'HOURS STREAMED'],f:c=>c.live.hours||null,fm:v=>v==null?'-':v+'h',p:'hours',k:'pace'},
+ {lab:`Posts, ${R}`,f:c=>c.posts.count,fm:fmt,p:'count',k:'count'},
  {lab:'Views on those posts',f:c=>c.posts.views,fm:fmt,p:'views',k:'postv'},
- {lab:'Average per post',card:[7,'AVG VIEWS / POST'],f:c=>c.posts.avg,fm:fmt,p:'avg',k:'postv'},
- {lab:'Median per post',f:c=>c.posts.median,fm:fmt},
+ {lab:'Average views per post',card:[4,'AVG VIEWS / VIDEO'],f:c=>c.posts.avg,fm:fmt,p:'avg',k:'postv'},
+ {lab:'Average views per past stream',card:[9,'AVG VIEWS / STREAM'],f:c=>c.posts.savg,fm:fmt,p:'savg',k:'postv'},
+ {lab:'Median views per post',f:c=>c.posts.median,fm:fmt},
  {lab:'Engagement',f:c=>c.posts.engagement,fm:v=>v==null?'-':v+'%'},
  {lab:'Posts per week',f:c=>c.posts.per_week,fm:v=>v==null?'-':v},
- {lab:`Peak live viewers, ${R}`,card:[3,'PEAK VIEWERS'],f:c=>c.live.peak||null,fm:fmt,p:'peak',k:'peak'},
- {lab:`Average live viewers, ${R}`,card:[4,'AVG VIEWERS'],f:c=>c.live.avg||null,fm:fmt,p:'lavg',k:'rate'},
- {lab:`Hours watched live, ${R}`,card:[5,'HOURS WATCHED'],f:c=>c.live.hw||null,fm:v=>v==null?'-':fmt(v)+'h',p:'hw',k:'pace'},
- {lab:`Hours streamed, ${R}`,card:[6,'HOURS STREAMED'],f:c=>c.live.hours||null,fm:v=>v==null?'-':v+'h',p:'hours',k:'pace'},
  {lab:'Biggest live peak ever (this site)',f:c=>c.live.peak_all||null,fm:fmt}];
+// the best value of a row (green): the highest, or the lowest rank
+const best=(r,vals)=>{const v=vals.filter(x=>x!=null).map(Number);return v.length?(r.low?Math.min(...v):Math.max(...v)):null};
 // % change against the same length of time just before (the arrows). Kept honest: totals are scaled to the days they
 // actually cover (today counts in part) before comparing, and not compared when that is under a day; 1D peaks aren't
 // compared (2 calendar days against 1); views on recent posts are still growing, so per-post views are compared from
@@ -97,8 +113,10 @@ function url(){return location.pathname+'?'+new URLSearchParams({c:C.join(','),r
 async function load(){history.replaceState(null,'',url());
  document.getElementById('rng').innerHTML=RANGES.map(([v,l])=>`<button data-v="${v}" class="${v===RNG?'on':''}">${l}</button>`).join('');
  if(!C.length){J=null;pick();document.getElementById('out').innerHTML='<div class="empty">Add a channel to start. Tip: open any channel page and press COMPARE.</div>';return}
- try{J=await (await fetch('/api/compare?c='+encodeURIComponent(C.join(','))+'&range='+RNG)).json()}catch(e){return}
- pick();render();document.getElementById('share').style.display=J.channels.length?'':'none';if(J.channels.some(c=>c.loading))setTimeout(load,7000)}
+ const want=C.join(',')+'|'+RNG;if(!KEEP[want])document.getElementById('out').style.opacity=.5;
+ try{const j=await getC(RNG,load.again);if(C.join(',')+'|'+RNG!==want)return;J=j}catch(e){return}finally{document.getElementById('out').style.opacity=''}
+ pick();render();document.getElementById('share').style.display=J.channels.length?'':'none';
+ load.again=J.channels.some(c=>c.loading);if(load.again)setTimeout(load,7000);else setTimeout(prefetch,800)}
 function pick(){const L=J?J.channels:[];
  document.getElementById('pick').innerHTML=C.map((sid,i)=>{const c=L.find(x=>x.sid===sid)||{name:J&&(J.missing||[]).includes(sid)?'Not found: '+sid.split(':')[1]:'Loading...'};return `<span class="chip" style="border-left-color:${PAL[i]}">${c.logo?`<img src="${esc(c.logo)}" alt="" referrerpolicy="no-referrer">`:`<span class="ph">${ini(c.name)}</span>`}<a href="${RP}/ch/${encodeURIComponent(sid)}" style="text-decoration:none">${esc(c.name)}</a> <small style="color:var(--muted)">${NAMES[c.platform]||''}</small><button data-rm="${esc(sid)}" aria-label="Remove">&times;</button></span>`}).join('')+
   (C.length<4?`<div class="add"><input id="q" placeholder="Add a channel: search YouTube, Twitch, Kick" autocomplete="off"><div class="res" id="res"></div></div>`:'');
@@ -114,11 +132,10 @@ function render(){const L=J.channels;if(!L.length){document.getElementById('out'
  const R_=RL[RNG]||RNG;
  const rows=ROWS(R_);
  const head=`<tr><th class="l"></th>${L.map((c,i)=>`<th><span class="sw" style="background:${PAL[C.indexOf(c.sid)]}"></span>${esc(c.name)}<br><small style="color:var(--muted);font-weight:400">${NAMES[c.platform]||''}${c.country?' · '+esc(c.country):''}</small></th>`).join('')}</tr>`;
- const body=rows.map(r=>{const vals=L.map(r.f);if(vals.every(v=>v==null))return '';const mx=Math.max(...vals.filter(v=>v!=null).map(Number));
-  const nw=r.u&&mixed(L);return `<tr class="ml"><td colspan="${L.length}">${r.lab}</td></tr><tr><td class="l">${r.lab}</td>${vals.map((v,i)=>`<td class="${!nw&&v!=null&&L.length>1&&+v===mx&&mx>0?'win':''}">${r.fm(v)}${arrow(chg(L[i],r,v))}</td>`).join('')}</tr>`}).join('');
- const rk=L.map(c=>{const r=(c.ranks||[]).filter(r=>r.metric==='size').sort((a,b)=>a.rank/a.of-b.rank/b.of)[0];return r?`#${r.rank} ${esc(r.where)} <small style="color:var(--muted)">of ${r.of}</small>`:'-'});
- document.getElementById('out').innerHTML=`<div class="card"><table>${head}${body}<tr class="ml"><td colspan="${L.length}">Best rank (size)</td></tr><tr><td class="l">Best rank (size)</td>${rk.map(x=>`<td style="font-size:14px">${x}</td>`).join('')}</tr></table>
-  <div class="cap" style="margin-top:8px">${J.days?`Live numbers use the rankings' window: today plus the ${J.days} whole day${J.days>1?'s':''} before (IST). Arrows: change against ${PR[RNG]||'the range before'}, with totals scaled to the days they cover since today isn't over. Views on new posts are still growing, so per-post arrows start at 90D. No arrow where the earlier range wasn't fully recorded. `:''}Posts = videos, Shorts and past streams posted in the range (YouTube) or past broadcasts (Twitch, Kick); their views are totals so far. Live numbers are recorded by this site. Engagement = (likes + comments) / views.</div></div>
+ const body=rows.map(r=>{const vals=L.map(r.f);if(vals.every(v=>v==null))return '';const mx=best(r,vals);
+  const nw=r.u&&mixed(L);return `<tr class="ml"><td colspan="${L.length}">${r.lab}</td></tr><tr><td class="l">${r.lab}</td>${vals.map((v,i)=>`<td class="${!nw&&v!=null&&L.length>1&&+v===mx&&(r.low||mx>0)?'win':''}">${r.fm(v,L[i])}${arrow(chg(L[i],r,v))}</td>`).join('')}</tr>`}).join('');
+ document.getElementById('out').innerHTML=`<div class="card"><table>${head}${body}</table>
+  <div class="cap" style="margin-top:8px">${J.days?`Live numbers use the rankings' window: today plus the ${J.days} whole day${J.days>1?'s':''} before (IST). Arrows: change against ${PR[RNG]||'the range before'}, with totals scaled to the days they cover since today isn't over. Views on new posts are still growing, so per-post arrows start at 90D. No arrow where the earlier range wasn't fully recorded. `:''}Rank: place in this site's rankings for the range (hours watched, same platform and country, channels streaming that game). Per live day: totals divided by the days the channel went live (10+ minutes), so a daily streamer and one who streams twice a month compare fairly. Posts = videos, Shorts and past streams posted in the range (YouTube) or past broadcasts (Twitch, Kick); their views are totals so far. Live numbers are recorded by this site. Engagement = (likes + comments) / views.</div></div>
   <div class="card"><h2>Average views per post</h2><div class="cap">Each point is the average over the posts in that slice of the range.</div><canvas id="c1"></canvas><div class="leg" id="l1"></div></div>
   <div class="card"><h2>${L.every(c=>c.platform==='youtube')?'Channel views per day':'Growth per day'}</h2><div class="cap">YouTube: channel views gained per day. Twitch / Kick: followers gained per day. Recorded daily by this site, so it starts when a channel is first tracked.</div><canvas id="c2"></canvas><div class="leg" id="l2"></div></div>`;
  lines('c1','l1',L.map(c=>({c,pts:c.series.map(p=>[p[0],p[1]])})),J.since,Date.now()/1000);
@@ -163,19 +180,23 @@ async function makeCard(logos){const ST=FMT==='story',H=ST?1920:1350,L=J.channel
  // the chart: growth per day when every channel counts the same thing, else average views per post
  const same=L.every(s=>s.platform==='youtube')||L.every(s=>s.platform!=='youtube');
  const ser=[[same?'GROWTH PER DAY'+(L[0].platform==='youtube'?' (VIEWS GAINED)':' (FOLLOWERS GAINED)'):'',s=>gpts(s)],['AVERAGE VIEWS PER POST',s=>s.series.map(p=>[p[0],p[1]])]].filter(z=>z[0]&&L.reduce((a,s)=>a+z[1](s).length,0)>=3)[0];
- const CHH=ST?300:230,foot=H-(ST?264:58),cTop=ser?foot-CHH-96:foot;
+ const CHH=ST?240:180,foot=H-(ST?264:58),cTop=ser?foot-CHH-96:foot;
  // metric rows
- const RH=ST?96:78,ry=hy+2*r0+78+RH/2,max=Math.max(1,Math.floor((cTop-ry)/RH+.5)),RS=ROWS('').filter(r=>r.card&&L.some(s=>r.f(s)!=null)).sort((a,b)=>a.card[0]-b.card[0]).slice(0,Math.min(max,8));
- RS.forEach((r,k)=>{const y=ry+k*RH,vals=L.map(r.f),mx=Math.max(...vals.filter(v=>v!=null).map(Number));
-  x.fillStyle='#1d1d2b';x.fillRect(72,y-RH/2-2,936,1);
+ const RH=ST?88:70,ry=hy+2*r0+78+RH/2,max=Math.max(1,Math.floor((cTop-ry)/RH+.5)),RS=ROWS('').filter(r=>r.card&&L.some(s=>r.f(s)!=null)).sort((a,b)=>a.card[0]-b.card[0]).slice(0,Math.min(max,8));
+ const MEDAL=['#ffd23f','#d9dde8','#ff9f5a'];
+ RS.forEach((r,k)=>{const y=ry+k*RH,vals=L.map(r.f),mx=best(r,vals);
+  x.fillStyle='#1d1d2b';x.fillRect(72,y-RH/2,936,1);const AY=ST?28:24;
   const nw=r.u&&mixed(L),lab=r.u&&!nw?(L[0].platform==='youtube'?'VIEWS GAINED':'FOLLOWERS GAINED'):r.card[1];
   x.fillStyle='#a9a8be';x.fillText(shrink(lab,LW-16,24,'700 #px "Barlow Condensed",sans-serif'),72,y+(nw?0:8));
   if(nw){x.fillStyle='#8d8ca3';x.fillText(shrink('VIEWS (YT) / FOLLOWERS',LW-16,18,'600 #px "Barlow Condensed",sans-serif'),72,y+24)}
-  vals.forEach((v,i)=>{const cx=GX+CW*(i+.5),win=!nw&&n>1&&v!=null&&+v===mx&&mx>0,d=chg(L[i],r,v);
-   x.textAlign='center';x.fillStyle=v==null?'#55546a':win?'#b6f23a':'#fff';x.font=`700 ${ST?44:38}px "Barlow Condensed",sans-serif`;
-   x.fillText(fit(r.fm(v),CW-12),cx,y+(d==null?12:4));
-   if(d!=null){x.font='700 20px "Barlow Condensed",sans-serif';x.fillStyle=d>0?'#3ddc84':d<0?'#ff4d5e':'#8d8ca3';x.fillText(d===0?'= SAME':(d>0?'▲ ':'▼ ')+Math.abs(d)+'%',cx,y+28)}
-   if(!nw&&v!=null&&mx>0){const bw=(CW-40)*Math.max(0,+v)/mx;x.globalAlpha=.55;x.fillStyle=col(L[i]);x.fillRect(cx-(CW-40)/2,y+RH/2-8,bw,5);x.globalAlpha=1}
+  vals.forEach((v,i)=>{const cx=GX+CW*(i+.5),win=!nw&&n>1&&v!=null&&+v===mx&&(r.low||mx>0),d=chg(L[i],r,v);
+   if(r.low){x.textAlign='center';x.fillStyle=v==null?'#55546a':MEDAL[v-1]||'#fff';x.font=`700 ${ST?46:40}px "Barlow Condensed",sans-serif`;
+    x.fillText(v==null?'-':'#'+v,cx,y+2);if(v!=null&&L[i].rank.where){x.fillStyle='#a9a8be';x.font='700 19px "Barlow Condensed",sans-serif';x.fillText(fit(String(L[i].rank.where).toUpperCase(),CW-16),cx,y+AY)}
+    x.textAlign='left';return}
+   x.textAlign='center';x.fillStyle=v==null?'#55546a':win?'#b6f23a':'#fff';x.font=`700 ${ST?42:36}px "Barlow Condensed",sans-serif`;
+   x.fillText(fit(r.fm(v),CW-12),cx,y+(d==null?12:2));
+   if(d!=null){x.font=`700 ${ST?20:18}px "Barlow Condensed",sans-serif`;x.fillStyle=d>0?'#3ddc84':d<0?'#ff4d5e':'#8d8ca3';x.fillText(d===0?'= SAME':(d>0?'▲ ':'▼ ')+Math.abs(d)+'%',cx,y+AY)}
+   if(!nw&&v!=null&&mx>0&&!r.low){const bw=(CW-40)*Math.max(0,+v)/mx;x.globalAlpha=.55;x.fillStyle=col(L[i]);x.fillRect(cx-(CW-40)/2,y+RH/2-8,bw,4);x.globalAlpha=1}
    x.textAlign='left'})});
  if(ser){const S=L.map(s=>({s,p:ser[1](s).filter(p=>p[0]>=J.since-86400)})),TS=S.flatMap(z=>z.p.map(p=>p[0])),t0=Math.min(...TS,Math.max(J.since,Math.min(...TS)-43200)),t1=Math.max(Date.now()/1000,...TS),cx0=72,cw=850,cy0=cTop+44,ch=CHH,all=S.flatMap(z=>z.p.map(p=>p[1])),mx=Math.max(1,...all)*1.12;
   x.fillStyle='#a9a8be';x.font='700 24px "Barlow Condensed",sans-serif';x.fillText(ser[0],72,cTop+24);
