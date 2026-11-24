@@ -22,7 +22,7 @@ with store._lock:
         c.execute("INSERT INTO sc_chstats VALUES (?,?,?,?,?,?)", (D(n), "yt:B", 100, v, 10, 0))
     # live days: twitch:t tracked 30 days (peak 400 this week, 300 the week before); twitch:n first seen 3 days ago
     for sid, fs in (("twitch:t", time.time() - 30 * 86400), ("twitch:n", time.time() - 3 * 86400), ("yt:A", time.time() - 20 * 86400)):
-        c.execute("INSERT INTO sc_channels (sid, platform, name, first_seen) VALUES (?,?,?,?)", (sid, sid.split(":")[0], sid, fs))
+        c.execute("INSERT INTO sc_channels (sid, platform, name, first_seen) VALUES (?,?,?,?)", (sid, sid.split(":")[0].replace("yt", "youtube"), sid, fs))
     for n in range(14):
         pk = 400 if n < 7 else 300
         c.execute("INSERT INTO sc_daily (day, sid, game, peak, peak_at, mins, hw) VALUES (?,?,?,?,?,?,?)",
@@ -51,28 +51,41 @@ assert scene.channel("twitch:t")["periods"]["7d"]["peak"] == 400       # channel
 ch = scene.channel("twitch:t")["periods"]
 assert ch["7d"]["hours"] == 16.1 and ch["today"]["hours"] == 2.0 and ch["all"]["peak"] == 400, ch
 
-# compare() with the channel page and video list stubbed
-vid = lambda days, v: {"ts": time.time() - days * 86400, "views": v}
-VIDS = {"yt:A": [vid(1, 100), vid(3, 300), vid(9, 1000), vid(12, 2000)], "twitch:t": [vid(2, 50), vid(9, 70)], "twitch:n": []}
-scene.channel = lambda sid: {"name": sid, "platform": "youtube" if sid.startswith("yt:") else "twitch", "stats": None,
-                             "periods": {"all": {"peak": 9}}}
+# compare(): only the video list is stubbed (the channel page is no longer read: 24 Nov, 81 s for three channels)
+vid = lambda days, v, live=0: {"ts": time.time() - days * 86400, "views": v, "live": live, "likes": None, "comments": None}
+VIDS = {"yt:A": [vid(1, 100), vid(3, 300, 1), vid(9, 1000), vid(12, 2000, 1)], "twitch:t": [vid(2, 50, 1), vid(9, 70, 1)], "twitch:n": []}
 yx.channel_videos = lambda sid: VIDS.get(sid, [])
-yx.videos_summary = lambda sid, rng: {"count": 1}
+yx.history_loading = lambda sid: False
+from tracker import ranks
+ranks._R.update(at=time.time(), rows={
+    "twitch:t": {"sid": "twitch:t", "platform": "twitch", "name": "tee", "country": "IN", "country_name": "India", "category": "Just Chatting", "game": "Just Chatting", "live_7d": 3110},
+    "twitch:big": {"sid": "twitch:big", "platform": "twitch", "name": "big", "country": "IN", "country_name": "India", "category": "Just Chatting", "game": "Just Chatting", "live_7d": 9999},
+    "twitch:sazof36": {"sid": "twitch:sazof36", "platform": "twitch", "name": "sazof36", "country": "IN", "country_name": "India", "category": "Just Chatting", "game": "", "live_7d": 99999},
+    "twitch:us": {"sid": "twitch:us", "platform": "twitch", "name": "us", "country": "US", "country_name": "United States", "category": "Just Chatting", "game": "", "live_7d": 99999},
+    "twitch:n": {"sid": "twitch:n", "platform": "twitch", "name": "enn", "country": "IN", "country_name": "India", "category": "BGMI", "game": "BGMI"}})
 J = yx.compare(["yt:A", "twitch:t", "twitch:n"], "7d")
 A, T, N = J["channels"]
 assert 7 <= J["done"] <= 8 and 6 <= J["done_g"] <= 7 and J["days"] == 7, J
 assert A["growth"] == 7000 and A["prev"]["growth"] == 3500
-assert A["prev"]["count"] == 2 and A["prev"]["views"] == 3000             # YouTube: the posts of the 7 days before
+assert A["posts"]["count"] == 2 and A["posts"]["streams"] == 1 and A["posts"]["savg"] == 300
+assert A["prev"]["count"] == 2 and A["prev"]["views"] == 3000 and A["prev"]["savg"] == 2000   # YouTube: the 7 days before
+assert A["stats"]["subs"] == 5000 and A["rank"] is None                   # no rankings row: no rank
 assert "count" not in T["prev"]                                           # Twitch VODs expire: no posts arrow
-assert T["live"]["peak"] == 400 and T["prev"]["peak"] == 300 and T["prev"]["hours"] == 12.0
-assert N["prev"]["peak"] is None and N["live"]["peak"] == 50              # first seen 3 days ago: no earlier week
-assert yx.compare(["yt:A"], "all")["channels"][0]["prev"] == {} and yx.compare(["yt:A"], "all")["done"] == 0
+L = T["live"]
+assert L["peak"] == 400 and L["days"] == 8 and L["dpeak"] == 388 and L["dhw"] == 389 and L["dhours"] == 2.0, L   # 7x400 + 300 over 8 days
+assert T["prev"]["peak"] == 300 and T["prev"]["hours"] == 12.0 and T["prev"]["days"] == 6 and T["prev"]["dpeak"] == 300
+assert T["rank"] == {"rank": 2, "where": "Just Chatting", "metric": "live_7d"}, T["rank"]   # not a game: its category; bots and other countries left out
+assert N["rank"] == {"rank": 1, "where": "BGMI", "metric": "live_7d"} and N["live"]["peak"] == 50
+assert N["prev"]["peak"] is None                                          # first seen 3 days ago: no earlier week
+assert T["live"]["peak_all"] == 400                                       # the 5-minute 90,000 spike never counts
+Jall = yx.compare(["yt:A"], "all")
+assert Jall["channels"][0]["prev"] == {} and Jall["done"] == 0 and Jall["channels"][0]["posts"]["count"] == 4
 J1 = yx.compare(["twitch:t"], "1d")
 assert J1["days"] == 1 and 1 <= J1["done"] <= 2 and J1["channels"][0]["live"]["peak"] == 400
 
 from tracker import comparepage
 h = comparepage.build_html("in")
-for k in ("['1d','1D']", "['3d','3D']", "['7d','7D']", "makeCard", "id=\"share\"", "id=\"mfmt\"", "const chg="):
+for k in ("['1d','1D']", "['3d','3D']", "['7d','7D']", "makeCard", "id=\"share\"", "id=\"mfmt\"", "const chg=", "PEAK PER LIVE DAY", "prefetch"):
     assert k in h, k
 assert "__" not in h.replace("__name__", "")
 print("COMPARE OK")
