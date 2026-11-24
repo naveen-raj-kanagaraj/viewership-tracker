@@ -128,7 +128,7 @@ __PANEL_CSS__
 <div class="card" id="vcard" style="display:none"><h2>Channel views per day</h2><div class="cap">The channel's public counters on YouTube (total views of all its videos, live and uploaded; subscribers), recorded once a day by this site. Views gained = how much the total grew between two days.</div><div id="views"></div></div>
 <div class="card" id="lcard"><h2>Live stats on this site</h2><div class="cap">Recorded by this site every 2 seconds while the channel is live.</div><div id="stats"></div></div>
 <div class="card" id="mcard" style="display:none"><h2>Moments</h2><div class="cap">Sudden jumps in viewers on this channel, newest first. Opens at the moment.</div><div class="ps" id="moms"></div></div>
-<div class="card"><h2>Streams, last 30 days</h2><div class="cap" id="pcap">From the platform's own list of past streams.</div><div class="pshare" id="pshare"></div><div id="past"><div class="empty">Loading...</div></div></div>
+<div class="card"><h2>Streams, last 30 days</h2><div class="cap" id="pcap">From the platform's own list of past streams.</div><div class="pshare" id="pshare"></div><div id="pastlive"></div><div id="past"><div class="empty">Loading...</div></div></div>
 </div>
 <script>
 const SID=__SID__,REGION=__REGION__,RP=REGION==='in'?'/india':'/global';
@@ -349,6 +349,8 @@ async function load(){try{const r_=await fetch('/api/channel?sid='+encodeURIComp
   ${rankBadges(c)}
   <div class="act"><a class="btn${now?' red':''}" href="${esc(c.url)}" target="_blank" rel="noopener">${now?'WATCH LIVE':'OPEN'} ON ${(NAMES[c.platform]||'').toUpperCase()}</a><a class="btn ghost" href="${RP}/compare?c=${encodeURIComponent(SID)}">COMPARE</a><a class="btn ghost" href="/kit/${encodeURIComponent(SID)}">MEDIA KIT</a></div>`;
  CDATA=c;viewsCard(c);renderLife();
+ {const pl=document.getElementById('pastlive');pl.innerHTML=now?`<div class="ps"><a href="${esc(c.url)}" target="_blank" rel="noopener"><span class="d"><span class="lv">LIVE</span> now</span><span class="t">${esc(c.title||'Live now')}</span><span class="n">-</span><span class="n">${fmt(now)}<small>watching</small></span><span class="n">-</span></a></div>`:'';
+  if(now)pl.closest('.card').style.display=''}
  const seen=c.periods&&c.periods.all&&c.periods.all.days;
  document.getElementById('lcard').style.display=seen?'':'none';if(seen)document.getElementById('stats').innerHTML=panel(SID)}catch(e){console.error(e);setTimeout(load,8000)}}
 async function past(){try{const j=await (await fetch('/api/past?sid='+encodeURIComponent(SID))).json();const L=j.streams||[];
@@ -359,7 +361,7 @@ async function past(){try{const j=await (await fetch('/api/past?sid='+encodeURIC
  {const days=[...new Set(L.filter(x=>x.day&&x.peak_day).map(x=>x.day))].slice(0,8),dl=d=>new Date(d+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'});
   document.getElementById('pshare').innerHTML=days.length?'<span>Share a live day:</span>'+days.map(d=>`<button data-d="${d}">${dl(d)}</button>`).join(''):'';
   document.getElementById('pshare').onclick=e=>{const b=e.target.closest('button');if(b)dayShare(b.dataset.d,b)};
-  const pt=document.getElementById('pshare_top');pt.innerHTML=days.length?'<span>SHARE CARD, LIVE DAY:</span>'+days.slice(0,4).map(d=>`<button data-d="${d}">${dl(d)}</button>`).join(''):'';pt.onclick=document.getElementById('pshare').onclick}document.getElementById('past').closest('.card').style.display=L.length?'':'none'}catch(e){document.getElementById('past').closest('.card').style.display='none'}}
+  const pt=document.getElementById('pshare_top');pt.innerHTML=days.length?'<span>SHARE CARD, LIVE DAY:</span>'+days.slice(0,4).map(d=>`<button data-d="${d}">${dl(d)}</button>`).join(''):'';pt.onclick=document.getElementById('pshare').onclick}document.getElementById('past').closest('.card').style.display=L.length||document.getElementById('pastlive').innerHTML?'':'none'}catch(e){document.getElementById('past').closest('.card').style.display='none'}}
 async function moms(){try{const j=await (await fetch('/api/moments?sid='+encodeURIComponent(SID))).json();const L=j.moments||[];if(!L.length)return;
  document.getElementById('mcard').style.display='';
  document.getElementById('moms').innerHTML=L.slice(0,20).map(m=>`<a href="${esc(m.link||c_url)}" target="_blank" rel="noopener"><span class="d">${ist(m.ts,{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}</span><span class="t">${esc(m.title)}</span><span class="n" style="color:var(--lime)">+${fmt(m.peak-m.base)}</span><span class="n">${fmt(m.peak)}<small>peak</small></span><span class="n">${m.embed==='tw_clip'?'clip':m.embed?'replay':'channel'}</span></a>`).join('')}catch(e){}}

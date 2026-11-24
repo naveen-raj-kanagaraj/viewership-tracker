@@ -50,7 +50,7 @@ class _GlobalPaths:
 app.wsgi_app = _GlobalPaths(app.wsgi_app)
 
 
-CACHE = {"/global": 5, "/api/cats": 60, "/api/catmonths": 600, "/categories": 300, "/india/categories": 300, "/privacy": 3600, "/terms": 3600, "/api/chlive": 2, "/badge": 1800, "/api/badges": 600, "/api/home": 120, "/api/compare": 30, "/compare": 300, "/india/compare": 300, "/api/topch": 120, "/api/videos": 300, "/api/lookup": 600, "/api/moments": 20, "/moments": 300, "/india/moments": 300, "/api/ytsearch": 600, "/api/past": 600, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
+CACHE = {"/global": 5, "/api/cats": 60, "/api/catmonths": 600, "/categories": 300, "/india/categories": 300, "/privacy": 3600, "/terms": 3600, "/api/chlive": 2, "/badge": 1800, "/api/badges": 600, "/api/home": 120, "/api/compare": 30, "/compare": 300, "/india/compare": 300, "/api/topch": 120, "/api/videos": 300, "/api/lookup": 600, "/api/moments": 20, "/moments": 300, "/india/moments": 300, "/api/ytsearch": 600, "/api/past": 300, "/api/rank": 30, "/rankings": 300, "/india/rankings": 300, "/api/channel": 20, "/map": 300, "/api/geo": 5, "/api/search": 30, "/india": 30, "/india/data": 20, "/api/scene": 20, "/api/scene/live": 2, "/": 5, "/data": 2, "/series": 60, "/predict": 30, "/predict/api/board": 5, "/predict/og.png": 3600}   # seconds Cloudflare (or any CDN) may reuse a response
 
 
 
@@ -1145,7 +1145,7 @@ def scene_past():
     sid = (request.args.get("sid") or "")[:120]
     if not __import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid):
         return Response("{}", status=404, mimetype="application/json")
-    return _memo(f"/api/past:{sid}", 600, _jdump(lambda: ytextra.past_streams(sid)), "application/json")
+    return _memo(f"/api/past:{sid}", 300, _jdump(lambda: ytextra.past_streams(sid)), "application/json")
 
 
 def _ch_page(sid, region):

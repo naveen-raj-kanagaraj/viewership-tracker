@@ -861,12 +861,30 @@ def _tw_past(login: str) -> list:
     return out
 
 
+def _ago_span(txt: str) -> int:
+    """How coarse a 'N units ago' is: YouTube rounds down, so '2 weeks ago' is 14 to 21 days ago."""
+    m = re.search(r"\d+\s*(second|minute|hour|day|week|month|year)", (txt or "").lower())
+    return {"second": 60, "minute": 60, "hour": 3600, "day": 86400, "week": 604800, "month": 2678400,
+            "year": 31622400}.get(m.group(1) if m else "", 86400)
+
+
+def _past_fresh(sid: str) -> int:
+    """Seconds to keep a channel's past-streams list: 10 minutes when it streamed in the last 12 hours (a stream that
+    just ended must show up), an hour otherwise."""
+    from tracker import scene
+    with scene._lock:
+        live = sid in scene._LIVE
+    with store.reading():
+        r = _db().execute("SELECT MAX(last_ts) FROM sc_vstreams WHERE sid=?", (sid,)).fetchone()
+    return 600 if live or (r and r[0] and time.time() - r[0] < 12 * 3600) else 3600
+
+
 def past_streams(sid: str) -> dict:
-    """The channel's streams in the last 30 days as the platform lists them (title, date, length, total views), joined
-    with the peak we recorded that day. YouTube: the channel's Live tab; Twitch: its past broadcasts; Kick: not
-    available. Cached for an hour."""
+    """The channel's streams in the last 30 days as the platform lists them (title, length, total views), with the
+    exact start (owner, 24 Nov: '2 weeks ago' put a 4 Nov stream on 11 Nov, so its peak showed '-') and the peak we
+    recorded. YouTube: the channel's Live tab; Twitch: its past broadcasts; Kick: not available."""
     hit = _PAST.get(sid)
-    if hit and time.time() - hit[0] < 3600:
+    if hit and time.time() - hit[0] < hit[2]:
         return hit[1]
     plat, _, ident = sid.partition(":")
     res = {"source": "", "streams": [], "note": ""}
@@ -879,22 +897,33 @@ def past_streams(sid: str) -> dict:
             res["note"] = "Kick doesn't list past streams publicly; only what this site recorded is shown."
     except Exception as e:
         res["note"] = f"Couldn't read past streams right now ({str(e)[:80]})."
-    cut = time.time() - 30 * 86400
-    res["streams"] = [x for x in res["streams"] if not x["ts"] or x["ts"] >= cut][:40]
+    ids = [x.get("id") for x in res["streams"] if x.get("id")]
+    q = ",".join("?" * len(ids))
     with store.reading():
-        peaks = dict(_db().execute("SELECT day, MAX(peak) FROM sc_daily WHERE sid=? GROUP BY day", (sid,)).fetchall())
-        from tracker import scene
-        ids = [x.get("id") for x in res["streams"] if x.get("id")]
-        vp = dict(scene._db().execute(f"SELECT vid, peak FROM sc_vstreams WHERE vid IN ({','.join('?' * len(ids))})", ids).fetchall()) if ids else {}
+        c = _db()
+        vs = {v: (a, pk) for v, a, pk in c.execute(f"SELECT vid, first_ts, peak FROM sc_vstreams WHERE vid IN ({q})", ids)} if ids else {}
+        yv = {v: t for v, t in c.execute(f"SELECT vid, ts FROM yt_videos WHERE vid IN ({q}) AND live=1 AND approx=0", ids)} if ids else {}
+    for x in res["streams"]:
+        # when it started: as this site saw it go live, else YouTube's exact start if it fits the 'N ago' text, else that text
+        est, v = x["ts"], x.get("id")
+        if v in vs and vs[v][0]:
+            x["ts"] = vs[v][0]
+        elif v in yv and yv[v] and (not est or est - _ago_span(x.get("when")) - 86400 <= yv[v] <= est + 86400):
+            x["ts"] = yv[v]
+    cut = time.time() - 30 * 86400
+    res["streams"] = sorted((x for x in res["streams"] if not x["ts"] or x["ts"] >= cut), key=lambda x: -(x["ts"] or 0))[:40]
+    by = _days_of(sid)                                    # each live day's peak, the rankings' rule
     per_day = {}
     for x in res["streams"]:
         x["day"] = _day(x["ts"]) if x["ts"] else ""
-        x["peak_day"] = peaks.get(x["day"]) if x["day"] else None
-        x["peak"] = vp.get(x.get("id"))                   # this stream alone (recorded from 13 Nov 2026)
+        span = [_day(t) for t in range(int(x["ts"]), int(x["ts"] + max(x.get("secs") or 0, 1)) + 1, 3600)] if x["ts"] else []
+        pk = [by[d][0] for d in dict.fromkeys(span) if d in by and by[d][0]]    # a stream past midnight: both days
+        x["peak_day"] = max(pk) if pk else None
+        x["peak"] = (vs.get(x.get("id")) or (None, None))[1]     # this stream alone (recorded from 13 Nov 2026)
         per_day[x["day"]] = per_day.get(x["day"], 0) + 1
     for x in res["streams"]:
         x["same_day"] = per_day.get(x["day"], 1)          # streams that day: the day peak is all of them at once
-    _PAST[sid] = (time.time(), res)
+    _PAST[sid] = (time.time(), res, _past_fresh(sid))
     if len(_PAST) > 2000:
         for k in sorted(_PAST, key=lambda k: _PAST[k][0])[:500]:
             _PAST.pop(k, None)
@@ -1739,10 +1768,11 @@ def video_stats_once(max_calls: int = 30) -> int:
     with store.reading():
         ids = [r[0] for r in _db().execute(
             """SELECT vid FROM yt_videos WHERE sid LIKE 'yt:%' AND ts>? AND (comments IS NULL OR updated<?
-               OR (ts>? AND updated<?))
-               ORDER BY comments IS NOT NULL, ts<=?, updated LIMIT ?""",
+               OR (ts>? AND updated<?) OR (updated<? AND vid IN (SELECT vid FROM sc_vstreams WHERE last_ts>?)))
+               ORDER BY vid NOT IN (SELECT vid FROM sc_vstreams WHERE last_ts>? AND last_ts<?), comments IS NOT NULL, ts<=?, updated LIMIT ?""",
             (time.time() - 60 * 86400, time.time() - 86400, time.time() - 2 * 86400, time.time() - 3 * 3600,
-             time.time() - 2 * 86400, max_calls * 50))]
+             time.time() - 3 * 3600, time.time() - 2 * 86400,
+             time.time() - 2 * 86400, time.time() - 1800, time.time() - 2 * 86400, max_calls * 50))]
     done = calls = 0
     for i in range(0, len(ids), 50):
         if not events.yt_quota_left(.92):
