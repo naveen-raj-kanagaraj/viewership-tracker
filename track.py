@@ -111,6 +111,8 @@ def cmd_run(args) -> int:
         deep.start()                       # ranked channels: refresh every 1-3 h, history since Jan, metrics, comments
         from tracker import chatstats
         chatstats.start()                  # chat words, emotes, languages, mood, audience overlap
+        from tracker import overrides
+        overrides.start()                  # the daily review's decisions (overrides.json on GitHub, every 10 min)
         from tracker import profiles
         profiles.start()                   # Kick / Twitch bios and social links: who is Indian
         from tracker import chat

@@ -18,7 +18,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 
-from tracker import events, store
+from tracker import overrides, events, store
 
 _R = {"at": 0, "rank": {}, "tot": {}, "rows": {}}
 _lock = threading.Lock()
@@ -191,8 +191,8 @@ def _rows():
         if size is None and not live:
             continue
         top = (pkp.get(sid) or {}).get("all") or 0
-        if sid in bad:
-            continue                          # banned / deleted, or live viewers far above its followers (viewbots)
+        if sid in bad or overrides.blocked(sid):
+            continue                          # banned / deleted, viewbots, or blocked by the daily review
         if top < 10:                          # never streamed live to 10+ viewers on our records: not ranked. The
                                               # rankings are of streamers only (owner, 23 Nov: Short Malouniya, an
                                               # uploader with no live streams, was #2 in India's YouTube Gaming).
@@ -238,7 +238,7 @@ def _rows():
             e = per.get((sid, p))
             pm["eng_" + p], pm["likes_" + p], pm["medv_" + p] = e if e else (None, None, None)
         rows.append({**pm, "sid": sid, "platform": ch["platform"], "name": ch["name"], "logo": ch["logo"], "url": ch["url"],
-                     "country": ct[0] if ct else "", "country_name": ct[2] if ct else "", "category": cat or "", "game": g,
+                     "country": ct[0] if ct else "", "country_name": ct[2] if ct else "", "category": overrides.category(sid) or cat or "", "game": g,
                      "size": size, "views": views, "vday": vday, "v7": v7, "growth": growth, "live": round(live),
                      "eng": (eng.get(sid) or (None,))[0], "likes": (eng.get(sid) or (None, None))[1],
                      "medv": (eng.get(sid) or (None, None, None))[2]})

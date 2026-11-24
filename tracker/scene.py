@@ -409,9 +409,10 @@ def india_why(x: dict, country: str = None, allow: set = frozenset()) -> tuple:
     """(Indian?, the reason in words). The reason is shown with the channel's data, so every flag can be checked."""
     sid, t, n = x.get("sid", ""), x.get("title") or "", x.get("name") or ""
     tags = x.get("tags") or ""
-    if sid.lower() in NOT_INDIA_SIDS:
+    from tracker import overrides
+    if sid.lower() in NOT_INDIA_SIDS or sid.lower() in overrides.not_india() or sid in overrides.not_india():
         return False, "owner: not Indian"
-    if sid.lower() in INDIA_SIDS:
+    if sid.lower() in INDIA_SIDS or sid.lower() in overrides.india() or sid in overrides.india():
         return True, "owner: Indian"
     if x.get("seeded") or sid in _curated():
         return True, "added by hand / event channel list"
@@ -1403,7 +1404,9 @@ NAME_BLOCK = {"dinoprasad",
 
 
 def name_blocked(name) -> bool:
-    return re.sub(r"[^a-z0-9]", "", (name or "").lower()) in NAME_BLOCK
+    from tracker import overrides
+    k = re.sub(r"[^a-z0-9]", "", (name or "").lower())
+    return k in NAME_BLOCK or k in overrides.blocked_names()      # + the daily review's blocks (overrides.json)
 
 
 # Channels the owner checked did not play a game, kept out of that game's lists only (19 Nov: Willy Gaming, GTA 6).

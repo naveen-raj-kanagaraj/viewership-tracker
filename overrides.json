@@ -1,0 +1,51 @@
+{
+ "_about": "Manual decisions from the daily review (docs/DAILY_REVIEW.md). The server re-reads this file from GitHub every 10 minutes.",
+ "india": [
+  "twitch:invadingdarkness"
+ ],
+ "not_india": [
+  "twitch:guddu_kim",
+  "twitch:olivescrossing",
+  "twitch:sig07tv",
+  "twitch:nozygoat"
+ ],
+ "block": [
+  "twitch:sazof36",
+  "twitch:pepewwwpew",
+  "twitch:crazystuff21",
+  "twitch:kendra_shepard992",
+  "twitch:biggbosstelugulives",
+  "twitch:sane1oo",
+  "twitch:venomstechgaming",
+  "twitch:rexar_live"
+ ],
+ "category": {},
+ "reviewed": {
+  "twitch:sazof36": "2026-11-24",
+  "twitch:pepewwwpew": "2026-11-24",
+  "twitch:crazystuff21": "2026-11-24",
+  "twitch:kendra_shepard992": "2026-11-24",
+  "twitch:biggbosstelugulives": "2026-11-24",
+  "twitch:sane1oo": "2026-11-24",
+  "twitch:venomstechgaming": "2026-11-24",
+  "twitch:rexar_live": "2026-11-24",
+  "twitch:rachitroo_1": "2026-11-24",
+  "twitch:officialmaxtern": "2026-11-24",
+  "twitch:beaststatsofficial": "2026-11-24",
+  "twitch:invadingdarkness": "2026-11-24"
+ },
+ "notes": {
+  "twitch:sazof36": "634 followers, 17,184 peak: viewbots",
+  "twitch:pepewwwpew": "124 followers, avg 454: viewbots",
+  "twitch:crazystuff21": "410 followers, avg 438: viewbots",
+  "twitch:kendra_shepard992": "63 followers, peak 251: viewbots",
+  "twitch:biggbosstelugulives": "337 followers, peak 996: viewbots",
+  "twitch:sane1oo": "971 followers, avg 467: viewbots",
+  "twitch:venomstechgaming": "987 followers, avg 288: viewbots",
+  "twitch:rexar_live": "banned or deleted on Twitch",
+  "twitch:rachitroo_1": "121K followers, variety streamer from India: OK",
+  "twitch:officialmaxtern": "53.3K followers: OK",
+  "twitch:beaststatsofficial": "22.2K followers: OK",
+  "twitch:invadingdarkness": "British Indian (owner)"
+ }
+}
