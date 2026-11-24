@@ -1393,7 +1393,13 @@ def blocked() -> set:
 
 
 # Removed by the owner from every list (not streamers / scams), matched by name on any platform. 19 Nov: Dino Prasad.
-NAME_BLOCK = {"dinoprasad"}
+NAME_BLOCK = {"dinoprasad",
+              # Twitch channels checked on twitch.tv 24 Nov: live viewers far above their followers (viewbots), or
+              # banned: sazof36 (634 followers, '17,184' peak), pepewwwpew (124, avg 454), crazystuff21 (410, avg 438),
+              # kendra_shepard992 (63, peak 251), biggbosstelugulives (337, peak 996), sane1oo (971, avg 467),
+              # venomstechgaming (987, avg 288), rexar_live (banned / deleted)
+              "sazof36", "pepewwwpew", "crazystuff21", "kendrashepard992", "biggbosstelugulives", "sane1oo",
+              "venomstechgaming", "rexarlive"}
 
 
 def name_blocked(name) -> bool:
@@ -4032,7 +4038,8 @@ def channel(sid: str) -> dict:
 
 def _profile(sid: str) -> dict:
     from tracker import profiles
-    return {"bio": profiles.bio(sid), "links": profiles.links(sid)}
+    f, gone = profiles.followers(sid)
+    return {"bio": profiles.bio(sid), "links": profiles.links(sid), "followers": f, "gone": bool(gone)}
 
 
 def _why(ch: dict) -> str:

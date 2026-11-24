@@ -1268,6 +1268,55 @@ def _owner() -> bool:
     return len(want) >= 16 and hmac.compare_digest(want, got)
 
 
+@app.route("/admin/twitch-connect")
+def admin_twitch_connect():
+    """Owner-only: connect the owner's Twitch account (no permissions asked) so the site can read follower counts,
+    which tell real channels from viewbotted ones. Needs this callback URL added to the Twitch app at
+    dev.twitch.tv: <site>/admin/twitch-callback."""
+    want = os.getenv("ADMIN_KEY", "")
+    if len(want) < 16 or not hmac.compare_digest(want, request.args.get("key", "")):
+        return Response("Not found", status=404, mimetype="text/plain")
+    import secrets, urllib.parse
+    from tracker import platforms, eventpage
+    if not platforms._keys("twitch"):
+        return Response("TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET missing in .env", status=500, mimetype="text/plain")
+    st = secrets.token_urlsafe(24)
+    store.kv_set("twitch_oauth_state", json.dumps({"s": st, "t": time.time()}))
+    q = urllib.parse.urlencode({"client_id": platforms._keys("twitch")[0], "response_type": "code", "scope": "",
+                                "redirect_uri": eventpage.SITE_URL + "/admin/twitch-callback", "state": st})
+    return redirect("https://id.twitch.tv/oauth2/authorize?" + q)
+
+
+@app.route("/admin/twitch-callback")
+def admin_twitch_callback():
+    import html as _h
+    from tracker import platforms, eventpage
+    try:
+        saved = json.loads(store.kv_get("twitch_oauth_state") or "{}")
+    except ValueError:
+        saved = {}
+    st = request.args.get("state", "")
+    if not saved.get("s") or not hmac.compare_digest(saved["s"], st) or time.time() - saved.get("t", 0) > 600:
+        return Response("Not found", status=404, mimetype="text/plain")
+    store.kv_set("twitch_oauth_state", "{}")
+    code = request.args.get("code", "")
+    if not code:
+        return Response("Twitch didn't connect: " + _h.escape(request.args.get("error_description", "cancelled")), mimetype="text/plain")
+    i, sec = platforms._keys("twitch")
+    r = platforms._http.post("https://id.twitch.tv/oauth2/token", timeout=10, data={
+        "client_id": i, "client_secret": sec, "code": code, "grant_type": "authorization_code",
+        "redirect_uri": eventpage.SITE_URL + "/admin/twitch-callback"})
+    if r.status_code != 200:
+        return Response(f"Twitch didn't connect (HTTP {r.status_code}). Check the callback URL in the Twitch app.", mimetype="text/plain")
+    j = r.json()
+    v = platforms._http.get("https://id.twitch.tv/oauth2/validate", headers={"Authorization": "OAuth " + j["access_token"]}, timeout=10)
+    login = (v.json() if v.status_code == 200 else {}).get("login", "?")
+    store.kv_set("twitch_user", json.dumps({"refresh": j["refresh_token"], "login": login}))
+    platforms._tok["twitch_user"] = (j["access_token"], time.time() + int(j.get("expires_in") or 3600))
+    return Response(f"Twitch connected as {_h.escape(login)}. Follower counts will be read within 30 minutes. You can close this tab.",
+                    mimetype="text/plain")
+
+
 @app.route("/admin/predict")
 def admin_predict():
     """Owner-only Predict & Win dashboard: /admin/predict?key=<ADMIN_KEY from .env>."""

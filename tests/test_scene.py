@@ -494,7 +494,7 @@ with store._lock:
     dd = datetime.now(events.REPORT_TZ).date()
     for k, (sid_, subs_) in enumerate([("yt:UCaman", 9000000), ("yt:UCtg", 40000000), ("yt:UCffindia000000000000000", 5200000)]):
         cc.execute("INSERT OR REPLACE INTO sc_chstats VALUES (?,?,?,?,?,?)", (dd.strftime("%Y-%m-%d"), sid_, subs_, 10**9 + k, 100, 0))
-        cc.execute("INSERT OR IGNORE INTO sc_daily VALUES (?,?,?,?,?,?,?)", (dd.strftime("%Y-%m-%d"), sid_, "Free Fire", 50, 0, 30, 10))
+        cc.execute("INSERT OR REPLACE INTO sc_daily VALUES (?,?,?,?,?,?,?)", (dd.strftime("%Y-%m-%d"), sid_, "Free Fire", 50, 0, 30, 10))
     cc.execute("UPDATE sc_channels SET topic='Gaming', country='IN' WHERE sid IN ('yt:UCaman','yt:UCtg','yt:UCffindia000000000000000')")
     cc.commit()
 assert rk.compute() > 0

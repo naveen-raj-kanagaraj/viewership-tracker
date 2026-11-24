@@ -42,7 +42,8 @@ for p in ("3d", "7d", "30d", "3m", "6m", "ytd", "1y"):
         n += 1
 for p in ("7d", "30d", "1y"):
     d0 = ranks.period_start(p).strftime("%Y-%m-%d")
-    pk = dict(c.execute("SELECT sid, MAX(peak) FROM sc_daily WHERE day>=? AND peak>=10 GROUP BY sid", (d0,)).fetchall())
+    pk = dict(c.execute("""SELECT sid, MAX(peak) FROM sc_daily WHERE day>=? AND peak>=10 AND mins>=10
+                           AND NOT (mins>=30 AND hw>0 AND peak > 8*hw*60.0/mins) GROUP BY sid""", (d0,)).fetchall())
     for s, r in rows.items():
         assert r["peak_" + p] == pk.get(s), (s, p, r["peak_" + p], pk.get(s))
 assert n > 100, n

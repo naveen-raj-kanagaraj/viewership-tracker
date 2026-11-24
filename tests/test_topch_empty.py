@@ -25,7 +25,7 @@ assert j["total"] >= 1 and j["updated"], j
 # new rankings: the old answer is never served again
 old = cl.get(u).json["updated"]
 c.execute("INSERT INTO sc_channels (sid, platform, name, india, country) VALUES ('kick:e','kick','E',1,'IN')")
-c.execute("INSERT INTO sc_daily VALUES (?,?,?,?,?,?,?)", (d, "kick:e", "BGMI", 9000, 1, 60, 1000)); c.commit()
+c.execute("INSERT INTO sc_daily VALUES (?,?,?,?,?,?,?)", (d, "kick:e", "BGMI", 9000, 1, 60, 6000)); c.commit()
 import time; time.sleep(1.1); ranks.compute()
 j = cl.get(u).json
 assert j["updated"] > old and j["rows"][0]["name"] == "E", j["rows"]
