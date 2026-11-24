@@ -517,8 +517,11 @@ def _world50(platform, metric, category, game, gl, by_game) -> dict:
     out = []
     for v, sid, name in heapq.nlargest(80, cand):
         if not scene.name_blocked(name) and not scene.not_in_game(name, game, sid):
-            out.append(sid)
-    return {sid: i + 1 for i, sid in enumerate(out[:50])}
+            out.append({"sid": sid, "name": name, "platform": sid.split(":", 1)[0].replace("yt", "youtube"), metric: v})
+    if platform == "all":                     # the same creator once, as in the list itself
+        from tracker import ytextra
+        out = ytextra.one_per_creator(out, metric)
+    return {x["sid"]: i + 1 for i, x in enumerate(out[:50])}
 
 
 def top(platform: str = "youtube", metric: str = "size", country: str = "", category: str = "", limit: int = 100, game: str = "") -> dict:
@@ -546,6 +549,9 @@ def top(platform: str = "youtube", metric: str = "size", country: str = "", cate
         at = _R["at"]
     rows = [r for r in rows if not scene.name_blocked(r.get("name")) and not scene.not_in_game(r.get("name"), game, r.get("sid", ""))]
     rows.sort(key=lambda r: -r[metric])
+    if platform == "all":                     # the same creator on YouTube and Kick: once, with the other as 'also'
+        from tracker import ytextra
+        rows = ytextra.one_per_creator(rows, metric)
     if country and rows:                      # each channel's place worldwide in the same list (India cards show it)
         try:
             wr = _world50(platform, metric, category, game, gl, by_game)

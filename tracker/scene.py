@@ -3678,6 +3678,9 @@ def rankings(region="global", metric="hw", period="day", date="", cat="", countr
             x["game"] = max(x["g"], key=x["g"].get) if x["g"] else ""
             del x["g"], x["mins"]
         ranked = sorted((x for x in out.values() if metric not in ("sc", "vg") or x[metric] > 0), key=lambda x: -x[metric])
+        if not platform:                      # all platforms: the same creator on YouTube and Kick once (owner, 24 Nov)
+            from tracker import ytextra
+            ranked = ytextra.one_per_creator(ranked, metric)
         return ranked, games, ctrs
     cur, games, ctrs = window(end)
     prev = {x["sid"]: i + 1 for i, x in enumerate(window(end - timedelta(days=n))[0])}
@@ -3695,7 +3698,8 @@ def rankings(region="global", metric="hw", period="day", date="", cat="", countr
             "total": len(cur), "rows": cur[:limit],
             "categories": [{"game": g, "slug": slug(g), "hw": round(v)} for g, v in sorted(games.items(), key=lambda kv: -kv[1]) if shown(g)][:80],
             "countries": [{"code": k, "name": v} for k, v in sorted(ctrs.items(), key=lambda kv: kv[1])],
-            "totals": {"hw": sum(x["hw"] for x in cur), "channels": len(cur)}, "money": "INR" if region == "in" else "USD"}
+            "totals": {"hw": sum(x["hw"] + sum(a.get("hw") or 0 for a in x.get("also") or []) for x in cur),
+                       "channels": sum(1 + len(x.get("also") or []) for x in cur)}, "money": "INR" if region == "in" else "USD"}
 
 
 _DY = {}
