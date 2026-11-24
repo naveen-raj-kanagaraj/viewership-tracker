@@ -17,7 +17,14 @@
   "twitch:biggbosstelugulives",
   "twitch:sane1oo",
   "twitch:venomstechgaming",
-  "twitch:rexar_live"
+  "twitch:rexar_live",
+  "kick:sigmanp",
+  "kick:its_me_ezra",
+  "kick:gzbmonster",
+  "yt:UCqd-H86Mfq2DLZGpcgJaf1g",
+  "yt:UCOv_jSlym76tqFoAxY6UTYg",
+  "yt:UChnJAsQKY_al2wCSZlre7hg",
+  "yt:UC0PXBMGRU7Fehq0buLkC8dw"
  ],
  "category": {},
  "reviewed": {
@@ -32,7 +39,16 @@
   "twitch:rachitroo_1": "2026-11-24",
   "twitch:officialmaxtern": "2026-11-24",
   "twitch:beaststatsofficial": "2026-11-24",
-  "twitch:invadingdarkness": "2026-11-24"
+  "twitch:invadingdarkness": "2026-11-24",
+  "kick:sigmanp": "2026-11-24",
+  "kick:its_me_ezra": "2026-11-24",
+  "kick:gzbmonster": "2026-11-24",
+  "yt:UCqd-H86Mfq2DLZGpcgJaf1g": "2026-11-24",
+  "yt:UCOv_jSlym76tqFoAxY6UTYg": "2026-11-24",
+  "yt:UChnJAsQKY_al2wCSZlre7hg": "2026-11-24",
+  "yt:UC0PXBMGRU7Fehq0buLkC8dw": "2026-11-24",
+  "kick:rajatpawar": "2026-11-24",
+  "kick:mogambo": "2026-11-24"
  },
  "notes": {
   "twitch:sazof36": "634 followers, 17,184 peak: viewbots",
@@ -46,6 +62,15 @@
   "twitch:rachitroo_1": "121K followers, variety streamer from India: OK",
   "twitch:officialmaxtern": "53.3K followers: OK",
   "twitch:beaststatsofficial": "22.2K followers: OK",
-  "twitch:invadingdarkness": "British Indian (owner)"
+  "twitch:invadingdarkness": "British Indian (owner)",
+  "kick:sigmanp": "119 followers, peak 1,039, avg 421: viewbots",
+  "kick:its_me_ezra": "1,750 followers, avg 589: viewbots",
+  "kick:gzbmonster": "242 followers, peak 500, avg 476: viewbots",
+  "yt:UCqd-H86Mfq2DLZGpcgJaf1g": "Powerplay Central: cricket channel with 2 videos, no past streams, 7d avg 43,141 on 61.5K subs: match restream / viewbots",
+  "yt:UCOv_jSlym76tqFoAxY6UTYg": "SASWAT T.V: 12.9K subs, 7d avg 15,870 while its listed streams have 219 and 754 views: viewbots",
+  "yt:UChnJAsQKY_al2wCSZlre7hg": "KingwrathH: 32.6K subs, 7d avg 22,671, no streams or content listed, no Indian evidence: viewbots",
+  "yt:UC0PXBMGRU7Fehq0buLkC8dw": "Bhajan Bhakti Bhav: 7d peak 27,703 above 25.7K subs: viewbots (peak rule)",
+  "kick:rajatpawar": "31.7K followers, 7d avg 8,140 (just over a quarter); 65% Hindi chat, known Indian creator: left for owner",
+  "kick:mogambo": "11.1K followers, 30d peak 12,399; title says Bigg Boss 24x7 watch party: left for owner"
  }
 }
