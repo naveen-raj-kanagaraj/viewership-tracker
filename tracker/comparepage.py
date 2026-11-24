@@ -199,7 +199,7 @@ async function makeCard(logos){const ST=FMT==='story',H=ST?1920:1350,L=J.channel
  x.fillStyle='#fff';x.fillText(shrink((n===2?L[0].name+' VS '+L[1].name:n>2?'HEAD TO HEAD':L[0].name).toUpperCase(),936,64,'700 #px "Barlow Condensed",sans-serif'),72,y0+100);
  const WM=(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\./,'')+location.pathname;
  x.font='600 22px "Barlow Condensed",sans-serif';const wmW=x.measureText(WM).width+28;
- const sub=(RNG==='all'?'ALL TIME':'LAST '+(RL[RNG]||RNG))+(J.days?' · ▲▼ = % CHANGE FROM THE PREVIOUS '+(RNG==='1d'?'DAY':RL[RNG]):'');
+ const sub=RNG==='all'?'ALL TIME':'LAST '+(RL[RNG]||RNG);
  x.fillStyle='#b6f23a';x.fillText(shrink(sub.toUpperCase(),936,30,'700 #px "Barlow Condensed",sans-serif'),72,y0+145);
  x.fillStyle='#262636';x.fillRect(72,y0+170,936,2);
  // channel heads, one column each
@@ -222,7 +222,7 @@ async function makeCard(logos){const ST=FMT==='story',H=ST?1920:1350,L=J.channel
   const nw=r.u&&mixed(L),lab=r.u&&!nw?(L[0].platform==='youtube'?'VIEWS GAINED':'FOLLOWERS GAINED'):r.card[1];
   x.fillStyle='#a9a8be';x.fillText(shrink(lab,LW-16,24,'700 #px "Barlow Condensed",sans-serif'),72,y+(nw?0:8));
   if(nw){x.fillStyle='#8d8ca3';x.fillText(shrink('VIEWS (YT) / FOLLOWERS',LW-16,18,'600 #px "Barlow Condensed",sans-serif'),72,y+24)}
-  vals.forEach((v,i)=>{const cx=GX+CW*(i+.5),win=!nw&&n>1&&v!=null&&+v===mx&&(r.low||mx>0),d=chg(L[i],r,v);
+  vals.forEach((v,i)=>{const cx=GX+CW*(i+.5),win=!nw&&n>1&&v!=null&&+v===mx&&(r.low||mx>0),d=null;
    if(r.low){x.textAlign='center';x.fillStyle=v==null?'#55546a':MEDAL[v-1]||'#fff';x.font=`700 ${ST?46:40}px "Barlow Condensed",sans-serif`;
     x.fillText(v==null?'-':'#'+v,cx,y+2);if(v!=null&&L[i].rank.where){x.fillStyle='#a9a8be';x.font='700 19px "Barlow Condensed",sans-serif';x.fillText(fit(String(L[i].rank.where).toUpperCase(),CW-16),cx,y+AY)}
     x.textAlign='left';return}
