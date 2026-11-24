@@ -25,7 +25,7 @@ import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from tracker import events, platforms, store
 
@@ -1040,11 +1040,14 @@ def views_series(sid: str, days: int = 90) -> dict:
     gains = []
     for a, b in zip(st, st[1:]):
         gap = (datetime.strptime(b["day"], "%Y-%m-%d") - datetime.strptime(a["day"], "%Y-%m-%d")).days or 1
-        gains.append({"day": b["day"], "views": max(0, (b["views"] or 0) - (a["views"] or 0)), "days": gap,
+        dv = (b["views"] - a["views"]) if a["views"] and b["views"] else None
+        if dv is not None and (dv < 0 or dv > .6 * b["views"]):
+            dv = None                     # a missing or broken reading, not growth (24 Nov: LoLzZz '+1.04B in 30 days')
+        gains.append({"day": b["day"], "views": dv, "days": gap,
                       "subs": (b["subs"] - a["subs"]) if a["subs"] is not None and b["subs"] is not None else None})
     months = {}
     for g in gains:
-        months[g["day"][:7]] = months.get(g["day"][:7], 0) + g["views"]
+        months[g["day"][:7]] = months.get(g["day"][:7], 0) + (g["views"] or 0)
     return {"first": st[0]["day"] if st else None, "snapshots": st, "gains": gains,
             "months": [{"month": k, "views": v} for k, v in sorted(months.items())], "recent": recent_views(sid)}
 
@@ -1525,7 +1528,7 @@ def channel_videos(sid: str, force: bool = False) -> list:
         return [dict(r) for r in _db().execute("SELECT * FROM yt_videos WHERE sid=? ORDER BY ts DESC", (sid,))]
 
 
-RANGES = {"7d": 7, "30d": 30, "90d": 90, "6m": 182, "ytd": None, "1y": 365, "all": 0,
+RANGES = {"1d": 1, "3d": 3, "7d": 7, "30d": 30, "90d": 90, "6m": 182, "ytd": None, "1y": 365, "all": 0,
           "1w": 7, "1m": 30, "3m": 91}                       # (old names still accepted)
 
 
@@ -2138,14 +2141,59 @@ def category_channels(game: str, region: str = "global", n: int = 25, topic: str
     return rows
 
 
-def compare(sids: list, rng: str = "90d") -> dict:
-    """Side by side: lifetime counters, posts in the range, live numbers, ranks and a common chart (average views
-    per post per period)."""
+def _peak_ok(pk, hw, mins) -> bool:
     from tracker import scene
-    days = RANGES.get(rng, 90) or 0
-    t0 = (datetime(datetime.now().year, 1, 1).timestamp() if RANGES.get(rng, 90) is None else
-          time.time() - (days or 3650) * 86400)
-    size = max(86400, (time.time() - t0) / 14)                  # ~14 points whatever the range
+    return scene.peak_ok(pk, hw, mins)
+
+
+def _window(sid: str, n: int, back: int = 0) -> dict:
+    """Live numbers over the rankings' window for n days (today and the n IST days before it), or with back=1 the n
+    whole days before that window: peak, average, hours watched, hours live; the same rules as the rankings."""
+    from tracker import scene
+    today = datetime.now(events.REPORT_TZ).date()
+    d0, d1 = today - timedelta(days=n), today
+    if back:
+        d1 = today - timedelta(days=n + 1)
+        d0 = d1 - timedelta(days=n - 1)
+    with store.reading():
+        rows = scene._db().execute("SELECT day, peak, hw, mins FROM sc_daily WHERE sid=? AND day>=? AND day<=?",
+                                   (sid, d0.strftime("%Y-%m-%d"), d1.strftime("%Y-%m-%d"))).fetchall()
+    pk = max([r[1] for r in rows if _peak_ok(r[1], r[2], r[3])] or [0])
+    hw, mins = sum(r[2] or 0 for r in rows), sum(r[3] or 0 for r in rows)
+    return {"peak": pk, "hw": round(hw), "hours": round(mins / 60, 1), "avg": round(hw * 60 / mins) if mins else 0}
+
+
+def _gain(G: list, youtube: bool, n: int, back: int = 0):
+    """Views (YouTube) or followers (Twitch / Kick) gained over n days ending `back` windows ago; None when the
+    readings cover less than 3/4 of those days (a channel tracked only lately, or missed readings): a part-covered
+    window would show growth that isn't there. A gain spanning missed days counts only its share inside the window."""
+    today = datetime.now(events.REPORT_TZ).date()
+    hi = today - timedelta(days=n * back)
+    lo = hi - timedelta(days=n)
+    tot, cover = 0.0, 0
+    for g in G:
+        v = g["views"] if youtube else g["subs"]
+        if v is None:
+            continue
+        d = datetime.strptime(g["day"], "%Y-%m-%d").date()
+        span = max(1, g.get("days") or 1)
+        inside = (min(d, hi) - max(d - timedelta(days=span), lo)).days
+        if inside > 0:
+            tot += v * inside / span
+            cover += inside
+    return round(tot) if cover and cover >= .75 * n else None
+
+
+def compare(sids: list, rng: str = "90d") -> dict:
+    """Side by side: lifetime counters, growth, posts and live numbers over the range, each with the same numbers
+    for the range just before it (the arrows), ranks and charts."""
+    from tracker import scene
+    days = RANGES.get(rng, 90)
+    now = time.time()
+    if days is None:                                            # year to date
+        days = max(1, (datetime.now(events.REPORT_TZ).date() - date(datetime.now().year, 1, 1)).days + 1)
+    t0 = now - (days or 3650) * 86400
+    size = max(86400 / 4, (now - t0) / 14)                      # ~14 points whatever the range
     out, missing = [], []
     for sid in sids[:4]:
         try:
@@ -2167,12 +2215,31 @@ def compare(sids: list, rng: str = "90d") -> dict:
                 z[0] += v["views"] or 0
                 z[1] += 1
         series = [[int(t0 + (k + .5) * size), round(z[0] / z[1])] for k, z in sorted(b.items())]
-        P = ch.get("periods") or {}
+        yt = ch.get("platform") == "youtube"
+        G = views_series(sid, min(2 * days, 730) if days else 730)["gains"]
+        live = _window(sid, days) if days else dict((ch.get("periods") or {}).get("all") or {})
+        prev = {}
+        if days:                                                # the same range just before: for the arrows
+            p0 = t0 - days * 86400
+            with store.reading():
+                fs = (scene._db().execute("SELECT first_seen FROM sc_channels WHERE sid=?", (sid,)).fetchone() or [None])[0]
+            pl = _window(sid, days, 1) if fs and fs <= p0 + 86400 else {}      # live numbers only if tracked all along
+            prev = {"growth": _gain(G, yt, days, 1), "peak": pl.get("peak") or None, "lavg": pl.get("avg") or None,
+                    "hw": pl.get("hw") or None, "hours": pl.get("hours") or None}
+            if yt:                                              # YouTube's video list is complete; Twitch / Kick VODs expire
+                pv = [v["views"] or 0 for v in vids if v["ts"] and p0 <= v["ts"] < t0]
+                prev.update({"count": len(pv), "views": sum(pv), "avg": round(sum(pv) / len(pv)) if pv else None})
+        lo = (datetime.now(events.REPORT_TZ).date() - timedelta(days=days or 730)).strftime("%Y-%m-%d")
         out.append({"sid": sid, "name": ch.get("name"), "logo": ch.get("logo"), "platform": ch.get("platform"), "url": ch.get("url"),
-                    "country": ch.get("country"), "stats": stats, "views": (ch.get("views") or {}).get("gains", [])[-30:],
+                    "country": ch.get("country"), "stats": stats, "views": [g for g in G if g["day"] > lo],
+                    "growth": _gain(G, yt, days) if days else None,
                     "posts": {k: sm.get(k) for k in ("count", "views", "avg", "median", "engagement", "per_week", "likes", "comments")},
-                    "live": {"peak": (P.get("30d") or {}).get("peak", 0), "avg": (P.get("30d") or {}).get("avg", 0),
-                             "hw": (P.get("30d") or {}).get("hw", 0), "hours": (P.get("30d") or {}).get("hours", 0),
-                             "peak_all": (P.get("all") or {}).get("peak", 0)},
-                    "ranks": ch.get("ranks") or [], "series": series, "loading": sm.get("loading")})
-    return {"range": rng, "since": int(t0), "channels": out, "missing": missing}
+                    "live": {"peak": live.get("peak", 0), "avg": live.get("avg", 0), "hw": live.get("hw", 0), "hours": live.get("hours", 0),
+                             "peak_all": ((ch.get("periods") or {}).get("all") or {}).get("peak", 0)},
+                    "prev": prev, "ranks": ch.get("ranks") or [], "series": series, "loading": sm.get("loading")})
+    ist = datetime.now(events.REPORT_TZ)
+    f = (ist.hour * 3600 + ist.minute * 60 + ist.second) / 86400
+    # days the current numbers cover, to compare totals with the whole range before: live windows are today (in part)
+    # plus n whole days, growth runs from the reading n days ago to now (n - 1 whole days plus today's part)
+    return {"range": rng, "days": days, "done": round(days + f, 3) if days else 0, "done_g": round(days - 1 + f, 3) if days else 0,
+            "since": int(t0), "channels": out, "missing": missing}

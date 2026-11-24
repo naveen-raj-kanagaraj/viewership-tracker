@@ -39,12 +39,22 @@ screenshots unless a page can't be read as text. Don't change any code: only `ov
    - category doesn't match the 30-day games / content -> set `category[sid]`.
    - Only if still unsure: open the channel page as text (`twitch.tv/<login>/about`, `kick.com/<slug>/about`,
      `youtube.com/channel/<id>/about`) and read followers, bio, country, recent streams. 15 pages at most.
+3b. Data checks (owner, 24 Nov: "check the data regularly so there's no discrepancies"), in the same
+   `javascript_exec`, on the top 10 of each platform list from step 2 (their `/api/channel` you fetch anyway):
+   - the ranking's `peak_7d` must not be above the channel page's `periods['7d'].peak` (same window and rule since
+     24 Nov; the channel page may be higher only if the channel streamed after the rankings' update time);
+   - `avg <= peak`; hours watched within 10% of average x hours live; YouTube views gained in 7 / 30 days at most
+     60% of lifetime views; no follower / subscriber count of 0 on a channel with a peak;
+   - `/api/compare?c=<the two biggest YouTube streamers>&range=7d`: each `growth` within 5% of the ranking's
+     `views_7d`, and `live.peak` equal to the channel page's 7-day peak.
+   A failed check is a code or data bug, not an override: don't touch code, list it for the owner with the sid, both
+   numbers and the URL. Budget: no extra page opens; these are API reads only.
 4. Edit `overrides.json`: add to `india` / `not_india` / `block` / `category`, set `reviewed[sid]` to today's
    date for every channel checked (also the ones that were fine), and a short reason in `notes[sid]`
    ("634 followers, peak 17,184: viewbots"). Keep sids lowercase for Kick / Twitch, exact for YouTube (`yt:UC...`).
 5. `python3 tests/test_overrides.py` must pass. Commit on a branch, open a PR, squash-merge (the session's
    attribution lines). No deploy is needed.
 6. Tell the owner in a few lines: how many channels checked, what was blocked / moved / re-categorised and why,
-   and anything only they can decide. If nothing changed, say so in one line.
+   any failed data check, and anything only they can decide. If nothing changed, say so in one line.
 
 Never write the live database, never print secrets, never log in to accounts, don't scrape TwitchTracker.

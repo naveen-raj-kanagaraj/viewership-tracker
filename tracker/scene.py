@@ -3989,6 +3989,12 @@ def search(q: str, region: str = "in", limit: int = 20) -> dict:
     return {"channels": out, "categories": [{"game": g, "slug": slug(g), "art": cat_art(g)} for g in games]}
 
 
+def peak_ok(pk, hw, mins) -> bool:
+    """The rankings' rule for a day's peak: 10+ minutes live, and not 8x+ that day's own average (a 5-minute spike or a
+    viewbot burst is not a peak). Shared by the channel page and compare, so all three show the same peak."""
+    return bool(pk) and not ((mins is not None and mins < 10) or (hw and mins and mins >= 30 and pk > 8 * hw * 60 / mins))
+
+
 def channel(sid: str) -> dict:
     """One channel's analytics: now, today / 7 / 30 days / all time (peak, average, hours watched, hours live,
     days live), day by day for 30 days, and its viewers over the last 3 days."""
@@ -4001,17 +4007,22 @@ def channel(sid: str) -> dict:
         t3 = time.time() - 3 * 86400
         samp = c.execute("SELECT ts, MAX(viewers) FROM sc_samples WHERE sid=? AND ts>=? GROUP BY ts ORDER BY ts", (sid, t3)).fetchall()
     today = datetime.now(events.REPORT_TZ).date()
+    now = _live_part(None, "global")["_now"].get(sid, 0)
+    td = today.strftime("%Y-%m-%d")
     by = {}
     for r in days:
         z = by.setdefault(r["day"], {"day": r["day"], "peak": 0, "at": None, "mins": 0.0, "hw": 0.0, "games": {}})
-        if r["peak"] > z["peak"]:
+        # a stream live right now counts from its first minutes (the rankings wait 10 minutes)
+        ok = peak_ok(r["peak"], r["hw"], r["mins"]) or (now and r["day"] == td and (r["mins"] or 0) < 10 and r["peak"])
+        if ok and r["peak"] > z["peak"]:
             z["peak"], z["at"] = r["peak"], r["peak_at"]
         z["mins"] += r["mins"] or 0
         z["hw"] += r["hw"] or 0
         z["games"][r["game"]] = z["games"].get(r["game"], 0) + (r["hw"] or 0)
 
     def agg(n):
-        d0 = (today - timedelta(days=n - 1)).strftime("%Y-%m-%d") if n else ""
+        # today: today only; 7 / 30 days: the rankings' window (today and the n days before), so the numbers match
+        d0 = (today - timedelta(days=0 if n == 1 else n)).strftime("%Y-%m-%d") if n else ""
         zs = [z for d, z in by.items() if d >= d0]
         mins, hw = sum(z["mins"] for z in zs), sum(z["hw"] for z in zs)
         g = {}
@@ -4021,7 +4032,6 @@ def channel(sid: str) -> dict:
         return {"peak": max((z["peak"] for z in zs), default=0), "avg": round(hw * 60 / mins) if mins else 0,
                 "hw": round(hw), "hours": round(mins / 60, 1), "days": len(zs),
                 "games": [k for k, _ in sorted(g.items(), key=lambda kv: -kv[1])][:4]}
-    now = _live_part(None, "global")["_now"].get(sid, 0)
     step = max(1, len(samp) // 240)
     return {"sid": sid, "name": ch["name"], "platform": ch["platform"], "url": ch["url"],
             "logo": _logo({"sid": sid, "logo": ch["logo"]}), "title": ch["title"], "game": ch["game"],
