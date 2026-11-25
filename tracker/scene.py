@@ -1109,6 +1109,7 @@ def _schema(c):
     CREATE TABLE IF NOT EXISTS sc_channels (sid TEXT PRIMARY KEY, platform TEXT, name TEXT, url TEXT, logo TEXT,
         first_seen REAL, last_live REAL, title TEXT, game TEXT);
     CREATE TABLE IF NOT EXISTS sc_samples (ts INTEGER, sid TEXT, viewers INTEGER, game TEXT);
+    CREATE TABLE IF NOT EXISTS yt_card (vid TEXT PRIMARY KEY, game TEXT, ts INTEGER);
     CREATE TABLE IF NOT EXISTS sc_vstreams (vid TEXT PRIMARY KEY, sid TEXT, first_ts INTEGER, last_ts INTEGER,
         peak INTEGER, peak_at INTEGER, hw REAL, n INTEGER);
     CREATE INDEX IF NOT EXISTS sc_vstreams_sid ON sc_vstreams(sid, first_ts);
@@ -1500,21 +1501,90 @@ _YCARD = {}          # YouTube video -> the game YouTube shows under it ("" = no
 _YCARD_TRY = {}      # video -> when an unreadable page was last tried
 
 
+def _card_load():
+    """Game cards already read (kept in yt_card, so a restart doesn't read them again)."""
+    if _YCARD_TRY.get("_loaded"):
+        return
+    _YCARD_TRY["_loaded"] = 1
+    try:
+        with store.reading():
+            for v, g in _db().execute("SELECT vid, game FROM yt_card WHERE ts>?", (time.time() - 60 * 86400,)):
+                _YCARD.setdefault(v, g or "")
+    except Exception as e:
+        print(f"Game cards load: {str(e)[:100]}")
+
+
 def _card_get(vids, n: int = 4) -> int:
     from concurrent.futures import ThreadPoolExecutor
+    _card_load()
     vids = [v for v in vids if v not in _YCARD and time.time() - _YCARD_TRY.get(v, 0) > 1800]
     if not vids:
         return 0
     with ThreadPoolExecutor(n) as ex:
         res = list(ex.map(_yt_game, vids))
+    new = []
     for v, r in zip(vids, res):
         if r is None:
             _YCARD_TRY[v] = time.time()
         else:
             _YCARD[v] = r[0] or ""
-    if len(_YCARD) > 60000:
+            new.append((v, r[0] or "", int(time.time())))
+    if new:
+        with store._lock:
+            c = _db()
+            c.executemany("INSERT OR REPLACE INTO yt_card VALUES (?,?,?)", new)
+            c.commit()
+    if len(_YCARD) > 120000:
         _YCARD.clear()
+        _YCARD_TRY.pop("_loaded", None)
     return len(vids)
+
+
+def refile_games(days: int = 30, max_vids: int = 2500, pace=None) -> int:
+    """What Indian YouTube channels really streamed, by the game YouTube shows under each stream (the streamer picks
+    it), not the title's words (owner, 25 Nov: Free Fire / BGMI streamers filed as GTA after a 'GTA 6' title). A
+    channel's day is moved to the card's game when every stream that day has a card and they all name one game."""
+    since = time.time() - days * 86400
+    with store.reading():
+        rows = store.conn().execute("""SELECT v.vid, v.sid, v.first_ts, v.last_ts FROM sc_vstreams v JOIN sc_channels ch
+            ON ch.sid=v.sid WHERE v.last_ts>=? AND COALESCE(ch.india,0)=1 AND v.peak>=100 ORDER BY v.peak DESC LIMIT ?""",
+                                    (since, max_vids)).fetchall()
+    for i in range(0, len(rows), 40):          # a few at a time, waiting while the machine is behind
+        while pace and pace():
+            time.sleep(30)
+        _card_get([r[0] for r in rows[i:i + 40]])
+    card = lambda v: classify(_YCARD[v], "") if _YCARD.get(v) else None
+    day = lambda ts: datetime.fromtimestamp(ts, events.REPORT_TZ).strftime("%Y-%m-%d")
+    by = {}
+    for vid, sid, a, b in rows:
+        for d in {day(a), day(b)}:
+            by.setdefault((sid, d), []).append(vid)
+    moved, todo = 0, []
+    for (sid, d), vs in by.items():
+        gs = {card(v) for v in vs}
+        if None in gs or len(gs) != 1:
+            continue                           # a stream without a card, or two games that day: left as filed
+        g = gs.pop()
+        if g and g != "Other":
+            todo.append((sid, d, g))
+    for i in range(0, len(todo), 20):
+        while pace and pace():
+            time.sleep(30)
+        with store._lock:
+            c = store.main()
+            for sid, d, g in todo[i:i + 20]:
+                other = c.execute("SELECT game, peak, peak_at, mins, hw FROM sc_daily WHERE day=? AND sid=? AND game!=?",
+                                  (d, sid, g)).fetchall()
+                for og, pk, pat, mn, hw in other:
+                    c.execute("""INSERT INTO sc_daily VALUES (?,?,?,?,?,?,?) ON CONFLICT(day, sid, game) DO UPDATE SET
+                                 peak_at=CASE WHEN excluded.peak>sc_daily.peak THEN excluded.peak_at ELSE sc_daily.peak_at END,
+                                 peak=MAX(sc_daily.peak, excluded.peak), mins=sc_daily.mins+excluded.mins, hw=sc_daily.hw+excluded.hw""",
+                              (d, sid, g, pk, pat, mn, hw))
+                    c.execute("DELETE FROM sc_daily WHERE day=? AND sid=? AND game=?", (d, sid, og))
+                    moved += 1
+            c.commit()
+    print(f"Game cards: {len(rows)} Indian YouTube streams of {days} days read, {moved} channel-day rows moved to their card's game")
+    return moved
 
 
 def cards_once(limit: int = 150) -> int:
@@ -3621,6 +3691,9 @@ def rankings(region="global", metric="hw", period="day", date="", cat="", countr
         out, games, ctrs = {}, {}, {}
         blk = blocked()
         secs, cts = {}, {}
+        tot = {}                              # each channel's hours watched in the period, every game
+        for r in rows:
+            tot[r["sid"]] = tot.get(r["sid"], 0) + (r["hw"] or 0)
         for r in rows:
             sid, g = r["sid"], r["game"]
             if sid in blk or (region == "in" and not r["india"]) or (game and g != game) \
@@ -3693,6 +3766,9 @@ def rankings(region="global", metric="hw", period="day", date="", cat="", countr
             x["game"] = max(x["g"], key=x["g"].get) if x["g"] else ""
             del x["g"], x["mins"]
         ranked = sorted((x for x in out.values() if metric not in ("sc", "vg") or x[metric] > 0), key=lambda x: -x[metric])
+        if game and metric not in ("sc", "vg"):   # a game's board: channels that really streamed it in this period, a
+            from tracker import ranks             # quarter of their watch time or more, or it's their game (owner, 25 Nov)
+            ranked = [x for x in ranked if x["hw"] >= ranks.GAME_SHARE * tot.get(x["sid"], 0) or ranks.plays(x["sid"], game)]
         if not platform:                      # all platforms: the same creator on YouTube and Kick once (owner, 24 Nov)
             from tracker import ytextra
             ranked = ytextra.one_per_creator(ranked, metric)

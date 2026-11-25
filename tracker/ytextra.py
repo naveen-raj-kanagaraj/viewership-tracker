@@ -2301,7 +2301,7 @@ def _ranks(sid: str) -> dict:
                 R = ranks._R["rows"]
                 for s2, gv in gl.items():
                     x = R.get(s2)
-                    if x and x["platform"] == plat and (not ctry or x["country"] == ctry):
+                    if x and x["platform"] == plat and (not ctry or x["country"] == ctry) and ranks.plays(s2, game, gv, x):
                         for m in ms:
                             if gv.get(m):
                                 cand[m].append((gv[m], s2, x.get("name")))

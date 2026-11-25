@@ -193,6 +193,8 @@ def _rows():
         top = (pkp.get(sid) or {}).get("all") or 0
         if sid in bad or overrides.blocked(sid):
             continue                          # banned / deleted, viewbots, or blocked by the daily review
+        if ch["platform"] == "youtube" and size and _viewbot(size, (pkp.get(sid) or {}).get("30d"), (avp.get(sid) or {}).get("30d")):
+            continue                          # YouTube viewbots: more watching than subscribers can explain (25 Nov)
         if top < 10:                          # never streamed live to 10+ viewers on our records: not ranked. The
                                               # rankings are of streamers only (owner, 23 Nov: Short Malouniya, an
                                               # uploader with no live streams, was #2 in India's YouTube Gaming).
@@ -444,6 +446,28 @@ def _games_streamed() -> list:
 _GL = {}      # game -> (ts, {sid: {metric: value}}) live numbers while streaming that game, 10-minute cache
 
 
+GAME_SHARE = .25
+
+
+def plays(sid: str, game: str, gv: dict = None, r: dict = None, period: str = "") -> bool:
+    """Is `game` really what this channel streams? Its main game over 30 days, or a quarter or more of its hours
+    watched over the last 7 or 30 days (owner, 25 Nov: channels that stream Free Fire / BGMI showed in GTA lists after
+    one GTA stream; this replaces 18 Nov's 'one stream is enough')."""
+    if r is None:
+        r = _R["rows"].get(sid)
+    if not r:
+        return False
+    if r.get("game") == game:
+        return True
+    if gv is None:
+        gv = game_live(game).get(sid) or {}
+    for p in dict.fromkeys([period, "7d", "30d"] if period else ["7d", "30d"]):     # the list's own period too
+        tot, part = r.get("live_" + p), gv.get("live_" + p)
+        if tot and part and part >= GAME_SHARE * tot:
+            return True
+    return False
+
+
 def game_live(game: str) -> dict:
     """Peak / hours watched / average viewers of every channel WHILE STREAMING `game`, per period, from sc_daily's
     rows of that game only (its index): one stream of the game is enough to be counted (owner, 18 Nov 2026)."""
@@ -477,11 +501,12 @@ def _gl_build(game: str) -> dict:
     today = datetime.now(events.REPORT_TZ).date()
     pcols = [p for p in PERIODS if p != "all"]
     starts = [(period_start(p) if p != "24h" else today - timedelta(days=1)).strftime("%Y-%m-%d") for p in pcols]
-    sums = ", ".join("SUM(CASE WHEN day>=? THEN hw END), MAX(CASE WHEN day>=? THEN peak END), SUM(CASE WHEN day>=? THEN mins END)"
+    ok = "COALESCE(mins,0)>=10 AND NOT (mins>=30 AND hw>0 AND peak > 8*hw*60/mins)"     # the rankings' peak rule
+    sums = ", ".join(f"SUM(CASE WHEN day>=? THEN hw END), MAX(CASE WHEN day>=? AND {ok} THEN peak END), SUM(CASE WHEN day>=? THEN mins END)"
                      for _ in pcols)
     out = {}
     with store.reading():
-        for r in scene._db().execute(f"SELECT sid, {sums}, SUM(hw), MAX(peak), SUM(mins) FROM sc_daily WHERE game=? GROUP BY sid",
+        for r in scene._db().execute(f"SELECT sid, {sums}, SUM(hw), MAX(CASE WHEN {ok} THEN peak END), SUM(mins) FROM sc_daily WHERE game=? GROUP BY sid",
                                      [d for d in starts for _ in range(3)] + [game]):
             v, d = list(r[1:]), {}
             for i, p in enumerate(pcols + ["all"]):
@@ -507,9 +532,10 @@ def _world50(platform, metric, category, game, gl, by_game) -> dict:
             if not (platform == "all" or r["platform"] == platform) or (category and r["category"] != category):
                 continue
             if by_game:
-                v = (gl.get(r["sid"]) or {}).get(metric)
+                gv = gl.get(r["sid"]) or {}
+                v = gv.get(metric) if gv and plays(r["sid"], game, gv, r) else None
             else:
-                if not _keep(r, metric) or (game and not (r["game"] == game or r["sid"] in gl)):
+                if not _keep(r, metric) or (game and not (r["game"] == game or (r["sid"] in gl and plays(r["sid"], game, gl[r["sid"]], r)))):
                     continue
                 v = r.get(metric)
             if v:
@@ -534,12 +560,12 @@ def top(platform: str = "youtube", metric: str = "size", country: str = "", cate
             for r in _R["rows"].values():
                 gv = gl.get(r["sid"]) or {}
                 if (platform == "all" or r["platform"] == platform) and gv.get(metric) and (not country or r["country"] == country) \
-                        and (not category or r["category"] == category):
+                        and (not category or r["category"] == category) and plays(r["sid"], game, gv, r, metric.partition("_")[2]):
                     rows.append({**r, **gv})
         else:
             rows = [r for r in _R["rows"].values() if (platform == "all" or r["platform"] == platform) and _keep(r, metric)
                     and (not country or r["country"] == country) and (not category or r["category"] == category)
-                    and (not game or r["game"] == game or r["sid"] in gl)]
+                    and (not game or r["game"] == game or (r["sid"] in gl and plays(r["sid"], game, gl[r["sid"]], r)))]
             if game:                          # one stream of the game is enough to be in its list (owner, 18 Nov)
                 rows = [{**r, "game": game} for r in rows]
         cats = [] if platform == "all" else \

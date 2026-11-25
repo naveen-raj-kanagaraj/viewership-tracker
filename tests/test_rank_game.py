@@ -31,6 +31,7 @@ c.executemany("INSERT INTO sc_chstats VALUES (?,?,?,?,?,?)", [(D(0), "yt:gf", 21
               (D(0), "yt:my", 15000000, 2000000000, 900, 0)])
 c.execute("UPDATE sc_daily SET hw=hw*10 WHERE sid='yt:gf' AND game='GTA V'")        # most of his week: GTA V
 c.commit(); ranks.compute()
-v = ranks.top("youtube", "size", game="GTA 6")              # non-live metrics too: one GTA 6 stream is enough
-assert {r["name"] for r in v["rows"]} >= {"GamerFleet", "Mythpat"}, [r["name"] for r in v["rows"]]
-print("ANY STREAM OF THE GAME OK")
+v = ranks.top("youtube", "size", game="GTA 6")              # non-live metrics too: the game must be a real part of
+names = {r["name"] for r in v["rows"]}                       # what they stream (owner, 25 Nov; was 'one stream is enough')
+assert "Mythpat" in names and "GamerFleet" not in names, names     # GamerFleet's week: 10x more GTA V than GTA 6
+print("ONLY CHANNELS THAT REALLY STREAM THE GAME OK")
