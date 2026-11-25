@@ -1692,6 +1692,17 @@ def run():
                     rk_.compute()
             except Exception as e:
                 print(f"GTA 6 game cards: {str(e)[:120]}")
+            def refile():                    # every stream's game from YouTube's card: 30 days once, then 3 days daily
+                while True:
+                    try:
+                        full = not store.kv_get("games_refile_v1")
+                        sc_.refile_games(30 if full else 3, 2500 if full else 600, pace=sc_.overloaded)
+                        if full:
+                            store.kv_set("games_refile_v1", time.time())
+                    except Exception as e:
+                        print(f"Game refile: {str(e)[:120]}")
+                    time.sleep(86400)
+            threading.Thread(target=refile, daemon=True).start()
             while True:
                 try:
                     sc_.cards_once()
