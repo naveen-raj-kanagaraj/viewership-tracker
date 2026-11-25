@@ -565,7 +565,8 @@ def _health() -> dict:
         "code": api_version().get_json().get("code"), "up_min": round((now - _STARTED) / 60),
         "scan": {"last_saved_min_ago": round((now - (sc_._SCANMEM.get("saved") or sc_._SCANMEM.get("ts") or 0)) / 60, 1),
                  "running_for_s": round(now - cyc["started"]) if cyc.get("running") else 0,
-                 "last_took_s": cyc.get("took"), "live": cyc.get("live")},
+                 "last_took_s": cyc.get("took"), "live": cyc.get("live"), "fetch_s": cyc.get("fetch_s"),
+                 "store_s": cyc.get("store_s"), "overloaded": sc_.overloaded()},
         "write_lock": {"held_s": round(now - h["at"], 1), "by": h.get("where"), "thread": h.get("thread")} if h.get("at") else "free",
         "wal_mb": round(wal / 1e6), "db_mb": round(os.path.getsize(db) / 1e6) if os.path.exists(db) else 0,
         "disk_free_gb": round(du.free / 1e9, 1), "disk_used_pct": round(100 * du.used / du.total),
@@ -1564,10 +1565,13 @@ def _warm_more():
     H = {"Accept-Encoding": "gzip", "X-Warm": "1"}
     while True:
         t0 = time.time()
+        if scene.overloaded():                # behind: visitors' pages and the scan first
+            time.sleep(60)
+            continue
         try:
-            for region, rp in (("global", "/global"), ("in", "/india")):
+            for region, rp in (("in", "/india"), ("global", "/global")):
                 lv = scene._live_part(None, region)
-                cats = sorted(lv["_by_game"].values(), key=lambda g: -g["viewers"])[:40]
+                cats = sorted(lv["_by_game"].values(), key=lambda g: -g["viewers"])[:15 if region == "in" else 10]
                 urls = []
                 for g in cats:
                     sl = scene.slug(g["game"])
@@ -1577,15 +1581,17 @@ def _warm_more():
                 for t in list(lv["_tours"].values())[:30]:
                     sl = scene.slug(t["name"])
                     urls += [f"{rp}/t/{sl}", f"/api/tour?region={region}&t={sl}"]
-                top = sorted(lv["_live"], key=lambda x: -x["viewers"])[:120]
+                top = sorted(lv["_live"], key=lambda x: -x["viewers"])[:40]
                 for x in top:
                     urls += [f"/api/channel?sid={x['sid']}"]
                 for u in urls:
+                    if scene.overloaded():
+                        break
                     try:
                         c.get(u, headers=H)
                     except Exception:
                         pass
-                    time.sleep(0.05)
+                    time.sleep(0.2)
         except Exception as e:
             print(f"Warm more: {str(e)[:120]}")
         time.sleep(max(30, 240 - (time.time() - t0)))
@@ -1593,15 +1599,18 @@ def _warm_more():
 
 def _warm_forever():
     """Keep the busiest pages built, so a visitor never waits for one to be computed."""
+    from tracker import scene
     time.sleep(30)
     c = app.test_client()
     while True:
-        for u in WARM:
+        for i, u in enumerate(WARM):
+            if i >= 12 and scene.overloaded():      # behind: only the front pages stay warm
+                break
             try:
                 c.get(u, headers={"Accept-Encoding": "gzip", "X-Warm": "1"})
             except Exception:
                 pass
-        time.sleep(10)
+        time.sleep(30 if scene.overloaded() else 10)
 
 
 def run():

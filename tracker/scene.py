@@ -27,7 +27,8 @@ from datetime import date, datetime, timedelta, timezone
 from tracker import events, platforms, store
 
 SCENE_SEC = int(os.getenv("SCENE_SEC", "120"))
-FRESH_SEC = int(os.getenv("SCENE_FRESH_SEC", "900"))
+FRESH_SEC = int(os.getenv("SCENE_FRESH_SEC", "3600"))     # a late scan never blanks the pages (25 Nov: 14-minute scans
+                                                           # crossed the old 15-minute line and every live number showed 0)
 SCENE_YT_SEC = int(os.getenv("SCENE_YT_SEC", "300"))
 MIN_VIEWERS = int(os.getenv("SCENE_MIN_VIEWERS", "20"))
 KEEP_DAYS = int(os.getenv("SCENE_KEEP_DAYS", "3"))         # raw per-scan readings; per-day totals are kept for good
@@ -2225,8 +2226,11 @@ def cycle(now: float = None) -> dict:
         _LIVE.update({x["sid"]: x for x in rows})
         _STATE["last"] = now
         _STATE["errors"] = errors
+    t_st = time.time()
+    CYCLE["fetch_s"] = round(t_st - (CYCLE.get("started") or t_st))      # health page: reading the platforms
     _store(rows, now, last)
     _SCANMEM["saved"] = time.time()
+    CYCLE["store_s"] = round(time.time() - t_st)                          # health page: writing it down
     if rejected:                              # remember them (and their country) so they aren't looked up again
         with store._lock:
             c = _db()
@@ -2746,6 +2750,17 @@ def _with_full(out: dict, region: str, game, sec: str) -> dict:
     out["india_total"] = (out.get("india_total") or 0) + extra
     out["twitch_full"] = {"viewers": f["viewers"], "streams": f["streams"], "ts": int(f["ts"])}
     return out
+
+
+def overloaded() -> bool:
+    """The machine is behind: load well above its cores, or the scan running past twice its pace. Background warm-ups
+    pause then, so the scan and visitors' pages get the CPU (25 Nov: load 21 on 4 cores, scans 14 min, pages 10 min)."""
+    try:
+        if os.getloadavg()[0] > 2.5 * (os.cpu_count() or 4):
+            return True
+    except OSError:
+        pass
+    return bool(CYCLE.get("running") and time.time() - (CYCLE.get("started") or time.time()) > 2 * SCENE_SEC)
 
 
 def run_forever():
