@@ -220,6 +220,15 @@ body{font-size:14px}.wrap{padding:0 12px 20px}
 .kpi #k3p{display:block;font-size:10.5px;margin-top:3px}.sbox{padding:0 12px 10px}.sres{left:12px;right:12px}
 .hr{grid-template-columns:96px minmax(0,1fr) 52px;gap:8px;font-size:12px}.hr .hb{height:13px}.foot{font-size:11px}
 }
+.ott{margin-top:6px}.oth,.otr{display:grid;grid-template-columns:26px minmax(0,1fr) 110px 110px 120px;gap:10px;align-items:center;padding:9px 6px}
+.oth{font:700 11px "Barlow Condensed",sans-serif;letter-spacing:.09em;color:var(--muted);border-bottom:1px solid var(--line);padding-top:4px}.oth span,.otr .c{text-align:right;white-space:nowrap}
+.otr{border-bottom:1px solid var(--line);text-decoration:none;color:inherit}.otr:hover{background:#14141e}.otr .rk{font:700 15px "Barlow Condensed",sans-serif;color:var(--muted);text-align:center}
+.otr .t{display:flex;gap:10px;align-items:center;min-width:0}.otr .t img,.otr .t .ph{width:30px;height:40px;object-fit:cover;border-radius:3px;flex:none}
+.otr .n{font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.otr .m{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.otr .c{font:700 18px "Barlow Condensed",sans-serif;white-space:nowrap}.otr .c.mu{color:var(--muted);font-weight:500}.otr .c.lv{color:#ff4d5e}
+.otr .pill{display:inline-block;font:700 10px "Barlow Condensed",sans-serif;letter-spacing:.08em;padding:1px 5px;margin-right:6px;vertical-align:1px}.pill.l{background:#ff4d5e;color:#fff}.pill.k{background:var(--lime);color:#0b0b12}.pill.e{border:1px solid var(--line);color:var(--muted)}
+.otr.nos{opacity:.55}.otr .mnow{display:none}.oth i{font-style:normal}.oth .sm{display:none}
+@media(max-width:640px){.oth,.otr{grid-template-columns:20px minmax(0,1fr) 78px;gap:8px;padding:9px 2px}.oth .w,.otr .w{display:none}.otr .mnow{display:inline}.otr .c{font-size:16px}.otr .m{white-space:normal}.oth .sm{display:inline}.oth .lg{display:none}}
 .otchips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 12px}.otchips a{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#14141e;padding:6px 10px;font:700 13px "Barlow Condensed",sans-serif;letter-spacing:.05em;text-decoration:none;color:var(--ink)}.otchips a.tk{background:var(--lime);color:#0b0b12;border-color:var(--lime)}.otchips a i{width:7px;height:7px;border-radius:50%;background:#ff4d5e;display:inline-block}
 .otg{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:10px}.otg a{display:flex;gap:10px;align-items:center;border:1px solid var(--line);background:#14141e;padding:10px;text-decoration:none;color:inherit;min-width:0}.otg a:hover{border-color:var(--lime)}
 .otg img,.otg .ph{width:36px;height:48px;object-fit:cover;border-radius:3px;flex:none;background:#1a1a26}.otg .n{font-weight:700;line-height:1.2}.otg .m{color:var(--muted);font-size:12px}.otg .v{margin-left:auto;text-align:right;font:700 20px "Barlow Condensed",sans-serif;white-space:nowrap}.otg .v small{display:block;font:500 11px "Barlow",sans-serif;color:var(--muted)}
@@ -240,8 +249,8 @@ body{font-size:14px}.wrap{padding:0 12px 20px}
  <div class="gcard" id="gcardw"><div class="gh"><div><h2>Where the streamers are from</h2><div class="gsub">Viewers by the streamer's country. Grey: no located streamer live.</div></div><a class="btn" href="/map" style="text-decoration:none">OPEN MAP</a></div><iframe id="gframe" title="World map of live viewers" loading="lazy"></iframe></div>
 </div>
 <div id="evwrap"></div>
-<div class="card" id="otcard" style="display:none"><div class="head"><div><div class="lbl">Esports</div><h2>Ongoing tournaments</h2><div class="sub" id="ots">Every channel streaming a tournament added together: official broadcasts in every country and language, and co-streams. Tap one for all its numbers.</div></div></div>
-<div class="otchips" id="otchips"></div><div class="otg" id="otg"></div><div class="otmore" id="otmore"></div></div>
+<div class="card" id="otcard" style="display:none"><div class="head"><div><div class="lbl">Esports</div><h2>Tournaments</h2><div class="sub" id="ots"></div></div><div class="seg" id="ottab"></div></div>
+<div class="ott" id="ott"></div><div class="otmore" id="otmore"></div></div>
 <div class="hbar" id="hbar"><div><div class="lbl">Today</div><h2 id="hbt">Top today</h2></div><div class="qf" id="qf"></div><label class="hsel"><span>Category</span><select id="hcat"><option value="">All categories</option></select></label><a class="hopen" id="hopen" style="display:none"></a><div class="pulse" id="pulse" style="display:none"></div></div>
 <div class="hcs" id="hcs"></div>
 <div class="card" id="histcard" style="display:none"><div class="head"><div><div class="lbl" id="hl">Past events</div><h2 id="hh">Peak viewers of past tournaments</h2><div class="sub">Highest number watching at once, official broadcast plus co-streams.</div></div><button class="btn" data-share="hist">SHARE</button></div><div class="hchart"><canvas id="hc"></canvas></div></div>
@@ -464,13 +473,23 @@ const liveList=()=>(D.live||[]).filter(x=>(plat==='all'||x.platform===plat)&&(!q
 const dl=d=>d===undefined?'':d===null?'<span class="dl nw">NEW</span>':d>0?`<span class="dl up">&#9650;${d}</span>`:d<0?`<span class="dl dn">&#9660;${-d}</span>`:'';
 const boardList=()=>{const lm=liveMap();return (D.board||[]).filter(x=>bplat==='all'||x.platform===bplat).map(x=>({...x,now:lm[x.sid]||x.now||0})).sort((a,b)=>b[sort]-a[sort])};
 
-async function otLoad(){let j;try{j=await (await fetch('/api/tours?region='+REGION)).json()}catch(e){return}
- const K=j.tracked||[],T=j.tournaments||[],O=j.ongoing_no_streams||[];if(!K.length&&!T.length&&!O.length)return;document.getElementById('otcard').style.display='';
+let OTAB='on',OTJ=null;
+async function otLoad(){let j;try{j=await (await fetch('/api/tours?region='+REGION)).json()}catch(e){return}OTJ=j;otRender()}
+function otRender(){const j=OTJ;if(!j)return;
+ const T=j.tournaments||[],O=j.ongoing_no_streams||[],U=j.upcoming||[];if(!T.length&&!O.length&&!U.length)return;document.getElementById('otcard').style.display='';
  const dd=s=>s?new Date(s+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'}):'';
- setH('otchips',K.map(e=>`<a class="tk" href="${esc(e.url)}">${e.live?'<i></i>':''}${esc(e.name.toUpperCase())}</a>`).join('')+T.filter(t=>t.live).slice(0,12).map(t=>`<a href="${RP}/t/${esc(t.slug)}"><i></i>${esc(t.name.toUpperCase())}</a>`).join(''));
- const card=(href,t,extra)=>`<a href="${href}">${art(t.game,t.art,'')}<span style="min-width:0"><div class="n">${esc(t.name)}</div><div class="m">${t.live?'<span class="lvb">LIVE</span>':''}${esc(t.game||'')}${t.start?' · '+dd(t.start)+(t.end&&t.end!==t.start?' to '+dd(t.end):''):''}${extra||''}</div></span><span class="v">${t.live?fmt(t.viewers):fmt(t.peak)}<small>${t.live?'watching now':'peak'}</small></span></a>`;
- setH('otg',K.map(e=>card(esc(e.url),e,' · official tracker')).join('')+T.slice(0,24).map(t=>card(`${RP}/t/${esc(t.slug)}`,t,t.streams?` · ${t.streams} channel${t.streams>1?'s':''}`:'')).join(''));
- setH('otmore',O.length?'Also on now, no stream seen yet: '+O.slice(0,25).map(t=>esc(t.name)).join(', ')+'.':'')}
+ const span=t=>t.start?dd(t.start)+(t.end&&t.end!==t.start?' to '+dd(t.end):''):'';
+ seg('ottab',[['on','ONGOING'+(T.length+O.length?' '+(T.length+O.length):'')],['up','UPCOMING'+(U.length?' '+U.length:'')]],OTAB,v=>{OTAB=v;otRender()});
+ const live=T.filter(t=>t.live).length;
+ setT('ots',OTAB==='up'?'Starting in the next two weeks (Liquipedia).':`${live?live+' live now · ':''}Every channel carrying a tournament added together: official broadcasts in every language and co-streams.${REGION==='in'?' India: BGMI, PUBG Mobile, Free Fire, Valorant and PUBG.':''}`);
+ const href=t=>t.url?esc(t.url):`${RP}/t/${esc(t.slug)}`;
+ const tcell=(t,meta)=>`<span class="t">${art(t.game,t.art,'')}<span style="min-width:0"><div class="n">${esc(t.name)}</div><div class="m">${meta}</div></span></span>`;
+ if(OTAB==='up'){setH('ott',U.length?`<div class="oth"><span></span><b>TOURNAMENT</b><span>STARTS</span><span class="w">ENDS</span><span class="w"></span></div>`+U.map((t,i)=>`<a class="otr" href="${esc(t.liquipedia||'#')}" target="_blank" rel="noopener"><span class="rk">${i+1}</span>${tcell(t,esc(t.game||''))}<span class="c">${dd(t.start)}</span><span class="c mu w">${dd(t.end)}</span><span class="w"></span></a>`).join(''):'<div class="empty">Nothing announced for the next two weeks.</div>');setT('otmore','');return}
+ const rows=T.map((t,i)=>{const meta=(t.live?'<span class="pill l">LIVE</span>':t.done?'<span class="pill e">ENDED</span>':'')+(t.tracked?'<span class="pill k">TRACKED</span>':'')+esc(t.game||'')+(span(t)?' · '+span(t):'')+(t.live?`<span class="mnow"> · <b style="color:#ff4d5e">${fmt(t.viewers)}</b> now</span>`:'');
+  return `<a class="otr" href="${href(t)}"><span class="rk">${i+1}</span>${tcell(t,meta)}<span class="c ${t.live?'lv':'mu'} w">${t.live?fmt(t.viewers):'-'}</span><span class="c">${t.peak?fmt(t.peak):'-'}</span><span class="c mu w">${t.hw?fmt(t.hw)+'h':'-'}</span></a>`}).join('')
+  +O.map(t=>`<a class="otr nos" href="${esc(t.liquipedia||'#')}" target="_blank" rel="noopener"><span class="rk"></span>${tcell(t,esc(t.game||'')+(span(t)?' · '+span(t):'')+' · no stream seen yet')}<span class="c mu w">-</span><span class="c mu">-</span><span class="c mu w">-</span></a>`).join('');
+ setH('ott',`<div class="oth"><span>#</span><b>TOURNAMENT</b><span class="w">WATCHING NOW</span><span><i class="lg">PEAK VIEWERS</i><i class="sm">PEAK</i></span><span class="w">HOURS WATCHED</span></div>`+rows);
+ setH('otmore','Peak: most people watching at once, every channel together. Tournament list from <a href="https://liquipedia.net" target="_blank" rel="noopener">Liquipedia</a> (CC-BY-SA).')}
 function render(){if(!D)return;const K=D.kpis||{};
  updLabel();
  const S=D.sections||[];
