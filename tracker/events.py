@@ -882,8 +882,8 @@ def _trusted_slice(pr: dict, n: int) -> list:
         return []
     if not ids:
         return []
-    k = (n * 30) % len(ids)
-    return (ids[k:] + ids[:k])[:30]
+    k = (n * 10) % len(ids)
+    return (ids[k:] + ids[:k])[:10]
 
 
 _ECH = {}
@@ -1670,7 +1670,7 @@ def poll(ev: dict, now: int = None) -> dict:
                 _ENDED.pop(s["vid"], None)
         listed = list(dict.fromkeys(ev.get("channels", []) + pr.get("always_check", []) + live_list(ev["key"]).get("youtube", [])
                                     + [h for _, _, h in roster(ev["key"]) if h]))
-        chans = list(dict.fromkeys(listed + _event_channels(ev["key"], now) + _trusted_slice(pr, ph["n"])))[:160]
+        chans = list(dict.fromkeys(listed + _event_channels(ev["key"], now) + _trusted_slice(pr, ph["n"])))[:110]
         with ThreadPoolExecutor(max_workers=8) as pool:       # every listed channel's feed, every poll (cheap): the
             for res in pool.map(lambda h: _safe(feed_live, h), chans):   # listed streamers, every channel that has
                 for s in res or []:                                      # carried this event (a new stream after a
