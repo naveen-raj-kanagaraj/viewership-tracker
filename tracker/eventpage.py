@@ -566,6 +566,7 @@ PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="theme-color" content="#07051a">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="/brand/strap.js?v=1"></script>
 <style>
 :root{color-scheme:dark;--bg:#0b0b12;--bg2:#121219;--card:#13131c;--card2:#1a1a26;--ink:#eeeef5;--muted:#8d8ca3;--line:#262636;
 --lime:#b6f23a;--purple:#7c5cff;--cyan:#4cc9f0;--orange:#ff8a3d;--red:#ff4d5e;--up:#b6f23a;--down:#ff4d5e}
@@ -1041,19 +1042,20 @@ function RGN(){return D.split_in&&reg!=='all'?(reg==='in'?'in India':'outside In
 function hasVid(w,vid){return w.vid===vid||(w.vids||[]).includes(vid)}
 function histCard(){const W=1080,H=1350,SC=2,c=document.createElement('canvas');c.width=W*SC;c.height=H*SC;const x=c.getContext('2d');x.scale(SC,SC);
  const g=x.createRadialGradient(W*.8,0,40,W*.8,0,1200);g.addColorStop(0,'#2a1d5c');g.addColorStop(1,'#0b0b12');x.fillStyle=g;x.fillRect(0,0,W,H);
- const T=(t,X,Y,f,c,a)=>{x.font=f;x.fillStyle=c;x.textAlign=a||'left';x.textBaseline='top';x.fillText(t,X,Y)};const h=hist(),top=[...h].sort((a,b)=>b[2]-a[2]);
- T('letsgrowesports',80,70,'30px "Barlow Condensed",sans-serif','#b6f23a');T('For more: '+(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\\./,''),W-80,206,'600 24px "Barlow Condensed",sans-serif','#a9a8be','right');T('BGMI VIEWERSHIP TILL DATE',80,110,'700 64px "Barlow",sans-serif','#ffffff');
- T(`// ALL-TIME HIGH // ${HNAME[top[0][0]].toUpperCase()} 20${top[0][1]}`,80,200,'30px "Barlow Condensed",sans-serif','#ff4d5e');T(top[0][2]+'K',72,240,'700 150px "Barlow",sans-serif','#ffffff');
- T(`${h.length} EVENTS // 2021 TO 2026`,W-80,300,'30px "Barlow Condensed",sans-serif','#b6f23a','right');
+ const T=(t,X,Y,f,c,a,mw)=>{x.font=f;if(mw){const w=x.measureText(t).width;if(w>mw){const m=f.match(/(\d+)px/);x.font=f.replace(/\d+px/,Math.max(10,Math.floor(+m[1]*mw/w))+'px')}}x.fillStyle=c;x.textAlign=a||'left';x.textBaseline='top';x.fillText(t,X,Y)};const h=hist(),top=[...h].sort((a,b)=>b[2]-a[2]);
+ T('LETSGROWESPORTS',80,66,'700 30px "Barlow Condensed",sans-serif','#b6f23a');T('For more: '+(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\\./,''),W-80,206,'600 24px "Barlow Condensed",sans-serif','#a9a8be','right');T('BGMI VIEWERSHIP TILL DATE',80,104,'700 70px "Barlow Condensed",sans-serif','#ffffff');
+ T(`// ALL-TIME HIGH // ${HNAME[top[0][0]].toUpperCase()} 20${top[0][1]}`,80,200,'600 30px "Barlow Condensed",sans-serif','#ff4d5e');T(top[0][2]+'K',72,232,'700 170px "Barlow Condensed",sans-serif','#ffffff');
+ T(`${h.length} EVENTS // 2021 TO 2026`,W-80,300,'600 30px "Barlow Condensed",sans-serif','#b6f23a','right');
  x.save();x.translate(40,420);x._keep=1;drawHist(x,W-80,420,2);x._keep=0;x.restore();
- let y=880;T('// ALL-TIME RANKING',80,y,'26px "Barlow Condensed",sans-serif','#ff4d5e');y+=44;
+ let y=880;T('// ALL-TIME RANKING',80,y,'600 26px "Barlow Condensed",sans-serif','#ff4d5e');y+=44;
  top.slice(0,8).forEach((r,i)=>{const col=i%2,row=Math.floor(i/2),X=80+col*470,Y=y+row*48,c=ISCUR(r)?'#ff4d5e':i===0?'#b6f23a':'#eeeef5';
-  T(`${i+1}. ${HNAME[r[0]].toUpperCase()} 20${r[1]}`.slice(0,26),X,Y,'700 28px "Barlow",sans-serif',c);T(r[2]+'K',X+430,Y,'700 28px "Barlow",sans-serif',c,'right')});
- x.fillStyle='#b6f23a';x.fillRect(0,H-130,W,130);T('LIVE.LETSGROWESPORTS.COM',80,H-108,'700 44px "Barlow",sans-serif','#0a0a14');T('@letsgrowesports',80,H-52,'24px "Barlow Condensed",sans-serif','#0a0a14');return c}
+  T(`${i+1}. ${HNAME[r[0]].toUpperCase()} 20${r[1]}`,X,Y,'700 28px "Barlow",sans-serif',c,'left',340);T(r[2]+'K',X+430,Y-2,'700 32px "Barlow Condensed",sans-serif',c,'right')});
+ lgeStrap(x,W,H,{when:lgeWhen()});return c}
 function avatarAt(x,im,cx,cy,r,ring,name){x.save();x.beginPath();x.arc(cx,cy,r,0,7);x.closePath();x.fillStyle='#1a1a26';x.fill();x.clip();
  if(im)x.drawImage(im,cx-r,cy-r,2*r,2*r);else{x.fillStyle='#8d8ca3';x.font=`700 ${Math.round(r*.8)}px "Barlow",sans-serif`;x.textAlign='center';x.textBaseline='middle';x.fillText(String(name||'').slice(0,2).toUpperCase(),cx,cy+2)}
  x.restore();x.beginPath();x.arc(cx,cy,r,0,7);x.lineWidth=Math.max(2,r/14);x.strokeStyle=ring;x.stroke();x.textBaseline='top';x.textAlign='left'}
 let avs={};
+if(!window.lgeStrap){window.STRAP_H=130;window.lgeStrap=()=>{};window.lgeWhen=()=>''}   // the strap script failed to load: no strap
 function card(type,vid,avatar){if(type==='history')return histCard();
  const W=1080,H=1350,SC=2,c=document.createElement('canvas');c.width=W*SC;c.height=H*SC;const x=c.getContext('2d');x.scale(SC,SC);x.imageSmoothingQuality='high';
  const g=x.createRadialGradient(W*.8,0,40,W*.8,0,1200);g.addColorStop(0,'#1f1a3d');g.addColorStop(1,'#0b0b12');x.fillStyle=g;x.fillRect(0,0,W,H);
@@ -1062,19 +1064,19 @@ function card(type,vid,avatar){if(type==='history')return histCard();
  const LB=D.last_broadcast||{},wp=wpByPeak(type==='total'||type==='split'),RG=RGN(),RGU=RG?' // '+RG.toUpperCase():'';
  const nowTot=(D.live||[]).reduce((a,s)=>a+s.viewers,0),live=!!D.official_live||nowTot>0;
  const T=(t,X,Y,font,col,al,mw)=>{x.font=font;if(mw){const w=x.measureText(t).width;if(w>mw){const m=font.match(/(\d+)px/);x.font=font.replace(/\d+px/,Math.max(10,Math.floor(+m[1]*mw/w))+'px')}}x.fillStyle=col;x.textAlign=al||'left';x.fillText(t,X,Y)};
- const M=s=>`${s}px "Barlow Condensed",sans-serif`,B=s=>`700 ${s}px "Barlow",sans-serif`;
+ const M=s=>`600 ${s}px "Barlow Condensed",sans-serif`,B=s=>`700 ${s}px "Barlow",sans-serif`,N=s=>`700 ${s}px "Barlow Condensed",sans-serif`;
  x.textBaseline='top';
- T('letsgrowesports',80,78,M(30),'#b6f23a');
- T(`${TITLE} // ${LB.date||''}${RG&&type!=='total'&&type!=='split'?' // '+RG:''}`.toUpperCase(),80,118,B(50),'#eeeef5','left',W-160);T('For more: '+(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\\./,''),W-80,210,M(24),'#a9a8be','right');
+ T('LETSGROWESPORTS',80,74,N(30),'#b6f23a');
+ T(`${TITLE} // ${LB.date||''}${RG&&type!=='total'&&type!=='split'?' // '+RG:''}`.toUpperCase(),80,108,N(64),'#ffffff','left',W-160);T('For more: '+(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\\./,''),W-80,210,M(24),'#a9a8be','right');
  const box=(X,Y,w,h,lab,val,sub,col)=>{x.fillStyle='rgba(26,26,38,.9)';x.fillRect(X,Y,w,h);x.strokeStyle='#262636';x.lineWidth=2;x.strokeRect(X,Y,w,h);
-  T(lab,X+22,Y+20,M(24),'#ff4d5e','left',w-44);T(val,X+22,Y+54,B(56),col||'#eeeef5','left',w-44);if(sub)T(sub,X+22,Y+h-44,M(22),'#8d8ca3','left',w-44)};
+  T(lab,X+22,Y+20,M(24),'#ff4d5e','left',w-44);T(val,X+22,Y+50,N(64),col||'#eeeef5','left',w-44);if(sub)T(sub,X+22,Y+h-44,M(22),'#8d8ca3','left',w-44)};
  let L,y0;
  if(type==='total'||type==='split'){
   if(type==='split'){const sp0=LB.split||{};T('// OFFICIAL VS WATCH PARTIES',80,205,M(30),'#ff4d5e');
-   T('OFFICIAL',80,250,M(26),'#ff8a3d');T(fmt(LB.peak_official??D.peak_official),76,282,B(110),'#ff8a3d');T('WATCH PARTIES',560,250,M(26),'#4cc9f0');T(fmt(LB.peak_watch??D.peak_watch),556,282,B(110),'#4cc9f0');
+   T('OFFICIAL',80,250,M(26),'#ff8a3d');T(fmt(LB.peak_official??D.peak_official),76,276,N(124),'#ff8a3d');T('WATCH PARTIES',560,250,M(26),'#4cc9f0');T(fmt(LB.peak_watch??D.peak_watch),556,276,N(124),'#4cc9f0');
    T('peak of each, all streams combined',80,410,M(24),'#8d8ca3')}else{
   T('// PEAK CONCURRENT VIEWERS',80,205,M(30),'#ff4d5e');
-  x.shadowColor='rgba(182,242,58,.35)';x.shadowBlur=30;T(full(LB.peak||D.peak),72,245,B(170),'#ffffff');x.shadowBlur=0}
+  x.shadowColor='rgba(182,242,58,.35)';x.shadowBlur=30;T(full(LB.peak||D.peak),72,236,N(190),'#ffffff');x.shadowBlur=0}
   const sp=LB.split||{},bw=(W-160-40)/3;
   if(live)box(80,490,bw,170,'WATCHING NOW',fmt(nowTot),'at time of sharing','#b6f23a');else box(80,490,bw,170,'AVERAGE',fmt(LB.avg??D.avg),'while live','#b6f23a');
   box(80+bw+20,490,bw,170,'OFFICIAL AT PEAK',fmt(sp.official),'official streams','#ff8a3d');
@@ -1083,7 +1085,7 @@ function card(type,vid,avatar){if(type==='history')return histCard();
   if(type==='split')L=[{label:'Official',color:'#ff8a3d',pts:dayTotal(2),w:5},{label:'Watch parties',color:'#4cc9f0',pts:dayTotal(3),w:5}];
   x.save();x.translate(60,y0);plot(x,W-120,290,L,{keep:1,live:false,multi:type==='split',nologo:true,key:'cardT'+type,padR:130,padT:40,fs:2,markPeak:type!=='split'});x.restore();
   let ly=1015;T('// WATCH PARTY LEADERS (PEAK)',80,ly,M(26),'#ff4d5e');ly+=42;
-  wp.slice(0,3).forEach((w,j)=>{T(`${j+1}. ${w.channel.toUpperCase().slice(0,26)}`,80,ly,B(34),j?'#eeeef5':'#b6f23a');T(full(w.peak),W-80,ly,B(34),j?'#eeeef5':'#b6f23a','right');ly+=46});
+  wp.slice(0,3).forEach((w,j)=>{T(`${j+1}. ${w.channel.toUpperCase().slice(0,26)}`,80,ly,B(34),j?'#eeeef5':'#b6f23a');T(full(w.peak),W-80,ly-2,N(38),j?'#eeeef5':'#b6f23a','right');ly+=46});
  }else if(type==='streams'){
   const off=isOff(),SA=(off?LB.streams||[]:D.live||[]).filter(inReg),S=SA.slice(0,10),tot=off?LB.peak:nowTot,top=Math.max(1,...S.map(s=>s.viewers)),KC={official:'#ff8a3d','watch party':'#4cc9f0'};
   T(off?'// STREAMS, PEAK PER STREAM':'// LIVE STREAMS, RIGHT NOW',80,205,M(30),'#ff4d5e');
@@ -1091,27 +1093,39 @@ function card(type,vid,avatar){if(type==='history')return histCard();
    :off?`combined peak ${full(tot||0)} at ${LB.peak_when||''}`:`${full(tot)} watching across ${(D.live||[]).length} live streams`,80,248,M(24),'#8d8ca3');
   S.forEach((s,j)=>{const y=300+j*88,c=KC[s.kind]||'#7c5cff';
    x.fillStyle=j%2?'rgba(255,255,255,.03)':'rgba(255,255,255,.06)';x.fillRect(60,y-8,W-120,78);x.fillStyle=c;x.fillRect(60,y-8,8,78);
-   T(String(j+1),96,y+14,B(36),'#eeeef5');avatarAt(x,avs[s.vid],170,y+31,28,c,s.channel);
+   T(String(j+1),96,y+12,N(40),'#8d8ca3');avatarAt(x,avs[s.vid],170,y+31,28,c,s.channel);
    T(s.channel.toUpperCase(),214,y+2,B(32),'#ffffff','left',W-214-300);
    T((s.kind==='official'?'OFFICIAL':s.kind==='watch party'?'WATCH PARTY':'STREAM')+(s.kind==='official'&&/\[([^\]]+)\]/.test(s.title)?' // '+s.title.match(/\[([^\]]+)\]/)[1].toUpperCase():'')+(s.platform&&s.platform!=='youtube'?' // '+s.platform.toUpperCase():''),214,y+40,M(22),c);
    x.fillStyle=c;x.globalAlpha=.8;x.fillRect(600,y+52,Math.max(6,(W-700)*s.viewers/top),5);x.globalAlpha=1;
-   T(full(s.viewers),W-80,y+12,B(40),'#ffffff','right')});
+   T(full(s.viewers),W-80,y+8,N(46),'#ffffff','right')});
  }else if(type==='board'){
   const R0=wpBoard(),lv=R0.some(r=>r.status==='live');let R=(lv?R0.filter(r=>r.status==='live'):R0.filter(r=>r.peak).sort((a,b)=>b.peak-a.peak)).slice(0,10);
   const RG=reg==='in'?' // streamers in India':reg==='out'?' // streamers outside India':'';
   T(lv?'// WATCH PARTY LEADERBOARD, LIVE':'// WATCH PARTY LEADERBOARD',80,205,M(30),'#ff4d5e');
   T((lv?'concurrent viewers right now':'peak concurrent viewers')+RG,80,248,M(24),'#8d8ca3');
   if(!R.length){T('WATCH PARTIES GO LIVE WITH THE BROADCAST',80,330,B(40),'#eeeef5');R0.slice(0,10).forEach((r,j)=>T(r.name.toUpperCase(),80+(j%2)*470,420+Math.floor(j/2)*60,B(30),'#8d8ca3'))}
-  const top=Math.max(1,...R.map(r=>lv?r.viewers:r.peak));
-  R.forEach((r,j)=>{const y=300+j*88,v=lv?r.viewers:r.peak,c=j===0?'#f5c451':j<3?'#b6f23a':'#eeeef5';
-   x.fillStyle=j%2?'rgba(255,255,255,.03)':'rgba(255,255,255,.06)';x.fillRect(60,y-8,W-120,78);
-   x.fillStyle=j===0?'#f5c451':j<3?'#b6f23a':'#262636';x.fillRect(60,y-8,8,78);
-   T(String(j+1),96,y+14,B(36),c);avatarAt(x,avs[r.vid]||avs[r.name],170,y+31,28,j===0?'#f5c451':'#262636',r.name);
-   T(r.name.toUpperCase(),214,y+6,B(34),'#ffffff','left',W-214-300);
-   x.fillStyle=c;x.globalAlpha=.85;x.fillRect(214,y+50,Math.max(8,(W-520)*v/top),6);x.globalAlpha=1;
-   T(full(v),W-80,y+12,B(40),c,'right');
-   const PN={youtube:'YT',kick:'KICK',twitch:'TWITCH'};
-   if((r.alts||[]).length)T((PN[r.platform]||'')+r.alts.map(([p,v2])=>' / '+(PN[p]||p.toUpperCase())+' '+fmt(v2)).join(''),W-80,y+52,M(20),'#8d8ca3','right')});
+  const val=r=>lv?r.viewers:r.peak,PN={youtube:'YOUTUBE',kick:'KICK',twitch:'TWITCH'},PS={youtube:'YT',kick:'KICK',twitch:'TWITCH'};
+  const sub=r=>(r.alts||[]).length?(PS[r.platform]||'')+r.alts.map(([p,v2])=>' / '+(PS[p]||p.toUpperCase())+' '+fmt(v2)).join(''):(PN[r.platform]||'YOUTUBE')+(lv?' · LIVE':'');
+  const fitT=(t,w,px,f)=>{t=String(t||'');let n=px;x.font=f(n);while(x.measureText(t).width>w&&n>px*.6){n--;x.font=f(n)}while(x.measureText(t).width>w&&t.length>2)t=t.slice(0,-1);return [t,n]};
+  const MED=['#f5c451','#d6dae3','#e0915a'];x.textBaseline='alphabetic';
+  const pTop=292,pH=360,PW=296,GP=24;
+  [1,0,2].forEach((i,j)=>{const r=R[i];if(!r)return;const bx=72+j*(PW+GP),by=pTop+(i?44:0),bh=pH-(i?44:0),cx=bx+PW/2,col=MED[i];
+   x.fillStyle='#13131c';x.fillRect(bx,by,PW,bh);
+   if(!i){const gg=x.createLinearGradient(0,by,0,by+bh*.6);gg.addColorStop(0,'rgba(255,210,63,.16)');gg.addColorStop(1,'rgba(255,210,63,0)');x.fillStyle=gg;x.fillRect(bx,by,PW,bh)}
+   x.lineWidth=2;x.strokeStyle=col;x.strokeRect(bx+1,by+1,PW-2,bh-2);
+   x.textAlign='center';x.fillStyle=col;x.font=N(i?48:58);x.fillText('#'+(i+1),cx,by+54);
+   const rr=i?50:58,cy=by+54+18+rr;avatarAt(x,avs[r.vid]||avs[r.name],cx,cy,rr,col,r.name);x.textBaseline='alphabetic';x.textAlign='center';
+   const [nm,ns]=fitT(r.name,PW-28,28,n=>`700 ${n}px "Barlow",sans-serif`);x.font=`700 ${ns}px "Barlow",sans-serif`;x.fillStyle='#fff';x.fillText(nm,cx,cy+rr+40);
+   x.font=N(54);x.fillText(full(val(r)),cx,cy+rr+92);
+   x.font=N(21);x.fillStyle=(r.alts||[]).length?'#b6f23a':'#8d8ca3';x.fillText(fitT(sub(r),PW-24,21,N)[0],cx,cy+rr+124)});
+  const rS=pTop+pH+22,RH=Math.min(84,Math.floor((H-STRAP_H-24-rS)/Math.max(1,R.length-3)));x.textAlign='left';
+  R.slice(3).forEach((r,k)=>{const y=rS+k*RH;x.fillStyle='#8d8ca3';x.font=N(38);x.fillText(String(k+4).padStart(2,'0'),72,y+RH/2+12);
+   avatarAt(x,avs[r.vid]||avs[r.name],176,y+RH/2-4,Math.min(30,RH/2-8),'#262636',r.name);x.textBaseline='alphabetic';
+   x.fillStyle='#fff';x.font=B(32);x.fillText(fitT(r.name,520,32,n=>`700 ${n}px "Barlow",sans-serif`)[0],224,y+RH/2-4);
+   x.font=N(21);x.fillStyle=(r.alts||[]).length?'#b6f23a':'#8d8ca3';x.fillText(sub(r),224,y+RH/2+24);
+   x.textAlign='right';x.fillStyle='#fff';x.font=N(44);x.fillText(full(val(r)),1008,y+RH/2+14);x.textAlign='left';
+   x.fillStyle='#1d1d2b';x.fillRect(72,y+RH-6,936,1)});
+  x.textBaseline='top';
  }else{
   let i=type==='streamer'?wp.findIndex(w=>hasVid(w,vid)):0;if(i<0){const d=(D.wp||[]).find(w=>w.vid===vid);if(d){wp.push({vid:d.vid,channel:d.channel,logo:d.logo,peak:d.peak,avg:0});wp.sort((a,b)=>b.peak-a.peak);i=wp.findIndex(w=>w.vid===vid)}}
   if(i<0)i=0;const me=wp[i]||{channel:'-',peak:0,avg:0},champ=i===0,GOLD='#f5c451',acc=champ?GOLD:'#b6f23a';
@@ -1121,11 +1135,11 @@ function card(type,vid,avatar){if(type==='history')return histCard();
   const r=92,cx=80+r,cy=250+r;
   x.save();x.shadowColor=acc;x.shadowBlur=40;x.beginPath();x.arc(cx,cy,r+8,0,7);x.fillStyle=acc;x.fill();x.restore();
   avatarAt(x,avatar,cx,cy,r,acc,me.channel);
-  x.beginPath();x.arc(cx+r*.72,cy+r*.72,30,0,7);x.fillStyle=acc;x.fill();T('#'+(i+1),cx+r*.72,cy+r*.72-18,B(30),'#0a0a14','center');
+  x.beginPath();x.arc(cx+r*.72,cy+r*.72,30,0,7);x.fillStyle=acc;x.fill();T('#'+(i+1),cx+r*.72,cy+r*.72-19,N(34),'#0a0a14','center');
   const x0=80+2*r+46;let fsz=64;x.font=B(fsz);while(x.measureText(me.channel.toUpperCase()).width>W-80-x0&&fsz>34){fsz-=2;x.font=B(fsz)}
   T(me.channel.toUpperCase(),x0,262,B(fsz),'#ffffff');
   T('PEAK CONCURRENT VIEWERS',x0,262+fsz+14,M(24),'#8d8ca3');
-  x.shadowColor=champ?'rgba(245,196,81,.45)':'rgba(182,242,58,.35)';x.shadowBlur=30;T(full(me.peak),x0-4,262+fsz+48,B(104),acc);x.shadowBlur=0;
+  x.shadowColor=champ?'rgba(245,196,81,.45)':'rgba(182,242,58,.35)';x.shadowBlur=30;T(full(me.peak),x0-4,262+fsz+40,N(120),acc);x.shadowBlur=0;
   const PN={youtube:'YT',kick:'KICK',twitch:'TWITCH'};
   if((me.alts||[]).length)T((PN[me.platform]||'')+me.alts.map(([p,v2])=>' / '+(PN[p]||p.toUpperCase())+' '+fmt(v2)).join(''),x0,262+fsz+160,M(26),'#8d8ca3');
   const bw=(W-160-40)/3;
@@ -1138,13 +1152,10 @@ function card(type,vid,avatar){if(type==='history')return histCard();
   let ly=782;x.fillStyle='rgba(255,255,255,.08)';x.fillRect(80,752,W-160,2);T('// TOP 5 WATCH PARTIES'+RGU,80,ly,M(26),'#ff4d5e');T('PEAK',W-250,ly,M(22),'#8d8ca3','right');T('AVG',W-80,ly,M(22),'#8d8ca3','right');ly+=56;
   wp.slice(0,5).forEach((w,j)=>{const hi=w.vid===me.vid,c=j===0?GOLD:hi?'#b6f23a':'#eeeef5';
    if(hi){x.fillStyle='rgba(182,242,58,.08)';x.fillRect(60,ly-10,W-120,60)}
-   T(String(j+1),84,ly+6,B(28),c);avatarAt(x,avs[w.vid],142,ly+19,22,j===0?GOLD:'#262636',w.channel);
-   T(w.channel.toUpperCase(),176,ly+4,B(30),c,'left',W-250-176-170);T(full(w.peak),W-250,ly+4,B(30),c,'right');T(w.avg?full(w.avg):'-',W-80,ly+4,B(30),'#8d8ca3','right');ly+=64});
+   T(String(j+1),84,ly+4,N(32),c);avatarAt(x,avs[w.vid],142,ly+19,22,j===0?GOLD:'#262636',w.channel);
+   T(w.channel.toUpperCase(),176,ly+4,B(30),c,'left',W-250-176-170);T(full(w.peak),W-250,ly+2,N(34),c,'right');T(w.avg?full(w.avg):'-',W-80,ly+2,N(34),'#8d8ca3','right');ly+=64});
  }
- x.fillStyle='#b6f23a';x.fillRect(0,H-130,W,130);
- T('LIVE.LETSGROWESPORTS.COM',80,H-108,B(44),'#0a0a14');
- const when=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
- T(`${when} IST // @letsgrowesports`,80,H-52,M(24),'#0a0a14');
+ lgeStrap(x,W,H,{when:lgeWhen()});
  return c;
 }
 function dayTotal(col){col=col||1;const LB=D.last_broadcast;let src=(D.series_all||[]).concat((D.series_recent||[]));
@@ -1153,6 +1164,7 @@ function dayTotal(col){col=col||1;const LB=D.last_broadcast;let src=(D.series_al
 function opaque(c){const x=c.getContext('2d');x.save();x.setTransform(1,0,0,1,0,0);x.globalCompositeOperation='destination-over';x.fillStyle='#0b0b12';x.fillRect(0,0,c.width,c.height);x.restore();return c}   // no see-through pixels: apps show them white
 let cur=null;
 async function openShare(type,vid){
+ try{await Promise.all([document.fonts.ready,window.lgeReady?lgeReady():0])}catch(e){}
  const mi=document.getElementById('mimg');mi.removeAttribute('src');mi.alt='Making the image...';cur=null;document.getElementById('modal').classList.add('on');
  const big=u=>String(u||'').replace(/=s\d+-/,'=s800-');let av=null;avs={};
  if(type==='streams'){const S=(isOff()?(D.last_broadcast||{}).streams||[]:D.live||[]).slice(0,10);
