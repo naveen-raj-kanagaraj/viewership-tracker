@@ -1439,6 +1439,37 @@ def repair_once():
             store.kv_set(flag, True)
 
 
+_INC = {}       # sid -> (checked at, Indian?)
+
+
+def stream_india(vid: str, channel_id: str = "", title: str = "", channel: str = "") -> bool:
+    """Is this stream's channel Indian? (owner, 27 Nov: PMGC watch-party rankings split India / outside India.) The
+    site-wide scan's own verdict when it has the channel live (YouTube channel country, chat language, BGMI, hand
+    lists ...), else the same rules on what the tracker knows. Cached 30 minutes per channel."""
+    plat = platforms.platform_of(vid)
+    sid = vid.lower() if plat in ("kick", "twitch") else ("yt:" + channel_id if (channel_id or "").startswith("UC") else "")
+    if not sid:
+        return False
+    now = time.time()
+    hit = _INC.get(sid)
+    if hit and now - hit[0] < 1800:
+        return hit[1]
+    try:
+        from tracker import scene
+        lx = scene._LIVE.get(sid) or {}
+        if "india" in lx:
+            v = bool(lx["india"])
+        else:
+            x = {"sid": sid, "platform": plat, "title": title or "", "name": channel or ""}
+            v = bool(scene.india_why(x, scene._CTRY.get(sid[3:]) if sid.startswith("yt:") else None, scene.india_known())[0])
+    except Exception:
+        v = False
+    _INC[sid] = (now, v)
+    if len(_INC) > 20000:
+        _INC.clear()
+    return v
+
+
 def recover_once():
     """PMGC Day 1 (26 Nov): the 2-second readings from 16:55 IST were queued in memory faster than they were written,
     and the restart that fixed it dropped the queue. The site's own live readings, saved from its public data every

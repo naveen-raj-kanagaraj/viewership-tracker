@@ -175,6 +175,8 @@ def india_known() -> frozenset:
     why = {}
     try:
         for k, v in events.PRESETS.items():
+            if v.get("scene_world"):
+                continue                      # a worldwide event (PMGC): its channels are from every country
             kk = v.get("kick") or {}
             for slug_ in list(kk.get("official") or []) + list(kk.get("channels") or []):
                 why.setdefault("kick:" + slug_.lower(), f"on the {k.upper()} event's channel list")
@@ -182,6 +184,8 @@ def india_known() -> frozenset:
             c = store.conn()
             if c.execute("SELECT 1 FROM sqlite_master WHERE name='ev_streams'").fetchone():
                 for ev, vid, cid, kind, title in c.execute("SELECT event, vid, channel_id, kind, title FROM ev_streams"):
+                    if (events.PRESETS.get(ev) or {}).get("scene_world"):
+                        continue                  # a worldwide event's official channels and watch parties: any country
                     if kind != "official" and not INDIA_STRONG.search(title or ""):
                         continue                  # a stream the tracker came across, not about the Indian event
                     sid = vid.lower() if vid and vid.startswith(("kick:", "twitch:")) else \
@@ -487,6 +491,8 @@ def _curated() -> frozenset:
         out |= allowed()
         out |= {"kick:" + k.lower() for k in seeds().get("kick", [])} | {"twitch:" + k.lower() for k in seeds().get("twitch", [])}
         for v in events.PRESETS.values():
+            if v.get("scene_world"):
+                continue                      # PMGC's Kick list has Turkish, Arabic ... watch parties too
             kk = v.get("kick") or {}
             out |= {"kick:" + s_.lower() for s_ in list(kk.get("official") or []) + list(kk.get("channels") or [])}
     except Exception:
