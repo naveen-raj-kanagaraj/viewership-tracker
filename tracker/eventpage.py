@@ -638,7 +638,7 @@ table{width:100%;border-collapse:separate;border-spacing:0 5px}
 th{font:12px "Barlow Condensed",sans-serif;color:#0a0a14;background:var(--lime);text-transform:uppercase;padding:7px 8px;text-align:left;letter-spacing:.04em}
 th.num,td.num{text-align:right}
 td{padding:8px;background:var(--card2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);white-space:nowrap}
-td.t{white-space:normal;min-width:0}.lg{width:22px;height:22px;border-radius:50%;vertical-align:-6px;margin-right:7px;background:var(--line);object-fit:cover}td.num{font:700 15px "Barlow",sans-serif;font-variant-numeric:tabular-nums}
+td.t{white-space:normal;min-width:0}td.t .ch{overflow-wrap:anywhere}.lg{width:22px;height:22px;border-radius:50%;vertical-align:-6px;margin-right:7px;background:var(--line);object-fit:cover}td.num{font:700 15px "Barlow",sans-serif;font-variant-numeric:tabular-nums}
 .rk{font:700 14px "Barlow",sans-serif;color:#0a0a14;text-align:center;width:34px}
 .rk.official{background:var(--orange)}.rk.watch{background:var(--cyan)}.rk.community{background:var(--purple);color:#fff}
 .ch{font-weight:700;text-transform:uppercase;letter-spacing:.02em}.st{color:var(--muted);font-size:12px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:520px}
