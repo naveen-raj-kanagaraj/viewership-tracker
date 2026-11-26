@@ -132,7 +132,8 @@ def _build(ev: dict) -> dict:
     st = events.stats(ev["key"])
     out = {"key": ev["key"], "name": ev["name"], "ticks": st.get("ticks", 0), "now": time.time(), "every": events.FAST_SEC,
            "next_start": events.next_start(ev["key"]),
-           "links": ev.get("links") or {}}
+           "links": {k: v for k, v in (ev.get("links") or {}).items()            # no links to other stats sites:
+                     if not any(d in v for d in ("liquipedia.", "escharts.", "esportscharts.", "streamscharts."))}}   # people stay here
     if st.get("ticks"):
         live = [{"vid": s["vid"], "channel": s.get("channel", ""), "title": s.get("title", ""), "kind": s["kind"],
                  "platform": events.platforms.platform_of(s["vid"]), "viewers": s["viewers"], "url": events.yt_link(s["vid"]), "logo": events.avatar(s.get("channel_id", ""))}

@@ -51,6 +51,8 @@ def key_of(t: dict) -> str:
 def load() -> dict:
     """Merge the stored automatic trackers into events.PRESETS (a new dict: readers never see it half-built)."""
     auto = store.kv_get("auto_presets") or {}
+    for p in auto.values():
+        p.pop("links", None)                    # made before 26 Nov carried a Liquipedia link
     events.PRESETS = {**auto, **BASE}
     return auto
 
@@ -113,7 +115,7 @@ def build(t: dict, page: str) -> dict:
         "all_watch": has_off,                   # with an official broadcast every other stream is a co-stream
         "need_official": has_off,               # without one: on air whenever streams of it are live
         "match": [name.lower()], "queries": list(dict.fromkeys(q))[:6],
-        "links": {"Liquipedia": t["url"]}, "ended": False, "v": 2,
+        "ended": False, "v": 2,                 # no links out: everything stays on the site (owner)
     }
 
 

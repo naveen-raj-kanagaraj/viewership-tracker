@@ -3339,6 +3339,17 @@ def tours_overview(region: str = "global") -> dict:
     rows = trk + rows
     rows.sort(key=lambda x: (-(x["peak"] or 0), -(x["viewers"] or 0)))
     have = {x["name"] for x in rows} | {x.get("tour") for x in rows if x.get("tour")}
+    with store.reading():
+        allt = {r[0]: r for r in _db().execute("SELECT tour, peak, peak_at, first_ts, last_ts, hw FROM sc_tour WHERE region=?", (region,))}
+    for t in liquipedia.active():          # on now, streamed earlier but not in the last 3 days: still a row with its numbers
+        r = allt.get(t["name"])
+        if not r or t["name"] in have or t["status"] != "ongoing" or not tour_show(t["name"], region, t["game"]):
+            continue
+        rows.append({"name": t["name"], "slug": slug(t["name"]), "game": t["game"], "art": tour_art(t["game"]), "viewers": 0,
+                     "streams": 0, "live": False, "peak": r[1], "peak_at": r[2], "hw": round(r[5] or 0), "start": t.get("start"),
+                     "end": t.get("end"), "done": False})
+        have.add(t["name"])
+    rows.sort(key=lambda x: (-(x["peak"] or 0), -(x["viewers"] or 0)))
     other, upcoming = [], []
     soon = (datetime.now(events.REPORT_TZ).date() + timedelta(days=14)).isoformat()
     act = {t["id"] for t in liquipedia.active()}

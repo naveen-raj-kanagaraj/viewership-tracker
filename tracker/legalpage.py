@@ -48,8 +48,8 @@ password and never access your YouTube channel, Gmail or any other Google data.<
 <ul>
 <li><b>What we keep:</b> your name, email, profile picture link, the country you signed up from (from Cloudflare), when you
 joined and were last seen, and whether you asked for the weekly report.</li>
-<li><b>Why:</b> to sign you in and, only if you ticked the box, to email you the weekly report. Every report has a one-click
-unsubscribe link, and you can switch it off on your account page.</li>
+<li><b>Why:</b> to sign you in and to email you a weekly roundup of top stats (as the sign-in screen says). Every email has a
+one-click unsubscribe link, and you can switch it off on your account page at any time.</li>
 <li><b>Cookies:</b> a signed sign-in cookie (30 days) and a cookie that tells the page you are signed in. No advertising or
 tracking cookies.</li>
 <li><b>Your choices:</b> download your data or delete your account (and everything we keep about you) at any time on your
