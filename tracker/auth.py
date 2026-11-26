@@ -490,7 +490,7 @@ function btn(){var top=document.querySelector('.top .in')||document.querySelecto
 function pop(){if(IN)return;var now=Date.now(),v={};try{v=JSON.parse(LS.g('lgeVisit')||'{}')||{}}catch(e){}
  if(!v.t||now-v.t>18e5)v={n:0};v.n=(v.n||0)+1;v.t=now;LS.s('lgeVisit',JSON.stringify(v));   // a visit: pages less than 30 min apart
  var p=location.pathname.replace(/^\\/(global|india)(?=\\/|$)/,'')||'/';
- if(/^\\/(signin|account|admin|auth|privacy|terms|embed|badge|predict)/.test(p))return;
+ if(/^\\/(signin|account|admin|auth|privacy|terms|embed|badge|predict|e\\/|t\\/)/.test(p))return;   // tournament pages: open to everyone (owner, PMGC)
  if(/bot|crawl|spider|slurp|facebookexternalhit|whatsapp|telegram|lighthouse|headless/i.test(navigator.userAgent)||navigator.webdriver)return;
  var due=function(){return Date.now()-(+LS.g('lgePopAt')||0)>864e5};if(!due())return;
  var w=function(){if(document.hidden){setTimeout(w,4000);return}if(due())show()};setTimeout(w,v.n>=2?1500:30000)}
