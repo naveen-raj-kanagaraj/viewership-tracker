@@ -61,3 +61,11 @@ assert "y = 2" in (srv / "track.py").read_text()                       # left al
 g(dev, "commit", "-qam", "code change 2"); g(dev, "push", "-q", "origin", "main")
 assert autoupdate.check_once().startswith("skipped: edited by hand on this machine: tracker/a.py")
 print("LIVE LISTS OK")
+
+# taken off by hand: off Day 1's leaderboard too, not only off the count (Gamezo Tech)
+from tracker import events as _e
+_e.LIVE_DIR.joinpath("zz.json").write_text('{"exclude": ["gamezoVid", "UCgamezo"]}')
+_e._LL.clear()
+assert _e.taken_off("zz", {"vid": "gamezoVid"}) and _e.taken_off("zz", {"vid": "x", "channel_id": "UCgamezo"})
+assert not _e.taken_off("zz", {"vid": "x", "channel_id": "UCother"}) and not _e.taken_off("nolist", {"vid": "gamezoVid"})
+print("TAKEN OFF BOARDS OK")

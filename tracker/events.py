@@ -604,6 +604,13 @@ def permitted(ev: dict, s: dict) -> bool:
     return any(_norm(a) in n for a in al)
 
 
+def taken_off(key: str, s: dict) -> bool:
+    """Taken off by hand (live list exclude: video id or channel id): off the leaderboards too, not only the count
+    (owner, 26 Nov: Gamezo Tech is not a watch party; it still showed on Day 1's board from before it was taken off)."""
+    ex = live_list(key).get("exclude") or []
+    return bool(ex) and (s.get("vid") in ex or (s.get("channel_id") or "-") in ex)
+
+
 def relevant(ev: dict, s: dict) -> bool:
     pr = PRESETS.get(ev.get("key", ""), {})
     if pr.get("kick_only") and not str(s.get("vid", "")).startswith("kick:"):
@@ -2247,7 +2254,7 @@ def stats(key: str, since: float = 0, until: float = None) -> dict:
                                  "peak": x["viewers"], "peak_at": x["ts"]}
         for v, p_ in per.items():
             p_["avg"] = round(sums[v][0] / sums[v][1]) if v in sums else 0
-        ls["streams"] = sorted(per.values(), key=lambda p: -p["peak"])
+        ls["streams"] = sorted((p for p in per.values() if not taken_off(key, p)), key=lambda p: -p["peak"])
         bt = [t for t in ticks if ls["start"] <= t["ts"] <= ls["end"]]
         hw = air = 0.0
         for i, t in enumerate(bt):
@@ -2358,7 +2365,7 @@ def day_streams(key: str, date: str) -> dict:
     out = {"date": date, "official": [], "watch": []}
     for r in sorted(rows, key=lambda r: -r["peak"]):
         m = meta.get(r["vid"], {})
-        if not m:
+        if not m or taken_off(key, {"vid": r["vid"], "channel_id": m.get("channel_id")}):
             continue
         name = m.get("channel", "")
         tag = re.search(r"\[([^\]]{2,20})\]", m.get("title", "")) if m.get("kind") == "official" else None
