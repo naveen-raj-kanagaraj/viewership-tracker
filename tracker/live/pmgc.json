@@ -1,7 +1,7 @@
 {
-  "youtube": [],
-  "kick": [],
+  "youtube": ["UC-OELhLH1SF4D8-ncXQF0Eg", "UCnJK8nTQ7wFewtu9vvW821Q"],
+  "kick": ["engineerytgaming", "rohanmodhera"],
   "twitch": [],
   "exclude": ["yYQb9Zl89c0"],
-  "count": []
+  "count": ["kick:engineerytgaming", "kick:rohanmodhera"]
 }
