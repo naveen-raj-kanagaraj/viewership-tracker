@@ -2950,6 +2950,8 @@ def run_forever():
     threading.Thread(target=run_fast, daemon=True).start()
     threading.Thread(target=run_twitch_full, daemon=True).start()
     time.sleep(20)                           # let the event counter start first
+    if _event_on_air():
+        time.sleep(180)                      # a tournament is on air: its counter and pages first after a restart
     while True:
         t0 = time.time()
         try:
@@ -2971,7 +2973,14 @@ def run_forever():
         time.sleep(max(10, (SCENE_BUSY_SEC if _event_busy() else SCENE_SEC) - (time.time() - t0)))
 
 
-SCENE_BUSY_SEC = int(os.getenv("SCENE_BUSY_SEC", "600"))
+SCENE_BUSY_SEC = int(os.getenv("SCENE_BUSY_SEC", "1200"))
+
+
+def _event_on_air() -> bool:
+    try:
+        return any((events._PHASE.get(k) or {}).get("mode") == "full" for k in list(events._PHASE)) or bool(events._LIVE)
+    except Exception:
+        return False
 
 
 def _event_busy() -> bool:
