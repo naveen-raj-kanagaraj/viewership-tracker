@@ -45,17 +45,21 @@ def check_once() -> str:
     if head == remote:
         return "up to date"
     changed = [f for f in _git("diff", "--name-only", head, remote).split("\n") if f]
+    # Files the tracker itself rewrites (exports/, logos ...) used to stop every update (26 Nov, PMGC Day 1). Only a
+    # local edit to a file the update changes is in the way: git can fast-forward past anything else.
+    dirty = {f for f in (_git("diff", "--name-only") + "\n" + _git("diff", "--name-only", "--cached")).split("\n") if f}
+    clash = sorted(dirty & set(changed))
     if changed and all(f.startswith("tracker/live/") for f in changed):
         # only the live lists (watch parties added / removed): no restart, the tracker reads them again by itself
-        if _git("status", "--porcelain", "--untracked-files=no"):
-            return "skipped: files in the folder were edited by hand (git status shows them)"
+        if clash:
+            return "skipped: edited by hand on this machine: " + ", ".join(clash[:5])
         _git("merge", "--ff-only", "-q", "origin/main")
         return "live lists updated (no restart): " + ", ".join(changed)
     if _on_air() and "[live]" not in _git("log", "--format=%s", f"{head}..{remote}"):
         return "skipped: a tournament broadcast is live"     # code waits for the broadcast to end (owner: no restarts
                                                              # while people are on the site); [live] only with his OK
-    if _git("status", "--porcelain", "--untracked-files=no"):
-        return "skipped: files in the folder were edited by hand (git status shows them)"
+    if clash:
+        return "skipped: edited by hand on this machine: " + ", ".join(clash[:5])
     try:
         _git("merge-base", "--is-ancestor", "HEAD", "origin/main")
     except subprocess.CalledProcessError:

@@ -43,6 +43,7 @@ autoupdate.ROOT = str(srv)
 autoupdate._on_air = lambda: True
 execs = []
 autoupdate.os.execv = lambda *a: execs.append(a)
+(srv / "track.py").write_text("y = 2  # rewritten by the tracker itself\n")      # a dirty file the updates don't touch
 (dev / "tracker" / "live" / "pmgc.json").write_text('{"kick": ["ghatak"]}')
 g(dev, "commit", "-qam", "add ghatak"); g(dev, "push", "-q", "origin", "main")
 r = autoupdate.check_once()
@@ -53,4 +54,10 @@ assert autoupdate.check_once() == "skipped: a tournament broadcast is live" and 
 autoupdate._on_air = lambda: False
 autoupdate.check_once()
 assert execs and "x = 2" in (srv / "tracker" / "a.py").read_text()   # off air: code updates and restarts
+assert "y = 2" in (srv / "track.py").read_text()                       # left alone
+# a local edit to a file the update changes does stop it
+(srv / "tracker" / "a.py").write_text("x = 9\n")
+(dev / "tracker" / "a.py").write_text("x = 3\n")
+g(dev, "commit", "-qam", "code change 2"); g(dev, "push", "-q", "origin", "main")
+assert autoupdate.check_once().startswith("skipped: edited by hand on this machine: tracker/a.py")
 print("LIVE LISTS OK")
