@@ -1139,6 +1139,56 @@ def api_streamday():
     return _memo(f"/api/streamday:{sid}:{day}", 120, _jdump(lambda: ytextra.stream_day(sid, day)), "application/json")
 
 
+_LOGO = {}          # sid -> (time, fresh picture url or "")
+
+
+def fresh_logo(sid: str) -> str:
+    """A channel's current profile picture, read from the platform now (an avatar changed since we stored it leaves
+    a dead link: 25 Nov, Princess Gaming showed initials). Kept a day, and written back to sc_channels."""
+    from tracker import events, platforms
+    hit = _LOGO.get(sid)
+    if hit and time.time() - hit[0] < 86400:
+        return hit[1]
+    u = ""
+    try:
+        if sid.startswith("yt:"):
+            r = events._http.get(f"https://www.youtube.com/channel/{sid[3:]}", timeout=8,
+                                 headers={"User-Agent": events._UA, "Accept-Language": "en"})
+            m = __import__("re").search(r'<meta property="og:image" content="([^"]+)"', r.text)
+            u = __import__("re").sub(r"=s\d+.*$", "=s88-c-k-c0x00ffffff-no-rj", m.group(1)) if m else ""
+        elif sid.startswith("twitch:") and platforms._keys("twitch"):
+            platforms._logos.pop(sid, None)
+            platforms._tw_logos([sid[7:]])
+            u = platforms.logo(sid)
+        elif sid.startswith("kick:"):
+            platforms._logos.pop(sid, None)
+            platforms._kick_page(sid[5:])
+            u = platforms.logo(sid)
+    except Exception as e:
+        print(f"Fresh logo {sid}: {str(e)[:80]}")
+    _LOGO[sid] = (time.time(), u)
+    if u:
+        try:
+            store.write_slices("UPDATE sc_channels SET logo=? WHERE sid=?", [(u, sid)])
+        except Exception:
+            pass
+    return u
+
+
+@app.route("/api/logo")
+def api_logo():
+    """/api/logo?sid=yt:UC...: redirects to the channel's current picture (pages use it when a stored one fails)."""
+    sid = (request.args.get("sid") or "")[:120]
+    if not __import__("re").fullmatch(SID_RX, sid):
+        return Response(status=404)
+    u = fresh_logo(sid)
+    if not u:
+        return Response(status=404)
+    r = redirect(u, code=302)
+    r.headers["Cache-Control"] = "public, max-age=86400"
+    return r
+
+
 @app.route("/api/past")
 def scene_past():
     """A channel's streams in the last 30 days from the platform itself: /api/past?sid=yt:UC..."""

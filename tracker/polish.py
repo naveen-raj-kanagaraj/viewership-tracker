@@ -11,15 +11,14 @@ Answers the BMIC fan feedback (993 responses, Nov 2026): "feels a bit clustered"
 
 import os
 
-THEME = os.getenv("SITE_THEME", "clean")      # clean (Streams Charts-style type and tables) | classic (previous look)
+THEME = os.getenv("SITE_THEME", "classic")    # classic (owner, 25 Nov: one look, the classic one) | clean
 
 # The clean look: Figtree sentence-case type, near-black ground, quiet bordered panels, compact controls.
 # Everything is scoped to html:not(.classic), so a visitor (?theme=classic, remembered) or the server
 # (SITE_THEME=classic) gets the previous look back instantly; canvas share cards draw their own fonts.
 CLEAN = """<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script>(function(){try{var q=new URLSearchParams(location.search).get('theme');if(q==='classic'||q==='clean')localStorage.setItem('lge_theme',q);
-if((localStorage.getItem('lge_theme')||'__THEME__')==='classic')document.documentElement.classList.add('classic')}catch(e){}})()</script>
+<script>(function(){try{if('__THEME__'==='classic')document.documentElement.classList.add('classic')}catch(e){}})()</script>
 <style id="lgeclean">
 html:not(.classic){--bg:#060609!important;--card:#0d0d13!important;--card2:#14141c!important;--line:#1c1c26!important;--muted:#9a9aa8!important;--ink:#ffffff!important}
 html:not(.classic),html:not(.classic) body{background:#060609!important}
@@ -37,9 +36,7 @@ def head() -> str:
     return CLEAN.replace("__THEME__", "classic" if THEME == "classic" else "clean") + CSS
 
 
-THEME_LINK = """ &middot; <a href="#" id="lgetheme" style="color:inherit">Classic look</a><script>(function(){var a=document.getElementById('lgetheme');if(!a)return;
-var c=document.documentElement.classList.contains('classic');a.textContent=c?'New look':'Classic look';
-a.onclick=function(e){e.preventDefault();try{localStorage.setItem('lge_theme',c?'clean':'classic')}catch(x){}location.reload()}})()</script>"""
+THEME_LINK = ""          # one look for everyone: no switch (owner, 25 Nov)
 
 CSS = """<style id="lgepolish">
 :root{--muted:#a9a8be!important;--line:#232331!important}
