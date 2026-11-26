@@ -265,7 +265,55 @@ def yt_link(vid: str) -> str:
 
 
 def preset(key: str) -> dict:
-    return PRESETS.get(key or "", {})
+    """The event's preset, with the Kick / Twitch channels of its live list (tracker/live/<key>.json) added."""
+    p = PRESETS.get(key or "", {})
+    ll = live_list(key)
+    if not (ll.get("kick") or ll.get("twitch")):
+        return p
+    out = dict(p)
+    for plat in ("kick", "twitch"):
+        if ll.get(plat):
+            c = dict(p.get(plat) or {})
+            c["channels"] = list(dict.fromkeys(list(c.get("channels") or []) + [x.lower().lstrip("@") for x in ll[plat]]))
+            out[plat] = c
+    return out
+
+
+# ---------- live lists (owner, 26 Nov: "update it while it runs, no restarts") ----------
+# tracker/live/<event>.json: {"youtube": [UC id or @handle], "kick": [slug], "twitch": [login], "exclude": [video id,
+# channel id, kick:slug / twitch:login], "count": [video or channel id counted without the checks]}. Read again whenever
+# the file changes; autoupdate pulls commits that only touch tracker/live/ without restarting, so a watch party can be
+# added or removed during a broadcast in about a minute.
+LIVE_DIR = pathlib.Path(__file__).resolve().parent / "live"
+_LL = {}        # event -> (checked at, mtime, dict)
+
+
+def live_list(key: str) -> dict:
+    if not key:
+        return {}
+    now = time.time()
+    hit = _LL.get(key)
+    if hit and now - hit[0] < 10:
+        return hit[2]
+    f = LIVE_DIR / f"{key}.json"
+    try:
+        mt = f.stat().st_mtime
+    except OSError:
+        _LL[key] = (now, 0, {})
+        return {}
+    if hit and hit[1] == mt:
+        _LL[key] = (now, mt, hit[2])
+        return hit[2]
+    try:
+        import json as _json
+        d = _json.loads(f.read_text())
+        d = {k: [str(x).strip() for x in (d.get(k) or []) if str(x).strip()] for k in ("youtube", "kick", "twitch", "exclude", "count")}
+        print(f"Live list {key}: " + ", ".join(f"{k} {len(v)}" for k, v in d.items()))
+    except Exception as e:
+        print(f"Live list {key}: {str(e)[:120]}")
+        d = hit[2] if hit else {}
+    _LL[key] = (now, mt, d)
+    return d
 
 
 SETTINGS = ("game", "need_official", "any_title", "official_only", "kick", "twitch")   # can live on the event itself (track.py new/kick/twitch)
@@ -564,6 +612,11 @@ def relevant(ev: dict, s: dict) -> bool:
     if s["vid"] in ev.get("excluded", []) or (s.get("channel_id") and s["channel_id"] in ev.get("excluded", [])) \
             or s.get("channel", "").lower() in ev.get("excluded", []):
         return False
+    ll = live_list(ev.get("key", ""))
+    if ll.get("exclude") and (s["vid"] in ll["exclude"] or (s.get("channel_id") or "-") in ll["exclude"]):
+        return False                             # taken off by hand (live list)
+    if ll.get("count") and (s["vid"] in ll["count"] or (s.get("channel_id") or "-") in ll["count"]):
+        return True
     if s["vid"] in ev.get("videos", []) + PRESETS.get(ev.get("key", ""), {}).get("videos_extra", []) or _forced_channel(ev, s):
         return True
     if platforms.official(ev, preset(ev.get("key")), s["vid"]) or \
@@ -1615,7 +1668,7 @@ def poll(ev: dict, now: int = None) -> dict:
             if s["vid"] not in found and relevant(ev, s):
                 found[s["vid"]] = s
                 _ENDED.pop(s["vid"], None)
-        listed = list(dict.fromkeys(ev.get("channels", []) + pr.get("always_check", [])
+        listed = list(dict.fromkeys(ev.get("channels", []) + pr.get("always_check", []) + live_list(ev["key"]).get("youtube", [])
                                     + [h for _, _, h in roster(ev["key"]) if h]))
         chans = list(dict.fromkeys(listed + _event_channels(ev["key"], now) + _trusted_slice(pr, ph["n"])))[:160]
         with ThreadPoolExecutor(max_workers=8) as pool:       # every listed channel's feed, every poll (cheap): the
