@@ -991,40 +991,83 @@ def _canon(name: str, title: str = "", game: str = "") -> str:
     return sc[0][1]["name"] if sc[0][0] > 1 and sc[0][0] > sc[1][0] else name
 
 
+def _start_ts(name: str):
+    """00:00 IST on the Liquipedia start date of an edition, or None."""
+    from tracker import liquipedia
+    t = next((t for t in liquipedia.tours() if t["name"] == name and t.get("start")), None)
+    if not t:
+        return None
+    try:
+        d = datetime.fromisoformat(t["start"]).date()
+    except ValueError:
+        return None
+    return int(datetime.combine(d, datetime.min.time(), events.REPORT_TZ).timestamp())
+
+
+def _rehome(c, src: str, dst: str, lo: int, hi: int) -> bool:
+    """Move a tournament's readings with lo <= ts < hi (channel days likewise) from src to dst, both regions;
+    hours watched move in proportion to the viewers moved; peaks and spans are recomputed."""
+    any_ = False
+    for region in ("global", "in"):
+        rg = f"tour:{region}"
+        tot, part = c.execute("SELECT SUM(viewers), SUM(CASE WHEN ts>=? AND ts<? THEN viewers ELSE 0 END) FROM sc_reg "
+                              "WHERE region=? AND game=?", (lo, hi, rg, src)).fetchone()
+        if not part:
+            continue
+        any_ = True
+        c.execute("""INSERT INTO sc_reg (ts, region, game, viewers, streams)
+                     SELECT ts, region, ?, viewers, streams FROM sc_reg WHERE region=? AND game=? AND ts>=? AND ts<? AND true
+                     ON CONFLICT(region, game, ts) DO UPDATE SET viewers=sc_reg.viewers+excluded.viewers,
+                     streams=sc_reg.streams+excluded.streams""", (dst, rg, src, lo, hi))
+        c.execute("DELETE FROM sc_reg WHERE region=? AND game=? AND ts>=? AND ts<?", (rg, src, lo, hi))
+        hw = {n: (r[0] if r else 0) or 0 for n in (src, dst)
+              for r in [c.execute("SELECT hw FROM sc_tour WHERE region=? AND tour=?", (region, n)).fetchone()]}
+        mv = hw[src] * part / tot if tot else 0
+        for n, h in ((src, hw[src] - mv), (dst, hw[dst] + mv)):
+            c.execute("DELETE FROM sc_tour WHERE region=? AND tour=?", (region, n))
+            pk = c.execute("SELECT ts, viewers FROM sc_reg WHERE region=? AND game=? ORDER BY viewers DESC LIMIT 1", (rg, n)).fetchone()
+            span = c.execute("SELECT MIN(ts), MAX(ts) FROM sc_reg WHERE region=? AND game=?", (rg, n)).fetchone()
+            if pk:
+                c.execute("INSERT INTO sc_tour VALUES (?,?,?,?,?,?,?)", (n, region, pk[1], pk[0], span[0], span[1], max(0, h)))
+    d_lo = datetime.fromtimestamp(lo, events.REPORT_TZ).strftime("%Y-%m-%d") if lo > 0 else "0000"
+    d_hi = datetime.fromtimestamp(hi, events.REPORT_TZ).strftime("%Y-%m-%d") if hi < 4e9 else "9999"
+    c.execute("""INSERT INTO sc_tour_ch (tour, sid, day, peak, peak_at, mins, hw, india)
+                 SELECT ?, sid, day, peak, peak_at, mins, hw, india FROM sc_tour_ch WHERE tour=? AND day>=? AND day<? AND true
+                 ON CONFLICT(tour, sid, day) DO UPDATE SET peak=MAX(sc_tour_ch.peak, excluded.peak),
+                 mins=sc_tour_ch.mins+excluded.mins, hw=sc_tour_ch.hw+excluded.hw""", (dst, src, d_lo, d_hi))
+    c.execute("DELETE FROM sc_tour_ch WHERE tour=? AND day>=? AND day<?", (src, d_lo, d_hi))
+    return any_
+
+
 def merge_aliases() -> int:
     """Readings already filed under a league name that is really the edition on now ('FFWS' -> 'FFWS Global Finals
-    2026', 'CEGC' -> 'CEGC 2026') are moved onto that edition: per-scan totals added together, channel peaks merged,
-    all-time numbers recomputed. Safe to run again (it is, after every tournament list refresh)."""
+    2026', 'CEGC' -> 'CEGC 2026') are moved onto that edition, from its Liquipedia start date on: per-scan totals
+    added together, channel peaks merged, all-time numbers recomputed. Readings from before the start stay with the
+    league (26 Nov: a month of 'PMGC' mentions, BMIC's PMGC slots and qualifiers, had moved onto PMGC 2026 and gave
+    it a 26K peak before it began); ones already moved go back. Safe to run again (it is, after every refresh)."""
     with store.reading():
         names = [n for (n,) in _db().execute("SELECT DISTINCT tour FROM sc_tour")]
     moved = 0
     for old in names:
         new = _canon(old, "", TOUR_GAME.get(old, ""))
-        if new == old:
+        if new != old:
+            lo = _start_ts(new) or 0
+            with store._lock:
+                c = _db()
+                if _rehome(c, old, new, lo, 1 << 40):
+                    moved += 1
+                    print(f"Tournament {old!r} merged into {new!r}")
+                c.commit()
+    for ed in names:                          # an edition holding readings from before it began: back to its league
+        league = next((n for rx, n, _ in _T_RX if rx.search(ed)), None)
+        lo = _start_ts(ed)
+        if not league or league == ed or not lo:
             continue
         with store._lock:
             c = _db()
-            for region in ("global", "in"):
-                rg = f"tour:{region}"
-                c.execute("""INSERT INTO sc_reg (ts, region, game, viewers, streams)
-                             SELECT ts, region, ?, viewers, streams FROM sc_reg WHERE region=? AND game=? AND true
-                             ON CONFLICT(region, game, ts) DO UPDATE SET viewers=sc_reg.viewers+excluded.viewers,
-                             streams=sc_reg.streams+excluded.streams""", (new, rg, old))
-                c.execute("DELETE FROM sc_reg WHERE region=? AND game=?", (rg, old))
-                pk = c.execute("SELECT ts, viewers FROM sc_reg WHERE region=? AND game=? ORDER BY viewers DESC LIMIT 1", (rg, new)).fetchone()
-                span = c.execute("SELECT MIN(ts), MAX(ts) FROM sc_reg WHERE region=? AND game=?", (rg, new)).fetchone()
-                hw = sum((r[0] or 0) for r in c.execute("SELECT hw FROM sc_tour WHERE region=? AND tour IN (?,?)", (region, old, new)))
-                c.execute("DELETE FROM sc_tour WHERE region=? AND tour IN (?,?)", (region, old, new))
-                if pk:
-                    c.execute("INSERT INTO sc_tour VALUES (?,?,?,?,?,?,?)", (new, region, pk[1], pk[0], span[0], span[1], hw))
-            c.execute("""INSERT INTO sc_tour_ch (tour, sid, day, peak, peak_at, mins, hw, india)
-                         SELECT ?, sid, day, peak, peak_at, mins, hw, india FROM sc_tour_ch WHERE tour=? AND true
-                         ON CONFLICT(tour, sid, day) DO UPDATE SET peak=MAX(sc_tour_ch.peak, excluded.peak),
-                         mins=sc_tour_ch.mins+excluded.mins, hw=sc_tour_ch.hw+excluded.hw""", (new, old))
-            c.execute("DELETE FROM sc_tour_ch WHERE tour=?", (old,))
+            if _rehome(c, ed, league, 0, lo):
+                print(f"Tournament {ed!r}: readings before its start moved back to {league!r}")
             c.commit()
-        moved += 1
-        print(f"Tournament {old!r} merged into {new!r}")
     return moved
 
 
@@ -3202,6 +3245,12 @@ def _tracked_events(region: str) -> list:
     return out
 
 
+def tour_tag(n: str) -> str:
+    """One word naming an event: 'PUBG Mobile Global Championship 2026' and 'PMGC 2026' are both 'pmgc'."""
+    n = next((nm for rx, nm, _ in _T_RX if rx.search(n or "")), n)
+    return (_norm(n).split() or [""])[0]
+
+
 def tours_overview(region: str = "global") -> dict:
     """The esports page's tournament list: this site's own trackers (India), then every named tournament live now or
     in the last 3 days (all channels together), then Liquipedia's other ongoing tournaments."""
@@ -3227,9 +3276,7 @@ def tours_overview(region: str = "global") -> dict:
                      "hw": round(r[5]) if r else 0, "start": info.get("start"), "end": info.get("end"),
                      "liquipedia": info.get("url")})
     trk = [dict(e) for e in _tracked_events(region)]
-    def tag(n):                          # 'PUBG Mobile Global Championship 2026' and 'PMGC 2026' are one event
-        n = next((nm for rx, nm, _ in _T_RX if rx.search(n or "")), n)
-        return (_norm(n).split() or [""])[0]
+    tag = tour_tag
     for e in trk:                        # this site's own tracker is the same event: one card, with the edition's game/dates
         same = [x for x in rows if tag(x["name"]) == tag(e["name"])]
         for x in same:
@@ -3243,12 +3290,12 @@ def tours_overview(region: str = "global") -> dict:
     for x in [x for x in rows if x["name"] in leagues]:   # 'MPL' next to 'MPL Cambodia Season 11': one card
         same = [y for y in rows if y is not x and tag(y["name"]) == tag(x["name"])]
         if len(same) == 1:
-            y = same[0]
-            y["viewers"] += x["viewers"]
-            y["streams"] += x["streams"]
-            y["live"] = y["live"] or x["live"]
-            y["peak"] = max(y["peak"], x["peak"], y["viewers"])
-            y["hw"] += x["hw"]
+            y = same[0]                   # only what is live now joins: the league's older readings (before this
+            if x["live"]:                 # edition began) are not this edition's peak or hours
+                y["viewers"] += x["viewers"]
+                y["streams"] += x["streams"]
+                y["live"] = True
+                y["peak"] = max(y["peak"], y["viewers"])
             rows.remove(x)
     rows.sort(key=lambda x: (not x["live"], -(x["viewers"] if x["live"] else x["peak"])))
     have = {x["name"] for x in rows} | {e["name"] for e in trk}

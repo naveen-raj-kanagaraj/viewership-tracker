@@ -107,10 +107,23 @@ with store._lock:
     c_ = scene._db()
     c_.execute("INSERT INTO sc_reg VALUES (?,?,?,?,?)", (int(now + 120), "tour:global", "FFWS", 9000, 2))
     c_.execute("INSERT INTO sc_tour VALUES ('FFWS','global',9000,?,?,?,10)", (int(now + 120), int(now + 120), int(now + 120)))
-    c_.execute("INSERT INTO sc_tour_ch VALUES ('FFWS','yt:ffx','2026-11-14',9000,?,2,10,0)", (int(now + 120),))
+    c_.execute("INSERT INTO sc_tour_ch VALUES ('FFWS','yt:ffx',?,9000,?,2,10,0)",
+               (_dt.fromtimestamp(now + 120, events.REPORT_TZ).strftime("%Y-%m-%d"), int(now + 120)))
     c_.commit()
 assert scene.merge_aliases() == 1
 d2 = scene.tour_data("FFWS Global Finals 2026", "global")
 assert d2["peak"] == 85000 + 9000 and any(c["sid"] == "yt:ffx" for c in d2["channels"]), d2["peak"]
 assert not any(t["name"] == "FFWS" for t in scene.tours_overview("global")["tournaments"])
+# readings from before an edition began are not its numbers: they go back to the league (26 Nov, PMGC 2026)
+early = scene._start_ts("FFWS Global Finals 2026") - 5 * 86400
+with store._lock:
+    c_ = scene._db()
+    c_.execute("INSERT INTO sc_reg VALUES (?,?,?,?,?)", (early, "tour:global", "FFWS Global Finals 2026", 500000, 9))
+    c_.commit()
+scene.merge_aliases()
+assert scene.tour_data("FFWS Global Finals 2026", "global")["peak"] == 94000
+with store.reading():
+    assert scene._db().execute("SELECT peak FROM sc_tour WHERE tour='FFWS' AND region='global'").fetchone()[0] == 500000
+o = scene.tours_overview("global")["tournaments"]
+assert not any(t["name"] == "FFWS" for t in o) and next(t for t in o if t["name"] == "FFWS Global Finals 2026")["peak"] == 94000
 print("TOURS OK")

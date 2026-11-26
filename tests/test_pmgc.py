@@ -32,7 +32,46 @@ scene._LIVE.update({
     "yt:UCb": {"title": "PMGC 2026 live", "name": "Abroad", "streams": {"vb": 80}, "india": False},
     "kick:z": {"title": "BGMI scrims", "name": "z", "streams": {"kick:z": 50}, "india": True},
 })
-assert {s["vid"] for s in events.scene_matches(ev)} == {"va"}
+assert {s["vid"] for s in events.scene_matches(ev)} == {"va", "vb"}   # worldwide YouTube too (scene_world)
 assert [nm for rx, nm, _ in scene._T_RX if rx.search("2026 GC League | Gauntlet Day 1 | WATCHPARTY WITH SNAX")][:1] == ["PMGC"]
 assert events.PRESETS["pmgc"]["next_start"] == "2026-11-26 17:00" and len(events.PRESETS["pmgc"]["official_channels"]) == 11
 print("PMGC OK")
+
+# replays and last year's edition never count
+for t in ("PMGC 2025 Grand Finals FULL REPLAY", "2025 PMGC League | Gauntlet Day 1", "PMGC 2026 Day 1 Highlights"):
+    assert not events.relevant(ev, {**wp, "vid": "r", "title": t}), t
+assert events.relevant(ev, {**wp, "vid": "r2", "title": "PMGC 2026 Gauntlet Day 1 LIVE | TEAM SOUL"})
+
+# the poll loop: off air only the official channels are read; once one is live everything is searched
+calls = {"search": 0, "feed": 0, "page": 0, "official": 0}
+OFF_LIVE = []
+def fake_off(oc):
+    calls["official"] += 1
+    return [dict(x) for x in OFF_LIVE] if oc == "UCmeeY9kzNswUpbYyJntb3Aw" else []
+def fake_search(q, gl="IN", pages=3):
+    calls["search"] += 1
+    return [dict(wp)] if q == "PMGC 2026" else []
+events.channel_live_all = fake_off
+events._search = fake_search
+events.feed_live = lambda h: calls.__setitem__("feed", calls["feed"] + 1) or []
+events.check_channel = lambda h: calls.__setitem__("page", calls["page"] + 1) or None
+events.platforms.discover = lambda e, p: []
+events.next_start = lambda k: None
+events.count_live = lambda vid: None
+scene._LIVE.clear()
+r = events.poll(ev, now=1_900_000_000)
+assert calls["official"] == 11 and calls["search"] == calls["feed"] == calls["page"] == 0 and r["live"] == 0, calls
+OFF_LIVE.append(off)
+r = events.poll(ev, now=1_900_000_060)
+assert calls["search"] >= 8 and calls["feed"] == 25 and calls["page"] >= 8, calls
+got = {s["vid"]: s["kind"] for s in r["streams"]}
+assert got == {"o1": "official", "w1": "watch party"}, got
+# official off air: searching goes on for 20 minutes (a break), then stops
+OFF_LIVE.clear()
+n = calls["search"]
+events.poll(ev, now=1_900_000_060 + 600)
+assert calls["search"] > n
+n = calls["search"]
+events.poll(ev, now=1_900_000_060 + 1500)
+assert calls["search"] == n
+print("PMGC LOOP OK")

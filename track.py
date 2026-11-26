@@ -77,6 +77,8 @@ def _discovery_loop():
 
 
 def cmd_run(args) -> int:
+    from tracker import autoev
+    autoev.load()                              # trackers made from Liquipedia earlier (tracker/autoev.py)
     for k, pr in events.PRESETS.items():       # presets marked auto exist without anyone running `track.py create`
         if pr.get("auto") and k not in events.events():
             events.create(k)
