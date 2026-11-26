@@ -63,7 +63,7 @@ r = events.poll(ev, now=1_900_000_000)
 assert calls["official"] == 11 and calls["search"] == calls["feed"] == calls["page"] == 0 and r["live"] == 0, calls
 OFF_LIVE.append(off)
 r = events.poll(ev, now=1_900_000_060)
-assert calls["search"] >= 8 and calls["feed"] == len(events.PRESETS["pmgc"]["always_check"]) and 1 <= calls["page"] <= 10, calls
+assert calls["search"] >= 8 and calls["feed"] == len(set(events.PRESETS["pmgc"]["always_check"] + events.live_list("pmgc").get("youtube", []))) and 1 <= calls["page"] <= 10, calls
 got = {s["vid"]: s["kind"] for s in r["streams"]}
 assert got == {"o1": "official", "w1": "watch party"}, got
 # official off air: searching goes on for 20 minutes (a break), then stops
