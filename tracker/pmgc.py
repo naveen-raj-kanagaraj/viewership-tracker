@@ -154,18 +154,9 @@ def official_start():
 
 
 def closed(now: float = None) -> bool:
-    """Picks lock at the set time, or as soon as the official broadcast goes live, whichever is first. The
-    broadcast's start becomes the lock time (kept), so the page and the scoring agree."""
-    now = now or time.time()
-    lock = float(settings()["lock"])
-    if now >= lock:
-        return True
-    t = official_start()
-    if t and t < lock and t <= now:
-        save(lock=t)
-        print(f"PMGC Predict & Win locked: the official stream went live at {fmt_ist(t)}")
-        return True
-    return False
+    """Picks lock at the set time (26 Nov 5 PM IST; the owner can move it at /admin/pmgc). Not tied to the official
+    stream (owner, 26 Nov: 'just lock it at 5 pm')."""
+    return (now or time.time()) >= float(settings()["lock"])
 
 
 def fmt_ist(ts: float) -> str:

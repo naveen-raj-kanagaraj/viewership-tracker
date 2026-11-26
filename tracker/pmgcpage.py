@@ -99,7 +99,7 @@ label.f{display:block;font:700 12px "Barlow Condensed",sans-serif;letter-spacing
 <main>
 <section class="hero"><div class="kick">PMGC 2026 · ISTANBUL · THE GAUNTLET</div><h1>Predict <span>&amp;</span> Win</h1>
 <div class="facts"><b>26-27 Nov</b> · 16 teams · 12 matches · the top 6 go straight to the Grand Finals</div>
-<div class="lock" id="lock"><span class="l">PICKS LOCK IN</span><b id="cd">--:--:--</b><span class="w"><span id="lockw"></span><br>or the moment the official stream goes live</span></div>
+<div class="lock" id="lock"><span class="l">PICKS LOCK IN</span><b id="cd">--:--:--</b><span class="w"><span id="lockw"></span></span></div>
 <div class="prz"><div class="pzh"><span class="pzw">WIN</span><b>Free UC, cash, gift cards &amp; coupons</b></div>
 <div class="pzg"><div class="pz"><svg viewBox="0 0 48 48" width="34" height="34"><defs><linearGradient id="gU" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe27a"/><stop offset="1" stop-color="#e0a400"/></linearGradient></defs><circle cx="24" cy="24" r="20" fill="url(#gU)"/><circle cx="24" cy="24" r="15" fill="none" stroke="#a87700" stroke-width="2"/><text x="24" y="29.5" text-anchor="middle" font-family="Barlow Condensed,Arial" font-weight="700" font-size="15" fill="#5a3e00">UC</text></svg><span>Free UC</span></div>
 <div class="pz"><svg viewBox="0 0 48 48" width="34" height="34"><rect x="4" y="12" width="40" height="24" rx="4" fill="#3ccf7a"/><rect x="8" y="16" width="32" height="16" rx="2" fill="none" stroke="#0e5c30" stroke-width="2"/><text x="24" y="29" text-anchor="middle" font-family="Arial" font-weight="700" font-size="13" fill="#0e5c30">&#8377;</text></svg><span>Cash prizes</span></div>
@@ -212,7 +212,7 @@ $('go').onclick=async()=>{const g=$('go');if(g.disabled)return;g.disabled=true;g
   if(!r.ok){toast(j.error||'Could not save. Try again.',true);g.disabled=false;bar();return}
   toast(j.edited?'Changes saved':'You\'re in! Picks saved');EDIT=false;await load();scrollTo({top:0,behavior:'smooth'})}catch(e){toast('No connection. Try again.',true);g.disabled=false;bar()}};
 load();setInterval(()=>{if(S&&(S.closed||!S.me||(S.me.picks&&!EDIT)))load()},60000);
-setInterval(async()=>{if(!S||S.closed)return;try{const j=await (await fetch('/predict/pmgc/api/state',{cache:'no-store',credentials:'same-origin'})).json();if(j.closed){S=j;render();toast('Picks are locked: the Gauntlet is live')}else if(j.lock!==S.lock){S.lock=j.lock;S.lock_text=j.lock_text;$('lockw').textContent=j.lock_text}}catch(e){}},20000);
+setInterval(async()=>{if(!S||S.closed)return;try{const j=await (await fetch('/predict/pmgc/api/state',{cache:'no-store',credentials:'same-origin'})).json();if(j.closed){S=j;render();toast('Picks are locked')}else if(j.lock!==S.lock){S.lock=j.lock;S.lock_text=j.lock_text;$('lockw').textContent=j.lock_text}}catch(e){}},20000);
 </script></body></html>"""
 
 
