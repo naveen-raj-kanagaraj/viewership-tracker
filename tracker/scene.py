@@ -888,7 +888,7 @@ TOURNAMENTS = [
     (r"\bmpl\b", "MPL", None), (r"\bmsc\b", "MSC", None), (r"\bm[5-9] world championship", "MLBB M-Series", None),
     (r"\brlcs\b", "RLCS", None), (r"\bcdl\b|call of duty league", "CDL", None), (r"\bowcs\b", "OWCS", None),
     (r"\balgs\b", "ALGS", None), (r"\bfncs\b", "FNCS", None), (r"\bdreamhack\b", "DreamHack", None),
-    (r"\bcegc\b", "CEGC", None), (r"sky ?esports", "Sky Esports", None), (r"upthrust", "Upthrust Esports", None)]
+    (r"\bcegc\b", "CEGC", None)]    # organisers (Sky Esports, Upthrust Esports) are not tournaments (owner, 26 Nov)
 _T_RX = [(re.compile(p, re.I), n, g) for p, n, g in TOURNAMENTS]
 _T_GENERIC = re.compile(r"\b(championship|grand finals?|finals|playoffs|qualifiers?|tournament|invitational|world cup|"
                         r"league|major|showdown)\b", re.I)
@@ -1318,7 +1318,8 @@ _NON_GAMING_WORDS = ("irl", "chatting", "music", "talk", "sports", "cricket", "s
 # not match exactly gives no art (an initials tile) rather than another game's cover. BGMI, PUBG: Battlegrounds and
 # PUBG Mobile are three different games with three different covers. A file in static/gameart/<slug>.webp|png|jpg
 # (slug: 'bgmi', 'free-fire' ...) overrides everything.
-TWITCH_NAMES = {"BGMI": ["Battlegrounds Mobile India"], "PUBG: Battlegrounds": ["PUBG: BATTLEGROUNDS"],
+TWITCH_NAMES = {"Overwatch 2": ["Overwatch 2", "Overwatch"], "Rainbow Six Siege": ["Tom Clancy's Rainbow Six Siege", "Rainbow Six Siege X"],
+                "BGMI": ["Battlegrounds Mobile India"], "PUBG: Battlegrounds": ["PUBG: BATTLEGROUNDS"],
                 "PUBG Mobile": ["PUBG MOBILE"], "Free Fire": ["Garena Free Fire", "Free Fire"],
                 "GTA 6": ["Grand Theft Auto VI"], "GTA V": ["Grand Theft Auto V"], "Valorant": ["VALORANT"], "COD Mobile": ["Call of Duty: Mobile"],
                 "Call of Duty: Warzone": ["Call of Duty: Warzone"], "Call of Duty: Black Ops 7": ["Call of Duty: Black Ops 7"],
@@ -1358,6 +1359,13 @@ def resolve_art(game: str):
 
 
 _ARTC = {}
+_ART_TRY = {}
+ART_AS = {"Call of Duty": "Call of Duty: Black Ops 7", "EA Sports FC": "EA Sports FC 26", "Fighting games": "Street Fighter 6"}
+
+
+def tour_art(game: str) -> str:
+    """Cover for a tournament's game (a series that spans games uses its current one)."""
+    return cat_art(ART_AS.get(game, game)) if game else ""
 
 
 def cat_art(game: str) -> str:
@@ -1383,8 +1391,10 @@ def _cat_art(game: str) -> str:
         return local
     k = f"cat_art2:{game}"
     v = store.kv_get(k)
-    if v is None and game not in _ART_BUSY:
+    retry = v == "" and time.time() - (_ART_TRY.get(game) or 0) > 86400   # found nothing before: ask again daily
+    if (v is None or retry) and game not in _ART_BUSY:
         _ART_BUSY.add(game)
+        _ART_TRY[game] = time.time()
 
         def fetch():
             try:
@@ -3220,6 +3230,35 @@ def named_tour(name: str) -> bool:
 _TRK = {"ts": 0, "v": []}
 
 
+INDIA_GAMES = {"BGMI", "PUBG Mobile", "Free Fire", "Valorant", "PUBG: Battlegrounds"}   # India's esports list (owner)
+_LPN = {"ts": -1, "m": {}}
+
+
+def _lp_named(name: str):
+    """The Liquipedia tournament with this exact name (ongoing, upcoming or recent), or None."""
+    from tracker import liquipedia
+    liquipedia.tours()
+    if _LPN["ts"] != liquipedia._CACHE["ts"]:
+        _LPN.update(ts=liquipedia._CACHE["ts"], m={t["name"]: t for t in liquipedia._CACHE["all"]})
+    return _LPN["m"].get(name)
+
+
+def tour_show(name: str, region: str, game: str = None) -> bool:
+    """Is this a tournament to list? A real edition (on Liquipedia: 'PGL Major Singapore 2026', not the organiser
+    'PGL' or the league 'VCT' added up over months) or one of this site's trackers; in India, only the games India
+    plays (BGMI, PUBG Mobile, Free Fire, Valorant, PUBG)."""
+    if not named_tour(name):
+        return False
+    lp = _lp_named(name)
+    trk = next((e for e in _tracked_events("in") if e["name"] == name or e.get("tour") == name), None)
+    if not lp and not trk:
+        return False
+    if region == "in":
+        g = (trk or {}).get("game") or (lp or {}).get("game") or game or ""
+        return g in INDIA_GAMES
+    return True
+
+
 def _tracked_events(region: str) -> list:
     """This site's own tournament trackers (/e/<key>/) that are running: CEGC, PIC ... with their numbers (30 s)."""
     if region != "in":
@@ -3228,8 +3267,8 @@ def _tracked_events(region: str) -> list:
         return _TRK["v"]
     out = []
     try:
-        for key, pr in events.PRESETS.items():
-            if pr.get("ended") or not events.get(key):
+        for key, pr in list(events.PRESETS.items()):
+            if pr.get("ended") or not events.get(key) or (pr.get("game") or "") not in INDIA_GAMES | {""}:
                 continue
             with store.reading():
                 c = events._db()
@@ -3237,8 +3276,9 @@ def _tracked_events(region: str) -> list:
                 nw = c.execute("SELECT ts, total FROM ev_ticks WHERE event=? ORDER BY ts DESC LIMIT 1", (key,)).fetchone()
             live = bool(nw and time.time() - nw[0] < 300 and nw[1])
             out.append({"name": pr.get("name") or key.upper(), "game": pr.get("game") or "", "url": f"/e/{key}/",
-                        "tracked": True, "viewers": nw[1] if live else 0, "live": live,
-                        "peak": pk[1] if pk else 0, "peak_at": pk[0] if pk else None, "art": cat_art(pr.get("game") or "")})
+                        "tracked": True, "viewers": nw[1] if live else 0, "live": live, "lp": bool(pr.get("lp")),
+                        "tour": pr.get("tour"), "start": pr.get("start"), "end": pr.get("end"),
+                        "peak": pk[1] if pk else 0, "peak_at": pk[0] if pk else None, "art": tour_art(pr.get("game") or "")})
     except Exception as e:
         print(f"Tracked events: {str(e)[:100]}")
     _TRK.update(ts=time.time(), v=out)
@@ -3252,63 +3292,69 @@ def tour_tag(n: str) -> str:
 
 
 def tours_overview(region: str = "global") -> dict:
-    """The esports page's tournament list: this site's own trackers (India), then every named tournament live now or
-    in the last 3 days (all channels together), then Liquipedia's other ongoing tournaments."""
+    """The esports page's tournament table (Esports Charts style): every real tournament on now or in the last 3
+    days, this site's trackers among them (India), with the same columns for all: watching now, peak, hours
+    watched, dates; then the ones on now with no stream seen yet, and the next two weeks. Organisers, leagues added
+    up over months and '<game> tournaments' buckets are not listed (tour_show); India lists India's games only."""
     from tracker import liquipedia
     region = _region(region)
     lv = _live_part(None, region)
     live = {k: t for k, t in lv["_tours"].items()}
     t3 = time.time() - 3 * 86400
+    today = datetime.now(events.REPORT_TZ).date().isoformat()
     with store.reading():
         c = _db()
         rec = {r[0]: r for r in c.execute("SELECT tour, peak, peak_at, first_ts, last_ts, hw FROM sc_tour WHERE region=? AND last_ts>=?",
                                           (region, t3))}
     rows = []
     for name in set(live) | set(rec):
-        if not named_tour(name):
-            continue
         t, r = live.get(name), rec.get(name)
-        info = tournament_info(name) or {}
-        g = (max(t["games"], key=t["games"].get) if t else "") or info.get("game") or ""
-        rows.append({"name": name, "slug": slug(name), "game": g, "art": cat_art(g), "viewers": t["viewers"] if t else 0,
+        info = _lp_named(name) or {}
+        g = info.get("game") or (max(t["games"], key=t["games"].get) if t else "") or ""
+        if not tour_show(name, region, g):
+            continue
+        rows.append({"name": name, "slug": slug(name), "game": g, "art": tour_art(g), "viewers": t["viewers"] if t else 0,
                      "streams": len(t["streams"]) if t else 0, "live": bool(t),
                      "peak": max(r[1] if r else 0, t["viewers"] if t else 0), "peak_at": r[2] if r else None,
                      "hw": round(r[5]) if r else 0, "start": info.get("start"), "end": info.get("end"),
-                     "liquipedia": info.get("url")})
+                     "done": bool(info.get("end") and info["end"] < today and not t), "liquipedia": info.get("url")})
     trk = [dict(e) for e in _tracked_events(region)]
-    tag = tour_tag
-    for e in trk:                        # this site's own tracker is the same event: one card, with the edition's game/dates
-        same = [x for x in rows if tag(x["name"]) == tag(e["name"])]
+    for e in trk:                        # this site's own tracker is the same event: one row, best of both numbers
+        same = [x for x in rows if x["name"] in (e["name"], e.get("tour")) or
+                (not e.get("lp") and tour_tag(x["name"]) == tour_tag(e["name"]))]
         for x in same:
             rows.remove(x)
             e["game"] = e.get("game") or x["game"]
-            e["art"] = e.get("art") or x["art"]
-            e["start"], e["end"] = x.get("start"), x.get("end")
-        if not e.get("art") or e["art"].startswith("/caticon/"):
-            e["art"] = cat_art(e["game"]) if e.get("game") else e.get("art")
-    leagues = {n for _, n, _ in _T_RX}
-    for x in [x for x in rows if x["name"] in leagues]:   # 'MPL' next to 'MPL Cambodia Season 11': one card
-        same = [y for y in rows if y is not x and tag(y["name"]) == tag(x["name"])]
-        if len(same) == 1:
-            y = same[0]                   # only what is live now joins: the league's older readings (before this
-            if x["live"]:                 # edition began) are not this edition's peak or hours
-                y["viewers"] += x["viewers"]
-                y["streams"] += x["streams"]
-                y["live"] = True
-                y["peak"] = max(y["peak"], y["viewers"])
-            rows.remove(x)
-    rows.sort(key=lambda x: (not x["live"], -(x["viewers"] if x["live"] else x["peak"])))
-    have = {x["name"] for x in rows} | {e["name"] for e in trk}
-    other = []
-    if region == "global":
-        for t in liquipedia.active():
-            if t["status"] == "ongoing" and t["name"] not in have:
-                other.append({"name": t["name"], "slug": slug(t["name"]), "game": t["game"], "start": t["start"],
-                              "end": t["end"], "liquipedia": t["url"]})
-    comp = sorted(({"name": k, "viewers": t["viewers"], "streams": len(t["streams"])} for k, t in live.items()
-                   if not named_tour(k)), key=lambda x: -x["viewers"])
-    return {"tracked": trk, "tournaments": rows, "ongoing_no_streams": other[:60],
-            "other_matches": comp[:20]}
+            e["start"], e["end"] = e.get("start") or x.get("start"), e.get("end") or x.get("end")
+            e["peak"] = max(e.get("peak") or 0, x["peak"])
+            e["hw"] = max(e.get("hw") or 0, x["hw"])
+            if x["live"] and x["viewers"] > (e["viewers"] if e["live"] else 0):
+                e["viewers"], e["live"] = x["viewers"], True
+            e["streams"] = max(e.get("streams") or 0, x["streams"])
+            e["slug"] = x["slug"]
+        e["art"] = tour_art(e["game"]) if e.get("game") else e.get("art")
+        e.setdefault("hw", 0)
+        e.setdefault("streams", 0)
+        e["done"] = False
+    rows = trk + rows
+    rows.sort(key=lambda x: (-(x["peak"] or 0), -(x["viewers"] or 0)))
+    have = {x["name"] for x in rows} | {x.get("tour") for x in rows if x.get("tour")}
+    other, upcoming = [], []
+    soon = (datetime.now(events.REPORT_TZ).date() + timedelta(days=14)).isoformat()
+    act = {t["id"] for t in liquipedia.active()}
+    for t in liquipedia.tours():
+        if t["name"] in have or not tour_show(t["name"], region, t["game"]):
+            continue
+        row = {"name": t["name"], "slug": slug(t["name"]), "game": t["game"], "art": tour_art(t["game"]), "start": t["start"],
+               "end": t["end"], "liquipedia": t["url"]}
+        if t["id"] in act and (t["status"] == "ongoing" or (t.get("start") or "9") <= today <= (t.get("end") or today)):
+            other.append(row)
+        elif t["status"] == "upcoming" and t.get("start") and today < t["start"] <= soon:
+            upcoming.append(row)
+        have.add(t["name"])
+    upcoming.sort(key=lambda x: x["start"])
+    return {"tracked": [], "tournaments": rows, "ongoing_no_streams": other[:60], "upcoming": upcoming[:30],
+            "live": sum(1 for x in rows if x["live"])}
 
 
 def tour_name(sl: str):
@@ -3384,10 +3430,12 @@ def _tour_list(tours: dict, region: str) -> list:
             "SELECT game, MAX(viewers), ts FROM sc_reg WHERE region=? AND ts>=? GROUP BY game", (f"tour:{region}", d0))}
     out = []
     for t in tours.values():
-        g = max(t["games"], key=t["games"].get)
+        g = (_lp_named(t["name"]) or {}).get("game") or max(t["games"], key=t["games"].get)
+        if not tour_show(t["name"], region, g):
+            continue
         st = sorted(t["streams"], key=lambda s_: -s_["viewers"])
         out.append({"name": t["name"], "tslug": slug(t["name"]), "named": named_tour(t["name"]),
-                    "game": g, "slug": slug(g), "art": cat_art(g), "viewers": t["viewers"],
+                    "game": g, "slug": slug(g), "art": tour_art(g), "viewers": t["viewers"],
                     "streams": len(st), "top": st[:6], "peak": max((pk.get(t["name"]) or (0,))[0], t["viewers"])})
     return sorted(out, key=lambda t: -t["viewers"])[:24]
 
@@ -3419,8 +3467,8 @@ def _kpis(c, region: str, sec: str, game, lv: dict, ct: bool = False) -> dict:
     hw = sum(v * min(rows[i + 1][0] - ts if i + 1 < len(rows) else SCENE_SEC, SCENE_SEC * 2) for i, (ts, v) in enumerate(rows)) / 3600
     air = None
     if sec == "esports":
-        chans = c.execute("SELECT COUNT(DISTINCT game) FROM sc_reg WHERE region=? AND ts>=?", (f"tour:{region}", d0.timestamp())
-                          ).fetchone()[0]
+        chans = sum(1 for (n,) in c.execute("SELECT DISTINCT game FROM sc_reg WHERE region=? AND ts>=?",
+                                            (f"tour:{region}", d0.timestamp())) if tour_show(n, region))
     else:
         q = """SELECT COUNT(DISTINCT d.sid), SUM(d.mins) FROM sc_daily d LEFT JOIN sc_channels c ON c.sid=d.sid
                WHERE d.day=?""" + (" AND COALESCE(c.india,1)=1" if region == "in" else "")
@@ -3736,9 +3784,9 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
         T.append(("tracked_pk", time.time()))
         pk_all = c.execute(f"SELECT ts, viewers FROM {tbl} WHERE game=?{w} ORDER BY viewers DESC LIMIT 1", (key, *a)).fetchone()
         T.append(("pk_all", time.time()))
-        tour_day = [{"name": r[0], "tslug": slug(r[0]), "named": named_tour(r[0]), "peak": r[1], "at": r[2]} for r in c.execute(
-            "SELECT game, MAX(viewers), ts FROM sc_reg WHERE region=? AND ts>=? GROUP BY game ORDER BY MAX(viewers) DESC LIMIT 20",
-            (f"tour:{region}", p0))]
+        tour_day = [{"name": r[0], "tslug": slug(r[0]), "named": True, "peak": r[1], "at": r[2]} for r in c.execute(
+            "SELECT game, MAX(viewers), ts FROM sc_reg WHERE region=? AND ts>=? GROUP BY game ORDER BY MAX(viewers) DESC LIMIT 80",
+            (f"tour:{region}", p0)) if tour_show(r[0], region)][:20]
         T.append(("tours", time.time()))
         kp = _kpis(c, region, sec, game, lv, ct=ctday)
         T.append(("kpis", time.time()))

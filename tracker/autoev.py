@@ -92,6 +92,8 @@ def build(t: dict, page: str) -> dict:
     """A tracker preset for one Liquipedia tournament."""
     from tracker import scene
     name, game = t["name"], t["game"]
+    if game == "PUBG Mobile" and re.search(r"\|\s*country\s*=\s*(India|IN)\b|\bBGMI\b|Battlegrounds Mobile India", page or "", re.I):
+        game = "BGMI"                           # PUBG Mobile is banned in India: an Indian event on that wiki is BGMI
     tag = scene.tour_tag(name)
     short = next((nm for rx, nm, _ in scene._T_RX if rx.search(name)), None)
     off = links(page)
@@ -111,7 +113,7 @@ def build(t: dict, page: str) -> dict:
         "all_watch": has_off,                   # with an official broadcast every other stream is a co-stream
         "need_official": has_off,               # without one: on air whenever streams of it are live
         "match": [name.lower()], "queries": list(dict.fromkeys(q))[:6],
-        "links": {"Liquipedia": t["url"]}, "ended": False,
+        "links": {"Liquipedia": t["url"]}, "ended": False, "v": 2,
     }
 
 
@@ -173,6 +175,12 @@ def sync(force: bool = False) -> dict:
             changed = True
             done.append(p["name"])
     running = [k for k, p in auto.items() if not p.get("ended")]
+    lp = {t["id"]: t for t in liquipedia.tours()}
+    for k in running:                         # made before the BGMI check (26 Nov): read the page again once
+        p = auto[k]
+        if p.get("v") != 2 and p.get("lp") in lp:
+            auto[k] = {**build(lp[p["lp"]], _page(lp[p["lp"]])), "start": p.get("start"), "end": p.get("end")}
+            changed = True
     for t in candidates(liquipedia.tours(), today, _india_peaks()):
         if len(running) >= AUTO_MAX:
             break

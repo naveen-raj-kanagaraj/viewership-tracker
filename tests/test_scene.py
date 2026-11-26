@@ -150,6 +150,13 @@ for title, game, exp in [("VCT Masters Toronto - Grand Final", "Valorant", "VCT"
                          ("Regional Championship Day 2 | Team A vs Team B", "Free Fire", "Free Fire tournaments"),
                          ("BGMI scrims finals", "BGMI", None), ("having a blast lol", "Fortnite", None)]:
     assert sc.tournament(title, game) == exp, (title, sc.tournament(title, game))
+# the edition on Liquipedia: tournament lists show editions, not the league 'VCT' added up over months (26 Nov)
+from tracker import liquipedia as _lq
+from datetime import date as _d, timedelta as _td
+store.kv_set("lp_tours", {"ts": 1, "tours": [{"id": "valorant/VCT/2026/Champions", "wiki": "valorant", "game": "Valorant",
+    "page": "VCT/2026/Champions", "name": "VCT Champions 2026", "full": "VCT 2026 Champions", "series": "VCT", "status": "ongoing",
+    "start": (_d.today() - _td(days=1)).isoformat(), "end": (_d.today() + _td(days=3)).isoformat(), "url": "https://liquipedia.net/valorant/VCT/2026/Champions"}]})
+_lq._CACHE["ts"] = 0
 SEARCH["contents"]["twoColumnSearchResultsRenderer"]["primaryContents"]["sectionListRenderer"]["contents"][0]["itemSectionRenderer"]["contents"].append(
     vr("v10", "VALORANT Esports", "UCvct", "VCT Champions 2026 - Grand Final - FNC vs SEN", 250000))
 LIVE["v10"] = 251000; CTRY["UCvct"] = "US"
@@ -158,7 +165,7 @@ r = sc.cycle(now=t + 240); print("global cycle:", r)
 g = sc.data("today", region="global"); i_ = sc.data("today")
 gn = {x["name"] for x in g["live"]}
 assert "VALORANT Esports" in gn and "Citizen TV Kenya" in gn and "VALORANT Esports" not in {x["name"] for x in i_["live"]}
-assert g["live_total"] > i_["live_total"] and g["tournaments"][0]["name"] == "VCT", g["tournaments"][:1]
+assert g["live_total"] > i_["live_total"] and g["tournaments"][0]["name"] == "VCT Champions 2026", g["tournaments"][:1]
 print("tournaments:", [(t["name"], t["viewers"], t["streams"]) for t in g["tournaments"]])
 c = web.app.test_client()
 for u in ["/", "/global/c/valorant", "/india/c/bgmi", "/api/scene?region=global", "/api/scene/live?region=global&cat=valorant"]:
@@ -176,7 +183,10 @@ assert k["watching"] == d["live_total"] and k["live_channels"] == len(d["live"])
 g = sc.data("today", region="global", sec="gaming")
 assert all(x["section"] == "gaming" for x in g["live"]) and g["kpis"]["watching"] < k["watching"]
 e = sc.data("today", region="global", sec="esports")
-assert e["board"] == [] and e["tour_day"] and e["tour_day"][0]["name"] == "VCT"
+assert e["board"] == [] and e["tour_day"] and e["tour_day"][0]["name"] == "VCT Champions 2026"
+assert sc.tours_overview("global")["tournaments"][0]["name"] == "VCT Champions 2026"
+assert not sc.tours_overview("in")["tournaments"] or all(sc.tour_show(x["name"], "in") for x in sc.tours_overview("in")["tournaments"])
+assert not sc.tour_show("VCT", "global") and not sc.tour_show("Valorant tournaments", "global") and not sc.tour_show("Upthrust Esports", "in")
 lvd = sc.live_data(region="in", sec="news"); assert all(x["section"] == "news" for x in lvd["live"]) and "kpis" in lvd
 assert all("last_live" in x for x in sc.data("7d")["board"])
 c = web.app.test_client()

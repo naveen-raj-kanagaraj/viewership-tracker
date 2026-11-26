@@ -51,3 +51,7 @@ autoev.date = type("D", (date,), {"today": staticmethod(lambda: date(2026, 12, 5
 r = autoev.sync(force=True)
 assert "FFWS Global Finals 2026" in r["finished"] and events.PRESETS[k]["ended"] and events.paused(k)
 print("AUTO TRACKERS OK")
+b = autoev.build(T("JioBLAST Gully Wars", "PUBG Mobile", "ongoing", "2026-11-20", "2026-11-30", "pubgmobile"),
+                 "{{Infobox league\n|name=JioBLAST Gully Wars\n|country=India\n}}")
+assert b["game"] == "BGMI" and b["kick"]["category"][0] == "Battlegrounds Mobile India", b["game"]
+print("BGMI DETECT OK")
