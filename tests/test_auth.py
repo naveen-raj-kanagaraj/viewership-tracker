@@ -4,7 +4,7 @@ import base64, json, os, sys, tempfile
 from urllib.parse import urlparse, parse_qs
 d = tempfile.mkdtemp()
 os.environ.update(TRACKER_DB=d + "/t.db", USERS_DB=d + "/u.db", GOOGLE_CLIENT_ID="cid.apps.googleusercontent.com",
-                  GOOGLE_CLIENT_SECRET="test-secret", SESSION_SECRET="x" * 40, SITE_URL="https://live.example.test")
+                  GOOGLE_CLIENT_SECRET="test-secret", SESSION_SECRET="x" * 40, ADMIN_KEY="k" * 20, SITE_URL="https://live.example.test")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from tracker import auth, ranks, web
 assert auth.ENABLED
@@ -76,6 +76,22 @@ t = auth.trim_channel(ch)
 assert len(t["days"]) == 7 and t["periods"]["30d"] is None and t["periods"]["7d"] == {"peak": 1} and t["locked"]
 assert auth._safe_next("//evil.com") == "/" and auth._safe_next("/global/ch/yt:x") == "/global/ch/yt:x"
 assert "lge_in" in auth.page_js() and "/api/topch" in auth.page_js()
+
+# admin portal: 404 for a signed-in non-admin; the key once binds the account; then it opens without the key
+assert c.get("/admin").status_code == 404 and c.get("/admin/people").status_code == 404
+r = c.get("/admin?key=" + "k" * 20)
+assert r.status_code == 302 and r.location.endswith("/admin")
+for path, want in (("/admin", "Overview"), ("/admin/people", "fan@example.com"), ("/admin/trackers", "Tournament trackers"),
+                   ("/admin/visitors", "lgeadm"), ("/admin/health", "lgeadm"), ("/admin/people.csv?weekly=1", "fan@example.com")):
+    r = c.get(path)
+    assert r.status_code == 200 and want in r.get_data(as_text=True), path
+    assert "no-store" in r.headers["Cache-Control"], path
+assert "unsubscribe_link" in c.get("/admin/people.csv?all=1").get_data(as_text=True)
+other = web.app.test_client()
+assert other.get("/admin").status_code == 404 and other.get("/admin/people.csv?weekly=1").status_code == 404
+assert other.get("/admin?key=wrong").status_code == 404
+assert other.get("/admin?key=" + "k" * 20).status_code == 302              # not signed in: sign in first
+assert "lgeadm" not in other.get("/admin/health").get_data(as_text=True)    # public health page stays plain
 
 # account: weekly list, unsubscribe link, export, delete
 assert [e for _, e, _ in auth.weekly_list()] == ["fan@example.com"]

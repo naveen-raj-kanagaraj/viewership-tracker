@@ -379,6 +379,54 @@ def unsub():
     return Response(_page("Link not valid", '<div class="box"><h1>That link is not valid</h1><p>Sign in and change it on your account page.</p><a class="btn" href="/account">Your account</a></div>'), mimetype="text/html", status=400)
 
 
+def admins() -> set:
+    """Emails allowed into /admin: ADMIN_EMAILS in .env (comma separated) plus the ones bound with the admin key."""
+    from tracker import store
+    env = {e.strip().lower() for e in os.getenv("ADMIN_EMAILS", "").split(",") if e.strip()}
+    return env | set(store.kv_get("admin_emails") or [])
+
+
+def make_admin(email: str):
+    from tracker import store
+    cur = set(store.kv_get("admin_emails") or [])
+    cur.add(email.lower())
+    store.kv_set("admin_emails", sorted(cur))
+
+
+def is_admin() -> bool:
+    if not ENABLED:
+        return False
+    u = user()
+    return bool(u and u["email"] and u["email"].lower() in admins())
+
+
+def people(q: str = "", limit: int = 500) -> list:
+    """Signed-up people, newest first (admin portal)."""
+    sql, args = "SELECT id, email, name, picture, created, last_seen, weekly, region FROM users", []
+    if q:
+        sql += " WHERE email LIKE ? OR name LIKE ?"
+        args += [f"%{q}%", f"%{q}%"]
+    with _lock:
+        return [dict(r) for r in _db().execute(sql + " ORDER BY created DESC LIMIT ?", (*args, limit))]
+
+
+def counts() -> dict:
+    from datetime import datetime, timedelta, timezone
+    ist = timezone(timedelta(hours=5, minutes=30))
+    d0 = datetime.now(ist).replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+    with _lock:
+        c = _db()
+        one = lambda sql, *a: c.execute(sql, a).fetchone()[0] or 0
+        days = [(datetime.fromtimestamp(d0 - i * 86400, ist).strftime("%d %b"),
+                 one("SELECT COUNT(*) FROM users WHERE created>=? AND created<?", d0 - i * 86400, d0 - (i - 1) * 86400))
+                for i in range(13, -1, -1)]
+        return {"total": one("SELECT COUNT(*) FROM users"), "today": one("SELECT COUNT(*) FROM users WHERE created>=?", d0),
+                "week": one("SELECT COUNT(*) FROM users WHERE created>=?", d0 - 6 * 86400),
+                "weekly": one("SELECT COUNT(*) FROM users WHERE weekly=1"),
+                "active_today": one("SELECT COUNT(*) FROM users WHERE last_seen>=?", d0), "days": days,
+                "countries": [tuple(r) for r in c.execute("SELECT COALESCE(NULLIF(region,''),'-'), COUNT(*) FROM users GROUP BY 1 ORDER BY 2 DESC LIMIT 8")]}
+
+
 def weekly_list() -> list:
     """Who asked for the weekly report: [(id, email, name)] (for the sender, once an email service is set up)."""
     with _lock:
