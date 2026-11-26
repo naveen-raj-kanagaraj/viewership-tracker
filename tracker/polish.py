@@ -11,7 +11,7 @@ Answers the BMIC fan feedback (993 responses, Nov 2026): "feels a bit clustered"
 
 import os
 
-THEME = os.getenv("SITE_THEME", "classic")    # classic (owner, 25 Nov: one look, the classic one) | clean
+THEME = os.getenv("SITE_THEME", "clean")      # clean (owner, 25 Nov: one look, this one) | classic
 
 # The clean look: Figtree sentence-case type, near-black ground, quiet bordered panels, compact controls.
 # Everything is scoped to html:not(.classic), so a visitor (?theme=classic, remembered) or the server
