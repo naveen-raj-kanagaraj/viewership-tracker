@@ -6,6 +6,7 @@ os.environ["TRACKER_DB"] = tempfile.mkdtemp() + "/s.db"
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from tracker import events, store, scene, eventpage
 scene._db()
+events._PREF.update(["kick:amigomvp", "kick:snaxgaming"])   # no Kick profile lookups from the test
 ev = events.create("pmgc")
 events.create("bmsd")
 now = int(time.time())
@@ -55,3 +56,58 @@ events.LIVE_DIR = __import__("pathlib").Path(tempfile.mkdtemp())
 events._LL.clear()
 assert events.stream_india("a", "UCsnax0000000000000000", "x", "Snax Gaming") is False                  # the owner's list wins
 print("PMGC SPLIT ACCURACY OK")
+
+# the channel's own bio decides over its country setting (Ansh YT: country India, "Nepali Esports Talent"), and the
+# same streamer on YouTube and Kick is one streamer: same name, the YouTube About link to kick.com, or the Kick
+# profile's YouTube link (owner, 27 Nov)
+from tracker import profiles
+(events.LIVE_DIR / "pmgc.json").write_text("{}")
+events._LL.clear(); events._INC.clear(); events._ICTX.clear(); events._WHO.clear()
+rows = [("v1", "Ansh YT", "UCansh0000000000000000"), ("kick:anshyt", "anshyt", "kick:anshyt"),
+        ("v2", "Big Streamer", "UCbig00000000000000000"), ("kick:bigkick99", "bigkick99", "kick:bigkick99"),
+        ("v3", "Handle Guy", "UChand0000000000000000"), ("kick:otherslug", "otherslug", "kick:otherslug"),
+        ("v4", "Both Places", "UCboth0000000000000000"), ("kick:solo", "solo", "kick:solo")]
+with store._lock:
+    c = store.conn()
+    for vid, ch, cid in rows:
+        c.execute("INSERT INTO ev_streams (event, vid, channel, channel_id, title, kind, first_seen, last_seen, peak, peak_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                  ("pmgc", vid, ch, cid, "PMGC 2026 watch party", "watch party", now - 7200, now - 3600, 80, now - 5000))
+        c.executemany("INSERT INTO ev_samples VALUES (?,?,?,?)", [("pmgc", ts, vid, 80) for ts in range(now - 7200, now - 3600, 60)])
+    for cid in ("UCansh0000000000000000", "UCbig00000000000000000", "UChand0000000000000000", "UCboth0000000000000000"):
+        c.execute("INSERT OR REPLACE INTO sc_channels (sid, platform, name, country) VALUES (?,?,?,?)", ("yt:" + cid, "youtube", "x", "IN"))
+    c.commit()
+about = {"UCansh0000000000000000": {"desc": "Nepali Esports Talent | PUBG Mobile", "links": [], "handle": "@AnshYT"},
+         "UCbig00000000000000000": {"desc": "Gaming every day", "links": ["kick.com/bigkick99", "instagram.com/big"], "handle": "@BigStreamer"},
+         "UChand0000000000000000": {"desc": "", "links": [], "handle": "@HandleGuyOfficial"},
+         "UCboth0000000000000000": {"desc": "Indian streamer, big fan of Nepal's teams", "links": [], "handle": "@BothPlaces"}}
+for cid, a in about.items():
+    store.kv_set(f"ev_about:{cid}", {"ts": time.time(), "country": "", **a})
+events._PREF.update(r[0] for r in rows if r[0].startswith("kick:"))   # no Kick lookups from the test
+with profiles._L:
+    profiles._P["kick:otherslug"] = ("", {"youtube": "https://youtube.com/@HandleGuyOfficial"})
+    profiles._P["kick:solo"] = ("Streamer from Dhaka, Bangladesh", {})
+    for s in ("kick:anshyt", "kick:bigkick99"):
+        profiles._P[s] = ("", {})
+wm = events.who_map("pmgc")
+assert wm["kick:anshyt"] == "yt:UCansh0000000000000000", wm       # same name
+assert wm["kick:bigkick99"] == "yt:UCbig00000000000000000", wm    # the YouTube About links to kick.com/bigkick99
+assert wm["kick:otherslug"] == "yt:UChand0000000000000000", wm    # the Kick profile links to the YouTube handle
+assert wm["kick:solo"] == "kick:solo" and wm["kick:snaxgaming"] == "yt:UCsnax0000000000000000", wm
+assert events.stream_india("v1", "UCansh0000000000000000", "PMGC watch party", "Ansh YT") is False         # bio: Nepali
+assert events.stream_india("kick:anshyt", "kick:anshyt", "PMGC watch party", "anshyt") is False            # his YouTube bio
+assert events.stream_india("v2", "UCbig00000000000000000", "PMGC", "Big Streamer") is True                 # country IN, no bio hint
+assert events.stream_india("v4", "UCboth0000000000000000", "PMGC", "Both Places") is True                  # says Indian
+assert events.stream_india("kick:solo", "kick:solo", "PMGC", "solo") is False                              # Kick bio: Bangladesh
+# a YouTube About page not read yet: the answer is kept a minute, not 30
+events._INC.clear(); events._ABBUSY.add("UCbig00000000000000000")
+events.stream_india("v2", "UCbig00000000000000000", "PMGC", "Big Streamer")
+assert time.time() - events._INC["yt:UCbig00000000000000000"][0] > 1700
+events._ABBUSY.discard("UCbig00000000000000000")
+# the page: each stream carries its streamer, so the leaderboard shows Ansh once (YouTube + Kick)
+events._INC.clear(); eventpage._CACHE.clear() if hasattr(eventpage, "_CACHE") else None
+d = eventpage._build(events.get("pmgc"))
+who = {x["vid"]: x["who"] for x in d["last_broadcast"]["streams"]}
+assert who["kick:anshyt"] == who["v1"] == "yt:UCansh0000000000000000" and who["kick:solo"] == "kick:solo", who
+ins = {x["vid"]: x["in"] for x in d["last_broadcast"]["streams"]}
+assert ins["v1"] == 0 and ins["kick:anshyt"] == 0 and ins["v2"] == 1, ins
+print("PMGC BIOS + SAME STREAMER OK")
