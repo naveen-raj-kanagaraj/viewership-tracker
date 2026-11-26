@@ -3318,6 +3318,17 @@ def tours_overview(region: str = "global") -> dict:
                      "peak": max(r[1] if r else 0, t["viewers"] if t else 0), "peak_at": r[2] if r else None,
                      "hw": round(r[5]) if r else 0, "start": info.get("start"), "end": info.get("end"),
                      "done": bool(info.get("end") and info["end"] < today and not t), "liquipedia": info.get("url")})
+    have0 = {x["name"] for x in rows}
+    with store.reading():
+        allt = {r[0]: r for r in _db().execute("SELECT tour, peak, peak_at, first_ts, last_ts, hw FROM sc_tour WHERE region=?", (region,))}
+    for t in liquipedia.active():          # on now, streamed earlier but not in the last 3 days: still a row with its numbers
+        r = allt.get(t["name"])
+        if not r or t["name"] in have0 or t["status"] != "ongoing" or not tour_show(t["name"], region, t["game"]):
+            continue
+        rows.append({"name": t["name"], "slug": slug(t["name"]), "game": t["game"], "art": tour_art(t["game"]), "viewers": 0,
+                     "streams": 0, "live": False, "peak": r[1], "peak_at": r[2], "hw": round(r[5] or 0), "start": t.get("start"),
+                     "end": t.get("end"), "done": False})
+        have0.add(t["name"])
     trk = [dict(e) for e in _tracked_events(region)]
     for e in trk:                        # this site's own tracker is the same event: one row, best of both numbers
         same = [x for x in rows if x["name"] in (e["name"], e.get("tour")) or
@@ -3332,29 +3343,22 @@ def tours_overview(region: str = "global") -> dict:
                 e["viewers"], e["live"] = x["viewers"], True
             e["streams"] = max(e.get("streams") or 0, x["streams"])
             e["slug"] = x["slug"]
+            if _lp_named(x["name"]) and len(x["name"]) > len(e["name"]):
+                e["name"] = x["name"]                 # 'CEGC' tracker shows as its edition, 'CEGC 2026' (26 Nov)
         e["art"] = tour_art(e["game"]) if e.get("game") else e.get("art")
         e.setdefault("hw", 0)
         e.setdefault("streams", 0)
         e["done"] = False
     rows = trk + rows
     rows.sort(key=lambda x: (-(x["peak"] or 0), -(x["viewers"] or 0)))
-    have = {x["name"] for x in rows} | {x.get("tour") for x in rows if x.get("tour")}
-    with store.reading():
-        allt = {r[0]: r for r in _db().execute("SELECT tour, peak, peak_at, first_ts, last_ts, hw FROM sc_tour WHERE region=?", (region,))}
-    for t in liquipedia.active():          # on now, streamed earlier but not in the last 3 days: still a row with its numbers
-        r = allt.get(t["name"])
-        if not r or t["name"] in have or t["status"] != "ongoing" or not tour_show(t["name"], region, t["game"]):
-            continue
-        rows.append({"name": t["name"], "slug": slug(t["name"]), "game": t["game"], "art": tour_art(t["game"]), "viewers": 0,
-                     "streams": 0, "live": False, "peak": r[1], "peak_at": r[2], "hw": round(r[5] or 0), "start": t.get("start"),
-                     "end": t.get("end"), "done": False})
-        have.add(t["name"])
     rows.sort(key=lambda x: (-(x["peak"] or 0), -(x["viewers"] or 0)))
+    have = {x["name"] for x in rows} | {x.get("tour") for x in rows if x.get("tour")}
+    tags = {tour_tag(e["name"]) for e in trk if not e.get("lp")}   # a hand-made tracker covers its edition's name too
     other, upcoming = [], []
     soon = (datetime.now(events.REPORT_TZ).date() + timedelta(days=14)).isoformat()
     act = {t["id"] for t in liquipedia.active()}
     for t in liquipedia.tours():
-        if t["name"] in have or not tour_show(t["name"], region, t["game"]):
+        if t["name"] in have or tour_tag(t["name"]) in tags or not tour_show(t["name"], region, t["game"]):
             continue
         row = {"name": t["name"], "slug": slug(t["name"]), "game": t["game"], "art": tour_art(t["game"]), "start": t["start"],
                "end": t["end"], "liquipedia": t["url"]}
@@ -4377,7 +4381,52 @@ def search(q: str, region: str = "in", limit: int = 20) -> dict:
                     "last_live": r[7], "game": lv.get("game") or r[8], "title": lv.get("title") or r[9],
                     "by": "name" if q in r[2] else "title", "peak": r[11], "now": lv.get("viewers") or 0})
     games = [g for g in _SIDX["games"] if q in g.lower() and g not in (ALL, "Other") and shown(g)][:8]
-    return {"channels": out, "categories": [{"game": g, "slug": slug(g), "art": cat_art(g)} for g in games]}
+    return {"channels": out, "categories": [{"game": g, "slug": slug(g), "art": cat_art(g)} for g in games],
+            "tournaments": search_tours(q, region)}
+
+
+def search_tours(q: str, region: str = "global", limit: int = 6) -> list:
+    """Tournaments whose name (or short tag: 'pmgc') matches q: this site's trackers (their own page), editions on
+    Liquipedia and every tournament streamed here (its category page), plus Predict & Win when it fits."""
+    from tracker import liquipedia
+    q = (q or "").strip().lower()
+    if len(q) < 2:
+        return []
+    rp = "/india" if region == "in" else ""
+    today = datetime.now(events.REPORT_TZ).date().isoformat()
+    out, tags = [], set()
+    hit = lambda n: q in n.lower() or q == tour_tag(n) or q.replace(" ", "") in n.lower().replace(" ", "")
+    for key, pr in list(events.PRESETS.items()):
+        nm = pr.get("name") or key.upper()
+        if pr.get("ended") or not (hit(nm) or q == key) or (region == "in" and (pr.get("game") or "") not in INDIA_GAMES | {""}):
+            continue
+        g = pr.get("game") or ""
+        out.append({"name": nm, "game": g, "art": tour_art(g), "url": f"/e/{key}/", "status": "tracked", "start": pr.get("start"),
+                    "end": pr.get("end"), "rank": 0})
+        tags.add(tour_tag(nm))
+    with store.reading():
+        rec = {r[0]: r[1] for r in _db().execute("SELECT tour, MAX(peak) FROM sc_tour WHERE region=? GROUP BY tour", (region,))}
+    lp = {t["name"]: t for t in liquipedia.tours()}
+    for name in set(lp) | set(rec):
+        if not hit(name) or tour_tag(name) in tags:
+            continue
+        t = lp.get(name) or {}
+        g = t.get("game") or ""
+        if not tour_show(name, region, g):
+            continue
+        st = "upcoming" if t.get("status") == "upcoming" and (t.get("start") or "") > today else \
+            "ended" if t.get("end") and t["end"] < today else "on"
+        out.append({"name": name, "game": g, "art": tour_art(g), "url": f"{rp}/t/{slug(name)}", "status": st, "start": t.get("start"),
+                    "end": t.get("end"), "peak": rec.get(name) or 0, "rank": {"on": 1, "upcoming": 2, "ended": 3}[st]})
+    out.sort(key=lambda x: (x["rank"], -(x.get("peak") or 0), x["name"]))
+    try:
+        from tracker import pmgc
+        if "predict" in q or q in ("pmgc", "pmgc 2026", "gauntlet", "predict & win"):
+            out.insert(0, {"name": "PMGC Gauntlet: Predict & Win", "game": "PUBG Mobile", "art": tour_art("PUBG Mobile"),
+                           "url": "/predict/pmgc", "status": "locked" if pmgc.closed() else "predict", "rank": -1})
+    except Exception:
+        pass
+    return out[:limit]
 
 
 def peak_ok(pk, hw, mins) -> bool:

@@ -126,4 +126,21 @@ with store.reading():
     assert scene._db().execute("SELECT peak FROM sc_tour WHERE tour='FFWS' AND region='global'").fetchone()[0] == 500000
 o = scene.tours_overview("global")["tournaments"]
 assert not any(t["name"] == "FFWS" for t in o) and next(t for t in o if t["name"] == "FFWS Global Finals 2026")["peak"] == 94000
+# one row per event: the CEGC tracker and Liquipedia's 'CEGC 2026' (streamed more than 3 days ago) were two rows (26 Nov)
+d0 = (datetime.now(timezone.utc) - timedelta(days=20)).strftime("%b %d")
+d1 = (datetime.now(timezone.utc) + timedelta(days=15)).strftime("%b %d")
+T2 = T + liquipedia.parse("pubgmobile", f"*Ongoing\n** CEGC/2026 | CEGC 2026 | startdate={d0} | enddate={d1}\n")
+store.kv_set("lp_tours", {"ts": time.time(), "tours": T2})
+liquipedia._CACHE["ts"] = 0
+events.create("cegc")
+with store._lock:
+    c_ = scene._db()
+    c_.execute("INSERT OR REPLACE INTO sc_tour VALUES ('CEGC 2026','in',48700,?,?,?,1000)", (now - 9 * 86400, now - 19 * 86400, now - 8 * 86400))
+    c_.commit()
+scene._TRK["ts"] = 0
+o = scene.tours_overview("in")
+names = [t["name"] for t in o["tournaments"]] + [t["name"] for t in o["ongoing_no_streams"]] + [t["name"] for t in o["upcoming"]]
+assert sum(1 for n in names if scene.tour_tag(n) == "cegc") == 1, names
+row = next(t for t in o["tournaments"] if scene.tour_tag(t["name"]) == "cegc")
+assert row["tracked"] and row["url"] == "/e/cegc/" and row["peak"] >= 48700 and row["name"] == "CEGC 2026", row
 print("TOURS OK")

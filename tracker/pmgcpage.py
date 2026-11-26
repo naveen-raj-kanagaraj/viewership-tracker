@@ -28,8 +28,13 @@ h1{font:700 40px/1.02 "Barlow Condensed",sans-serif;letter-spacing:.01em;margin:
 .facts{color:var(--mut);font-size:15px}.facts b{color:var(--ink);font-weight:600}
 .lock{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0 4px;padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px}
 .lock .l{font:700 12px "Barlow Condensed",sans-serif;letter-spacing:.1em;color:var(--mut)}.lock b{font:700 26px "Barlow Condensed",sans-serif;font-variant-numeric:tabular-nums;color:var(--lime)}
-.lock .w{color:var(--mut);font-size:13px;margin-left:auto}.lock.shut b{color:var(--red);font-size:20px}
-.prize{color:var(--mut);font-size:14px;margin:8px 2px 0}
+.lock .w{color:var(--mut);font-size:12.5px;margin-left:auto;text-align:right;line-height:1.35}@media(max-width:480px){.lock .w{margin-left:0;text-align:left}}.lock.shut b{color:var(--red);font-size:20px}
+.prize{color:var(--mut);font-size:13.5px;margin:10px 2px 0}
+.prz{margin-top:12px;padding:16px;border-radius:14px;background:linear-gradient(135deg,rgba(182,242,58,.10),rgba(245,197,66,.07) 60%,rgba(165,139,255,.08));border:1px solid #2d3a17}
+.pzh{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.pzw{font:700 13px "Barlow Condensed",sans-serif;letter-spacing:.14em;background:var(--gold);color:#2b1d00;padding:2px 8px;border-radius:5px}
+.pzh b{font:700 22px "Barlow Condensed",sans-serif;letter-spacing:.01em}
+.pzg{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}.pz{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 6px;border-radius:12px;background:rgba(7,7,11,.55);border:1px solid #25252f;font-weight:700;font-size:13px;text-align:center}
+@media(max-width:420px){.pzg{gap:6px}.pz{font-size:12px;padding:10px 4px}.pzh b{font-size:19px}}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin:14px 0}
 .gate h2{font:700 24px "Barlow Condensed",sans-serif;margin:0 0 6px;text-transform:uppercase}.gate p{color:var(--mut);margin:0 0 14px}
 .gbtn{display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;color:#1f1f1f;border-radius:11px;padding:13px;font-weight:700;text-decoration:none;font-size:16px}
@@ -94,7 +99,13 @@ label.f{display:block;font:700 12px "Barlow Condensed",sans-serif;letter-spacing
 <main>
 <section class="hero"><div class="kick">PMGC 2026 · ISTANBUL · THE GAUNTLET</div><h1>Predict <span>&amp;</span> Win</h1>
 <div class="facts"><b>26-27 Nov</b> · 16 teams · 12 matches · the top 6 go straight to the Grand Finals</div>
-<div class="lock" id="lock"><span class="l">PICKS LOCK IN</span><b id="cd">--:--:--</b><span class="w" id="lockw"></span></div><div class="prize" id="prize"></div></section>
+<div class="lock" id="lock"><span class="l">PICKS LOCK IN</span><b id="cd">--:--:--</b><span class="w"><span id="lockw"></span><br>or the moment the official stream goes live</span></div>
+<div class="prz"><div class="pzh"><span class="pzw">WIN</span><b>Free UC, cash, gift cards &amp; coupons</b></div>
+<div class="pzg"><div class="pz"><svg viewBox="0 0 48 48" width="34" height="34"><defs><linearGradient id="gU" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe27a"/><stop offset="1" stop-color="#e0a400"/></linearGradient></defs><circle cx="24" cy="24" r="20" fill="url(#gU)"/><circle cx="24" cy="24" r="15" fill="none" stroke="#a87700" stroke-width="2"/><text x="24" y="29.5" text-anchor="middle" font-family="Barlow Condensed,Arial" font-weight="700" font-size="15" fill="#5a3e00">UC</text></svg><span>Free UC</span></div>
+<div class="pz"><svg viewBox="0 0 48 48" width="34" height="34"><rect x="4" y="12" width="40" height="24" rx="4" fill="#3ccf7a"/><rect x="8" y="16" width="32" height="16" rx="2" fill="none" stroke="#0e5c30" stroke-width="2"/><text x="24" y="29" text-anchor="middle" font-family="Arial" font-weight="700" font-size="13" fill="#0e5c30">&#8377;</text></svg><span>Cash prizes</span></div>
+<div class="pz"><svg viewBox="0 0 48 48" width="34" height="34"><rect x="5" y="12" width="38" height="25" rx="4" fill="#a58bff"/><rect x="21" y="12" width="6" height="25" fill="#ff5d8f"/><path d="M24 12c-3-6-11-5-9 0 1 2 6 1 9 0zm0 0c3-6 11-5 9 0-1 2-6 1-9 0z" fill="#ff5d8f"/></svg><span>Gift cards</span></div>
+<div class="pz"><svg viewBox="0 0 48 48" width="34" height="34"><path d="M6 14h36v7a3 3 0 0 0 0 6v7H6v-7a3 3 0 0 0 0-6z" fill="#ffb347"/><path d="M30 15v18" stroke="#8a4b00" stroke-width="2" stroke-dasharray="3 3"/><text x="18" y="28" text-anchor="middle" font-family="Arial" font-weight="700" font-size="10" fill="#8a4b00">%</text></svg><span>Coupons</span></div></div>
+<div class="prize" id="prize"></div></div></section>
 <div id="app"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
 <section class="card"><div class="tag" style="margin-bottom:6px">HOW IT WORKS</div><ul class="rules">
 <li>Sign in with Google and add your Instagram ID (that's how we reach winners).</li>
@@ -128,10 +139,11 @@ async function load(){try{const r=await fetch('/predict/pmgc/api/state',{cache:'
  $('prize').textContent=S.prize||'';$('lockw').textContent=S.lock_text;render();tick()}
 function save(){store.set(DK,{p:P,h:F.handle,n:F.name})}
 function tick(){if(!S)return;const left=Math.max(0,S.lock*1000-(Date.now()+OFF));const l=$('lock');
- if(left<=0){l.classList.add('shut');$('cd').textContent='LOCKED';l.querySelector('.l').textContent='PICKS ARE';if(!S.closed){S.closed=true;render()}return}
+ if(left<=0){l.classList.add('shut');$('cd').textContent='LOCKED';l.querySelector('.l').textContent='PICKS ARE';l.querySelector('.w').textContent='Locked '+S.lock_text;if(!S.closed){S.closed=true;render()}return}
  const h=Math.floor(left/3.6e6),m=Math.floor(left%3.6e6/6e4),s=Math.floor(left%6e4/1e3);$('cd').textContent=(h>47?Math.floor(h/24)+'d ':'')+String(h>47?h%24:h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');setTimeout(tick,1000-((Date.now()+OFF)%1000))}
 function render(){const a=$('app');const me=S.me;let h='';
  if(!S.auth){a.innerHTML='<div class="card gate"><h2>Opening soon</h2><p>Sign-in isn\'t switched on yet. Check back in a bit.</p></div>';$('sbar').style.display='none';return}
+ if(!me&&shut()){a.innerHTML=resultsHead()+S.questions.map((q,i)=>qcard(q,i,true)).join('')+lb();$('sbar').style.display='none';return}
  if(!me){h+=`<div class="card gate"><h2>Sign in to play</h2><p>It's free. Sign in with Google, then add your Instagram ID so we can reach you if you win.</p><a class="gbtn" href="/auth/google?next=%2Fpredict%2Fpmgc">${G} Continue with Google</a><div class="note">We'll also email you the top stats every week; unsubscribe any time.</div></div>`;
   h+=S.questions.map((q,i)=>qcard(q,i,true)).join('');a.innerHTML=h;$('sbar').style.display='none';return}
  if(me.hidden){a.innerHTML='<div class="card gate"><h2>Entry removed</h2><p>This entry was removed from the game. DM @letsgrowesports.igc on Instagram if you think that\'s a mistake.</p></div>';$('sbar').style.display='none';return}
@@ -160,12 +172,12 @@ function roBody(q,mine){const pc=(S.crowd||{})[q.id]||{},a=S.answers[q.id];let h
  if(mine!==undefined){const mv=Array.isArray(mine)?mine:[mine];let verdict='';if(a!=null&&(Array.isArray(a)?a.length:a)){if(q.kind==='rank'){const n=mv.filter((t,k)=>a[k]===t).length;verdict=n?`<span class="ok-t">${n}/3 in the right spot</span>`:'<span class="no-t">0/3</span>'}else if(q.kind==='multi'){const n=mv.filter(t=>a.includes(t)).length;verdict=`<span class="${n?'ok-t':'no-t'}">${n}/6 right</span>`}else verdict=isRight(q,mv[0])?'<span class="ok-t">Right</span>':'<span class="no-t">Wrong</span>'}
   h+=`<div class="mypick">Your pick: <b>${mv.map((x,k)=>(q.kind==='rank'?'#'+(k+1)+' ':'')+esc(x)).join(', ')}</b> ${verdict}</div>`}
  if(a!=null&&(Array.isArray(a)?a.length:a))h+=`<div class="mypick">Answer: <b class="ok-t">${(Array.isArray(a)?a:[a]).map((x,k)=>(q.kind==='rank'?'#'+(k+1)+' ':'')+esc(x)).join(', ')}</b></div>`;
- const src=q.kind==='rank'?(S.crowd||{}).q8_first||{}:pc;const ent=Object.entries(src).slice(0,q.kind==='multi'?8:5);
- if(S.closed&&ent.length)h+=`<div class="qs" style="margin-top:12px">${q.kind==='rank'?'Who everyone picked for #1':q.kind==='multi'?'How often each team was picked':'What everyone picked'}</div><div class="res">${ent.map(([o,n])=>`<div class="bar ${(Array.isArray(mine)?(q.kind==='rank'?mine[0]===o:mine.includes(o)):mine===o)?'mine':''} ${isRight(q,o)&&q.kind!=='rank'?'right':''}"><div class="fill" style="width:${n}%"></div>${S.teams.some(t=>t.n===o)?lg(o,''):''}<span>${esc(o)}</span><span class="pc">${n}%</span></div>`).join('')}</div>`;
+ const src=q.kind==='rank'?(S.crowd||{}).q8_first||{}:pc;const ent=Object.entries(src).filter(e=>e[1]>0);
+ if(S.closed&&ent.length)h+=`<div class="qs" style="margin-top:12px">${q.kind==='rank'?'Everyone\'s pick for #1':q.kind==='multi'?'Share of players who picked each team':'Everyone\'s picks'}</div><div class="res">${ent.map(([o,n])=>`<div class="bar ${(Array.isArray(mine)?(q.kind==='rank'?mine[0]===o:mine.includes(o)):mine===o)?'mine':''} ${isRight(q,o)&&q.kind!=='rank'?'right':''}"><div class="fill" style="width:${n}%"></div>${S.teams.some(t=>t.n===o)?lg(o,''):''}<span>${esc(o)}</span><span class="pc">${n}%</span></div>`).join('')}</div>`;
  else if(S.closed&&!mine)h+='<div class="qs" style="margin-top:10px">The crowd split shows once 20 people have played.</div>';
  if(!S.closed&&!S.me)h+=`<button type="button" class="fld" onclick="location.href='/auth/google?next=%2Fpredict%2Fpmgc'"><span class="ph">Sign in to answer</span>${CHEV}</button>`;
  return h}
-function resultsHead(){const me=S.me;if(!me||!me.picks)return `<div class="card gate"><h2>Picks are locked</h2><p>The Gauntlet is on. You didn't enter this time; here's what everyone picked.</p></div>`;
+function resultsHead(){const me=S.me;if(!me||!me.picks)return `<div class="card gate"><h2>Overall results</h2><p>Picks are locked: the Gauntlet is on. Here's what everyone predicted, question by question.</p></div>`;
  return `<div class="card done"><h2>${S.answers&&Object.keys(S.answers).length?(me.pts||0)+' points':'You\'re in'}</h2><p>${Object.keys(S.answers||{}).length?(me.right||0)+' right answers so far. Results fill in as the Gauntlet finishes.':'Picks are locked. Results come in after the Gauntlet on 27 Nov.'} Playing as <b style="color:var(--ink)">@${esc(me.handle)}</b>.</p></div>`}
 function lb(){if(!S.show_lb||!S.leaderboard.length)return '';return `<div class="card"><div class="tag" style="margin-bottom:8px">LEADERBOARD</div><table class="lbt">${S.leaderboard.map(r=>`<tr><td class="rk">${r.rank}</td><td><b>${esc(r.name||r.handle)}</b><div class="qs" style="margin:0">@${esc(r.handle)} · ${r.right} right</div></td><td class="p">${r.pts}</td></tr>`).join('')}</table></div>`}
 function doneCard(){const me=S.me,p=me.picks;const show=q=>{const v=p[q.id];return Array.isArray(v)?v.map((x,k)=>(q.kind==='rank'?'#'+(k+1)+' ':'')+x).join(', '):v};
@@ -200,6 +212,7 @@ $('go').onclick=async()=>{const g=$('go');if(g.disabled)return;g.disabled=true;g
   if(!r.ok){toast(j.error||'Could not save. Try again.',true);g.disabled=false;bar();return}
   toast(j.edited?'Changes saved':'You\'re in! Picks saved');EDIT=false;await load();scrollTo({top:0,behavior:'smooth'})}catch(e){toast('No connection. Try again.',true);g.disabled=false;bar()}};
 load();setInterval(()=>{if(S&&(S.closed||!S.me||(S.me.picks&&!EDIT)))load()},60000);
+setInterval(async()=>{if(!S||S.closed)return;try{const j=await (await fetch('/predict/pmgc/api/state',{cache:'no-store',credentials:'same-origin'})).json();if(j.closed){S=j;render();toast('Picks are locked: the Gauntlet is live')}else if(j.lock!==S.lock){S.lock=j.lock;S.lock_text=j.lock_text;$('lockw').textContent=j.lock_text}}catch(e){}},20000);
 </script></body></html>"""
 
 

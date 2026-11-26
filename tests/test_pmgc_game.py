@@ -42,7 +42,7 @@ pmgc.submit(U2, "bob", "Bob", B)
 pmgc.submit(U3, "cy", "Cy", picks(T[10:16], T[5], "No", T[5], "No", "1M+", "3", [T[5], T[6], T[7]]))
 st = pmgc.state(U1)
 assert st["me"]["handle"] == "ann.plays" and st["me"]["picks"]["q3"] == "No" and not st["closed"] and st["crowd"] == {}
-assert len(st["teams"]) == 16 and st["teams"][0]["logo"] == ""            # no logo yet: initials on the page
+assert len(st["teams"]) == 16 and st["teams"][0]["logo"].startswith("/pmgc/logo/ak-gold?v=")
 
 # results: Ann 6/6 finalists, #1, top 3 exact; Bob 5/6, 3+ dinners, #1 slot wrong
 pmgc.save(lock=time.time() - 1, answers={"q1": T[:6], "q2": T[0], "q3": "Yes", "q4": [T[1], T[5]], "q5": "Yes",
@@ -87,13 +87,9 @@ assert r.headers["Cache-Control"] == "no-store" and j["me"] is None and j["auth"
 pmgc.save(lock=time.time() + 3600)
 r = cl.post("/predict/pmgc/api/submit", json={"handle": "x", "picks": A})
 assert r.status_code == 401
-assert cl.get("/pmgc/logo/nope").status_code == 404 and cl.get("/pmgc/logo/team-soul").status_code == 404
-os.makedirs(pmgc.LOGO_DIR, exist_ok=True)
-pmgc._save_logo("team-soul", b"\x89PNG" + b"0" * 300, ".png")
+assert cl.get("/pmgc/logo/nope").status_code == 404
 r = cl.get("/pmgc/logo/team-soul")
-assert r.status_code == 200 and r.mimetype == "image/png" and "86400" in r.headers["Cache-Control"]
-assert pmgc.teams()[14]["logo"].startswith("/pmgc/logo/team-soul?v=")
-os.remove(pmgc.logo_file("team-soul"))
+assert r.status_code == 200 and "86400" in r.headers["Cache-Control"]
 k = "k" * 20
 assert cl.get("/admin/pmgc").status_code == 404 and cl.get(f"/admin/pmgc?key={k}").status_code == 200
 assert b"PMGC Gauntlet" in cl.get(f"/admin/pmgc?key={k}").data
@@ -101,4 +97,33 @@ r = cl.post("/admin/pmgc/act", data={"key": k, "action": "settings", "lock": "20
 assert r.status_code == 302 and pmgc.settings()["prize"] == "UC for the top 3"
 assert abs(pmgc.settings()["lock"] - 1795692600) < 1                       # 26 Nov 2026 17:00 IST
 assert cl.get(f"/admin/pmgc.csv?key={k}").status_code == 200
+# the owner's logos ship with the site: all 16 present, served as webp
+assert all(pmgc.logo_file(t[1]) for t in pmgc.TEAMS), [t[1] for t in pmgc.TEAMS if not pmgc.logo_file(t[1])]
+r = cl.get("/pmgc/logo/team-soul")
+assert r.status_code == 200 and r.mimetype == "image/webp"
+assert all(t["logo"] for t in pmgc.teams())
+
+# picks lock by themselves when the official broadcast goes live (the tracker's first official tick)
+from tracker import events
+pmgc.save(lock=time.time() + 7200)
+pmgc._cache.clear()
+assert not pmgc.closed()
+t_off = time.time() - 30
+events._db()
+with __import__("tracker").store._lock:
+    c_ = __import__("tracker").store.main()
+    c_.execute("INSERT INTO ev_ticks (event, ts, total, live, official, watch, community) VALUES ('pmgc', ?, 90000, 5, 80000, 10000, 0)", (int(t_off),))
+    c_.commit()
+pmgc._cache.clear()
+assert pmgc.closed() and abs(pmgc.settings()["lock"] - int(t_off)) < 1          # the lock moved to the broadcast's start
+assert pmgc.state(None)["closed"] and "locked" in err(pmgc.submit, U1, "ann.plays", "Ann", A)
+b = pmgc.board(time.time() + 20)
+assert b["crowd"]["q2"] and all(isinstance(v, int) for v in b["crowd"]["q2"].values())   # percentages, no counts
+assert "n" not in b and "entries" not in b
+
+# search finds tournaments and the game
+from tracker import scene
+res = scene.search_tours("predict", "global")
+assert res and res[0]["url"] == "/predict/pmgc"
+assert any(x["url"] == "/e/pmgc/" for x in scene.search_tours("pmgc", "in"))
 print("PMGC GAME OK")
