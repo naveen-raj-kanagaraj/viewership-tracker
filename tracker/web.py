@@ -1578,7 +1578,7 @@ def hit():
                           request.headers.get("User-Agent", ""), int(j.get("w") or 0),
                           unquote(request.headers.get("cf-ipcity", "")), unquote(request.headers.get("cf-region", "")),
                           request.headers.get("CF-Connecting-IP") or request.remote_addr or "", request.path,
-                          str(j.get("p", ""))[:80]))
+                          str(j.get("p", ""))[:80], request.cookies.get("lge_in") == "1"))
     except Exception:
         pass                                  # queue full: drop the visit count, never slow the page
     return Response(status=204)

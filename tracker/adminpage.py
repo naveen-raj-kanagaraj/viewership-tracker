@@ -8,6 +8,7 @@ Tabs: Overview (visitors now / today, sign-ups, weekly-report list, site health,
 account, search, CSV of the weekly-report list), Trackers (every tournament tracker: on air or watching, streams,
 viewers, peak), and the existing pages: Traffic (/admin/visitors), Health (/admin/health), Predict & Win."""
 import html
+import re
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -48,7 +49,7 @@ td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}td.n,th
 input[type=search]{background:#0b0b11;border:1px solid var(--line);color:#fff;border-radius:9px;padding:9px 12px;width:280px;max-width:100%;font:inherit}
 .btn{display:inline-block;background:#15151e;border:1px solid #2a2a38;color:#fff;border-radius:9px;padding:8px 13px;text-decoration:none;font-weight:600;font-size:13px}.btn.l{background:var(--lime);color:#0b0b12;border-color:var(--lime)}
 .u{display:flex;gap:10px;align-items:center}.u img,.u .ph{width:28px;height:28px;border-radius:50%;flex:none;background:#1d1d28}.ov{overflow-x:auto}
-@media(max-width:600px){main{padding:16px 12px 50px}.top .in{padding:10px 12px}.c b{font-size:22px}.hide{display:none}}"""
+@media(max-width:600px){main{padding:16px 12px 50px}.top .in{padding:10px 12px}.c b{font-size:22px}.hide{display:none}.k{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.c{padding:12px}}"""
 
 
 def page(tab: str, title: str, body: str, me: dict = None, key: str = "") -> str:
@@ -59,7 +60,7 @@ def page(tab: str, title: str, body: str, me: dict = None, key: str = "") -> str
     who = ""
     if me:
         pic = f'<img src="{E(me.get("picture") or "")}" alt="" referrerpolicy="no-referrer">' if me.get("picture") else ""
-        who = f'<span class="who">{pic}<span class="hide">{E(me.get("email") or "")}</span><a class="btn" href="/">Site</a></span>'
+        who = f'<span class="who" title="{E(me.get("email") or "")}">{pic}<a class="btn" href="/">Site</a></span>'
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex"><title>{E(title)} | Admin</title><style>{CSS}</style></head><body>
 <div class="top"><div class="in"><a class="brand" href="/admin{q}">letsgrowesports</a><span class="tag">ADMIN</span><nav class="tabs">{nav}</nav>{who}</div></div>
@@ -102,34 +103,169 @@ def _tracker_rows(ts: list) -> str:
             if rows else '<div class="mut">No trackers running.</div>')
 
 
+def _bars(items: list, hl_last: bool = True, every: int = 3, fmt=str) -> str:
+    """[(label, value)] as a small bar chart (labels every few bars)."""
+    if not items:
+        return '<div class="mut">No data yet.</div>'
+    mx = max([v for _, v in items] or [1]) or 1
+    b = "".join(f'<div class="{"t" if hl_last and i == len(items) - 1 else ""}" style="height:{max(3, 100 * v / mx)}%" title="{E(str(l))}: {fmt(v)}">'
+                f'<i>{fmt(v) if v else ""}</i></div>' for i, (l, v) in enumerate(items))
+    lb = "".join(f'<span>{E(str(l)) if i % every == 0 or i == len(items) - 1 else ""}</span>' for i, (l, _) in enumerate(items))
+    return f'<div class="bars">{b}</div><div class="bl">{lb}</div>'
+
+
+def _rows(pairs: list, empty="-", pct_of: int = 0) -> str:
+    if not pairs:
+        return f'<tr><td class="mut">{empty}</td></tr>'
+    return "".join(f'<tr><td>{E(str(k or "-"))}</td><td class="n"><b>{v:,}</b>{f" <span class=mut>{round(100 * v / pct_of)}%</span>" if pct_of else ""}</td></tr>'
+                   for k, v in pairs)
+
+
+def _pages(pairs: list) -> list:
+    """Page paths as the owner reads them: channel pages by the channel's name."""
+    from urllib.parse import unquote
+    sids = {}
+    for p, _ in pairs:
+        m = re.search(r"/ch/([^/?#]+)", unquote(p or ""))
+        if m:
+            sids[p] = m.group(1)
+    names = {}
+    if sids:
+        try:
+            from tracker import scene, store
+            with store.reading():
+                q = ",".join("?" * len(set(sids.values())))
+                names = {r[0]: r[1] for r in scene._db().execute(f"SELECT sid, name FROM sc_channels WHERE sid IN ({q})", list(set(sids.values())))}
+        except Exception:
+            names = {}
+    out = []
+    for p, n in pairs:
+        sid = sids.get(p)
+        out.append((f"Channel: {names[sid]}" if sid and names.get(sid) else unquote(p or "/"), n))
+    return out
+
+
+def _card(label, value, small="", bad=False) -> str:
+    return f'<div class="c{" bad" if bad else ""}"><div class="l">{label}</div><b>{value}</b><small>{small}</small></div>'
+
+
 def overview(health: dict, vis: dict, me: dict = None, key: str = "") -> str:
+    """Everything at a glance: traffic (now, today, members vs visitors, by hour and day, countries, sources,
+    devices, pages), accounts (sign-ups, sign-up rate, newest), Predict & Win (entries, by hour, the crowd's picks),
+    tournament trackers, and the site's health."""
     from tracker import auth
+    kq = ("?key=" + E(key)) if key else ""
     u = auth.counts() if auth.ENABLED else None
     h, s = health or {}, (health or {}).get("scan") or {}
     mem = (h.get("memory_mb") or {}).get("MemAvailable") or 0
-    cards = (f'<div class="c"><div class="l">On the site now</div><b>{vis.get("active", 0)}</b><small>{vis.get("today", 0)} visitors today</small></div>'
-             + (f'<div class="c"><div class="l">Accounts</div><b>{u["total"]:,}</b><small>+{u["today"]} today · +{u["week"]} in 7 days</small></div>'
-                f'<div class="c"><div class="l">Weekly report list</div><b>{u["weekly"]:,}</b><small>{round(100 * u["weekly"] / u["total"]) if u["total"] else 0}% of accounts</small></div>'
-                if u else '<div class="c"><div class="l">Accounts</div><b>off</b><small>sign-in keys not set</small></div>')
-             + f'<div class="c {"bad" if (s.get("last_saved_min_ago") or 0) > 8 else ""}"><div class="l">Live scan</div><b>{(str(s.get("last_saved_min_ago")) + " min") if (s.get("last_saved_min_ago") or 0) < 1440 else "none yet"}</b><small>since the last save · took {s.get("last_took_s") or "-"} s</small></div>'
-             + f'<div class="c {"bad" if (h.get("load") or [0])[0] > 6 else ""}"><div class="l">Server load</div><b>{(h.get("load") or [0])[0]:.1f}</b><small>{mem:,} MB memory free · {h.get("disk_free_gb", "-")} GB disk</small></div>'
-             + f'<div class="c"><div class="l">Code</div><b style="font-size:20px">{E(str(h.get("code") or "-"))}</b><small>up {h.get("up_min", "-")} min</small></div>')
-    signup = ""
+    now_ist = datetime.now(IST)
+    today = now_ist.strftime("%Y-%m-%d")
+    act, tod = vis.get("active", 0), vis.get("today", 0)
+    pk = vis.get("peak") or {}
+    try:
+        from tracker import pmgc
+        pg = pmgc.admin_stats()
+    except Exception:
+        pg = None
+    try:
+        from tracker import events as ev_
+        ytq = (ev_._YTQ["n"] if ev_._YTQ["day"] else 0, ev_.YT_QUOTA)
+    except Exception:
+        ytq = (0, 0)
+    left = (pg["lock"] - time.time()) if pg else 0
+    lock_txt = ("locked" if pg and pg["closed"] else f"locks in {int(left // 3600)}h {int(left % 3600 // 60)}m") if pg else ""
+    # ---- headline numbers
+    cards = (_card("On the site now", f"{act:,}", f'{vis.get("active_members", 0):,} signed in · {max(0, act - vis.get("active_members", 0)):,} visitors')
+             + _card("Visitors today", f"{tod:,}", f'{vis.get("today_members", 0):,} signed in · avg {vis.get("avg_min", 0)} min on site')
+             + (_card("Most at once", f"{act:,}", "right now") if act >= pk.get("n", 0) else
+                _card("Most at once", f'{pk.get("n", 0):,}', datetime.fromtimestamp(pk["ts"], IST).strftime("%d %b, %I:%M %p") if pk.get("ts") else "-"))
+             + (_card("Accounts", f'{u["total"]:,}', f'+{u["today"]} today · +{u["week"]} in 7 days')
+                + _card("Sign-up rate today", f'{round(100 * u["today"] / tod, 1) if tod else 0}%', f'{u["today"]} of {tod:,} visitors made an account')
+                + _card("Signed in today", f'{u["active_today"]:,}', f'{u["weekly"]:,} on the weekly email list')
+                if u else _card("Accounts", "off", "sign-in keys not set"))
+             + (_card("PMGC Predict & Win", f'{pg["total"]:,}', f'+{pg["today"]} today · +{pg["hour"]} last hour · {lock_txt}') if pg else "")
+             + (_card("Live scan", f'{s.get("last_saved_min_ago")} min ago', f'took {s.get("last_took_s") or "-"} s · {s.get("live") or 0:,} live',
+                      (s.get("last_saved_min_ago") or 0) > 8)
+                if isinstance(s.get("last_saved_min_ago"), (int, float)) and s["last_saved_min_ago"] < 1440
+                else _card("Live scan", "none yet", "waiting for the first scan", True))
+             + _card("Server load", f'{(h.get("load") or [0])[0]:.1f}', f'{mem:,} MB free · {h.get("disk_free_gb", "-")} GB disk', (h.get("load") or [0])[0] > 6)
+             + _card("YouTube quota", f"{ytq[0]:,}", f"of {ytq[1]:,} today", ytq[1] and ytq[0] > 0.9 * ytq[1])
+             + _card("Code", E(str(h.get("code") or "-")), f'up {h.get("up_min", "-")} min'))
+    # ---- traffic
+    dd = dict(vis.get("days") or {})
+    dd[datetime.now(IST).strftime("%Y-%m-%d")] = max(tod, dd.get(datetime.now(IST).strftime("%Y-%m-%d"), 0))
+    days = sorted(dd.items())[-14:]
+    md = dict(vis.get("member_days") or {})
+    md[datetime.now(IST).strftime("%Y-%m-%d")] = max(vis.get("today_members", 0), md.get(datetime.now(IST).strftime("%Y-%m-%d"), 0))
+    day_rows = "".join(f'<tr><td>{datetime.strptime(d, "%Y-%m-%d").strftime("%a %d %b")}</td><td class="n"><b>{n:,}</b></td>'
+                       f'<td class="n">{md.get(d, 0):,}</td><td class="n mut">{round(100 * md.get(d, 0) / n) if n else 0}%</td></tr>'
+                       for d, n in reversed(days[-7:]))
+    hrs = vis.get("hours") or {}
+    hour_bars = _bars([(f"{hh:02d}", hrs.get(hh, 0)) for hh in range(0, now_ist.hour + 1)], every=3)
+    dev = vis.get("devices") or []
+    day_bars = _bars([(datetime.strptime(d, "%Y-%m-%d").strftime("%d %b"), n) for d, n in days], fmt=lambda v: f"{v:,}")
+    traffic = (f'<div class="grid"><div class="card"><h2>Visitors, last 14 days <a href="/admin/visitors{kq}">Traffic</a></h2>'
+               f'{day_bars}'
+               f'<table style="margin-top:12px"><tr><th>Day</th><th class="n">Visitors</th><th class="n">Signed in</th><th class="n">Share</th></tr>{day_rows or "<tr><td class=mut>-</td></tr>"}</table></div>'
+               f'<div class="card"><h2>New visitors today by hour (IST)</h2>{hour_bars}'
+               f'<div class="grid" style="margin-top:12px;gap:10px"><div><div class="sl">Devices</div><table>{_rows(dev, pct_of=tod)}</table></div>'
+               f'<div><div class="sl">On the site now, by country</div><table>{_rows((vis.get("active_countries") or [])[:5])}</table></div></div></div></div>'
+               f'<div class="grid"><div class="card"><h2>Countries today</h2><table>{_rows((vis.get("countries") or [])[:8], pct_of=tod)}</table></div>'
+               f'<div class="card"><h2>Where visitors came from today</h2><table>{_rows((vis.get("refs") or [])[:8], pct_of=tod)}</table></div></div>'
+               f'<div class="grid"><div class="card"><h2>Pages people are on now</h2><table>{_rows(_pages(vis.get("pages_now") or []), "Nobody right now")}</table></div>'
+               f'<div class="card"><h2>Most visited pages today</h2><table>{_rows(_pages(vis.get("pages_today") or []))}</table></div></div>')
+    # ---- accounts
+    accounts = ""
     if u:
-        mx = max([n for _, n in u["days"]] or [1]) or 1
-        bars = "".join(f'<div class="{"t" if i == len(u["days"]) - 1 else ""}" style="height:{max(3, 100 * n / mx)}%" title="{d}: {n}"></div>' for i, (d, n) in enumerate(u["days"]))
-        lbl = "".join(f'<span>{d if i % 3 == 0 or i == len(u["days"]) - 1 else ""}</span>' for i, (d, _) in enumerate(u["days"]))
         recent = "".join(f'<tr><td><div class="u">{_avatar(p)}<div><b>{E(p["name"] or "")}</b><div class="mut">{E(p["email"])}</div></div></div></td>'
-                         f'<td class="n mut">{_ago(p["created"])}</td></tr>' for p in auth.people(limit=6))
-        signup = (f'<div class="card"><h2>Sign-ups, last 14 days <a href="/admin/people{("?key=" + E(key)) if key else ""}">All people</a></h2><div class="bars">{bars}</div><div class="bl">{lbl}</div></div>'
-                  f'<div class="card"><h2>Newest accounts</h2><table>{recent or "<tr><td class=mut>No accounts yet.</td></tr>"}</table></div>')
-    top = "".join(f'<tr><td>{E(c or "-")}</td><td class="n">{n}</td></tr>' for c, n in (vis.get("countries") or [])[:6])
-    refs = "".join(f'<tr><td>{E(r or "direct")}</td><td class="n">{n}</td></tr>' for r, n in (vis.get("refs") or [])[:6])
-    body = (f'<h1>Overview</h1><p class="sub">{datetime.now(IST).strftime("%a %d %b, %I:%M %p")} IST</p><div class="k">{cards}</div>'
-            f'<div class="card"><h2>Tournament trackers <a href="/admin/trackers{("?key=" + E(key)) if key else ""}">All trackers</a></h2><div class="ov">{_tracker_rows([t for t in _trackers() if not t["ended"]][:6])}</div></div>'
-            f'<div class="grid"><div>{signup}</div><div><div class="card"><h2>Visitors today by country <a href="/admin/visitors{("?key=" + E(key)) if key else ""}">Traffic</a></h2><table>{top or "<tr><td class=mut>-</td></tr>"}</table></div>'
-            f'<div class="card"><h2>Where they came from</h2><table>{refs or "<tr><td class=mut>-</td></tr>"}</table></div></div></div>')
+                         f'<td class="mut hide">{E(p["region"] or "-")}</td><td class="n mut">{_ago(p["created"])}</td></tr>' for p in auth.people(limit=8))
+        accounts = (f'<div class="grid"><div class="card"><h2>Sign-ups, last 14 days <a href="/admin/people{kq}">All people</a></h2>{_bars(u["days"])}'
+                    f'<div class="sl" style="margin-top:12px">Accounts by country</div><table>{_rows(u["countries"], pct_of=u["total"])}</table></div>'
+                    f'<div class="card"><h2>Newest accounts <a href="/admin/people.csv?weekly=1{("&key=" + E(key)) if key else ""}">Email list (CSV)</a></h2><table>{recent or "<tr><td class=mut>No accounts yet.</td></tr>"}</table></div></div>')
+    # ---- predict & win
+    predict = ""
+    if pg:
+        pct = lambda pairs: [(k, v) for k, v in pairs]
+        newest = "".join(f'<tr><td><b>@{E(e["handle"])}</b><div class="mut">{E(e["name"])} · {E(e["email"] or "")}</div></td><td class="n mut">{_ago(e["t"])}</td></tr>'
+                         for e in pg["newest"])
+        hrs_p = _bars([(f"{hh:02d}", pg["hours"].get(hh, 0)) for hh in range(0, now_ist.hour + 1)], every=3)
+        pcards = (_card("Entries", f'{pg["total"]:,}', f'{pg["hidden"]} hidden') + _card("Today", f'{pg["today"]:,}', "new entries")
+                  + _card("Last hour", f'{pg["hour"]:,}', "new entries") + _card("Changed their picks", f'{pg["edited"]:,}', "after submitting")
+                  + _card("Picks", "Locked" if pg["closed"] else "Open", ("locked " if pg["closed"] else "lock ") + pmgc_lock_text(pg["lock"])))
+        predict = (f'<div class="card"><h2>PMGC Gauntlet: Predict &amp; Win <a href="/admin/pmgc{kq}">Manage</a></h2>'
+                   f'<div class="k" style="margin-bottom:12px">{pcards}</div>'
+                   f'<div class="grid"><div><div class="sl">Entries today by hour (IST)</div>{hrs_p}<div class="sl" style="margin-top:14px">Newest entries</div>'
+                   f'<table>{newest or "<tr><td class=mut>No entries yet.</td></tr>"}</table></div>'
+                   f'<div><div class="grid" style="gap:12px"><div><div class="sl">Gauntlet #1</div><table>{_rows(pct(pg["first"]), pct_of=pg["total"])}</table></div>'
+                   f'<div><div class="sl">#1 in their top 3</div><table>{_rows(pct(pg["top1"]), pct_of=pg["total"])}</table></div>'
+                   f'<div><div class="sl">Team SouL to the finals?</div><table>{_rows(pct(pg["soul"]), pct_of=pg["total"])}</table></div>'
+                   f'<div><div class="sl">Most chicken dinners</div><table>{_rows(pct(pg["dinners"]), pct_of=pg["total"])}</table></div>'
+                   f'<div><div class="sl">Most picked finalists</div><table>{_rows(pct(pg["finalists"]), pct_of=pg["total"])}</table></div>'
+                   f'<div><div class="sl">Peak viewers</div><table>{_rows(pct(pg["peak"]), pct_of=pg["total"])}</table></div></div></div></div></div>')
+    # ---- health
+    warn = "".join(f"<div>{E(x)}</div>" for x in (h.get("recent") or [])[-8:])
+    rk = h.get("rankings") or {}
+    wl = h.get("write_lock")
+    ru = rk.get("updated_min_ago")
+    hcards = (_card("Rankings updated", f"{ru} min ago" if isinstance(ru, (int, float)) and ru < 10000 else "not yet", "", isinstance(ru, (int, float)) and 120 < ru)
+              + _card("Database log", f'{h.get("wal_mb", 0) or 0:,} MB', "WAL", (h.get("wal_mb") or 0) > 1500)
+              + _card("Write lock", "free" if wl == "free" else f'{(wl or {}).get("held_s")} s', "" if wl == "free" else E(str((wl or {}).get("by"))))
+              + _card("Memory", f"{mem:,} MB", "available"))
+    health_card = (f'<div class="card"><h2>Site health <a href="/admin/health{kq}">Live health</a></h2>'
+                   f'<div class="k" style="margin-bottom:10px">{hcards}</div><div class="sl">Latest warnings (UTC)</div><div class="log">{warn or "<div class=mut>None</div>"}</div></div>')
+    body = (f'<h1>Overview</h1><p class="sub">{now_ist.strftime("%a %d %b, %I:%M %p")} IST · refreshes every minute</p><div class="k">{cards}</div>'
+            + predict + traffic + accounts +
+            f'<div class="card"><h2>Tournament trackers <a href="/admin/trackers{kq}">All trackers</a></h2><div class="ov">{_tracker_rows([t for t in _trackers() if not t["ended"]][:8])}</div></div>'
+            + health_card +
+            '<style>.sl{font:700 11px Figtree,system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);margin:4px 0 6px}'
+            '.bars div i{position:absolute;top:-16px;left:0;right:0;text-align:center;font-size:10px;font-style:normal;color:var(--mut)}.bars{margin-top:18px}'
+            '.log{font:12px ui-monospace,Menlo,monospace;color:#b4b3c4;white-space:pre-wrap;line-height:1.6}</style>'
+            '<script>setTimeout(()=>location.reload(),60000)</script>')
     return page("overview", "Overview", body, me, key)
+
+
+def pmgc_lock_text(ts: float) -> str:
+    return datetime.fromtimestamp(ts, IST).strftime("%d %b, %I:%M %p IST")
 
 
 def _avatar(p) -> str:
