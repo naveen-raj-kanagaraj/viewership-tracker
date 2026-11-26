@@ -159,6 +159,52 @@ PRESETS = {
         "queries": [],                          # no YouTube search (a Portuguese channel is also called CEGC)
         "official": ["sky esports"],
     },
+    "pmgc": {
+        "name": "PMGC 2026",                    # PUBG MOBILE Global Championship, Istanbul. Gauntlet 26-27 Nov (Team SouL
+        "game": "PUBG Mobile",                  # plays), groups 29-30 Nov + 2-3 Dec, Last Chance 5-6 Dec, finals 11-13 Dec
+        "auto": True,                           # created on startup; shows in Esports > tournaments while it runs
+        # PUBG MOBILE's own channels (main English one + language/region channels): every live stream whose title names
+        # the event is tracked and counted as official. Checked by channel every poll (found 25 Nov 2026).
+        "official_channels": ["UCmeeY9kzNswUpbYyJntb3Aw",   # PUBG MOBILE Esports (@PUBGMOBILEEsports)
+                              "UCTal2V5RbkPNUWUa2E6RPEA",   # PUBG MOBILE Esports Pakistan (Urdu)
+                              "UCMus-ap67HdQVz_QMHtaxXw",   # PUBG MOBILE Esports South Asia
+                              "UCvTg9BK7sRKwu1H9_VDPYIQ",   # PUBG MOBILE Esports MEA (Arabic)
+                              "UCqFXoUdIMsNg_ZHb_zyuBew",   # PUBG MOBILE Esports NA
+                              "UCBFhZyGQUIpvwcD_OGyT0XA",   # PUBG Mobile Esports Viet Nam
+                              "UCtMMTyOYb20ZbYOBfsfQBOw",   # PUBG MOBILE Espor Turkiye
+                              "UCkB_AwGXxPAKdahxGHpeC4Q",   # PUBG MOBILE Indonesia
+                              "UCtXuFMDmBedKwy77VAZY8eg",   # PUBG MOBILE Thailand
+                              "UCaLKRJaDrQhPb59lHslFmgA",   # PUBG MOBILE LATAM (Spanish)
+                              "UCH2Wx7hyam0P5M6kbrzQwSQ"],  # PUBG MOBILE Brasil (Portuguese)
+        # watch-party streamers, checked directly every poll even if YouTube search misses them. Indian ones found on
+        # YouTube 25 Nov 2026 (watch parties of PMGC 2025 / other PUBG Mobile events), then other regions.
+        "always_check": ["@SnaxGaming", "@LoLzZzGaming", "@NEYOOGAMINGYT", "@Jokerkihavelii", "@mrspike_gaming",
+                         "@sheekgaming", "@ayogi", "@S8ULSID", "@EngineerYTGaming", "@sparkakhil1", "@crypto5775",
+                         "@SoulAman", "@MortaLyt", "@DynamoGaming", "@TheBixiOP", "@ShreemanLegend", "@VAADHIYAAR",
+                         "@MizoPlays", "@IPREEET.69", "@LadyPredatorGaming",
+                         "UC27pyUnJTUyxe_z_0WxxNXw",    # Cr7 HORAA
+                         "UCvkP3KlQJL1XcXKQLGK7DrA",    # SleepyyHORAA
+                         "UCrhssMVNygNbAxDtFRIRzOg",    # SkyHORAA
+                         "UCgA44b8KQQFC71Ma72tglRg",    # Xifan
+                         "UC8Xqz9d9yD-Yp6E7I6gut9Q"],   # RawalPINDIZ (Pakistan)
+        # the same Indian streamers on Kick (one API call): counted when the title names the event
+        "kick": {"channels": ["snaxgaming", "sheekgaming", "lolzzzgaming", "soulaman", "neyoo_gaming", "neyoo-gaming",
+                              "mrspikeyt", "vaadhiyaar", "shreemanlegend", "sharkshe", "mizo", "ravensharplive",
+                              "mazyislive", "kushalmahajan"]},
+        "all_watch": True,                      # every non-official stream carrying it is a watch party
+        "scene_match": r"\bpmgc\b|pubg mobile global championship|\bgc (league|gauntlet)\b|\b20\d\d gc (league|gauntlet|group|last chance|grand finals?)\b",
+        "allowed": [],
+        "ended": False,
+        "next_start": "2026-11-26 17:00",       # IST (owner, 25 Nov); countdown until the official stream goes live
+        "match": ["pmgc", "pubg mobile global championship", "pubgm global championship", "gc league", "gc gauntlet",
+                  "2026 gc"],
+        "queries": ["PMGC 2026", "PMGC live", "PMGC watch party", "PUBG Mobile Global Championship 2026",
+                    "PMGC 2026 Gauntlet"],
+        "official": ["pubg mobile esports", "pubg mobile espor"] + [c.lower() for c in (
+            "UCmeeY9kzNswUpbYyJntb3Aw", "UCTal2V5RbkPNUWUa2E6RPEA", "UCMus-ap67HdQVz_QMHtaxXw", "UCvTg9BK7sRKwu1H9_VDPYIQ",
+            "UCqFXoUdIMsNg_ZHb_zyuBew", "UCBFhZyGQUIpvwcD_OGyT0XA", "UCtMMTyOYb20ZbYOBfsfQBOw", "UCkB_AwGXxPAKdahxGHpeC4Q",
+            "UCtXuFMDmBedKwy77VAZY8eg", "UCaLKRJaDrQhPb59lHslFmgA", "UCH2Wx7hyam0P5M6kbrzQwSQ")],
+    },
 }
 
 
@@ -951,14 +997,13 @@ def poll(ev: dict, now: int = None) -> dict:
             errors += 1
             print(f"Event search '{q}' failed: {str(e)[:120]}")
     official_now = set()
-    for oc in PRESETS.get(ev["key"], {}).get("official_channels", []):
-        try:
-            for s in channel_live_all(oc):
+    ocs = PRESETS.get(ev["key"], {}).get("official_channels", [])
+    with ThreadPoolExecutor(max_workers=min(6, max(1, len(ocs)))) as pool:   # PMGC has 11 language channels
+        for res in pool.map(lambda oc: _safe(channel_live_all, oc), ocs):
+            for s in res or []:
                 official_now.add(s["vid"])
                 if s["vid"] not in found:
                     found[s["vid"]] = s
-        except Exception as e:
-            print(f"Official channel check failed: {str(e)[:120]}")
     for v in official_now:           # the channel itself says these are live: never drop them as ended
         _ENDED.pop(v, None)
     if platforms.enabled(ev, preset(ev["key"])):

@@ -881,7 +881,7 @@ TOURNAMENTS = [
     (r"\bcct\b", "CCT", None), (r"\besl\b", "ESL", None),
     (r"the international|\bti ?20\d\d\b", "The International", "Dota 2"),
     (r"esports world cup|\bewc\b", "Esports World Cup", None),
-    (r"\bpmgc\b|pubg mobile global championship", "PMGC", None), (r"\bpmwi\b", "PMWI", None),
+    (r"\bpmgc\b|pubg mobile global championship|\bgc (league|gauntlet)\b|\b20\d\d gc (league|gauntlet|group|last chance|grand finals?)\b", "PMGC", None), (r"\bpmwi\b", "PMWI", None),
     (r"\bpmsl\b", "PMSL", None), (r"\bpmpl\b", "PMPL", None), (r"\bpmrc\b", "PMRC", None),
     (r"\bbgis\b", "BGIS", None), (r"\bbmps\b", "BMPS", None), (r"\bbmsd\b", "BMSD", None), (r"\bbmic\b", "BMIC", None),
     (r"\bbmoc\b", "BMOC", None), (r"\bffws\b|free fire world series", "FFWS", None), (r"\bffic\b", "FFIC", None),
@@ -3227,7 +3227,9 @@ def tours_overview(region: str = "global") -> dict:
                      "hw": round(r[5]) if r else 0, "start": info.get("start"), "end": info.get("end"),
                      "liquipedia": info.get("url")})
     trk = [dict(e) for e in _tracked_events(region)]
-    tag = lambda n: (_norm(n).split() or [""])[0]
+    def tag(n):                          # 'PUBG Mobile Global Championship 2026' and 'PMGC 2026' are one event
+        n = next((nm for rx, nm, _ in _T_RX if rx.search(n or "")), n)
+        return (_norm(n).split() or [""])[0]
     for e in trk:                        # this site's own tracker is the same event: one card, with the edition's game/dates
         same = [x for x in rows if tag(x["name"]) == tag(e["name"])]
         for x in same:
