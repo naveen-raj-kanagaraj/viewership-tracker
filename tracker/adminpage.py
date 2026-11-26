@@ -47,7 +47,7 @@ td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}td.n,th
 .bars{display:flex;align-items:flex-end;gap:4px;height:70px}.bars div{flex:1;background:#2a3a14;border-radius:3px 3px 0 0;min-height:2px;position:relative}.bars div.t{background:var(--lime)}
 .bl{display:flex;gap:4px;font-size:10px;color:var(--mut)}.bl span{flex:1;text-align:center;overflow:hidden;white-space:nowrap}
 input[type=search]{background:#0b0b11;border:1px solid var(--line);color:#fff;border-radius:9px;padding:9px 12px;width:280px;max-width:100%;font:inherit}
-.btn{display:inline-block;background:#15151e;border:1px solid #2a2a38;color:#fff;border-radius:9px;padding:8px 13px;text-decoration:none;font-weight:600;font-size:13px}.btn.l{background:var(--lime);color:#0b0b12;border-color:var(--lime)}
+.btn{display:inline-block;background:#15151e;border:1px solid #2a2a38;color:#fff;border-radius:9px;padding:8px 13px;text-decoration:none;font-weight:600;font-size:13px}.btn.l{background:var(--lime);color:#0b0b12;border-color:var(--lime)}button.btn{cursor:pointer;font-family:inherit}.btn.bad{color:#ff8a95;border-color:#5a1f28}.msg{background:#16210a;border:1px solid #3d5a12;color:#d9f99d;border-radius:10px;padding:10px 14px;margin:0 0 14px}
 .u{display:flex;gap:10px;align-items:center}.u img,.u .ph{width:28px;height:28px;border-radius:50%;flex:none;background:#1d1d28}.ov{overflow-x:auto}
 @media(max-width:600px){main{padding:16px 12px 50px}.top .in{padding:10px 12px}.c b{font-size:22px}.hide{display:none}.k{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.c{padding:12px}}"""
 
@@ -95,7 +95,7 @@ def _tracker_rows(ts: list) -> str:
               else '<span class="pill p-ok">SEARCHING</span>' if t["mode"] == "full" else '<span class="pill p-w">WATCHING OFFICIAL</span>')
         when = (f'starts {datetime.fromtimestamp(t["next"], IST).strftime("%d %b %H:%M")} IST' if t["next"] else
                 (f'{t["start"]} to {t["end"]}' if t["start"] else ""))
-        rows += (f'<tr><td><a href="/e/{E(t["key"])}/" target="_blank"><b>{E(t["name"])}</b></a><div class="mut">{E(t["game"])}'
+        rows += (f'<tr><td><a href="/admin/trackers/{E(t["key"])}"><b>{E(t["name"])}</b></a><div class="mut">{E(t["game"])}'
                  f'{" · from Liquipedia" if t["auto"] else ""}{" · " + E(when) if when else ""}</div></td><td>{st}</td>'
                  f'<td class="n">{t["streams"]}<div class="mut">{t["official"]} official</div></td><td class="n"><b>{_fmt(t["viewers"])}</b></td>'
                  f'<td class="n">{_fmt(t["peak"])}</td></tr>')
@@ -318,6 +318,46 @@ def trackers_page(me: dict = None, key: str = "") -> str:
             f'(or 30 minutes before the start) it searches YouTube, Kick and Twitch for every stream and counts each every 2 seconds.</p>'
             f'<div class="card ov">{_tracker_rows(ts)}</div>')
     return page("trackers", "Trackers", body, me, key)
+
+
+def tracker_page(tk: str, me: dict = None, key: str = "", msg: str = "") -> str:
+    """One tracker's streams right now: what it counts (with Exclude) and what the watch-party check left out, with
+    the reason (with Count it). Changes take effect at the next 2-second count."""
+    from tracker import events
+    ev = events.events().get(tk)
+    if not ev:
+        return page("trackers", "Tracker", '<h1>Not found</h1>', me, key)
+    kf = f'<input type="hidden" name="key" value="{E(key)}">' if key else ""
+    live = sorted((events._LIVE.get(tk) or {}).values(), key=lambda x: -int(x.get("viewers") or 0))
+    now = time.time()
+    rej = sorted((x for x in (events._REJ.get(tk) or {}).values() if now - x["ts"] < 1800 and x["vid"] not in (events._LIVE.get(tk) or {})),
+                 key=lambda x: -x["viewers"])
+    ph = events._PHASE.get(tk) or {}
+    link = lambda x: (f'https://www.youtube.com/watch?v={E(x["vid"])}' if not str(x["vid"]).startswith(("kick:", "twitch:"))
+                      else f'https://{"kick.com" if str(x["vid"]).startswith("kick:") else "twitch.tv"}/{E(str(x["vid"]).split(":")[1])}')
+    btn = lambda x, act, label: (f'<form method="post" action="/admin/trackers/{E(tk)}/act" style="margin:0">{kf}'
+                                 f'<input type="hidden" name="vid" value="{E(x["vid"])}"><input type="hidden" name="action" value="{act}">'
+                                 f'<button class="btn{" bad" if act == "exclude" else ""}">{label}</button></form>')
+    plat = lambda x: "Kick" if str(x["vid"]).startswith("kick:") else "Twitch" if str(x["vid"]).startswith("twitch:") else "YouTube"
+    rows_l = "".join(f'<tr><td><a href="{link(x)}" target="_blank" rel="noopener"><b>{E(x.get("channel") or "-")}</b></a>'
+                     f'<div class="mut">{plat(x)} · {E((x.get("title") or "")[:110])}</div></td>'
+                     f'<td>{E(x.get("kind") or "")}</td><td class="n"><b>{_fmt(x.get("viewers") or 0)}</b></td>'
+                     f'<td>{"" if x.get("kind") == "official" else btn(x, "exclude", "Exclude")}</td></tr>' for x in live)
+    rows_r = "".join(f'<tr><td><a href="{link(x)}" target="_blank" rel="noopener"><b>{E(x["channel"] or "-")}</b></a>'
+                     f'<div class="mut">{plat(x)} · {E(x["title"][:110])}</div></td><td class="mut">{E(x["why"])}</td>'
+                     f'<td class="n">{_fmt(x["viewers"])}</td><td>{btn(x, "include", "Count it")}</td></tr>' for x in rej)
+    tot = sum(int(x.get("viewers") or 0) for x in live)
+    body = (f'<h1>{E(ev.get("name") or tk)}</h1><p class="sub">{"Searching YouTube (India and worldwide), Kick and Twitch" if ph.get("mode") == "full" else "Watching the official channels; the full search starts 30 minutes before the start or when one goes live"}. '
+            f'<a href="/e/{E(tk)}/" target="_blank">Public page</a></p>'
+            + (f'<div class="msg">{E(msg)}</div>' if msg else "")
+            + f'<div class="k">{_card("Counted now", str(len(live)), _fmt(tot) + " watching")}{_card("Left out by the check", str(len(rej)), "last 30 minutes")}</div>'
+            f'<div class="card"><h2>Counted now</h2><table><tr><th>Stream</th><th>Kind</th><th class="n">Watching</th><th></th></tr>'
+            f'{rows_l or "<tr><td class=mut colspan=4>Nothing live yet.</td></tr>"}</table></div>'
+            f'<div class="card"><h2>Left out: names the event but is not a watch party</h2><p class="sub">Gameplay, custom rooms, scrims, talk shows, '
+            f'another game, or the event only in hashtags. If one is really a watch party, Count it.</p><table><tr><th>Stream</th><th>Why</th><th class="n">Watching</th><th></th></tr>'
+            f'{rows_r or "<tr><td class=mut colspan=4>Nothing left out.</td></tr>"}</table></div>'
+            '<script>setTimeout(function(){location.reload()},30000)</script>')
+    return page("trackers", ev.get("name") or tk, body, me, key)
 
 
 def pmgc_page(me: dict = None, key: str = "", q: str = "", msg: str = "") -> str:
