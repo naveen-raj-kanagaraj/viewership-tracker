@@ -2844,8 +2844,9 @@ def run_twitch_full():
 def _with_full(out: dict, region: str, game, sec: str) -> dict:
     """Worldwide overview only: Twitch = every live stream (from the 5-minute full count), not only the tracked ones."""
     f = dict(_TWFULL)
-    if region != "global" or game or sec or not f["viewers"] or time.time() - f["ts"] > 3 * TWITCH_FULL_EVERY:
-        return out
+    every = TWITCH_FULL_EVERY * (4 if sweep_games() else 1)     # how often it is counted (20 min during a sweep)
+    if region != "global" or game or sec or not f["viewers"] or time.time() - f["ts"] > 2 * every + 300:
+        return out            # (25 Nov: kept for 15 min but counted every 20, so Twitch fell to the tracked 1.49M of 2.14M)
     pl = out.get("platforms") or []
     tw = next((x for x in pl if x["platform"] == "twitch"), None)
     extra = f["viewers"] - (tw["viewers"] if tw else 0)

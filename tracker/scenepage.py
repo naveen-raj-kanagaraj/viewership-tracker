@@ -371,6 +371,7 @@ function pulse(){const el=document.getElementById('pulse');if(!el)return;const P
  const W=Math.max((D.kpis||{}).watching||0,tot),S=(D.live_count||0)+(D.twitch_full?Math.max(0,(D.twitch_full.streams||0)-(D.live||[]).filter(x=>x.platform==='twitch').length):0);
  el.innerHTML=`<span><b>${fmt(W)}</b> watching live now</span><span><b>${full(S)}</b> streams</span>`+
   P.map(p=>`<span class="pl"><i style="background:${COL[p.platform]}"></i>${NAMES[p.platform]} <b>${Math.round(100*p.viewers/tot)}%</b></span>`).join('')+
+  `<span title="Twitch: every live stream on Twitch${D.twitch_full?'':' (full count pending)'} · YouTube and Kick: the streams this site tracks">&#9432;</span>`+
   (pbs.length?`<button class="pbs" data-share="pb">&#127942; ${pbs.length} NEW PERSONAL BEST${pbs.length>1?'S':''} TODAY · SHARE</button>`:'');
  const b=el.querySelector('[data-share]');if(b)b.onclick=()=>openShare('pb')}
 function quick(){const q=document.getElementById('qf');if(!q)return;const here=location.pathname.replace(/^\/(global|india)/,'');
