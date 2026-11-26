@@ -2826,7 +2826,10 @@ def twitch_full_once() -> dict:
         if not after or not d:
             break
         time.sleep(0.25 if sweep_games() else 0.12)   # ~500 calls a minute at most (~240 during a launch sweep)
-    _TWFULL.update(viewers=tot, streams=n, ts=time.time())
+    with _lock:                               # the part of Twitch this site doesn't track one by one (the long tail):
+        tracked = sum(x["viewers"] for x in _LIVE.values() if x.get("platform") == "twitch")
+        tn = sum(1 for x in _LIVE.values() if x.get("platform") == "twitch")
+    _TWFULL.update(viewers=tot, streams=n, ts=time.time(), tail=max(0, tot - tracked), tail_n=max(0, n - tn))
     return dict(_TWFULL)
 
 
@@ -2849,13 +2852,16 @@ def _with_full(out: dict, region: str, game, sec: str) -> dict:
         return out            # (25 Nov: kept for 15 min but counted every 20, so Twitch fell to the tracked 1.49M of 2.14M)
     pl = out.get("platforms") or []
     tw = next((x for x in pl if x["platform"] == "twitch"), None)
-    extra = f["viewers"] - (tw["viewers"] if tw else 0)
+    # Twitch total = the tracked streams as they are now (2-second readings) + the long tail from the last full count
+    # (thousands of small streams that move slowly), so the total moves live instead of every 20 minutes
+    full = (tw["viewers"] if tw else 0) + f.get("tail", 0) if "tail" in f else f["viewers"]
+    extra = full - (tw["viewers"] if tw else 0)
     if extra <= 0:
         return out
     if tw:
-        tw["viewers"] = f["viewers"]
+        tw["viewers"] = full
     else:
-        pl.append({"platform": "twitch", "name": platforms.NAMES["twitch"], "viewers": f["viewers"]})
+        pl.append({"platform": "twitch", "name": platforms.NAMES["twitch"], "viewers": full})
     pl.sort(key=lambda x: -x["viewers"])
     k = out.get("kpis") or {}
     if "watching" in k:
@@ -2868,7 +2874,7 @@ def _with_full(out: dict, region: str, game, sec: str) -> dict:
         if best["v"] > (k.get("peak_today") or 0):
             k["peak_today"], k["peak_today_at"] = best["v"], best["ts"]
     out["india_total"] = (out.get("india_total") or 0) + extra
-    out["twitch_full"] = {"viewers": f["viewers"], "streams": f["streams"], "ts": int(f["ts"])}
+    out["twitch_full"] = {"viewers": full, "streams": f["streams"], "ts": int(f["ts"]), "counted": f["viewers"]}
     return out
 
 

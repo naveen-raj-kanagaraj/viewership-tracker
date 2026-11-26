@@ -689,3 +689,9 @@ assert _yx.history_loading("yt:UCnever") is True
 _yx._VFAIL["yt:UCnever"] = time.time()
 assert _yx.history_loading("yt:UCnever") is False      # a failed read never leaves the page loading forever
 print("CAT RANGES OK")
+# Twitch total between full counts: tracked streams as they are now + the long tail from the last count
+sc._TWFULL.update(viewers=1200000, streams=90000, ts=time.time(), tail=1000000, tail_n=89000)
+gd2 = sc.live_data(region="global")
+tw_now = next(p_["viewers"] for p_ in sc.live_data(region="global", cat="")["platforms"] if p_["platform"] == "twitch")
+assert gd2["twitch_full"]["counted"] == 1200000 and tw_now == gd2["twitch_full"]["viewers"] and tw_now != 1200000 or tw_now >= 1000000, gd2["twitch_full"]
+print("TWITCH LIVE TOTAL OK")
