@@ -78,7 +78,9 @@ def _overlay(out: dict, ev: dict):
             if r["vid"] in cur and r["viewers"] > 0:
                 live.append({"vid": r["vid"], "channel": r.get("channel", ""), "title": r.get("title", ""), "kind": r["kind"],
                              "platform": events.platforms.platform_of(r["vid"]), "viewers": r["viewers"],
-                             "url": events.yt_link(r["vid"]), "logo": events.avatar(r.get("channel_id", ""))})
+                             "url": events.yt_link(r["vid"]), "logo": events.avatar(r.get("channel_id", "")),
+                             "in": int(events.stream_india(r["vid"], r.get("channel_id", ""), r.get("title", ""), r.get("channel", "")))
+                             if out.get("split_in") else 0})
         out["live"] = sorted(live, key=lambda x: -x["viewers"])
         if out.get("wp"):
             out["wp"] = [{**w, "viewers": next((r["viewers"] for r in mr[1] if r["vid"] == w["vid"]), w["viewers"]),
@@ -133,9 +135,13 @@ def _build(ev: dict) -> dict:
            "next_start": events.next_start(ev["key"]),
            "links": {k: v for k, v in (ev.get("links") or {}).items()            # no links to other stats sites:
                      if not any(d in v for d in ("liquipedia.", "escharts.", "esportscharts.", "streamscharts."))}}   # people stay here
+    split = bool(events.PRESETS.get(ev["key"], {}).get("scene_world"))   # a worldwide event: India / outside India
+    inn = (lambda x: int(events.stream_india(x["vid"], x.get("channel_id", ""), x.get("title", ""), x.get("channel", "")))) if split else (lambda x: 0)
+    out["split_in"] = split
     if st.get("ticks"):
         live = [{"vid": s["vid"], "channel": s.get("channel", ""), "title": s.get("title", ""), "kind": s["kind"],
-                 "platform": events.platforms.platform_of(s["vid"]), "viewers": s["viewers"], "url": events.yt_link(s["vid"]), "logo": events.avatar(s.get("channel_id", ""))}
+                 "platform": events.platforms.platform_of(s["vid"]), "viewers": s["viewers"], "url": events.yt_link(s["vid"]), "logo": events.avatar(s.get("channel_id", "")),
+                 "in": inn(s)}
                 for s in st["live_now"]]
         series = [list(t) for t in st["series"]]
         recent = [t for t in series if t[0] >= series[-1][0] - 6 * 3600]
@@ -169,8 +175,9 @@ def _build(ev: dict) -> dict:
                 "streams": [{"vid": x["vid"], "channel": x["channel"], "title": x["title"], "kind": x["kind"],
                              "platform": x.get("platform", "youtube"),
                              "logo": events.avatar(x.get("channel_id", "")), "avg": x.get("avg", 0),
-                             "viewers": x["peak"], "at": tf(x["peak_at"]).strftime("%I:%M %p"), "url": events.yt_link(x["vid"])}
-                            for x in lb["streams"][:100]]}
+                             "viewers": x["peak"], "at": tf(x["peak_at"]).strftime("%I:%M %p"), "url": events.yt_link(x["vid"]),
+                             "in": inn(x)}
+                            for x in lb["streams"][:300]]}
     if out.get("ticks"):
         if out.get("official_live"):
             pool = [x for x in out["live"] if x["kind"] == "watch party"] or [x for x in out["live"] if x["kind"] != "official"]
@@ -607,7 +614,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 .sw{display:inline-block;width:9px;height:9px;margin-right:5px;vertical-align:-1px}
 .kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px}.kpi.tpk{grid-column:1/-1;border-color:rgba(182,242,58,.45);background:linear-gradient(90deg,rgba(182,242,58,.12),rgba(182,242,58,.02))}.kpi.tpk .v{color:var(--lime);text-shadow:0 0 18px rgba(182,242,58,.35)}
 .kpi .v{font:700 24px "Barlow",sans-serif;margin-top:4px;font-variant-numeric:tabular-nums}.kpi .s{color:var(--muted);font-size:12px}
-.head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}.head>div:first-child{margin-right:auto}
+.head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}.head>div:first-child{margin-right:auto}.rfw{flex-basis:100%}
 h2{font:700 15px "Barlow",sans-serif;text-transform:uppercase;letter-spacing:.04em;margin:0}
 .tabs{display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid var(--line);overflow-x:auto}
 .tabs button{all:unset;cursor:pointer;padding:9px 14px;font:700 13px "Barlow",sans-serif;text-transform:uppercase;color:var(--muted);border-bottom:3px solid transparent;white-space:nowrap}
@@ -705,7 +712,7 @@ const PB=s=>s&&s.platform&&s.platform!=='youtube'?`<span class="pf ${esc(s.platf
 const DEMO=false, DLOGO={}, ELOGO=__ELOGO__, V2=__V2__, ROSTERN=__ROSTERN__, DNAME=__DNAME__;
 const DSTART=__DSTART__||(Date.now()/1000+5*3600),DDAY=new Date(DSTART*1000).toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',weekday:'short',day:'numeric',month:'short'});
 const LIVE=__LIVE__||DEMO, EVERY=__REFRESH__*1000, URLX='__SITEURL__', BRAND='__BRAND__', TITLE='__TITLE__';
-let D=__DATA__, prev={}, prevTotal=null, view='total', range='full', wpAll=false, kind='all', q='', skew=0, lastFetch=Date.now(), failing=false, mode=null, showAll=false, hover=null, hidden={};
+let D=__DATA__, prev={}, prevTotal=null, view='total', range='full', wpAll=false, kind='all', reg='all', q='', skew=0, lastFetch=Date.now(), failing=false, mode=null, showAll=false, hover=null, hidden={};
 const PAL=['#b6f23a','#4cc9f0','#ff8a3d','#ff5fa2','#a78bfa','#ffd23f','#2dd4bf','#ff6b6b'];
 const fmt=n=>{n=+n||0;return n>=1e7?(n/1e7).toFixed(2)+' Cr':n>=1e5?(n/1e5).toFixed(2)+' L':n>=1e3?(n/1e3).toFixed(1)+'K':Math.round(n)+''};
 const full=n=>Math.round(+n||0).toLocaleString('en-IN');
@@ -808,17 +815,18 @@ function render(){
    <div class="chart" id="chartBox"><canvas id="c"></canvas></div><div class="race" id="race" hidden></div><div class="chips" id="chips"></div></div>
   <div class="grid2">
       <div class="card" id="stCard"><div class="head"><div><h2 id="lh">Live streams</h2></div><button class="btn sm" id="shareStreams">Share</button>
-    <div class="seg" id="kf">${[['all','ALL'],['official','OFFICIAL'],['watch party','WATCH PARTIES']].map(([k,l])=>`<button data-k="${k}">${l}</button>`).join('')}</div>
+    <div class="seg" id="kf">${[['all','ALL'],['official','OFFICIAL'],['watch party','WATCH PARTIES']].map(([k,l])=>`<button data-k="${k}">${l}</button>`).join('')}</div>${REGSEG('rf1')}
     <input class="q" id="q" placeholder="Search channel or title"></div>
     <div class="scroll"><table><thead><tr><th>#</th><th>Channel / stream</th><th class="num" id="cth">Concurrent</th><th class="num hide-m" id="sth">Share</th></tr></thead><tbody id="rows"></tbody></table></div>
     <button class="more" id="more"></button></div>
-   <div class="card" id="wpCard"><div class="head"><div><h2 id="wph">Watch party leaderboard</h2><div class="muted" style="font-size:12px">Streamers: share your rank card.</div></div><button class="btn sm" id="shareBoard">Share</button></div>
+   <div class="card" id="wpCard"><div class="head"><div><h2 id="wph">Watch party leaderboard</h2><div class="muted" style="font-size:12px">Streamers: share your rank card.</div></div><button class="btn sm" id="shareBoard">Share</button>${REGSEG('rf2')}</div>
     <div class="scroll"><table><thead><tr><th>#</th><th>Streamer</th><th class="num" id="wpth">Live</th><th class="num hide-m">Peak</th><th></th></tr></thead><tbody id="wprows"></tbody></table></div><button class="more" id="wpmore"></button></div>
    <div class="card"><div class="head"><div><h2>By day</h2><div class="muted" style="font-size:12px">Tap a day for every live stream and watch party.</div></div></div><div class="scroll"><table><thead><tr><th>Day (IST)</th><th class="num">Peak</th><th>At</th><th class="num">Average</th></tr></thead><tbody id="days"></tbody></table></div></div>
   </div><div class="foot" id="foot"></div>`;
   document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{view=b.dataset.v;hover=null;drawChart();mark()});
   document.querySelectorAll('#rg button').forEach(b=>b.onclick=()=>{if(b.disabled)return;range=b.dataset.r;hover=null;ys={};drawChart();mark()});
   document.querySelectorAll('#kf button').forEach(b=>b.onclick=()=>{kind=b.dataset.k;rows();mark()});
+  document.querySelectorAll('.rf button').forEach(b=>b.onclick=()=>{reg=b.dataset.r;showAll=false;wpAll=false;rows();wpRows();mark()});
   document.getElementById('q').oninput=e=>{q=e.target.value.toLowerCase();rows()};
   document.getElementById('more').onclick=()=>{showAll=!showAll;rows()};
   document.getElementById('shareStreams').onclick=()=>openShare('streams');document.getElementById('shareHero').onclick=()=>openShare('total');
@@ -852,9 +860,17 @@ function render(){
   <div class="disc">Unofficial viewership tracker by __BRAND__. ${DISC()} Platforms counted: ${esc(PLATS())}; others are not included.</div>`;
  rows();wpRows();chips();drawChart();mark();
 }
+function wpBoard(){   // the leaderboard's streamers: the hand-made roster, or (none) every watch party; India / outside India
+ const off=isOff();let R=D.roster||[];
+ if(!D.roster){const src=off?((D.last_broadcast||{}).streams||[]):(D.live||[]);
+  const pk={};(D.wp||[]).forEach(w=>pk[w.vid]=w.peak);
+  R=src.filter(s=>s.kind==='watch party').map(s=>({vid:s.vid,name:s.channel,url:s.url,logo:s.logo,status:off?'ended':'live',viewers:s.viewers,
+   peak:Math.max(s.viewers,pk[s.vid]||0),in:s.in})).sort((a,b)=>(off?b.peak-a.peak:b.viewers-a.viewers))}
+ return R.filter(inReg)}
 function wpRows(){const sb=document.getElementById('shareBoard');if(sb)sb.onclick=()=>openShare('board');
- const off=isOff(),R=D.roster||[],cd=!!(D.next_start&&!D.official_live);
- document.getElementById('wph').textContent=cd?'Watch party streamers, yet to start':off?'Watch party streamers, last broadcast':'Watch party streamers, live';
+ const off=isOff(),cd=!!(D.next_start&&!D.official_live),R=wpBoard();
+ const RL=reg==='in'?', India':reg==='out'?', outside India':'';
+ document.getElementById('wph').textContent=(cd?'Watch party streamers, yet to start':off?'Watch party streamers, last broadcast':'Watch party streamers, live')+RL;
  document.getElementById('wpth').textContent='Status';
  const LV=D.official_live?R.filter(w=>w.status!=='upcoming'):R,WAIT=D.official_live?R.filter(w=>w.status==='upcoming'):[];
  let rank=0;const lim=D.official_live&&!wpAll?10:999,RR=LV.slice(0,lim),mb=document.getElementById('wpmore');
@@ -875,11 +891,12 @@ function platLeg(list,peaks){const m={};(list||[]).forEach(s=>{const p=s.platfor
  return '<span class="muted">'+(peaks?'// PEAK BY PLATFORM':'//')+'</span>'+k.sort((a,b)=>m[b]-m[a]).map(p=>`<span>${N[p]||esc(p.toUpperCase())} <b>${fmt(m[p])}</b>${peaks?'':` (${(100*m[p]/t).toFixed(0)}%)`}</span>`).join('')}
 function rows(){
  const off=isOff(),src=off?D.last_broadcast.streams:(D.live||[]);
- const all=src.filter(s=>(kind==='all'||s.kind===kind)&&(!q||(s.channel+' '+s.title).toLowerCase().includes(q)));
+ const all=src.filter(s=>(kind==='all'||s.kind===kind)&&inReg(s)&&(!q||(s.channel+' '+s.title).toLowerCase().includes(q)));
  const lim=window.innerWidth<600?8:15,list=showAll||q?all:all.slice(0,lim);
  const mb=document.getElementById('more');mb.style.display=all.length>lim&&!q?'block':'none';mb.textContent=showAll?'SHOW FEWER':`SHOW ALL ${all.length}`;
  const tot=src.reduce((a,s)=>a+s.viewers,0)||1,top=Math.max(1,...list.map(s=>s.viewers));
- document.getElementById('lh').textContent=off?`Last broadcast streams (${all.length})`:`Live streams (${all.length})`;
+ const RL=reg==='in'?' in India':reg==='out'?' outside India':'';
+ document.getElementById('lh').textContent=off?`Last broadcast streams${RL} (${all.length})`:`Live streams${RL} (${all.length})`;
  document.getElementById('rows').innerHTML=list.map((s,i)=>{const p=prev[s.vid];const cl=p===undefined&&Object.keys(prev).length?'':p<s.viewers?'fu':p>s.viewers?'fd':'';
   return `<tr class="${cl}"><td class="rk ${K[s.kind]}">${i+1}</td><td class="t">${s.logo?`<img class="lg" src="${esc(s.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}<span class="ch">${esc(s.channel)}</span>${PB(s)}<span class="tag ${K[s.kind]}">${esc(s.kind)}</span>${off?'':'<span class="lv"><i></i>LIVE</span>'}
   <a class="st" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title.slice(0,100))}</a><div class="mini" style="width:${100*s.viewers/top}%"></div></td>
@@ -989,7 +1006,11 @@ function drawChart(){
 }
 let lf=0;function loop(t){if(!document.hidden&&(range==='live'||(D.official_live&&t-lf>50))){lf=t;drawChart()}requestAnimationFrame(loop)}
 window.addEventListener('resize',()=>drawChart());
+// India / outside India (owner, 27 Nov: PMGC is worldwide; the split is only on its watch-party rankings)
+function REGSEG(id){return D.split_in?`<div class="rfw"><div class="seg rf" id="${id}">${[['all','ALL'],['in','INDIA'],['out','OUTSIDE INDIA']].map(([k,l])=>`<button data-r="${k}">${l}</button>`).join('')}</div></div>`:''}
+function inReg(s){return reg==='all'||!D.split_in||(reg==='in'?!!s.in:!s.in)}
 function mark(){document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===view));
+ document.querySelectorAll('.rf button').forEach(b=>b.classList.toggle('on',b.dataset.r===reg));
  document.querySelectorAll('#rg button').forEach(b=>{b.classList.toggle('on',b.dataset.r===range);if(b.dataset.r==='live')b.disabled=!D.official_live});
  document.querySelectorAll('#kf button').forEach(b=>b.classList.toggle('on',b.dataset.k===kind))}
 // ---------- share cards ----------
@@ -1056,9 +1077,10 @@ function card(type,vid,avatar){if(type==='history')return histCard();
    x.fillStyle=c;x.globalAlpha=.8;x.fillRect(600,y+52,Math.max(6,(W-700)*s.viewers/top),5);x.globalAlpha=1;
    T(full(s.viewers),W-80,y+12,B(40),'#ffffff','right')});
  }else if(type==='board'){
-  const R0=(D.roster||[]),lv=R0.some(r=>r.status==='live');let R=(lv?R0.filter(r=>r.status==='live'):R0.filter(r=>r.peak).sort((a,b)=>b.peak-a.peak)).slice(0,10);
+  const R0=wpBoard(),lv=R0.some(r=>r.status==='live');let R=(lv?R0.filter(r=>r.status==='live'):R0.filter(r=>r.peak).sort((a,b)=>b.peak-a.peak)).slice(0,10);
+  const RG=reg==='in'?' // streamers in India':reg==='out'?' // streamers outside India':'';
   T(lv?'// WATCH PARTY LEADERBOARD, LIVE':'// WATCH PARTY LEADERBOARD',80,205,M(30),'#ff4d5e');
-  T(lv?'concurrent viewers right now':'peak concurrent viewers',80,248,M(24),'#8d8ca3');
+  T((lv?'concurrent viewers right now':'peak concurrent viewers')+RG,80,248,M(24),'#8d8ca3');
   if(!R.length){T('WATCH PARTIES GO LIVE WITH THE BROADCAST',80,330,B(40),'#eeeef5');R0.slice(0,10).forEach((r,j)=>T(r.name.toUpperCase(),80+(j%2)*470,420+Math.floor(j/2)*60,B(30),'#8d8ca3'))}
   const top=Math.max(1,...R.map(r=>lv?r.viewers:r.peak));
   R.forEach((r,j)=>{const y=300+j*88,v=lv?r.viewers:r.peak,c=j===0?'#f5c451':j<3?'#b6f23a':'#eeeef5';
@@ -1112,7 +1134,7 @@ async function openShare(type,vid){
  if(type==='streams'){const S=(isOff()?(D.last_broadcast||{}).streams||[]:D.live||[]).slice(0,10);
   const ims=await Promise.all(S.map(s=>loadImg(big(s.logo))));S.forEach((s,k)=>{if(ims[k])avs[s.vid]=ims[k]})}
  if(type==='battle'||type==='streamer'||type==='board'){
-  const w=wpByPeak(),list=type==='board'?(D.roster||[]).map(r=>({vid:r.vid,name:r.name,logo:r.logo})):w.slice(0,5).map(x=>({vid:x.vid,logo:x.logo||logoOf(x.channel)}));
+  const w=wpByPeak(),list=type==='board'?wpBoard().slice(0,10).map(r=>({vid:r.vid,name:r.name,logo:r.logo})):w.slice(0,5).map(x=>({vid:x.vid,logo:x.logo||logoOf(x.channel)}));
   const me=type==='streamer'?(w.find(x=>x.vid===vid)||(D.wp||[]).find(x=>x.vid===vid)):w[0];
   const ims=await Promise.all(list.slice(0,12).map(l=>loadImg(big(l.logo))));list.slice(0,12).forEach((l,k)=>{if(ims[k]){avs[l.vid]=ims[k];if(l.name)avs[l.name]=ims[k]}});
   if(me&&type!=='board')av=avs[me.vid]||await loadImg(big(me.logo||logoOf(me.channel)))}
