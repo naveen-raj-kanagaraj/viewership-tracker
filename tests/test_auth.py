@@ -12,16 +12,16 @@ ranks.top = lambda *a, **k: {"platform": "youtube", "total": 100, "updated": 1, 
 web._MEMO.clear()
 c = web.app.test_client()
 
-# visitor: top 10 of the default view, says so, cacheable; no session cookie handed out
+# visitor: top 25 of the default view, says so, cacheable; no session cookie handed out
 r = c.get("/api/topch?platform=all&metric=peak_7d")
 j = r.get_json()
-assert len(j["rows"]) == 10 and j["locked"]["what"] == "rows" and j["locked"]["total"] == 100, j.get("locked")
+assert len(j["rows"]) == 25 and j["locked"]["what"] == "rows" and j["locked"]["total"] == 100, j.get("locked")
 r = c.get("/api/topch?platform=youtube&metric=views_7d")                 # visitors: the default view only
 assert r.get_json()["rows"] == [] and r.get_json()["locked"]["what"] == "filters"
 assert c.get("/api/rank?region=in").get_json()["locked"]["what"] == "filters"
 assert "public" in r.headers["Cache-Control"] and "Set-Cookie" not in r.headers
 r = c.get("/api/topch?platform=all&metric=peak_7d&auth=1")            # asking for more without signing in
-assert len(r.get_json()["rows"]) == 10 and "no-store" in r.headers["Cache-Control"]
+assert len(r.get_json()["rows"]) == 25 and "no-store" in r.headers["Cache-Control"]
 assert c.get("/api/compare?c=yt:UCaaaaaaaaaaaaaaaaaaaaaa").get_json()["locked"]["what"] == "compare"
 assert c.get("/auth/me").get_json() == {"enabled": True, "signed_in": False}
 
@@ -69,14 +69,15 @@ assert me["signed_in"] and me["email"] == "fan@example.com" and me["weekly"] is 
 r = c.get("/api/topch?platform=all&metric=peak_7d&auth=1")
 assert len(r.get_json()["rows"]) == 100 and "locked" not in r.get_json() and "no-store" in r.headers["Cache-Control"]
 r = c.get("/api/topch?platform=all&metric=peak_7d")                    # the shared URL stays the visitor copy
-assert len(r.get_json()["rows"]) == 10 and "public" in r.headers["Cache-Control"]
+assert len(r.get_json()["rows"]) == auth.FREE_ROWS == 25 and "public" in r.headers["Cache-Control"]
 
 # channel trims, page script, open-redirect guard
 from datetime import date, timedelta
-ch = {"sid": "yt:x", "periods": {"today": {}, "7d": {"peak": 1}, "30d": {"peak": 5}, "all": {"peak": 9}},
+ch = {"sid": "yt:x", "periods": {"today": {}, "7d": {"peak": 1}, "30d": {"peak": 5}, "all": {"peak": 9, "days": 12}},
       "days": [{"day": (date.today() - timedelta(days=i)).isoformat()} for i in range(30)]}
-t = auth.trim_channel(ch)
-assert t["days"] == [] and t["periods"]["30d"] is None and t["periods"]["7d"] is None and t["periods"]["today"] == {} and t["locked"]
+t = auth.trim_channel(ch)          # visitors: today and the last 7 days (what Google and shared links see); 30 days and all time locked
+assert 7 <= len(t["days"]) <= 9 and t["periods"]["30d"] is None and t["periods"]["all"] is None and t["locked"]
+assert t["periods"]["7d"] == {"peak": 1} and t["periods"]["today"] == {} and t["seen"] is True
 pz = auth.trim_past({"streams": [{"ts": i} for i in range(10)]})
 assert [x["ts"] for x in pz["streams"]] == [9, 8, 7] and pz["locked"]
 assert auth._safe_next("//evil.com") == "/" and auth._safe_next("/global/ch/yt:x") == "/global/ch/yt:x"
@@ -113,7 +114,8 @@ assert c.get("/auth/me").get_json()["weekly"] is False
 # the visitor popup is in every page's script, with Google straight from it
 js = auth.page_js()
 assert "lgepop" in js and "/auth/google?next=" in js and "sessionStorage" not in js and "predict" in js
+assert "lgePopAt" in js and "864e5" in js and "30000" in js and "headless" in js   # not on landing, once a day, never bots
 c.post("/auth/delete")
 assert c.get("/auth/me").get_json()["signed_in"] is False
-assert len(c.get("/api/topch?platform=all&metric=peak_7d&auth=1").get_json()["rows"]) == 10
+assert len(c.get("/api/topch?platform=all&metric=peak_7d&auth=1").get_json()["rows"]) == 25
 print("AUTH OK")
