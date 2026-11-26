@@ -25,7 +25,7 @@ def _day(ts=None):
 
 
 def hit(sid: str, country: str = "", ref: str = "", ua: str = "", width: int = 0, city: str = "", region: str = "",
-        ip: str = "", _path: str = "", page: str = ""):
+        ip: str = "", _path: str = "", page: str = "", member: bool = False):
     sid = (sid or "")[:40]
     ua_l = (ua or "").lower()
     if not sid or any(b in ua_l for b in BOTS):
@@ -44,6 +44,8 @@ def hit(sid: str, country: str = "", ref: str = "", ua: str = "", width: int = 0
                               "device": device, "day": _day(now), "city": (city or "")[:40], "region": (region or "")[:40],
                               "ip": (ip or "")[:64], "page": (page or "")[:80]}
         s["last"] = now
+        if member:
+            s["member"] = True                     # signed in (the site's lge_in cookie), sticky for the tab
         if page:
             s["page"] = page[:80]
         due = now - _flush["ts"] > 30
@@ -52,6 +54,7 @@ def hit(sid: str, country: str = "", ref: str = "", ua: str = "", width: int = 0
             active = sum(1 for x in _sess.values() if now - x["last"] < ACTIVE_SEC)
             today = _day(now)
             todays = sum(1 for x in _sess.values() if x["day"] == today)
+            members = sum(1 for x in _sess.values() if x["day"] == today and x.get("member"))
             for k in [k for k, x in _sess.items() if now - x["last"] > 2 * 86400]:   # forget old tabs
                 _sess.pop(k, None)
     # Database writes outside the lock, at most every 30 s (20 Nov: they ran inside it on every hit, so the owner's
@@ -63,6 +66,15 @@ def hit(sid: str, country: str = "", ref: str = "", ua: str = "", width: int = 0
         hist = store.kv_get("visitors_days", {}) or {}
         hist[today] = max(hist.get(today, 0), todays)
         store.kv_set("visitors_days", dict(sorted(hist.items())[-60:]))
+        mh = store.kv_get("visitors_member_days", {}) or {}
+        mh[today] = max(mh.get(today, 0), members)
+        store.kv_set("visitors_member_days", dict(sorted(mh.items())[-60:]))
+
+
+def _pg(p: str) -> str:
+    """A page as the owner reads it: the path without the query string."""
+    p = (p or "").split("?")[0].split("#")[0]
+    return p or "/"
 
 
 def stats() -> dict:
@@ -85,6 +97,11 @@ def stats() -> dict:
             "avg_min": round(sum(x["last"] - x["first"] for x in tod) / len(tod) / 60, 1) if tod else 0,
             "days": store.kv_get("visitors_days", {}) or {}, "since": min((x["first"] for x in vals), default=now),
             "ips": Counter(x.get("ip") for x in tod if x.get("ip")).most_common(15),
+            "active_members": sum(1 for x in act if x.get("member")), "today_members": sum(1 for x in tod if x.get("member")),
+            "member_days": store.kv_get("visitors_member_days", {}) or {},
+            "hours": Counter(datetime.fromtimestamp(x["first"], TZ).hour for x in tod),
+            "pages_now": Counter(_pg(x.get("page")) for x in act).most_common(10),
+            "pages_today": Counter(_pg(x.get("page")) for x in tod).most_common(12),
             "recent": [{k: x.get(k) for k in ("ip", "country", "city", "region", "device", "ref", "page", "first", "last")}
                        for x in sorted(vals, key=lambda x: -x["last"])[:150]]}
 

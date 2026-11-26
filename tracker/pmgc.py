@@ -581,3 +581,26 @@ def logo_loop():
                 print(f"PMGC logos: {str(e)[:120]}")
             time.sleep(6 * 3600)
     threading.Thread(target=run, daemon=True, name="pmgc-logos").start()
+
+
+def admin_stats() -> dict:
+    """For the admin overview: entries now / today / last hour, by hour today (IST), the newest, and the crowd's
+    leading picks with counts (owner only; the public sees percentages only)."""
+    es = _entries(include_hidden=True)
+    now = time.time()
+    d0 = datetime.now(IST).replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+    live = [e for e in es if not e["hidden"]]
+    cr = _crowd(live)
+    top = lambda qid, k=5: sorted(cr[qid].items(), key=lambda kv: -kv[1])[:k]
+    hours = {}
+    for e in es:
+        if e["created"] >= d0:
+            h = datetime.fromtimestamp(e["created"], IST).hour
+            hours[h] = hours.get(h, 0) + 1
+    return {"total": len(live), "hidden": len(es) - len(live), "today": sum(1 for e in es if e["created"] >= d0),
+            "hour": sum(1 for e in es if now - e["created"] < 3600), "edited": sum(1 for e in live if e["updated"] - e["created"] > 5),
+            "hours": hours, "lock": float(settings()["lock"]), "closed": closed(now),
+            "newest": [{"handle": e["handle"], "name": e["name"], "email": e["email"], "t": e["created"]}
+                       for e in sorted(es, key=lambda e: -e["created"])[:8]],
+            "first": top("q2"), "soul": top("q3", 2), "dinners": top("q4"), "top1": sorted(cr["q8_slots"][0].items(), key=lambda kv: -kv[1])[:5],
+            "finalists": top("q1", 8), "peak": top("q6", 4)}
