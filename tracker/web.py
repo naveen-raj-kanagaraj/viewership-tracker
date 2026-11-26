@@ -22,6 +22,25 @@ from tracker import eventpage, predict, predictpage, store, visitors
 
 PORT = int(os.getenv("EVENT_WEB_PORT", "8092"))
 app = Flask(__name__)
+from tracker import auth as _auth          # Sign in with Google (off until its keys are in .env): tracker/auth.py
+_auth.setup(app)
+
+
+def _gate(key, ttl, build, trim, mimetype="application/json"):
+    """A locked API: signed-in people asking with auth=1 get the full answer (never cached by Cloudflare); everyone
+    else the visitor version (trim), cached under its own key."""
+    if _auth.full():
+        return _memo(key, ttl, _jdump(build), mimetype)
+
+    def vis():                             # from the full answer when it's fresh (warm-ups build that one): one build
+        hit = _MEMO.get(key)
+        if hit and time.time() - hit[0] < ttl:
+            try:
+                return trim(json.loads(hit[1]))
+            except Exception:
+                pass
+        return trim(build())
+    return _memo(key + ":visitor", ttl, _jdump(vis), mimetype)
 
 
 class _GlobalPaths:
@@ -98,8 +117,8 @@ def _headers(resp):
         secs = 3
     if request.path.startswith("/predict/api/profile/") and request.method == "GET":
         secs = 15
-    if request.method != "GET" or resp.status_code >= 400:
-        secs = None                       # POSTs, personal and error responses are never cached
+    if request.method != "GET" or resp.status_code >= 400 or request.args.get("auth") == "1":
+        secs = None                       # POSTs, signed-in (auth=1), personal and error responses are never cached
     if request.path.startswith(("/elogo/", "/tlogo/", "/pimg/", "/tmark/", "/gameart/")):
         return resp
     resp.headers["Cache-Control"] = f"public, max-age={secs}, s-maxage={secs}" if secs else "no-store"
@@ -268,7 +287,7 @@ def _html(build):
             h = h.replace("<head>", "<head>" + REGIONJS, 1)
         if "</head>" in h and 'id="lgepolish"' not in h:
             from tracker import polish
-            h = h.replace("</head>", polish.head() + "</head>", 1)
+            h = h.replace("</head>", polish.head() + _auth.page_js() + "</head>", 1)
         h = __import__("re").sub(r"(<body[^>]*>)", lambda m: m.group(1) + WIP, h, count=1)
         from tracker import polish as _p
         legal = LEGAL.replace(" &middot; Not affiliated", _p.THEME_LINK + " &middot; Not affiliated", 1)
@@ -830,7 +849,7 @@ def api_deep():
         best = sorted(((v, p) for v, p in perf.items() if v in vids), key=lambda x: -x[1])[:5]
         return {"standing": deep.standing(sid), "monthly": deep.monthly(sid), "since": deep.BACKFILL_FROM,
                 "best": [{**vids[v], "index": p} for v, p in best], "comments": deep.top_comments(sid)}
-    return _memo(f"/api/deep:{sid}", 600, _jdump(build), "application/json")
+    return _gate(f"/api/deep:{sid}", 600, build, lambda d: {"locked": _auth.lock_info("history", _auth.FREE_DAYS)})
 
 
 @app.route("/api/channel")
@@ -848,7 +867,7 @@ def scene_channel():
             with __import__("tracker").store.reading():
                 r = scene._db().execute("SELECT sid, platform, name, url, logo, title, game FROM sc_channels WHERE sid=?", (sid,)).fetchone()
             return {**dict(r), "now": 0, "periods": {}, "days": [], "recent": [], "ranks": [], "linked": []} if r else {}
-    return _memo(f"/api/channel:{sid}", 15, _jdump(build), "application/json")
+    return _gate(f"/api/channel:{sid}", 15, build, _auth.trim_channel)
 
 
 @app.route("/api/chlive")
@@ -909,7 +928,7 @@ def scene_rank():
                 platform=g("platform", "") if g("platform", "") in ("youtube", "kick", "twitch") else "",
                 sec=g("sec", "") if g("sec", "") in scene.SECTION_NAMES else "")
     key = "/api/rank:" + ":".join(f"{k}={v}" for k, v in sorted(args.items()))
-    return _memo(key, 25, _jdump(lambda: scene.rankings(**args)), "application/json")
+    return _gate(key, 25, lambda: scene.rankings(**args), lambda d: _auth.trim_rows(d))
 
 
 def _rank_page(region):
@@ -1010,11 +1029,15 @@ def api_videos():
     from tracker import ytextra
     sid = (request.args.get("sid") or "")[:60]
     rng = request.args.get("range", "30d") if request.args.get("range") in ytextra.RANGES else "30d"
+    vis_lock = not _auth.full() and rng not in _auth.FREE_RANGES
+    if vis_lock:
+        rng = "7d"                                # visitors: the last 7 days (the answer says so)
     kind = request.args.get("kind", "all") if request.args.get("kind") in ("all", "uploads", "shorts", "live") else "all"
     if not __import__("re").fullmatch(r"(yt:UC[\w-]{22}|(twitch|kick):[a-z0-9_-]{2,40})", sid):
         return Response("{}", status=404, mimetype="application/json")
-    key = f"/api/videos:{sid}:{rng}:{kind}"
-    r = _memo(key, 8, _jdump(lambda: ytextra.videos_summary(sid, rng, kind)), "application/json")
+    key = f"/api/videos:{sid}:{rng}:{kind}" + (":visitor" if vis_lock else "")
+    r = _memo(key, 8, _jdump(lambda: {**ytextra.videos_summary(sid, rng, kind),
+                                      **({"locked": _auth.lock_info("history", _auth.FREE_DAYS)} if vis_lock else {})}), "application/json")
     body = (_MEMO.get(key) or (0, b""))[1]
     if b'"loading":true' in body or b'"oldest":null' in body:
         r.headers["X-Short-Cache"] = "1"        # still reading the channel: don't let the CDN keep this copy
@@ -1054,7 +1077,8 @@ def api_topch():
     hit = _MEMO.get(key)
     if hit and b'"updated":0,' in hit[1] and ranks._R["at"]:
         _MEMO.pop(key, None)                  # built before the rankings loaded: never serve that empty answer again
-    r = _memo(key, 120, _jdump(lambda: ranks.top(plat, metric, country, category, limit=limit, game=game)), "application/json")
+    r = _gate(key, 120, lambda: ranks.top(plat, metric, country, category, limit=limit, game=game),
+              lambda d: _auth.trim_rows(d))
     if b'"updated":0,' in (_MEMO.get(key) or (0, b""))[1]:
         _MEMO.pop(key, None)                  # rankings not loaded yet: don't keep it here or at Cloudflare (22 Nov: 0 channels for hours)
         r.headers["X-Short-Cache"] = "1"
@@ -1105,6 +1129,8 @@ def api_compare():
     from tracker import ytextra
     re_ = __import__("re")
     sids = [x for x in (request.args.get("c") or "").split(",") if re_.fullmatch(SID_RX, x)][:4]
+    if not _auth.full():                          # comparing needs a free account
+        return Response(json.dumps({"locked": _auth.lock_info("compare")}), mimetype="application/json")
     if request.args.get("ranges") == "all":       # every range at once, per channel: the page switches range instantly
         return _memo(f"/api/compare-all:{','.join(sids)}", 20, _jdump(lambda: ytextra.compare_all(sids)), "application/json")
     rng = request.args.get("range", "90d") if request.args.get("range") in ytextra.RANGES else "90d"
@@ -1196,7 +1222,7 @@ def scene_past():
     sid = (request.args.get("sid") or "")[:120]
     if not __import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid):
         return Response("{}", status=404, mimetype="application/json")
-    return _memo(f"/api/past:{sid}", 300, _jdump(lambda: ytextra.past_streams(sid)), "application/json")
+    return _gate(f"/api/past:{sid}", 300, lambda: ytextra.past_streams(sid), _auth.trim_past)
 
 
 def _ch_page(sid, region):
