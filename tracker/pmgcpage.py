@@ -144,7 +144,7 @@ function tick(){if(!S)return;const left=Math.max(0,S.lock*1000-(Date.now()+OFF))
 function render(){const a=$('app');const me=S.me;let h='';
  if(!S.auth){a.innerHTML='<div class="card gate"><h2>Opening soon</h2><p>Sign-in isn\'t switched on yet. Check back in a bit.</p></div>';$('sbar').style.display='none';return}
  if(!me&&shut()){a.innerHTML=resultsHead()+S.questions.map((q,i)=>qcard(q,i,true)).join('')+lb();$('sbar').style.display='none';return}
- if(!me){h+=`<div class="card gate"><h2>Sign in to play</h2><p>It's free. Sign in with Google, then add your Instagram ID so we can reach you if you win.</p><a class="gbtn" href="/auth/google?next=%2Fpredict%2Fpmgc">${G} Continue with Google</a><div class="note">We'll also email you the top stats every week; unsubscribe any time.</div></div>`;
+ if(!me){h+=`<div class="card gate"><h2>Sign in to play</h2><p>It's free. Sign in with Google, then add your Instagram ID so we can reach you if you win.</p><a class="gbtn" href="/auth/google?next=%2Fpredict%2Fpmgc">${G} Continue with Google</a></div>`;
   h+=S.questions.map((q,i)=>qcard(q,i,true)).join('');a.innerHTML=h;$('sbar').style.display='none';return}
  if(me.hidden){a.innerHTML='<div class="card gate"><h2>Entry removed</h2><p>This entry was removed from the game. DM @letsgrowesports.igc on Instagram if you think that\'s a mistake.</p></div>';$('sbar').style.display='none';return}
  const sub=!!me.picks;

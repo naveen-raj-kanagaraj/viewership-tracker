@@ -1330,8 +1330,8 @@ def run_all():
         busy = False
     _RUNS[0] += 1
     todo = [ev for ev in events().values() if ev.get("active") and not PRESETS.get(ev["key"], {}).get("ended")
-            and not (busy and PRESETS.get(ev["key"], {}).get("lp") and _RUNS[0] % 3)]   # server busy: automatic
-                                                                                        # trackers every 3rd minute
+            and not ((busy or (_PHASE.get(ev["key"]) or {}).get("mode") == "watch")    # automatic trackers off air, or
+                     and PRESETS.get(ev["key"], {}).get("lp") and _RUNS[0] % 3)]       # the server busy: every 3rd minute
 
     def one(ev):
         try:
