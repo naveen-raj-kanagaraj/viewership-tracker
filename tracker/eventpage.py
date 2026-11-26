@@ -105,11 +105,10 @@ def data(key: str = None) -> dict:
         hit = _cache.get(ev["key"])
         if hit and time.time() - hit[0] < (6 if hit[1].get("official_live") else 30):   # live numbers come from memory (_overlay)
             return {**hit[1], "now": time.time()}
-        if hit and time.time() - hit[0] < 300 and ev["key"] not in _REFRESHING:   # rebuild in the background, answer now
-            _REFRESHING.add(ev["key"])
-            threading.Thread(target=_refresh, args=(ev["key"],), daemon=True).start()
-            return {**hit[1], "now": time.time()}
-        if hit and ev["key"] in _REFRESHING:
+        if hit:                                  # any copy, however old: answer now, rebuild in the background (26 Nov,
+            if ev["key"] not in _REFRESHING:     # PMGC Day 1: a 5-minute-old copy made every request rebuild the stats
+                _REFRESHING.add(ev["key"])       # itself, each one waiting on the database, and the site stopped loading)
+                threading.Thread(target=_refresh, args=(ev["key"],), daemon=True).start()
             return {**hit[1], "now": time.time()}
     return _build(ev)
 

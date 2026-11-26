@@ -2968,7 +2968,20 @@ def run_forever():
                 print("India scan problems: " + "; ".join(f"{k}: {v}" for k, v in list(r["errors"].items())[:6]))
         except Exception as e:
             print(f"Scene cycle failed: {str(e)[:200]}")
-        time.sleep(max(10, SCENE_SEC - (time.time() - t0)))
+        time.sleep(max(10, (SCENE_BUSY_SEC if _event_busy() else SCENE_SEC) - (time.time() - t0)))
+
+
+SCENE_BUSY_SEC = int(os.getenv("SCENE_BUSY_SEC", "600"))
+
+
+def _event_busy() -> bool:
+    """A tournament tracker is counting 100+ streams (PMGC Day 1: 200): the worldwide scan (8,000 streams, 5 minutes,
+    the database held 2-3 minutes of it) then runs every 10 minutes instead of back to back, so the tournament's
+    counting and the pages keep the database. The live counts of every channel still update every 2 seconds."""
+    try:
+        return sum(len(v) for v in events._LIVE.values()) >= 100
+    except Exception:
+        return False
 
 
 # ---------- numbers for the page ----------
