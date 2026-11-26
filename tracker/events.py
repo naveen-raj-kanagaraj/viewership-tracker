@@ -307,7 +307,8 @@ def live_list(key: str) -> dict:
     try:
         import json as _json
         d = _json.loads(f.read_text())
-        d = {k: [str(x).strip() for x in (d.get(k) or []) if str(x).strip()] for k in ("youtube", "kick", "twitch", "exclude", "count")}
+        d = {k: [str(x).strip() for x in (d.get(k) or []) if str(x).strip()]
+             for k in ("youtube", "kick", "twitch", "exclude", "count", "india", "not_india")}
         print(f"Live list {key}: " + ", ".join(f"{k} {len(v)}" for k, v in d.items()))
     except Exception as e:
         print(f"Live list {key}: {str(e)[:120]}")
@@ -1440,15 +1441,59 @@ def repair_once():
 
 
 _INC = {}       # sid -> (checked at, Indian?)
+_ICTX = {}      # event -> (loaded at, {sid: country}, {sid: india verdict of the live scan}, {name: country})
 
 
-def stream_india(vid: str, channel_id: str = "", title: str = "", channel: str = "") -> bool:
-    """Is this stream's channel Indian? (owner, 27 Nov: PMGC watch-party rankings split India / outside India.) The
-    site-wide scan's own verdict when it has the channel live (YouTube channel country, chat language, BGMI, hand
-    lists ...), else the same rules on what the tracker knows. Cached 30 minutes per channel."""
+def _norm_name(n: str) -> str:
+    return re.sub(r"(official|live|gaming|yt|tv|is|casts?)$", "", re.sub(r"[^a-z0-9]", "", (n or "").lower())) or (n or "").lower()
+
+
+def _india_ctx(key: str) -> tuple:
+    """What the site knows about this event's channels, loaded once every 10 minutes: each channel's country
+    (sc_channels: the YouTube channel's own setting), the live scan's India verdict for the tournament's streams
+    (sc_tour_ch: country, chat language, BGMI ...), and YouTube channel names -> country, so a Kick / Twitch channel
+    with the same name as a YouTube one (anshyt / Ansh YT, mortal / MortaL) gets that country."""
+    hit = _ICTX.get(key)
+    if hit and time.time() - hit[0] < 600:
+        return hit
+    ctry, verd, names = {}, {}, {}
+    try:
+        tour = (PRESETS.get(key) or {}).get("tag") or (PRESETS.get(key) or {}).get("name") or key
+        with store.reading():
+            c = _db()
+            rows = c.execute("SELECT vid, channel_id, channel FROM ev_streams WHERE event=?", (key,)).fetchall()
+            sids = {(v.lower() if platforms.is_other(v) else "yt:" + (ci or "")): ch for v, ci, ch in rows}
+            q = ",".join("?" * len(sids))
+            if sids:
+                for sid, cc in c.execute(f"SELECT sid, country FROM sc_channels WHERE sid IN ({q})", list(sids)):
+                    if cc:
+                        ctry[sid] = cc
+                for sid, iv in c.execute(f"SELECT sid, MAX(india) FROM sc_tour_ch WHERE sid IN ({q}) AND tour LIKE ? GROUP BY sid",
+                                         list(sids) + [f"%{str(tour).split()[0]}%"]):
+                    verd[sid] = bool(iv)
+        for sid, ch in sids.items():
+            if sid.startswith("yt:") and ctry.get(sid) not in (None, "", "-"):
+                names.setdefault(_norm_name(ch), ctry[sid])
+    except Exception as e:
+        print(f"India context {key}: {str(e)[:120]}")
+    _ICTX[key] = (time.time(), ctry, verd, names)
+    return _ICTX[key]
+
+
+def stream_india(vid: str, channel_id: str = "", title: str = "", channel: str = "", key: str = "pmgc") -> bool:
+    """Is this stream's channel Indian? (owner, 27 Nov: PMGC watch-party rankings split India / outside India.)
+    In order: the owner's live list (india / not_india: video, channel id, kick:slug), the YouTube channel's own
+    country, a YouTube channel of the same name, the live scan's verdict for the tournament (chat language ...), the
+    scan's current verdict, then the site's India rules on the title and name. Cached 30 minutes per channel."""
     plat = platforms.platform_of(vid)
     sid = vid.lower() if plat in ("kick", "twitch") else ("yt:" + channel_id if (channel_id or "").startswith("UC") else "")
     if not sid:
+        return False
+    ll = live_list(key)
+    ids = {vid, channel_id or "-", sid}
+    if ids & set(ll.get("india") or []):
+        return True
+    if ids & set(ll.get("not_india") or []):
         return False
     now = time.time()
     hit = _INC.get(sid)
@@ -1456,12 +1501,19 @@ def stream_india(vid: str, channel_id: str = "", title: str = "", channel: str =
         return hit[1]
     try:
         from tracker import scene
-        lx = scene._LIVE.get(sid) or {}
-        if "india" in lx:
-            v = bool(lx["india"])
+        _, ctry, verd, names = _india_ctx(key)
+        cc = ctry.get(sid) or (scene._CTRY.get(sid[3:]) if sid.startswith("yt:") else None)
+        if cc and cc != "-":
+            v = cc == "IN"
+        elif plat in ("kick", "twitch") and names.get(_norm_name(channel or sid.split(":", 1)[-1])):
+            v = names[_norm_name(channel or sid.split(":", 1)[-1])] == "IN"
+        elif sid in verd:
+            v = verd[sid]
+        elif "india" in (scene._LIVE.get(sid) or {}):
+            v = bool(scene._LIVE[sid]["india"])
         else:
             x = {"sid": sid, "platform": plat, "title": title or "", "name": channel or ""}
-            v = bool(scene.india_why(x, scene._CTRY.get(sid[3:]) if sid.startswith("yt:") else None, scene.india_known())[0])
+            v = bool(scene.india_why(x, None, scene.india_known())[0])
     except Exception:
         v = False
     _INC[sid] = (now, v)
