@@ -54,7 +54,7 @@ input[type=search]{background:#0b0b11;border:1px solid var(--line);color:#fff;bo
 def page(tab: str, title: str, body: str, me: dict = None, key: str = "") -> str:
     q = f"?key={E(key)}" if key else ""
     tabs = [("overview", "Overview", "/admin"), ("people", "People", "/admin/people"), ("trackers", "Trackers", "/admin/trackers"),
-            ("traffic", "Traffic", "/admin/visitors"), ("health", "Health", "/admin/health"), ("predict", "Predict & Win", "/admin/predict")]
+            ("traffic", "Traffic", "/admin/visitors"), ("health", "Health", "/admin/health"), ("pmgc", "PMGC Predict", "/admin/pmgc"), ("predict", "BMIC Predict", "/admin/predict")]
     nav = "".join(f'<a href="{u}{q}" class="{"on" if t == tab else ""}">{n}</a>' for t, n, u in tabs)
     who = ""
     if me:
@@ -182,3 +182,67 @@ def trackers_page(me: dict = None, key: str = "") -> str:
             f'(or 30 minutes before the start) it searches YouTube, Kick and Twitch for every stream and counts each every 2 seconds.</p>'
             f'<div class="card ov">{_tracker_rows(ts)}</div>')
     return page("trackers", "Trackers", body, me, key)
+
+
+def pmgc_page(me: dict = None, key: str = "", q: str = "", msg: str = "") -> str:
+    """PMGC 2026 Gauntlet Predict & Win: entries, results, lock time, leaderboard switch, team logos."""
+    from tracker import pmgc
+    s = pmgc.settings()
+    a = s["answers"]
+    es = pmgc.admin_entries(q)
+    kf = f'<input type="hidden" name="key" value="{E(key)}">' if key else ""
+    kq = ("?key=" + E(key)) if key else ""
+    T = pmgc.TEAM_NAMES
+    sel = lambda name, opts, cur: (f'<select name="{name}"><option value="">-</option>' +
+                                   "".join(f'<option{" selected" if o == cur else ""}>{E(o)}</option>' for o in opts) + "</select>")
+    boxes = lambda name, cur: "".join(f'<label class="cb"><input type="checkbox" name="{name}" value="{E(t)}"{" checked" if t in (cur or []) else ""}> {E(t)}</label>' for t in T)
+    q8 = a.get("q8") or ["", "", ""]
+    tp = pmgc.tracker_peak()
+    form = (f'<form method="post" action="/admin/pmgc/act">{kf}<input type="hidden" name="action" value="answers">'
+            f'<div class="ql"><b>1. The 6 Grand Finals qualifiers</b><div class="cbs">{boxes("q1", a.get("q1"))}</div></div>'
+            f'<div class="ql"><b>2. Gauntlet #1</b> {sel("q2", T, a.get("q2"))}</div>'
+            f'<div class="ql"><b>3. Team SouL to the Grand Finals?</b> {sel("q3", pmgc.YN, a.get("q3"))}</div>'
+            f'<div class="ql"><b>4. Most chicken dinners</b> <span class="mut">(tick more than one for a tie)</span><div class="cbs">{boxes("q4", a.get("q4"))}</div></div>'
+            f'<div class="ql"><b>5. Any team 3+ chicken dinners?</b> {sel("q5", pmgc.YN, a.get("q5"))}</div>'
+            f'<div class="ql"><b>6. Peak live viewership</b> {sel("q6", pmgc.PEAKS, a.get("q6"))} <span class="mut">tracker peak over 26-27 Nov: '
+            f'{_fmt(tp) + " = " + pmgc.peak_bucket(tp) if tp else "no reading yet"}</span></div>'
+            f'<div class="ql"><b>7. Different chicken dinner winners</b> {sel("q7", [str(i) for i in range(1, 13)], a.get("q7"))}</div>'
+            f'<div class="ql"><b>8. Top 3 in order</b> #1 {sel("q8_0", T, q8[0] if q8 else "")} #2 {sel("q8_1", T, q8[1] if len(q8) > 1 else "")} '
+            f'#3 {sel("q8_2", T, q8[2] if len(q8) > 2 else "")}</div>'
+            f'<button class="btn l">Save results</button> <span class="mut">Points update at once. Leave a question on "-" until it is settled.</span></form>')
+    lock_ist = datetime.fromtimestamp(float(s["lock"]), IST).strftime("%Y-%m-%dT%H:%M")
+    sets = (f'<form method="post" action="/admin/pmgc/act" class="row">{kf}<input type="hidden" name="action" value="settings">'
+            f'<label>Picks lock (IST) <input type="datetime-local" name="lock" value="{lock_ist}"></label>'
+            f'<label><input type="checkbox" name="show_lb" value="1"{" checked" if s["show_lb"] else ""}> Show the leaderboard</label>'
+            f'<label style="flex:1;min-width:260px">Prize line <input type="text" name="prize" value="{E(s["prize"])}" style="width:100%"></label>'
+            f'<button class="btn l">Save</button></form>')
+    st = pmgc.logo_status()
+    logos = "".join(
+        f'<tr><td><div class="u">{f"<img src={chr(34)}/pmgc/logo/{t[1]}{chr(34)} style={chr(34)}border-radius:4px;object-fit:contain;background:#1d1d28{chr(34)}>" if pmgc.logo_file(t[1]) else "<span class=ph></span>"}<b>{E(t[0])}</b></div></td>'
+        f'<td class="mut">{E((st.get(t[1]) or {}).get("result") or ("ok" if pmgc.logo_file(t[1]) else "waiting"))}</td>'
+        f'<td><input type="url" name="logo_{t[1]}" placeholder="Paste an image link to replace" style="width:100%"></td></tr>' for t in pmgc.TEAMS)
+    logo_form = (f'<form method="post" action="/admin/pmgc/act">{kf}<input type="hidden" name="action" value="logos">'
+                 f'<div class="ov"><table><tr><th>Team</th><th>Logo</th><th>Replace with</th></tr>{logos}</table></div>'
+                 f'<button class="btn l" style="margin-top:10px">Fetch logos now</button> <span class="mut">Missing logos are fetched from Liquipedia; pasted links replace a logo.</span></form>')
+    rows = ""
+    for i, e in enumerate(es, 1):
+        p = e["picks"]
+        act = "unhide" if e["hidden"] else "hide"
+        rows += (f'<tr{" style=opacity:.45" if e["hidden"] else ""}><td class="n">{i}</td><td><b>@{E(e["handle"])}</b><div class="mut">{E(e["name"])} · {E(e["email"] or "")}</div></td>'
+                 f'<td class="mut hide">{E(", ".join(p.get("q8") or []))}</td><td class="n"><b>{e["pts"]}</b><div class="mut">{e["right"]} right</div></td>'
+                 f'<td class="n mut hide">{datetime.fromtimestamp(e["updated"], IST).strftime("%d %b %H:%M")}</td>'
+                 f'<td><form method="post" action="/admin/pmgc/act" style="display:inline">{kf}<input type="hidden" name="action" value="{act}">'
+                 f'<input type="hidden" name="uid" value="{e["uid"]}"><button class="btn">{act.title()}</button></form></td></tr>')
+    body = (f'<h1>PMGC Gauntlet: Predict &amp; Win</h1><p class="sub">{len(es)} entries · picks {"locked" if pmgc.closed() else "lock"} '
+            f'{E(pmgc.fmt_ist(float(s["lock"])))} · <a href="/predict/pmgc" target="_blank">Public page</a> · '
+            f'<a href="/admin/pmgc.csv{kq}">Download entries (CSV)</a></p>'
+            + (f'<div class="card" style="border-color:#3a5a12">{E(msg)}</div>' if msg else "") +
+            f'<div class="card"><h2>Settings</h2>{sets}</div><div class="card"><h2>Results</h2>{form}</div>'
+            f'<div class="card"><h2>Entries <form method="get" style="display:flex;gap:8px">{kf}<input type="search" name="q" value="{E(q)}" placeholder="Search"></form></h2>'
+            f'<div class="ov"><table><tr><th class="n">#</th><th>Player</th><th class="hide">Top 3</th><th class="n">Points</th><th class="n hide">Saved</th><th></th></tr>'
+            f'{rows or "<tr><td colspan=6 class=mut>No entries yet.</td></tr>"}</table></div></div>'
+            f'<div class="card"><h2>Team logos</h2>{logo_form}</div>')
+    css = ("<style>.ql{padding:10px 0;border-bottom:1px solid var(--line)}.cbs{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:6px}.cb{font-size:13px}"
+           "select,input[type=text],input[type=url],input[type=datetime-local]{background:#0b0b11;border:1px solid var(--line);color:#fff;border-radius:8px;padding:7px 9px;font:inherit}"
+           ".row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}.u img{width:28px;height:28px}</style>")
+    return page("pmgc", "PMGC Predict", css + body, me, key)

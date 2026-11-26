@@ -87,6 +87,8 @@ def _predict_closed():
         r = _memo("/predict-bmsd", 3600, lambda: crowdpage.build_html(snap), "text/html")
         r.headers["Cache-Control"] = "public, max-age=600, s-maxage=600"
         return r
+    if request.path.startswith("/predict/pmgc"):         # PMGC 2026 Gauntlet game: its own switch (tracker/pmgc.py)
+        return None
     if request.path.startswith("/predict") and not eventpage.predict_open():
         if os.getenv("PREDICT_SPLIT", "1") == "1" and request.method == "GET":
             if request.path in ("/predict", "/predict/"):      # the game is closed: show what the community predicted
@@ -121,7 +123,7 @@ def _headers(resp):
         secs = 15
     if request.method != "GET" or resp.status_code >= 400 or request.args.get("auth") == "1":
         secs = None                       # POSTs, signed-in (auth=1), personal and error responses are never cached
-    if request.path.startswith(("/elogo/", "/tlogo/", "/pimg/", "/tmark/", "/gameart/")):
+    if request.path.startswith(("/elogo/", "/tlogo/", "/pimg/", "/tmark/", "/gameart/", "/pmgc/logo/")):
         return resp
     resp.headers["Cache-Control"] = f"public, max-age={secs}, s-maxage={secs}" if secs else "no-store"
     if secs:   # Cloudflare's Browser Cache TTL can override max-age; this one it passes through for its own cache
@@ -954,6 +956,8 @@ def scene_rank():
                 platform=g("platform", "") if g("platform", "") in ("youtube", "kick", "twitch") else "",
                 sec=g("sec", "") if g("sec", "") in scene.SECTION_NAMES else "")
     key = "/api/rank:" + ":".join(f"{k}={v}" for k, v in sorted(args.items()))
+    if not _auth.full():                         # visitors: the channel rankings' default view only (/api/topch)
+        return _json({"rows": [], "locked": _auth.lock_info("filters")})
     return _gate(key, 25, lambda: scene.rankings(**args), lambda d: _auth.trim_rows(d))
 
 
@@ -1096,6 +1100,9 @@ def api_topch():
         limit = max(10, min(1000, int(g("limit") or 100)))
     except ValueError:
         limit = 100
+    if not _auth.full() and not _auth.default_ranking(plat, metric, country, category, game):
+        return _json({"platform": plat, "metric": metric, "rows": [], "updated": int(ranks._R.get("at") or 1), "total": 0,
+                      "categories": [], "countries": [], "locked": _auth.lock_info("filters")})   # visitors: the default view only
     from tracker import scene as sc_
     # the rankings' own time is in the key: new rankings are served the moment they exist, never a copy of the old ones
     # (23 Nov: fresh rankings were ready but the page kept the pre-restart copy while the rebuild queue was busy)
@@ -1395,6 +1402,59 @@ def admin_trackers():
                                                         "" if _auth.is_admin() else request.args.get("key", "")), mimetype="text/html"))
 
 
+@app.route("/admin/pmgc")
+def admin_pmgc():
+    if not _owner():
+        return Response("Not found", status=404, mimetype="text/plain")
+    from tracker import adminpage
+    return _admin_page(Response(adminpage.pmgc_page(_auth.user() if _auth.ENABLED else None,
+                                                    "" if _auth.is_admin() else request.args.get("key", ""),
+                                                    request.args.get("q", "")[:60], request.args.get("msg", "")[:200]), mimetype="text/html"))
+
+
+@app.route("/admin/pmgc.csv")
+def admin_pmgc_csv():
+    if not _owner():
+        return Response("Not found", status=404, mimetype="text/plain")
+    from tracker import pmgc
+    r = Response(pmgc.csv_text(), mimetype="text/csv")
+    r.headers["Content-Disposition"] = "attachment; filename=pmgc-gauntlet-predict.csv"
+    return _admin_page(r)
+
+
+@app.route("/admin/pmgc/act", methods=["POST"])
+def admin_pmgc_act():
+    if not _owner():
+        return Response("Not found", status=404, mimetype="text/plain")
+    from tracker import pmgc
+    f = request.form
+    msg = "Saved."
+    try:
+        a = f.get("action")
+        if a == "answers":
+            pmgc.set_answers(f)
+            msg = "Results saved. Points are updated."
+        elif a == "settings":
+            from datetime import datetime as _dt
+            lock = _dt.strptime(f.get("lock", ""), "%Y-%m-%dT%H:%M").replace(tzinfo=pmgc.IST).timestamp()
+            pmgc.save(lock=lock, show_lb=f.get("show_lb") == "1", prize=f.get("prize", "")[:200])
+            msg = f"Settings saved. Picks lock {pmgc.fmt_ist(lock)}."
+        elif a == "logos":
+            urls = {t[1]: f.get("logo_" + t[1], "").strip() for t in pmgc.TEAMS}
+            urls = {k: v for k, v in urls.items() if v.startswith("https://")}
+            pmgc.save(logo_urls={**(pmgc.settings().get("logo_urls") or {}), **urls})
+            threading.Thread(target=pmgc.fetch_logos, daemon=True).start()
+            msg = "Fetching logos in the background. Refresh in a minute or two."
+        elif a in ("hide", "unhide", "delete"):
+            pmgc.entry_action(int(f.get("uid", "0")), a)
+        else:
+            msg = "Unknown action."
+    except (pmgc.GameError, ValueError) as e:
+        msg = f"Not saved: {e}"
+    key = "" if _auth.is_admin() else f.get("key", "")
+    return redirect("/admin/pmgc?" + "&".join(x for x in (f"key={quote(key)}" if key else "", "msg=" + quote(msg)) if x))
+
+
 @app.route("/admin/visitors")
 def admin_visitors():
     """Owner-only traffic page (admin Google account, or ?key=<ADMIN_KEY>). 404 for anyone else."""
@@ -1594,6 +1654,56 @@ def predict_page():
     return _memo("/predict", 20, predictpage.build_html, "text/html")
 
 
+@app.route("/predict/pmgc")
+@app.route("/predict/pmgc/")
+def pmgc_page():
+    """PMGC 2026 Gauntlet Predict & Win (tracker/pmgc.py, tracker/pmgcpage.py)."""
+    from tracker import pmgcpage
+    return _memo("/predict/pmgc", 60, pmgcpage.build_html, "text/html")
+
+
+@app.route("/predict/pmgc/api/state")
+def pmgc_state():
+    from tracker import pmgc
+    u = _auth.user() if _auth.ENABLED else None
+    r = Response(json.dumps({**pmgc.state(u), "auth": _auth.ENABLED}), mimetype="application/json")
+    r.headers["Cache-Control"] = "no-store"
+    return r
+
+
+@app.route("/predict/pmgc/api/submit", methods=["POST"])
+def pmgc_submit():
+    from tracker import pmgc
+    if _throttle(limit=30, window=600):
+        return Response(json.dumps({"error": "Too many tries. Wait a few minutes."}), status=429, mimetype="application/json")
+    u = _auth.user() if _auth.ENABLED else None
+    j = request.get_json(silent=True) or {}
+    picks = j.get("picks") if isinstance(j.get("picks"), dict) else {}
+    picks = {str(k)[:4]: ([str(x)[:60] for x in v][:8] if isinstance(v, list) else str(v)[:60]) for k, v in list(picks.items())[:12]}
+    try:
+        return _json(pmgc.submit(u, str(j.get("handle", ""))[:80], str(j.get("name", ""))[:64], picks))
+    except pmgc.GameError as e:
+        return Response(json.dumps({"error": str(e)}), status=e.code, mimetype="application/json")
+
+
+@app.route("/pmgc/logo/<slug>")
+def pmgc_logo(slug):
+    from tracker import pmgc
+    if slug not in {t[1] for t in pmgc.TEAMS}:
+        return Response(status=404)
+    f = pmgc.logo_file(slug)
+    if not f:
+        return Response(status=404)
+    ext = os.path.splitext(f)[1]
+    ct = {".png": "image/png", ".webp": "image/webp", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}[ext]
+    with open(f, "rb") as fh:
+        r = Response(fh.read(), mimetype=ct)
+    r.headers["Cache-Control"] = "public, max-age=86400, s-maxage=86400"   # the ?v= in the address changes with the file
+    if ext == ".svg":
+        r.headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'"
+    return r
+
+
 @app.route("/predict/og.png")
 def predict_og():
     path = os.path.join(os.path.dirname(eventpage.ELOGO_DIR), "predict_og.png")
@@ -1769,6 +1879,11 @@ def run():
     _memo_load()
     store.checkpointer()
     threading.Thread(target=_memo_save, daemon=True).start()
+    try:
+        from tracker import pmgc as _pg
+        _pg.logo_loop()                       # PMGC team logos from Liquipedia, once (data/teamlogos/)
+    except Exception as e:
+        print(f"PMGC logos: {str(e)[:100]}")
     def once():
         from tracker import events as ev_, scene as sc_, ytextra as yx_
         time.sleep(20)

@@ -234,6 +234,22 @@ PWB = """<link rel="prefetch" href="/predict"><a class="pwb" href="/predict" onc
 PWC = """<a class="pwb" href="/predict"><span class="pwt">// PREDICT &amp; WIN · PICKS CLOSED</span><b>WHAT THE COMMUNITY PICKED</b><span class="pws">Champion, PMGC qualifiers, top 3, MVP and more. Winners after the finals on Sun 1 Nov.</span><i>SEE RESULTS &rarr;</i></a>"""
 
 
+def _pmgc_banner(key) -> str:
+    """PMGC 2026 Gauntlet Predict & Win (tracker/pmgc.py) on the PMGC event page."""
+    if key != "pmgc":
+        return ""
+    try:
+        from tracker import pmgc
+        shut = pmgc.closed()
+    except Exception:
+        return ""
+    if shut:
+        return ('<a class="pwb" href="/predict/pmgc"><span class="pwt">// PREDICT &amp; WIN · PICKS LOCKED</span><b>WHAT EVERYONE PICKED</b>'
+                '<span class="pws">The Gauntlet finalists, #1, top 3 and chicken dinners the community called.</span><i>SEE PICKS &rarr;</i></a>')
+    return ('<a class="pwb" href="/predict/pmgc"><span class="pwt">// NEW · FREE TO PLAY · PMGC GAUNTLET</span><b>PREDICT &amp; WIN</b>'
+            '<span class="pws">Call the 6 Grand Finals qualifiers, the Gauntlet #1, the top 3, chicken dinners and the peak. Picks lock when the Gauntlet starts.</span><i>PLAY NOW &rarr;</i></a>')
+
+
 _WCACHE = [0.0, ""]
 
 
@@ -470,7 +486,7 @@ def build_html(key: str = None, live: bool = False, style: str = None) -> str:
                 .replace("__SOCIAL__", _social())
                 .replace("__GAMESLUG__", __import__("tracker.scene", fromlist=["x"]).slug(_preset(key).get("game") or "BGMI"))
                 .replace("__GAMENAME__", html.escape(_preset(key).get("game") or "BGMI"))
-                .replace("__PWB__", _hero(key) + _winners(key) + ("" if (_ended(key) or not _preset(key).get("predict")) else (PWC if _pw_closed() else PWB) if predict_open() else (PWR if os.getenv("PREDICT_SPLIT", "1") == "1" else "")))
+                .replace("__PWB__", _hero(key) + _pmgc_banner(key) + _winners(key) + ("" if (_ended(key) or not _preset(key).get("predict")) else (PWC if _pw_closed() else PWB) if predict_open() else (PWR if os.getenv("PREDICT_SPLIT", "1") == "1" else "")))
                 .replace("__EHCSS__", EHERO_CSS if _preset(key).get("hero") else "")
                 .replace("__BRAND__", html.escape(BRAND)).replace("__BRANDURL__", html.escape(BRAND_URL, quote=True))
                 .replace("__SITEURL__", SITE_URL))

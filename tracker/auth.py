@@ -45,8 +45,9 @@ DB_PATH = os.getenv("USERS_DB") or os.path.join(DATA, "users.db")
 DAYS = 30                                     # how long a sign-in lasts
 
 # What a visitor (not signed in) gets; signed in: everything
-FREE_ROWS = 25
+FREE_ROWS = 10          # rankings: the default view's top 10 (no filters)
 FREE_DAYS = 7
+FREE_STREAMS = 3        # a channel's last 3 streams
 FREE_RANGES = ("1d", "3d", "7d")
 
 _lock = threading.Lock()
@@ -146,27 +147,34 @@ def trim_rows(d: dict, what: str = "rows") -> dict:
 
 
 def trim_channel(d: dict) -> dict:
-    """A channel page: today and 7 days; the 30-day and all-time totals and older days need sign-in."""
+    """A channel page for visitors: who it is, live now and today; 7-day, 30-day and all-time totals, the day by day
+    history, views history and Super Chats need sign-in (their last 3 streams come from /api/past)."""
     if not isinstance(d, dict) or not d.get("sid"):
         return d
-    from datetime import date, timedelta
-    cut = (date.today() - timedelta(days=FREE_DAYS - 1)).isoformat()
-    p = dict(d.get("periods") or {})
-    for k in ("30d", "all"):
-        if k in p:
-            p[k] = None
-    return {**d, "periods": p, "days": [x for x in d.get("days") or [] if (x.get("day") or "") >= cut],
-            "locked": lock_info("history", FREE_DAYS)}
+    p = {k: (v if k == "today" else None) for k, v in (d.get("periods") or {}).items()}
+    out = {**d, "periods": p, "days": [], "locked": lock_info("history", FREE_STREAMS)}
+    if isinstance(d.get("views"), list):
+        out["views"] = []
+    if "top_superchats" in d:
+        out["top_superchats"] = []
+    if "superchats" in d:
+        out["superchats"] = None
+    return out
 
 
 def trim_past(d: dict) -> dict:
+    """Past streams for visitors: the newest FREE_STREAMS."""
     if not isinstance(d, dict) or not isinstance(d.get("streams"), list):
         return d
-    cut = time.time() - FREE_DAYS * 86400
-    keep = [s for s in d["streams"] if (s.get("start") or s.get("ts") or s.get("end") or 0) >= cut]
+    keep = sorted(d["streams"], key=lambda s: -(s.get("ts") or s.get("start") or 0))[:FREE_STREAMS]
     if len(keep) == len(d["streams"]):
         return d
-    return {**d, "streams": keep, "locked": lock_info("history", FREE_DAYS)}
+    return {**d, "streams": keep, "locked": lock_info("history", FREE_STREAMS)}
+
+
+def default_ranking(platform: str, metric: str, country: str, category: str, game: str) -> bool:
+    """The one rankings view visitors get: every platform, peak live viewers over 7 days, worldwide or India."""
+    return platform == "all" and metric == "peak_7d" and country in ("", "IN") and not category and not game
 
 
 # ---- pages and endpoints ---------------------------------------------------------------------------------------
@@ -449,7 +457,7 @@ var F=window.fetch;window.fetch=function(u,o){var s=typeof u==='string'?u:(u&&u.
  if(IN){var x=new URL(s,location.href);x.searchParams.set('auth','1');s=x.pathname+x.search}
  return F.call(this,s,o).then(function(r){try{r.clone().json().then(function(j){if(j&&j.locked)lgeLocked(j.locked)}).catch(function(){})}catch(e){}return r})};
 var nx=function(){return encodeURIComponent(location.pathname+location.search)};
-window.lgeLocked=function(k){if(IN||document.getElementById('lgelock')||k.what==='compare')return;var t={rows:'You are seeing the top '+(k.shown||25)+(k.total?' of '+k.total:'')+'.',history:'You are seeing the last '+(k.shown||7)+' days.',compare:'Comparing channels needs a free account.'}[k.what]||'Part of this page needs a free account.';
+window.lgeLocked=function(k){if(IN||document.getElementById('lgelock')||k.what==='compare')return;var t={rows:'You are seeing the top '+(k.shown||10)+(k.total?' of '+k.total:'')+'.',filters:'Filters and other rankings need a free account.',history:'You are seeing the last '+(k.shown||3)+' streams.',compare:'Comparing channels needs a free account.'}[k.what]||'Part of this page needs a free account.';
  var d=document.createElement('div');d.id='lgelock';d.innerHTML='<span>'+t+' <b>Sign in free</b> to see everything.</span><a href="/signin?next='+nx()+'">Sign in</a><button aria-label="Close">&times;</button>';
  d.querySelector('button').onclick=function(){d.remove()};document.body.appendChild(d)};
 function btn(){var top=document.querySelector('.top .in')||document.querySelector('.top');if(!top||document.getElementById('lgeacct'))return;var a=document.createElement('a');a.id='lgeacct';
@@ -458,13 +466,13 @@ function btn(){var top=document.querySelector('.top .in')||document.querySelecto
   if(j.picture){a.textContent='';var i=document.createElement('img');i.src=j.picture;i.alt='';i.referrerPolicy='no-referrer';a.appendChild(i)}}).catch(function(){})}
  else{a.href='/signin?next='+nx();a.setAttribute('aria-label','Sign in');a.innerHTML='<span class="t">Sign in</span><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>'}top.appendChild(a)}
 function pop(){if(IN)return;var p=location.pathname.replace(/^\\/(global|india)(?=\\/|$)/,'')||'/';
- if(/^\\/(signin|account|admin|auth|privacy|terms|embed|badge)/.test(p))return;try{if(sessionStorage.getItem('lgepop'))return}catch(e){}
+ if(/^\\/(signin|account|admin|auth|privacy|terms|embed|badge|predict)/.test(p))return;   // every page load and new tab (owner)
  var n=nx(),m=document.createElement('div');m.id='lgepop';m.setAttribute('role','dialog');m.setAttribute('aria-modal','true');m.setAttribute('aria-label','Sign in');
  m.innerHTML='<div class="bx"><button class="x" aria-label="Close">&times;</button><div class="h">Sign in to see the full stats</div>'
  +'<ul><li>Full rankings: top 100 and beyond, every platform and game</li><li>Every channel\\'s full history and past streams</li><li>Compare channels side by side</li><li>The week\\'s top stats in your inbox</li></ul>'
  +'<a class="g" href="/auth/google?next='+n+'">'+%s+' Continue with Google</a><button class="later">Maybe later</button>'
  +'<div class="s">Free. We\\'ll email you the top stats every week; unsubscribe any time. <a href="/privacy">Privacy</a></div></div>';
- var close=function(){m.remove();try{sessionStorage.setItem('lgepop','1')}catch(e){}};
+ var close=function(){m.remove()};
  m.querySelector('.x').onclick=close;m.querySelector('.later').onclick=close;m.addEventListener('click',function(e){if(e.target===m)close()});
  document.addEventListener('keydown',function k(e){if(e.key==='Escape'){close();document.removeEventListener('keydown',k)}});document.body.appendChild(m)}
 function go(){var fr=false;try{fr=window.top!==window.self}catch(e){fr=true}if(fr)return;btn();pop()}   // not inside the map frame
