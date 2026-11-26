@@ -8,6 +8,7 @@ Runs on its own port (EVENT_WEB_PORT, default 8092, this computer only) so the o
 exposed. core/tunnel.py gives it a public https link that opens on any device.
 """
 import gzip
+import hmac
 import json
 import logging
 import os
@@ -15,6 +16,7 @@ import sys
 import threading
 import time
 import queue
+from urllib.parse import quote
 
 from flask import Flask, Response, redirect, request
 
@@ -609,7 +611,31 @@ def api_health():
 @app.route("/admin/health")
 def admin_health():
     """Owner page: the same as /api/health, refreshed every 5 seconds, with problems in red."""
-    return Response(_HEALTH_PAGE, mimetype="text/html")
+    r = Response(_HEALTH_PAGE, mimetype="text/html")
+    return _admin_bar(r, "health") if _owner() else r
+
+
+def _admin_bar(r, tab):
+    """The portal's top bar on the older owner pages (Traffic, Health, Predict & Win), so they are one place."""
+    from tracker import adminpage
+    key = "" if _auth.is_admin() else request.values.get("key", "")
+    bar = adminpage.page(tab, "", "", _auth.user() if _auth.ENABLED else None, key)
+    top = bar[bar.index('<div class="top">'):bar.index("<main>")]
+    css = ("<style>.lgeadm{all:initial;display:block;font:14px/1.5 Figtree,system-ui,sans-serif;margin:0 0 16px}"
+           ".lgeadm .top{border-bottom:1px solid #1d1d28;background:#0a0a10}.lgeadm .in{max-width:1160px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}"
+           ".lgeadm .brand{color:#b6f23a;font-weight:800;letter-spacing:.05em;text-decoration:none;text-transform:uppercase}.lgeadm .tag{font-size:11px;font-weight:700;color:#0b0b12;background:#b6f23a;padding:2px 6px;border-radius:4px}"
+           ".lgeadm .tabs{display:flex;gap:4px;overflow-x:auto}.lgeadm .tabs a{padding:7px 12px;border-radius:8px;text-decoration:none;color:#8d8ca3;font-weight:600;white-space:nowrap}"
+           ".lgeadm .tabs a.on{color:#0b0b12;background:#b6f23a}.lgeadm .who{margin-left:auto;color:#8d8ca3;font-size:13px;display:flex;gap:10px;align-items:center}.lgeadm .who img{width:26px;height:26px;border-radius:50%}"
+           ".lgeadm .btn{background:#15151e;border:1px solid #2a2a38;color:#fff;border-radius:9px;padding:6px 12px;text-decoration:none;font-weight:600;font-size:13px}"
+           "@media(max-width:600px){.lgeadm .hide{display:none}}</style>")
+    h = r.get_data(as_text=True)
+    i = h.find("<body")
+    if i >= 0:
+        j = h.find(">", i) + 1
+    else:                                       # a page with no <body> tag (Health): after its styles
+        j = h.find("</style>") + 8 if "</style>" in h else 0
+    r.set_data(h[:j] + css + f'<div class="lgeadm">{top}</div>' + h[j:])
+    return r
 
 
 _HEALTH_PAGE = r"""<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
@@ -1312,12 +1338,67 @@ def terms_page():
     return _memo("/terms", 3600, legalpage.terms_html, "text/html")
 
 
+def _key_ok() -> bool:
+    want = os.getenv("ADMIN_KEY", "")
+    return len(want) >= 16 and hmac.compare_digest(want, request.values.get("key", ""))
+
+
+def _admin_page(r):
+    r.headers["X-Robots-Tag"] = "noindex"
+    r.headers["Cache-Control"] = "no-store"
+    return r
+
+
+@app.route("/admin")
+@app.route("/admin/")
+def admin_home():
+    """The owner's portal (tracker/adminpage.py). Signed in with an admin Google account it just opens; the first
+    time, /admin?key=<ADMIN_KEY> while signed in makes your account an admin. Anyone else: 404."""
+    from tracker import adminpage
+    if _auth.ENABLED and _key_ok():
+        me = _auth.user()
+        if not me:
+            return redirect("/signin?next=" + quote("/admin?key=" + request.args.get("key", ""), safe=""))
+        _auth.make_admin(me["email"])
+        return redirect("/admin")              # the key leaves the address bar
+    if not _owner():
+        return Response("Not found", status=404, mimetype="text/plain")
+    return _admin_page(Response(adminpage.overview(_health(), visitors.stats(), _auth.user() if _auth.ENABLED else None,
+                                                   "" if _auth.is_admin() else request.args.get("key", "")), mimetype="text/html"))
+
+
+@app.route("/admin/people")
+def admin_people():
+    if not _owner():
+        return Response("Not found", status=404, mimetype="text/plain")
+    from tracker import adminpage
+    return _admin_page(Response(adminpage.people_page(request.args.get("q", "")[:80], _auth.user() if _auth.ENABLED else None,
+                                                      "" if _auth.is_admin() else request.args.get("key", "")), mimetype="text/html"))
+
+
+@app.route("/admin/people.csv")
+def admin_people_csv():
+    if not _owner():
+        return Response("Not found", status=404, mimetype="text/plain")
+    from tracker import adminpage
+    r = Response(adminpage.people_csv(request.args.get("weekly") == "1"), mimetype="text/csv")
+    r.headers["Content-Disposition"] = "attachment; filename=" + ("weekly-report-list.csv" if request.args.get("weekly") == "1" else "accounts.csv")
+    return _admin_page(r)
+
+
+@app.route("/admin/trackers")
+def admin_trackers():
+    if not _owner():
+        return Response("Not found", status=404, mimetype="text/plain")
+    from tracker import adminpage
+    return _admin_page(Response(adminpage.trackers_page(_auth.user() if _auth.ENABLED else None,
+                                                        "" if _auth.is_admin() else request.args.get("key", "")), mimetype="text/html"))
+
+
 @app.route("/admin/visitors")
 def admin_visitors():
-    """Owner-only traffic page: /admin/visitors?key=<ADMIN_KEY from .env>. 404 for anyone else (and if no key is set)."""
-    import hmac
-    want = os.getenv("ADMIN_KEY", "")
-    if len(want) < 16 or not hmac.compare_digest(want, request.args.get("key", "")):
+    """Owner-only traffic page (admin Google account, or ?key=<ADMIN_KEY>). 404 for anyone else."""
+    if not _owner():
         return Response("Not found", status=404, mimetype="text/plain")
     from tracker import visitorspage
     from tracker import events as ev_
@@ -1336,15 +1417,12 @@ def admin_visitors():
     except Exception as e:
         cov = {"error": str(e)[:100]}
     r = Response(visitorspage.build_html({**visitors.stats(), "ytq": (used, ev_.YT_QUOTA), "sources": src, "coverage": cov}), mimetype="text/html")
-    r.headers["X-Robots-Tag"] = "noindex"
-    return r
+    return _admin_page(_admin_bar(r, "traffic"))
 
 
 def _owner() -> bool:
-    import hmac
-    want = os.getenv("ADMIN_KEY", "")
-    got = request.values.get("key", "")
-    return len(want) >= 16 and hmac.compare_digest(want, got)
+    """The owner: signed in with an admin Google account, or the ADMIN_KEY in the address."""
+    return _key_ok() or _auth.is_admin()
 
 
 @app.route("/admin/twitch-connect")
@@ -1352,8 +1430,7 @@ def admin_twitch_connect():
     """Owner-only: connect the owner's Twitch account (no permissions asked) so the site can read follower counts,
     which tell real channels from viewbotted ones. Needs this callback URL added to the Twitch app at
     dev.twitch.tv: <site>/admin/twitch-callback."""
-    want = os.getenv("ADMIN_KEY", "")
-    if len(want) < 16 or not hmac.compare_digest(want, request.args.get("key", "")):
+    if not _owner():
         return Response("Not found", status=404, mimetype="text/plain")
     import secrets, urllib.parse
     from tracker import platforms, eventpage
@@ -1403,9 +1480,7 @@ def admin_predict():
         return Response("Not found", status=404, mimetype="text/plain")
     from tracker import predictadmin
     r = Response(predictadmin.build_html(request.args.get("key", ""), request.args.get("q", "")), mimetype="text/html")
-    r.headers["X-Robots-Tag"] = "noindex"
-    r.headers["Cache-Control"] = "no-store"
-    return r
+    return _admin_page(_admin_bar(r, "predict"))
 
 
 @app.route("/admin/predict.csv")
