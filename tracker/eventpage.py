@@ -72,10 +72,10 @@ def _overlay(out: dict, ev: dict):
         cur = {r["vid"]: r["viewers"] for r in mr[1]}
         live = []
         for x in out.get("live") or []:
-            if x["vid"] in cur:
+            if x["vid"] in cur and cur[x["vid"]] > 0:     # ended or nobody watching: not in the live list
                 live.append({**x, "viewers": cur.pop(x["vid"])})
         for r in mr[1]:                          # streams the full stats haven't caught up with yet
-            if r["vid"] in cur:
+            if r["vid"] in cur and r["viewers"] > 0:
                 live.append({"vid": r["vid"], "channel": r.get("channel", ""), "title": r.get("title", ""), "kind": r["kind"],
                              "platform": events.platforms.platform_of(r["vid"]), "viewers": r["viewers"],
                              "url": events.yt_link(r["vid"]), "logo": events.avatar(r.get("channel_id", ""))})

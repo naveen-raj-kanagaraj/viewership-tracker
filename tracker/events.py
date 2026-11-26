@@ -50,14 +50,27 @@ _WQ = _queue.Queue()    # database writes from the 2-second counter: done by one
 
 
 def _writer():
+    """Everything queued is written in one go under one hold of the write lock (26 Nov, PMGC Day 1: with 130 streams
+    one write per 2-second reading fell behind by 15+ minutes while other work held the lock)."""
     while True:
-        fn = _WQ.get()
+        batch = [_WQ.get()]
+        while len(batch) < 200:
+            try:
+                batch.append(_WQ.get_nowait())
+            except _queue.Empty:
+                break
         try:
-            fn()
-        except Exception as e:
-            print(f"Event write failed: {str(e)[:150]}")
+            with store._lock:
+                for fn in batch:
+                    try:
+                        fn()
+                    except Exception as e:
+                        print(f"Event write failed: {str(e)[:150]}")
         finally:
-            _WQ.task_done()
+            for _ in batch:
+                _WQ.task_done()
+        if _WQ.qsize() > 300:
+            print(f"Event writes behind: {_WQ.qsize()} queued")
 
 
 def flush():
@@ -66,6 +79,8 @@ def flush():
 
 
 threading.Thread(target=_writer, daemon=True, name="event-writer").start()
+_PKMEM = {}     # event -> {vid: highest viewers written to ev_streams}: only a new peak is written every 2 s
+_BEST = {}      # event -> {"total"}: the peak whose make-up is stored (kv event_peak_break), without reading kv every 2 s
 _ENDED = {}     # vid -> time the live counter saw it end (search results lag, so don't re-add it)
 RECHECK_MIN = 15          # re-check streams seen live within this many minutes that vanished from search
 MAX_DIRECT_CHECKS = 20
@@ -187,7 +202,24 @@ PRESETS = {
                          "UCvkP3KlQJL1XcXKQLGK7DrA",    # SleepyyHORAA
                          "UCrhssMVNygNbAxDtFRIRzOg",    # SkyHORAA
                          "UCgA44b8KQQFC71Ma72tglRg",    # Xifan
-                         "UC8Xqz9d9yD-Yp6E7I6gut9Q"],   # RawalPINDIZ (Pakistan)
+                         "UC8Xqz9d9yD-Yp6E7I6gut9Q",    # RawalPINDIZ (Pakistan)
+                         # live PMGC watch parties the searches missed on Day 1 (checked by hand, 26 Nov 17:15 IST)
+                         "UCwFRGieumnh1MrM5F3D65Tg",    # SOUL Regaltos
+                         "UCqNH56x9g4QYVpzmWTzqVYg",    # Dynamo Gaming
+                         "UCpThfYzX13SYyK1znEI3bWg",    # Amya plays
+                         "UCIljGW0RiiHml1DcY7eE62w",    # Kafan Gaming Official (Urdu)
+                         "UCni34U-sGh9QB5UVo5INl2g",    # OSAL (Korea)
+                         "UCTbETTu3HNzQaZSprwNMjGQ",    # SiNiSTER PLAYS
+                         "UCztyilUG9uQ_0JK_ClEDCpg",    # NERXOxLive (Turkey)
+                         "UC_osE0Pz8LGu76uC95NlOAQ",    # MAFIA_IS_LIVE
+                         "UC5P0A2CuylcWNcsnAhOhsMg",    # DELTA pubgm
+                         "UCDjKNAnpHrYQ5k8hPVhiq-g",    # ROBIN SA
+                         "UC44sKYlN-IHlUy5MG-W-5lQ",    # DrChemist
+                         "UCZBdYvW1sI0Ui6ZFmkD10-w",    # DOBBY IS LIVE
+                         "UCKB8eEbP9JH4SWkBGKdKp1g",    # Anny Gaming
+                         "UCzSSlpIMNlsEuCtrlxEhNuw"],   # SAVA GAMING (Pakistan)
+        # PUBG MOBILE's own regional channels (YouTube, Twitch, Kick) are official broadcasts, not watch parties
+        "official_rx": r"^(pubg\s*mobile|pubgm\b)|배틀그라운드\s*모바일|ببجي\s*موبايل",
         # the same Indian streamers on Kick (one API call): counted when the title names the event
         "kick": {"channels": ["snaxgaming", "sheekgaming", "lolzzzgaming", "soulaman", "neyoo_gaming", "neyoo-gaming",
                               "mrspikeyt", "vaadhiyaar", "shreemanlegend", "sharkshe", "mizo", "ravensharplive",
@@ -571,7 +603,7 @@ NOT_WP = re.compile(r"rank\s*push|\branked\b|gameplay|rush\s*game\s*play|\brushi
                     r"\b1\s*v\s*[234]\b|road\s*to\s*(pmgc|conq|ace|crown|top\s*\d)|play(ing)?\s+with\s+(subs|subscribers|viewers|fans|you)|"
                     r"\bgrind|podcast|tier\s*list|\bpreview\b|practice|bootcamp|24\s*[x/]\s*7|non-?stop|lo-?fi|free\s*fire|"
                     r"\bff\s*(max|live)\b|valorant|minecraft|\bgta\b|cod\s*mobile|\bcodm\b|fortnite|roblox|clash\s*(of|royale)|"
-                    r"mobile\s*legends|\bmlbb\b", re.I)
+                    r"mobile\s*legends|\bmlbb\b|\bleaks?\b", re.I)
 GAME_OK = re.compile(r"pubg|battlegrounds", re.I)
 _REJ = {}       # event -> {vid: {channel, channel_id, title, viewers, why, ts}}: candidates the check left out (last hour)
 
@@ -579,7 +611,9 @@ _REJ = {}       # event -> {vid: {channel, channel_id, title, viewers, why, ts}}
 def _official_s(ev: dict, s: dict) -> bool:
     offs = set(ev.get("official", [])) | set(PRESETS.get(ev.get("key", ""), {}).get("official", []))
     ch = (s.get("channel") or "").lower()
-    return bool(s.get("from_official")) or any(o and o in ch for o in offs) or (s.get("channel_id") or "").lower() in offs
+    orx = PRESETS.get(ev.get("key", ""), {}).get("official_rx")
+    return bool(s.get("from_official")) or any(o and o in ch for o in offs) or (s.get("channel_id") or "").lower() in offs \
+        or bool(orx and re.search(orx, ch.strip(), re.I))
 
 
 def wp_check(ev: dict, s: dict) -> str:
@@ -628,7 +662,7 @@ def _card_filter(ev: dict, found: dict):
           and not WP_SAYS.search(s.get("title") or "")]
     yt = [v for v in yt if v not in ev.get("videos", []) and not _forced_channel(ev, found[v])]
     try:
-        scene._card_get(yt[:30], 6)
+        scene._card_get(yt[:10], 4)
     except Exception as e:
         print(f"{ev['key']}: game cards: {str(e)[:100]}")
     for v in yt:
@@ -747,7 +781,7 @@ def run_chat_checks():
             due = chat_due()
             if due:
                 with ThreadPoolExecutor(max_workers=4) as pool:
-                    list(pool.map(lambda d: _safe(_chat_check, d[1], d[2]), due[:12]))
+                    list(pool.map(lambda d: _safe(_chat_check, d[1], d[2]), due[:6]))
             if len(_CHATV) > 3000:
                 now = time.time()
                 for v in [v for v, x in _CHATV.items() if now - x["ts"] > 6 * 3600]:
@@ -764,6 +798,40 @@ def run_chat_checks():
 # the start, and while on air.
 _SCHED = {}     # event -> {vid: {vid, channel, channel_id, title, start, ts, viewers: 0}}
 SCHED_MAX = 200
+
+
+def _event_channels(key: str, now: float) -> list:
+    """YouTube channels that carried this event in the last day (their next stream after a break is found by feed)."""
+    hit = _ECH.get(key)
+    if hit and now - hit[0] < 300:
+        return hit[1]
+    try:
+        with store.reading():
+            rows = [r[0] for r in _db().execute(
+                "SELECT channel_id FROM ev_streams WHERE event=? AND last_seen>? AND channel_id LIKE 'UC%' AND kind!='official' "
+                "GROUP BY channel_id ORDER BY MAX(peak) DESC LIMIT 120", (key, now - 86400))]
+    except Exception:
+        rows = []
+    _ECH[key] = (now, rows)
+    return rows
+
+
+def _trusted_slice(pr: dict, n: int) -> list:
+    """Channels with a PUBG Mobile / BGMI tournament behind them (wptrust), 30 a poll in turn."""
+    if not pr.get("verify"):
+        return []
+    try:
+        from tracker import wptrust
+        ids = sorted(wptrust._T["ch"])
+    except Exception:
+        return []
+    if not ids:
+        return []
+    k = (n * 30) % len(ids)
+    return (ids[k:] + ids[:k])[:30]
+
+
+_ECH = {}
 
 
 def scheduled_search(ev: dict) -> int:
@@ -871,6 +939,9 @@ def scene_matches(ev: dict) -> list:
 
 def kind_of(ev: dict, s: dict) -> str:
     if s.get("from_official") or platforms.official(ev, preset(ev.get("key")), s.get("vid", "")):
+        return "official"
+    orx = PRESETS.get(ev.get("key", ""), {}).get("official_rx")
+    if orx and re.search(orx, (s.get("channel") or "").strip(), re.I):
         return "official"
     ch = s.get("channel", "").lower()
     if any(o and o in ch for o in ev.get("official", [])) or (s.get("channel_id") or "").lower() in ev.get("official", []):
@@ -1132,13 +1203,18 @@ def fast_tick(ev: dict, now: float = None) -> dict:
         _LASTSAMPLE[key] = now
     snap = [(r["vid"], r["viewers"], r.get("channel", ""), r.get("title", ""), r["kind"]) for r in rows]
 
+    pkm = _PKMEM.setdefault(key, {})
+    upd = [(vid, v) for vid, v, _, _, _ in snap if write_samples or v > pkm.get(vid, -1)]   # a new peak, or every 30 s
+    for vid, v in upd:
+        pkm[vid] = max(v, pkm.get(vid, 0))
+
     def write():
         with store._lock:
             c = _db()
             c.execute("INSERT OR REPLACE INTO ev_ticks VALUES (?,?,?,?,?,?,?)", (key,) + tick[:2] + tick[2:])
             c.executemany("""UPDATE ev_streams SET last_seen=?, peak_at=CASE WHEN ? > peak THEN ? ELSE peak_at END,
                              peak=MAX(peak, ?) WHERE event=? AND vid=?""",
-                          [(now, v, now, v, key, vid) for vid, v, _, _, _ in snap])
+                          [(now, v, now, v, key, vid) for vid, v in upd])
             if write_samples:
                 c.executemany("INSERT INTO ev_samples VALUES (?,?,?,?)", [(key, int(now), vid, v) for vid, v, _, _, _ in snap])
             # every stream at full resolution (every reading, ~2s), kept for later analysis; nothing on the site reads it
@@ -1146,8 +1222,11 @@ def fast_tick(ev: dict, now: float = None) -> dict:
             c.commit()
         if write_samples:
             store.kv_set(f"event_last_sample:{key}", now)
-        best = store.kv_get(f"event_peak_break:{key}") or {}
+        best = _BEST.get(key)
+        if best is None:
+            best = _BEST[key] = store.kv_get(f"event_peak_break:{key}") or {}
         if total > best.get("total", -1):  # remember exactly who made up the peak
+            _BEST[key] = {"total": total}
             store.kv_set(f"event_peak_break:{key}", {"ts": int(now), "total": total, "streams": sorted(
                 [{"vid": vid, "viewers": v, "channel": ch, "title": ti, "kind": k} for vid, v, ch, ti, k in snap if v > 0],
                 key=lambda x: -x["viewers"])})
@@ -1305,6 +1384,39 @@ def repair_once():
             store.kv_set(flag, True)
 
 
+def recover_once():
+    """PMGC Day 1 (26 Nov): the 2-second readings from 16:55 IST were queued in memory faster than they were written,
+    and the restart that fixed it dropped the queue. The site's own live readings, saved from its public data every
+    2 minutes while that happened (tracker/recover/*.json: each the last ~90 totals and every live stream's viewers),
+    are written back once: totals into ev_ticks where no reading exists, each stream's viewers into ev_samples, and
+    stream peaks into ev_streams."""
+    import glob
+    import json as _json
+    for f in sorted(glob.glob(str(pathlib.Path(__file__).resolve().parent / "recover" / "*.json"))):
+        flag = "event_recover_v1:" + pathlib.Path(f).stem
+        if store.kv_get(flag):
+            continue
+        try:
+            d = _json.load(open(f))
+            key = d["key"]
+            ticks, samples = d.get("ticks") or [], d.get("samples") or []
+            with store._lock:
+                c = _db()
+                have = {r[0] for r in c.execute("SELECT ts FROM ev_ticks WHERE event=? AND ts BETWEEN ? AND ?",
+                                                (key, min((t[0] for t in ticks), default=0) - 1, max((t[0] for t in ticks), default=0) + 1))}
+                new = [t for t in ticks if t[0] not in have and t[0] - 1 not in have and t[0] + 1 not in have]
+                c.executemany("INSERT OR IGNORE INTO ev_ticks VALUES (?,?,?,?,?,?,?)",
+                              [(key, int(t[0]), int(t[1]), int(t[5]) if len(t) > 5 else 0, int(t[2]), int(t[3]), int(t[4])) for t in new])
+                c.executemany("INSERT INTO ev_samples VALUES (?,?,?,?)", [(key, int(ts), vid, int(v)) for ts, vid, v in samples])
+                c.executemany("""UPDATE ev_streams SET peak_at=CASE WHEN ? > peak THEN ? ELSE peak_at END, peak=MAX(peak, ?)
+                                 WHERE event=? AND vid=?""", [(int(v), int(ts), int(v), key, vid) for ts, vid, v in samples])
+                c.commit()
+            store.kv_set(flag, True)
+            print(f"Recovered {key}: {len(new)} readings, {len(samples)} stream readings from {pathlib.Path(f).name}")
+        except Exception as e:
+            print(f"Recover {f}: {str(e)[:150]}")
+
+
 def fast_healthy() -> bool:
     return time.time() - _FASTSTATE["ok_ts"] < max(FAST_SEC * 2 ** _FASTSTATE.get("slow", 0) * 5, 20)
 
@@ -1312,6 +1424,7 @@ def fast_healthy() -> bool:
 def run_fast_forever():
     """Background thread: live counters for every active event."""
     repair_once()
+    recover_once()
 
     def minutely():   # alerts and the 10-minute data export run on their own thread so they never delay a count
         while True:
@@ -1485,11 +1598,9 @@ def poll(ev: dict, now: int = None) -> dict:
         if opt(ev, "scene_world"):
             jobs += [(q, "US") for q in core[:2]]  # the worldwide edition ranks other countries' streams
         wq = list(pr.get("world_queries") or [])
-        if wq:                                   # each region's YouTube in its own words (2 pages each)
-            if now - ph["on_ts"] > FIRST_HOUR:
-                k = (ph["n"] * 4) % len(wq)
-                wq = (wq[k:] + wq[:k])[:4]
-            jobs += [(q, gl, 2) for q, gl in wq]
+        if wq:                                   # each region's YouTube in its own words (2 pages each), 7 a poll in turn
+            k = (ph["n"] * 7) % len(wq)          # (all every poll put too much on the server on Day 1)
+            jobs += [(q, gl, 2) for q, gl in (wq[k:] + wq[:k])[:7]]
         with ThreadPoolExecutor(max_workers=4) as pool:
             for res in pool.map(lambda a: _safe(_search, *a), jobs):
                 if res is None:
@@ -1502,23 +1613,26 @@ def poll(ev: dict, now: int = None) -> dict:
             if s["vid"] not in found and relevant(ev, s):
                 found[s["vid"]] = s
                 _ENDED.pop(s["vid"], None)
-        chans = list(dict.fromkeys(ev.get("channels", []) + pr.get("always_check", [])
-                                   + [h for _, _, h in roster(ev["key"]) if h]))[:60]
-        with ThreadPoolExecutor(max_workers=8) as pool:       # every listed channel's feed, every poll (cheap)
-            for res in pool.map(lambda h: _safe(feed_live, h), chans):
-                for s in res or []:
-                    if s["vid"] not in found and relevant(ev, s):
-                        found[s["vid"]] = s
-        third = [h for i, h in enumerate(chans) if i % 3 == ph["n"] % 3]   # and a third of them through their
-        with ThreadPoolExecutor(max_workers=4) as pool:                    # /live page (a feed can lag)
+        listed = list(dict.fromkeys(ev.get("channels", []) + pr.get("always_check", [])
+                                    + [h for _, _, h in roster(ev["key"]) if h]))
+        chans = list(dict.fromkeys(listed + _event_channels(ev["key"], now) + _trusted_slice(pr, ph["n"])))[:160]
+        with ThreadPoolExecutor(max_workers=8) as pool:       # every listed channel's feed, every poll (cheap): the
+            for res in pool.map(lambda h: _safe(feed_live, h), chans):   # listed streamers, every channel that has
+                for s in res or []:                                      # carried this event (a new stream after a
+                    if s["vid"] not in found and relevant(ev, s):        # break is found within a minute) and the
+                        found[s["vid"]] = s                              # trusted ones in turn
+        third = [h for i, h in enumerate(listed) if i % 4 == ph["n"] % 4 and not any(
+            (x.get("channel_id") or "") == h for x in found.values())][:10]   # a few listed ones not found through their
+        with ThreadPoolExecutor(max_workers=4) as pool:                       # /live page (a feed can lag)
             for s in pool.map(check_channel, third):
                 if s and s["vid"] not in found and relevant(ev, s):
                     found[s["vid"]] = s
-        sch = [x for v, x in list((_SCHED.get(ev["key"]) or {}).items()) if v not in found]
+        sch = [x for v, x in list((_SCHED.get(ev["key"]) or {}).items()) if v not in found
+               and (not x.get("start") or now - 5400 < x["start"] < now + 1200)]     # due now (start -90..+20 min)
         if sch and fast_healthy():               # scheduled watch parties: counted from their first live minute
             sch.sort(key=lambda x: x.get("start") or 0)
             with ThreadPoolExecutor(max_workers=8) as pool:
-                for x, n in zip(sch[:150], pool.map(lambda x: _safe(count_live, x["vid"]), sch[:150])):
+                for x, n in zip(sch[:60], pool.map(lambda x: _safe(count_live, x["vid"]), sch[:60])):
                     if n and relevant(ev, x):
                         found[x["vid"]] = {**x, "viewers": int(n)}
                         _ENDED.pop(x["vid"], None)
