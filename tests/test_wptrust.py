@@ -48,3 +48,21 @@ events._HANDLE["@SnaxGaming"] = "UCsnaxhandle"
 wptrust._from_lists()
 assert wptrust.status("UCsnaxhandle") == "trusted" and wptrust.status("UC27pyUnJTUyxe_z_0WxxNXw") == "trusted"   # listed by hand
 print("WP TRUST OK")
+
+# scheduled streams (owner, 26 Nov): found by the plain search before they go live, title-checked, their channel's
+# history read before the start, counted from their first live minute
+now = time.time()
+UP = [{"vid": "s1", "channel": "Mortal", "channel_id": "UCmortal", "title": "PMGC 2026 GAUNTLET DAY 1 WATCH PARTY", "when": "", "live": False, "upcoming": True, "start": int(now + 1800)},
+      {"vid": "s2", "channel": "Rando", "channel_id": "UCrando", "title": "PMGC 2026 Day 1 LIVE", "when": "", "live": False, "upcoming": True, "start": int(now + 1500)},
+      {"vid": "s3", "channel": "Scrim guy", "channel_id": "UCscrim", "title": "PMGC teams scrims live", "when": "", "live": False, "upcoming": True, "start": int(now + 900)},
+      {"vid": "s4", "channel": "Old", "channel_id": "UCold", "title": "PMGC 2026 Grand Finals watch party", "when": "", "live": False, "upcoming": True, "start": int(now + 15 * 86400)},
+      {"vid": "s5", "channel": "Up", "channel_id": "UCup", "title": "PMGC 2025 highlights", "when": "1 year ago", "live": False, "upcoming": False, "start": 0},
+      {"vid": "s6", "channel": "PUBG MOBILE Esports", "channel_id": "UCmeeY9kzNswUpbYyJntb3Aw", "title": "PMGC 2026 Gauntlet Day 1", "when": "", "live": False, "upcoming": True, "start": int(now + 1800)}]
+wptrust._search_past = lambda q, gl, pages=2: UP
+assert events.scheduled_search(events.events()["pmgc"]) == 2
+assert set(events._SCHED["pmgc"]) == {"s1", "s2"}                    # scrims left out, a later stage's stream and uploads skipped, official polled anyway
+assert "scrims" in events._REJ["pmgc"]["s3"]["why"]
+cands = [c for c, _ in wptrust._candidates()]
+assert "UCrando" in cands and "UCmortal" not in cands                # unknown scheduled channels get their history read before the start
+assert events.set_stream("pmgc", "s2", False) and "s2" not in events._SCHED["pmgc"]
+print("SCHEDULED OK")
