@@ -507,7 +507,7 @@ def check_video(vid: str):
     """Direct check of one stream: dict if live now, else None."""
     with _ydl(flat=False) as y:
         i = y.extract_info(f"https://www.youtube.com/watch?v={vid}", download=False)
-    if not i.get("is_live"):
+    if not i.get("is_live") or i.get("live_status") not in (None, "is_live"):
         return None
     return {"vid": vid, "title": i.get("title") or "", "channel": i.get("channel") or i.get("uploader") or "",
             "channel_id": i.get("channel_id") or "", "viewers": int(i.get("concurrent_view_count") or 0)}
@@ -1108,10 +1108,15 @@ def _count_one(vid: str):
         except Exception as e:
             print(f"{platforms.NAMES[p]} count failed for {vid}: {str(e)[:120]}")
             return vid, "err", ""
+    said = False                                # the live counter answered and says not live ("N views")
     try:
         n = count_live(vid)
         if n:                                   # 0 / None: confirm on the watch page (cached 10s, it is slow)
+            if len(_LASTC) > 20000:
+                _LASTC.clear()
+            _LASTC[vid] = (time.time(), n)
             return vid, n, "YouTube live counter"
+        said = n is None
     except Exception:
         pass
     hit = _PAGE.get(vid)
@@ -1120,13 +1125,27 @@ def _count_one(vid: str):
     try:
         s = check_video(vid)
         v = (s["viewers"] or None) if s is not None else None
+        if said and v:
+            # Right after a stream ends the watch page can still say live, with the video's TOTAL views as the count
+            # (PMGC Day 1: Snax 199,552, Cr7 HORAA 14,122 flat for 15 minutes after their streams ended). Once the
+            # counter says "views", the page's number counts only when it is close to the last live count.
+            last = _LASTC.get(vid)
+            if not last or time.time() - last[0] > 600 or v > max(last[1] * 1.3, last[1] + 300):
+                print(f"Ended: {vid} (counter says views; page shows {v}, last live count {last[1] if last else '-'})")
+                v = None
         _PAGE[vid] = (time.time(), v)
         if v is None:
             print(f"Live counter and watch page show no viewers for {vid}")
         return vid, v, "watch page (slower)"
     except Exception as e:
+        if said:                                # the counter says not live and the page can't say otherwise: ended
+            _PAGE[vid] = (time.time(), None)
+            return vid, None, "watch page (slower)"
         print(f"Watch page check failed for {vid}: {str(e)[:120]}")
         return vid, "err", ""
+
+
+_LASTC = {}      # vid -> (time, viewers) of its last live-counter reading
 
 
 _PAGE = {}
@@ -1143,6 +1162,41 @@ def paused(key: str) -> bool:
     """Owner said the broadcast is over (kv event_stop:<key> = epoch): record nothing and show off-air until then,
     even if an official stream is still up (post-show, end screen)."""
     return bool(PRESETS.get(key, {}).get("ended")) or (store.kv_get(f"event_stop:{key}") or 0) > time.time()
+
+
+OVER_PCT = float(os.getenv("EVENT_OVER_PCT", "0.10"))
+OVER_MIN = 20000
+_OFFPK = {}      # event -> [this broadcast's official peak, last time the broadcast was on]
+
+
+def broadcast_over(key: str, official: int, now: float) -> bool:
+    """The main official broadcast has ended: official viewers fell under 10% of this broadcast's official peak (once
+    it passed 20,000). PMGC Day 1: the 136K English stream ended at 22:33 IST, a regional stream with 1,282 viewers
+    kept the day 'on air' until 22:47 and watch parties that had moved on (LoLzZz: scrims) kept being counted.
+    On Day 1 the official never fell under 24% of its peak before the end, so a break never stops the count.
+    The peak comes from the last 3 hours of readings after a restart."""
+    op = _OFFPK.get(key)
+    if op is None:
+        pk = 0
+        try:
+            with store.reading():
+                pk = _db().execute("SELECT MAX(official) FROM ev_ticks WHERE event=? AND ts>?",
+                                   (key, now - 3 * 3600)).fetchone()[0] or 0
+        except Exception:
+            pass
+        op = _OFFPK[key] = [int(pk), now, False]
+    if op[0] < OVER_MIN or official >= op[0] * OVER_PCT:
+        op[0] = max(op[0], int(official))
+        op[1], op[2] = now, False
+        return False
+    op[2] = True
+    return True
+
+
+def is_over(key: str) -> bool:
+    """broadcast_over said so at the last count (the page shows off air, not a regional stream's leftovers)."""
+    op = _OFFPK.get(key)
+    return bool(op and op[2])
 
 
 def fast_tick(ev: dict, now: float = None) -> dict:
@@ -1246,7 +1300,10 @@ def fast_tick(ev: dict, now: float = None) -> dict:
     total = sum(r["viewers"] for r in rows)
     by = {k: sum(r["viewers"] for r in rows if r["kind"] == k) for k in ("official", "watch party", "community")}
     if by["official"] <= 0 and (need_official(ev) or total <= 0):
+        _OFFPK.pop(key, None)            # official off: the next start reads its peak again (a new day starts from 0)
         return {"total": total, "live": len(rows), "official_live": False}   # only record while the official broadcast is live
+    if need_official(ev) and broadcast_over(key, by["official"], now):
+        return {"total": total, "live": len(rows), "official_live": False}   # the main official stream has ended
     hist = _HIST.setdefault(key, {})
     for r in rows:
         if r["viewers"] > 0:
@@ -1988,6 +2045,8 @@ def poll(ev: dict, now: int = None) -> dict:
     total = sum(s["viewers"] for s in streams)
     by = {k: sum(s["viewers"] for s in streams if s["kind"] == k) for k in ("official", "watch party", "community")}
     official_live = (by["official"] > 0 or (not need_official(ev) and total > 0)) and not paused(ev["key"])
+    if official_live and need_official(ev) and broadcast_over(ev["key"], by["official"], now):
+        official_live = False                # the main official stream has ended (a regional one is still on)
     with store._lock:
         c = _db()
         for s in streams:
@@ -2158,7 +2217,7 @@ def stats(key: str, since: float = 0, until: float = None) -> dict:
                                  key=lambda x: -x["viewers"])
     out["official_live"] = (recent and ticks[-1]["official"] > 0) or any(x["kind"] == "official" for x in out["live_now"]) \
         or (not need_official(evx) and bool(out["live_now"]))
-    if paused(key):
+    if paused(key) or (need_official(evx) and is_over(key)):
         out["official_live"] = False
     if not out["official_live"]:
         out["live_now"] = []          # only show streams while the official broadcast is on
