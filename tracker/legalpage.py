@@ -6,7 +6,7 @@ import os
 
 from tracker import eventpage
 
-UPDATED = "30 October 2026"
+UPDATED = "26 November 2026"
 YT_TOS = "https://www.youtube.com/t/terms"
 G_PRIV = "https://policies.google.com/privacy"
 G_SEC = "https://myaccount.google.com/permissions"
@@ -31,6 +31,34 @@ h1{{font-size:30px;margin:8px 0 2px}}h2{{font-size:19px;margin:28px 0 6px}}.up{{
 <body><div class="top"><div class="in"><a class="brand" href="/">{b}</a></div></div><main><h1>{title}</h1><div class="up">Last updated {UPDATED}</div>{body}</main></body></html>"""
 
 
+def _signin() -> bool:
+    from tracker import auth
+    return auth.ENABLED
+
+
+def _signin_part() -> str:
+    if not _signin():
+        return f"""<p>The site does not ask you to sign in with Google or YouTube and never accesses your YouTube account or any private data.
+If you have ever granted access to any app through your Google account, you can review or revoke it on the
+<a href="{G_SEC}">Google security settings page</a>.</p>"""
+    return f"""<h2>Accounts (Sign in with Google)</h2>
+<p>You can create a free account with Sign in with Google to see full rankings, channel history and comparisons. We receive
+only your name, email address and profile picture from Google (the "openid email profile" permissions). We never receive your
+password and never access your YouTube channel, Gmail or any other Google data.</p>
+<ul>
+<li><b>What we keep:</b> your name, email, profile picture link, the country you signed up from (from Cloudflare), when you
+joined and were last seen, and whether you asked for the weekly report.</li>
+<li><b>Why:</b> to sign you in and, only if you ticked the box, to email you the weekly report. Every report has a one-click
+unsubscribe link, and you can switch it off on your account page.</li>
+<li><b>Cookies:</b> a signed sign-in cookie (30 days) and a cookie that tells the page you are signed in. No advertising or
+tracking cookies.</li>
+<li><b>Your choices:</b> download your data or delete your account (and everything we keep about you) at any time on your
+<a href="/account">account page</a>. You can also remove the site's access in your
+<a href="{G_SEC}">Google account settings</a>.</li>
+<li>We never sell or share this information, and we keep it on our own server.</li>
+</ul>"""
+
+
 def privacy_html() -> str:
     site = html.escape(eventpage.SITE_URL)
     return _page("Privacy Policy", f"""
@@ -41,12 +69,10 @@ that shows public statistics about YouTube, Twitch and Kick channels and live st
 subscriber and view counts, video titles, views, likes and comments, and live viewer counts). By using the site you are also
 bound by the <a href="{YT_TOS}">YouTube Terms of Service</a>. Google's handling of data is described in the
 <a href="{G_PRIV}">Google Privacy Policy</a>.</p>
-<p>The site does not ask you to sign in with Google or YouTube and never accesses your YouTube account or any private data.
-If you have ever granted access to any app through your Google account, you can review or revoke it on the
-<a href="{G_SEC}">Google security settings page</a>.</p>
+{_signin_part()}
 <h2>What we collect about visitors</h2>
 <ul>
-<li><b>No accounts and no tracking cookies.</b> You can use the whole site without giving us any personal information.</li>
+<li><b>No tracking cookies.</b> {"You can use the live site without an account; a free account (above) shows more." if _signin() else "You can use the whole site without giving us any personal information."}</li>
 <li><b>Anonymous visit counts.</b> While a page is open it tells our server it is still being viewed, using a random
 number that lives only in that browser tab. With it we count visitors, the country and city they are in (from our hosting
 provider, Cloudflare), the website they came from, the page and the screen size. The IP address of a visit is kept in

@@ -71,7 +71,9 @@ const Q=new URLSearchParams(location.search);let C=(Q.get('c')||'').split(',').f
 // each channel is read once with every range (/api/compare?c=<sid>&ranges=all): switching range, swapping or removing a
 // channel is instant, and adding one reads only that one
 const BL={},MISS=new Set();let META=null,POLL=null;
+let LOCKED=false;
 async function fetchB(sid,fresh){try{const j=await (await fetch('/api/compare?c='+encodeURIComponent(sid)+'&ranges=all'+(fresh?'&t='+Date.now():''))).json();
+ if(j.locked){LOCKED=true;return}
  META=j.ranges;if(j.channels&&j.channels[0])BL[sid]=j.channels[0];else MISS.add(sid)}catch(e){}}
 function view(){if(!META)return null;const m=META[RNG]||META['30d'],lo=new Date(Date.now()-(m.days||730)*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'});
  return {...m,range:RNG,missing:C.filter(s=>MISS.has(s)),channels:C.filter(s=>BL[s]).map(s=>{const b=BL[s],x=b.R[RNG];
@@ -126,6 +128,7 @@ async function load(){history.replaceState(null,'',url());
  const need=C.filter(s=>!BL[s]&&!MISS.has(s));
  if(need.length){J=view();pick();if(!J||!J.channels.length)out.innerHTML='<div class="empty">Loading...</div>';
   await Promise.all(need.map(s=>fetchB(s).then(()=>{J=view();pick();if(J&&J.channels.length)render()})))}
+ if(LOCKED){sh.style.display='none';out.innerHTML=`<div class="card" style="text-align:center;padding:34px 18px"><h2 style="margin:0 0 6px">Compare channels with a free account</h2><div class="sub" style="margin-bottom:16px">Peak, average viewers, hours watched, views and growth side by side, up to 4 channels.</div><a href="/signin?next=${encodeURIComponent(location.pathname+location.search)}" style="display:inline-block;background:#b6f23a;color:#0b0b12;font-weight:700;padding:11px 20px;border-radius:9px;text-decoration:none">Sign in free</a></div>`;return}
  J=view();pick();if(J&&J.channels.length)render();else out.innerHTML='<div class="empty">None of these channels could be loaded.</div>';
  sh.style.display=J&&J.channels.length?'':'none';
  clearTimeout(POLL);const ld=C.filter(s=>BL[s]&&BL[s].loading);           // video history still being read: ask again

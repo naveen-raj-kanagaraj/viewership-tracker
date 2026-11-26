@@ -146,6 +146,7 @@ const av=x=>x.logo||x.sid?`<img src="${esc(x.logo||('/api/logo?sid='+encodeURICo
 const liveMap=()=>({});let OPEN=null;function render(){}
 __PANEL_JS__
 let VR=30,VRANGE='30d',VKIND='all',VMET='views',VSORT='top',VID=null,CDATA=null;
+if(window.LGE_AUTH&&LGE_AUTH.on&&!LGE_AUTH.in){VR=7;VRANGE='7d'}   // visitors: the last 7 days (sign in for more)
 const RANGES=[['7d','7D'],['30d','30D'],['90d','90D'],['6m','6M'],['ytd','YTD'],['1y','1Y'],['all','ALL TIME']];
 const KINDC={uploads:'#a58bff',shorts:'#4cc9f0',live:'#ff4d5e'},kindOf=v=>v.live?'live':v.short?'shorts':'uploads',KINDN={uploads:'Videos',shorts:'Shorts',live:'Live'};
 const engOf=v=>v.likes!=null&&v.views?100*((v.likes||0)+(v.comments||0))/v.views:null;

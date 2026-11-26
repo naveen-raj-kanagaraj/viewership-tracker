@@ -36,6 +36,22 @@ def make() -> str:
         out.close()
         src.close()
     os.replace(tmp, dest)
+    try:                                       # the accounts (Sign in with Google), when there are any
+        from tracker import auth
+        if os.path.exists(auth.DB_PATH):
+            ud = os.path.join(folder(), f"users-{datetime.now().strftime('%Y-%m-%d')}.db")
+            a, b = sqlite3.connect(auth.DB_PATH, timeout=30), sqlite3.connect(ud + ".part")
+            try:
+                a.backup(b)
+            finally:
+                b.close()
+                a.close()
+            os.replace(ud + ".part", ud)
+            os.chmod(ud, 0o600)
+            for old in sorted(glob.glob(os.path.join(folder(), "users-*.db")))[:-max(1, int(os.getenv("BACKUP_KEEP", "3")))]:
+                os.remove(old)
+    except Exception as e:
+        print(f"Accounts backup failed: {str(e)[:120]}")
     keep = max(1, int(os.getenv("BACKUP_KEEP", "3")))
     for old in sorted(glob.glob(os.path.join(folder(), "tracker-*.db")))[:-keep]:
         os.remove(old)
