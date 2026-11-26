@@ -28,9 +28,10 @@ GAME = "pmgc26g"
 NAME = "PMGC 2026 Gauntlet"
 IST = timezone(timedelta(hours=5, minutes=30))
 SET_KEY = "pg_" + GAME
-MIN_CROWD = 20
+MIN_CROWD = 1           # the owner wants the split shown after the lock (percentages only, never how many played)
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOGO_DIR = os.path.join(ROOT, "data", "teamlogos")
+STATIC_LOGOS = os.path.join(ROOT, "static", "pmgclogos")    # the owner's logos (26 Nov, from Liquipedia), 320 px webp
 
 # name shown, slug, Liquipedia page names to try (owner's list from Liquipedia, 26 Nov)
 TEAMS = [
@@ -79,7 +80,9 @@ for _q in QUESTIONS:
         _q["options"] = YN
 
 DEFAULTS = {"lock": datetime(2026, 11, 26, 17, 0, tzinfo=IST).timestamp(), "answers": {}, "show_lb": False,
-            "prize": "Top predictors will be announced after the Gauntlet on 27 Nov.", "logo_urls": {}}
+            "prize": "Top predictors win free UC, cash prizes, gift cards and coupons. Winners are announced after the Gauntlet on 27 Nov.",
+            "logo_urls": {}}
+AUTO_FROM = datetime(2026, 11, 26, 12, 0, tzinfo=IST).timestamp()   # an official PMGC stream after this locks picks
 
 _init = [False]
 _cache = {}
@@ -125,8 +128,37 @@ def save(**kw) -> dict:
     return settings()
 
 
+def official_start():
+    """When the PMGC tracker first saw an official PUBG MOBILE stream of the event (title naming it) on Gauntlet day,
+    or None. Read from the tracker's own records, so it holds across restarts (cached 15 s)."""
+    hit = _cache.get("off")
+    if hit and time.time() - hit[0] < 15:
+        return hit[1]
+    t = None
+    try:
+        from tracker import events
+        with store.reading():
+            r = events._db().execute("SELECT MIN(ts) FROM ev_ticks WHERE event='pmgc' AND official>0 AND ts>=?", (AUTO_FROM,)).fetchone()
+        t = float(r[0]) if r and r[0] else None
+    except Exception:
+        t = None
+    _cache["off"] = (time.time(), t)
+    return t
+
+
 def closed(now: float = None) -> bool:
-    return (now or time.time()) >= float(settings()["lock"])
+    """Picks lock at the set time, or as soon as the official broadcast goes live, whichever is first. The
+    broadcast's start becomes the lock time (kept), so the page and the scoring agree."""
+    now = now or time.time()
+    lock = float(settings()["lock"])
+    if now >= lock:
+        return True
+    t = official_start()
+    if t and t < lock and t <= now:
+        save(lock=t)
+        print(f"PMGC Predict & Win locked: the official stream went live at {fmt_ist(t)}")
+        return True
+    return False
 
 
 def fmt_ist(ts: float) -> str:
@@ -279,16 +311,17 @@ def _board(now: float = None) -> tuple:
     hit = _cache.get("board")
     if hit and now - hit[0] < 5:
         return hit[1], hit[2], hit[3]
+    shut = closed(now)                       # first: it can move the lock to the broadcast's start
     s = settings()
     es = _entries()
     n = len(es)
     cr = _crowd(es)
-    shut = closed(now)
     pct = {}
     if shut and n >= MIN_CROWD:
         for q in QUESTIONS:
             pct[q["id"]] = {k: round(100 * v / n) for k, v in sorted(cr[q["id"]].items(), key=lambda kv: -kv[1])}
         pct["q8_first"] = {k: round(100 * v / n) for k, v in sorted(cr["q8_slots"][0].items(), key=lambda kv: -kv[1])}
+        pct["q8_top3"] = pct.pop("q8")
     lb = []
     if s["show_lb"]:
         rows = []
@@ -414,6 +447,9 @@ _EXT = (".png", ".webp", ".svg", ".jpg", ".jpeg")
 
 
 def logo_file(slug: str):
+    p = os.path.join(STATIC_LOGOS, slug + ".webp")
+    if os.path.isfile(p):
+        return p
     for ext in _EXT:
         p = os.path.join(LOGO_DIR, slug + ext)
         if os.path.isfile(p):
