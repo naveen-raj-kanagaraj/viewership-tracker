@@ -103,20 +103,19 @@ r = cl.get("/pmgc/logo/team-soul")
 assert r.status_code == 200 and r.mimetype == "image/webp"
 assert all(t["logo"] for t in pmgc.teams())
 
-# picks lock by themselves when the official broadcast goes live (the tracker's first official tick)
+# picks lock at the set time only, not when the official stream starts (owner, 26 Nov)
 from tracker import events
 pmgc.save(lock=time.time() + 7200)
 pmgc._cache.clear()
-assert not pmgc.closed()
-t_off = time.time() - 30
 events._db()
 with __import__("tracker").store._lock:
     c_ = __import__("tracker").store.main()
-    c_.execute("INSERT INTO ev_ticks (event, ts, total, live, official, watch, community) VALUES ('pmgc', ?, 90000, 5, 80000, 10000, 0)", (int(t_off),))
+    c_.execute("INSERT INTO ev_ticks (event, ts, total, live, official, watch, community) VALUES ('pmgc', ?, 90000, 5, 80000, 10000, 0)", (int(time.time() - 30),))
     c_.commit()
 pmgc._cache.clear()
-assert pmgc.closed() and abs(pmgc.settings()["lock"] - int(t_off)) < 1          # the lock moved to the broadcast's start
-assert pmgc.state(None)["closed"] and "locked" in err(pmgc.submit, U1, "ann.plays", "Ann", A)
+assert not pmgc.closed()
+pmgc.save(lock=time.time() - 1)
+assert pmgc.closed() and pmgc.state(None)["closed"] and "locked" in err(pmgc.submit, U1, "ann.plays", "Ann", A)
 b = pmgc.board(time.time() + 20)
 assert b["crowd"]["q2"] and all(isinstance(v, int) for v in b["crowd"]["q2"].values())   # percentages, no counts
 assert "n" not in b and "entries" not in b

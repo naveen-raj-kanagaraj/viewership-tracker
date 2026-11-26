@@ -174,18 +174,19 @@ def main() -> sqlite3.Connection:
     with _lock:
         if _conn is None:
             os.makedirs(os.path.dirname(DB_PATH) or ".", exist_ok=True)
-            _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-            _conn.row_factory = sqlite3.Row
-            _conn.execute("PRAGMA journal_mode=WAL")
+            c = sqlite3.connect(DB_PATH, check_same_thread=False)
+            c.row_factory = sqlite3.Row
+            c.execute("PRAGMA journal_mode=WAL")
             # The live counter writes every couple of seconds while the dashboard reads.
             # Wait rather than raising "database is locked".
-            _conn.execute("PRAGMA busy_timeout=5000")
-            _conn.execute("PRAGMA synchronous=NORMAL")
+            c.execute("PRAGMA busy_timeout=5000")
+            c.execute("PRAGMA synchronous=NORMAL")
             # Checkpoints run in their own thread (checkpointer), not inside commits made under the write lock: on
             # 19 Nov the WAL had grown to 5 GB (bigger than the 4 GB database) and commits stalled 40 s copying it.
-            _conn.execute("PRAGMA wal_autocheckpoint=0")
-            _conn.execute("PRAGMA journal_size_limit=268435456")
-            _init(_conn)
+            c.execute("PRAGMA wal_autocheckpoint=0")
+            c.execute("PRAGMA journal_size_limit=268435456")
+            _init(c)
+            _conn = c       # only once the tables exist: a reader that sees _conn set reads them straight away
         return _conn
 
 
