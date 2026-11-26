@@ -19,6 +19,7 @@ PANEL_CSS = r""".row.x{cursor:pointer}.row.x.open{background:#171722;border-bott
 .cxt{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}.cxt th{font:500 11px "Barlow Condensed",sans-serif;color:var(--muted);letter-spacing:.05em;text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)}
 .cxt th:first-child,.cxt td:first-child{text-align:left;padding-left:0;color:var(--muted)}.cxt td{text-align:right;padding:5px 6px;font:600 15px "Barlow Condensed",sans-serif;border-bottom:1px solid #1c1c29}
 .cxt td:first-child{font:400 13px "Barlow",sans-serif}.cxt tr td:nth-child(2){color:var(--lime)}
+.cxt td.cxlk{text-align:center;vertical-align:middle;padding:8px 6px;border-bottom:0;width:34%}.cxlk a{display:flex;flex-direction:column;align-items:center;gap:6px;justify-content:center;height:100%;min-height:110px;border:1px dashed #3a3a4c;border-radius:10px;background:#12121b;color:var(--lime);text-decoration:none;font:600 13px/1.3 "Barlow",sans-serif;padding:10px 8px}.cxlk a:hover{border-color:var(--lime)}.cxlk span{color:#e6e6ef}
 .cxg{margin-top:8px;color:var(--muted);font-size:12px}.cxg b{color:var(--ink);font-weight:500}
 .cxs{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:10px}.cxs div{background:var(--card);padding:7px 9px;font-size:11px;color:var(--muted)}.cxs b{display:block;font:600 17px "Barlow Condensed",sans-serif;color:var(--ink)}
 @media(max-width:600px){.cxs{grid-template-columns:repeat(3,1fr)}}
@@ -34,26 +35,26 @@ function rowX(list,x,inner){const k=list+':'+x.sid,o=OPEN===k;return `<div class
 function toggleRow(k){OPEN=OPEN===k?null:k;render();if(!OPEN)return;const sid=k.slice(2);if(CH[sid]&&Date.now()-CHT[sid]<30000)return;
  fetch('/api/channel?sid='+encodeURIComponent(sid)).then(r=>r.json()).then(j=>{CH[sid]=j;CHT[sid]=Date.now();render()}).catch(()=>{})}
 const dshort=d=>new Date(d+'T12:00:00+05:30').toLocaleDateString('en-IN',{day:'numeric',month:'short'});
-function barsSVG(days){const t=new Date(),M={};days.forEach(d=>M[d.day]=d);const L=[];for(let i=29;i>=0;i--){const d=new Date(t.getTime()-i*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'});L.push(M[d]||{day:d,peak:0})}
- const mx=Math.max(1,...L.map(d=>d.peak));return `<svg viewBox="0 0 300 80" preserveAspectRatio="none">${L.map((d,i)=>`<rect x="${i*10+1}" y="${80-76*d.peak/mx}" width="8" height="${76*d.peak/mx}" fill="${d.peak===mx?'#b6f23a':'#7a5cff'}"><title>${dshort(d.day)}: peak ${full(d.peak)}</title></rect>`).join('')}</svg>`}
+function barsSVG(days,n){const t=new Date(),M={};days.forEach(d=>M[d.day]=d);const L=[];for(let i=(n||30)-1;i>=0;i--){const d=new Date(t.getTime()-i*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'});L.push(M[d]||{day:d,peak:0})}
+ const mx=Math.max(1,...L.map(d=>d.peak));const W=10*L.length;return `<svg viewBox="0 0 ${W} 80" preserveAspectRatio="none">${L.map((d,i)=>`<rect x="${i*10+1}" y="${80-76*d.peak/mx}" width="8" height="${76*d.peak/mx}" fill="${d.peak===mx?'#b6f23a':'#7a5cff'}"><title>${dshort(d.day)}: peak ${full(d.peak)}</title></rect>`).join('')}</svg>`}
 function lineSVG(S){if(!S||S.length<2)return '<svg viewBox="0 0 300 80"></svg>';const t0=S[0][0],t1=S[S.length-1][0],mx=Math.max(1,...S.map(p=>p[1]));
  const pts=S.map(p=>`${(300*(p[0]-t0)/((t1-t0)||1)).toFixed(1)},${(78-74*p[1]/mx).toFixed(1)}`).join(' ');
  return `<svg viewBox="0 0 300 80" preserveAspectRatio="none"><polygon points="0,80 ${pts} 300,80" fill="rgba(182,242,58,.15)"/><polyline points="${pts}" fill="none" stroke="#b6f23a" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`}
 function panel(sid){const c=CH[sid];if(!c)return '<div class="cx"><span class="muted">Loading channel analytics...</span></div>';if(!c.sid)return '<div class="cx"><span class="muted">No history for this channel yet.</span></div>';
- const P=c.periods,cols=[['today','TODAY'],['7d','7 DAYS'],['30d','30 DAYS'],['all','ALL TIME']],now=liveMap()[sid]||c.now,best=(c.days||[]).reduce((a,d)=>d.peak>(a?a.peak:0)?d:a,null);
+ const P=c.periods,LK=!P['30d'],cols=[['today','TODAY'],['7d','7 DAYS'],['30d','30 DAYS'],['all','ALL TIME']].filter(k=>P[k[0]]),now=liveMap()[sid]||c.now,best=(c.days||[]).reduce((a,d)=>d.peak>(a?a.peak:0)?d:a,null),G30=(P['30d']||P['7d']||{games:[]}).games||[];
  const R=[['Peak viewers','peak',fmt],['Average viewers','avg',fmt],['Hours watched','hw',v=>fmt(v)+'h'],['Hours streamed','hours',v=>v+'h'],['Days live','days',v=>v]];
- if(c.superchats){cols.forEach(k=>{P[k[0]].sc=c.superchats[k[0]][MONEY];P[k[0]].scn=c.superchats[k[0]].count;P[k[0]].mem=c.superchats[k[0]].members});
+ if(c.superchats&&!LK){cols.forEach(k=>{P[k[0]].sc=c.superchats[k[0]][MONEY];P[k[0]].scn=c.superchats[k[0]].count;P[k[0]].mem=c.superchats[k[0]].members});
   R.push(['Super Chats','sc',money],['Paid messages','scn',v=>full(v)],['Memberships','mem',v=>full(v)])}
  const S=c.stats,g=(o,k)=>o&&o[k]!=null?(o[k]>=0?'+':'')+fmt(o[k]):'-';
  return `<div class="cx"><div class="cxh"><div style="min-width:0"><div class="ds">${now?`<span class="lv">LIVE</span>${full(now)} watching now`:c.last_live?'Last live '+ago(c.last_live):''}${c.country?' · '+esc(c.country):''}${c.first_seen?' · tracked since '+ist(c.first_seen,{day:'numeric',month:'short'}):''}</div></div><span style="display:flex;gap:6px"><a class="btn" style="text-decoration:none" href="${RP}/ch/${encodeURIComponent(sid)}">FULL STATS</a><button class="btn" data-ch="${esc(sid)}">SHARE</button><a class="btn" style="text-decoration:none;text-align:center" href="${esc(c.url)}" target="_blank" rel="noopener">${now?'WATCH':'OPEN'} ON ${(NAMES[c.platform]||'').toUpperCase()}</a></span></div>
  ${now&&c.title?`<div class="cxtt">${esc(c.title)}</div>`:''}
- <table class="cxt"><thead><tr><th></th>${cols.map(k=>`<th>${k[1]}</th>`).join('')}</tr></thead><tbody>${R.map(r=>`<tr><td>${r[0]}</td>${cols.map(k=>`<td>${r[2](P[k[0]][r[1]])}</td>`).join('')}</tr>`).join('')}</tbody></table>
- ${P['30d'].games.length?`<div class="cxg">Streams: <b>${P['30d'].games.map(esc).join(', ')}</b> (last 30 days)</div>`:''}
+ <table class="cxt"><thead><tr><th></th>${cols.map(k=>`<th>${k[1]}</th>`).join('')}${LK?'<th>30 DAYS · ALL TIME</th>':''}</tr></thead><tbody>${R.map((r,i)=>`<tr><td>${r[0]}</td>${cols.map(k=>`<td>${r[2](P[k[0]][r[1]])}</td>`).join('')}${LK&&!i?`<td rowspan="${R.length}" class="cxlk"><a href="/signin?next=${encodeURIComponent(location.pathname+location.search)}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Sign in free to see 30 days and all time</span></a></td>`:''}</tr>`).join('')}</tbody></table>
+ ${G30.length?`<div class="cxg">Streams: <b>${G30.map(esc).join(', ')}</b> (last ${LK?7:30} days)</div>`:''}
  ${c.platform==='youtube'&&!c.superchats?`<div class="cxg">Super Chats: ${c.sc_status==='reading'?'reading this stream\'s chat now; none paid yet.':'none recorded. Chat is read while a stream is among the 50 biggest YouTube streams live.'}</div>`:''}
  ${c.superchats&&c.sc_status==='reading'?'<div class="cxg"><span class="lv">LIVE</span>Reading this stream\'s Super Chats now.</div>':''}
  ${S?`<div class="cxs"><div><b>${S.subs!=null?fmt(S.subs):'hidden'}</b>subscribers</div><div><b>${fmt(S.views)}</b>total views</div><div><b>${full(S.videos||0)}</b>videos</div><div><b>${g(S.gain_1d,'views')}</b>views, last day</div><div><b>${g(S.gain_7d,'views')}</b>views, 7 days</div><div><b>${g(S.gain_7d,'subs')}</b>subs, 7 days</div></div>`:''}
  ${(c.top_superchats||[]).length?`<div class="lbl" style="margin-top:12px">Biggest Super Chats, 30 days</div><div class="cxd">${c.top_superchats.map(t=>`<div><span>${ist(t.ts,{day:'numeric',month:'short'})}</span><span>${esc(t.author)}${t.text?' · '+esc(t.text):''}</span><span><b>${esc(t.currency)} ${full(t.amount)}</b></span><span>${money(t[MONEY])}</span></div>`).join('')}</div>`:''}
- <div class="cxc"><div><div class="lbl">Peak viewers per day, 30 days</div>${barsSVG(c.days||[])}<div class="cap">${best?`Best day ${dshort(best.day)}: ${full(best.peak)} at once`:'No days recorded yet'}</div></div>
+ <div class="cxc"><div><div class="lbl">Peak viewers per day, ${LK?7:30} days</div>${barsSVG(c.days||[],LK?8:30)}<div class="cap">${best?`Best day ${dshort(best.day)}: ${full(best.peak)} at once`:'No days recorded yet'}</div></div>
   <div><div class="lbl">Viewers, last 3 days</div>${lineSVG(c.recent)}<div class="cap">${(c.recent||[]).length>1?ist(c.recent[0][0],{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})+' to now':'Not enough readings yet'}</div></div></div>
  <div class="lbl" style="margin-top:12px">Recent days live</div><div class="cxd">${(c.days||[]).slice(-7).reverse().map(d=>`<div><span>${dshort(d.day)}</span><span>${esc(d.game)}</span><span>peak <b>${fmt(d.peak)}</b></span><span>avg ${fmt(d.avg)}</span><span>${d.hours}h live</span></div>`).join('')||'<span class="muted">Nothing recorded yet.</span>'}</div></div>`}
 """
@@ -658,12 +659,13 @@ async function statCard(o){const c=document.createElement('canvas');c.width=2160
 async function card(type){let c,x,text;const sc=SCOPE(),K=D.kpis||{};
  if(type==='chan'){const ch=CH[SHARESID];if(!ch)return card('board');const P=ch.periods,bi=(D.board||[]).findIndex(b=>b.sid===SHARESID),rk=bi>=0?bi+1:null,now=liveMap()[SHARESID]||ch.now,S=ch.stats;
   const best=(ch.days||[]).slice().sort((a,b)=>b.peak-a.peak).slice(0,3),bm=Math.max(1,...best.map(d=>d.peak));
+  const pk=P['30d']?'30d':'7d',PK=P[pk]||{},nd=pk==='30d'?30:7;
   [c,x]=await statCard({title:ch.name,logo:ch.logo,sub:[(NAMES[ch.platform]||''),ch.country,S&&S.subs!=null?fmt(S.subs)+' subscribers':''].filter(Boolean).join(' · '),
-   pill:['CHANNEL STATS','LAST 30 DAYS'],peak:P['30d'].peak,peakSub:now?`LIVE NOW · ${full(now)} WATCHING`:rk?`#${rk} ${PERB[per].toUpperCase()} ${WHERE.toUpperCase()}`:'',
-   rows:[['avg','AVERAGE VIEWERS',full(P['30d'].avg)],['hw','HOURS WATCHED',full(P['30d'].hw)],['air','AIR TIME',hmTxt(P['30d'].hours)]],
+   pill:['CHANNEL STATS','LAST '+nd+' DAYS'],peak:PK.peak,peakSub:now?`LIVE NOW · ${full(now)} WATCHING`:rk?`#${rk} ${PERB[per].toUpperCase()} ${WHERE.toUpperCase()}`:'',
+   rows:[['avg','AVERAGE VIEWERS',full(PK.avg)],['hw','HOURS WATCHED',full(PK.hw)],['air','AIR TIME',hmTxt(PK.hours)]],
    a:{label:'BEST DAYS BY PEAK VIEWERS',rows:best.map(d=>({name:dshort(d.day),sub:d.game+(d.hours?' · '+hmTxt(d.hours)+' live':''),value:full(d.peak),frac:d.peak/bm,badge:'DAY'}))},
-   b:{label:'AT A GLANCE',rows:[{big:fmt(P.today.peak),sub:'PEAK TODAY'},{big:fmt(P['7d'].avg),sub:'AVG VIEWERS, 7 DAYS'},{big:fmt(P.all.peak),sub:'ALL-TIME PEAK'}]}});
-  text=`${ch.name}${rk?` is #${rk} ${WHERE} ${PERB[per]}`:''}: peak ${fmt(P['30d'].peak)} in the last 30 days, ${fmt(P['30d'].hw)} hours watched, ${hmTxt(P['30d'].hours)} live.`;return [c,text]}
+   b:{label:'AT A GLANCE',rows:[{big:fmt(P.today.peak),sub:'PEAK TODAY'},{big:fmt(P['7d'].avg),sub:'AVG VIEWERS, 7 DAYS'},P.all?{big:fmt(P.all.peak),sub:'ALL-TIME PEAK'}:{big:fmt(P['7d'].hw),sub:'HOURS WATCHED, 7 DAYS'}]}});
+  text=`${ch.name}${rk?` is #${rk} ${WHERE} ${PERB[per]}`:''}: peak ${fmt(PK.peak)} in the last ${nd} days, ${fmt(PK.hw)} hours watched, ${hmTxt(PK.hours)} live.`;return [c,text]}
  if(type==='now'){const B=(D.board||[]).slice(),esp=SEC==='esports'||!B.length;
   const A=esp?(D.tournaments||[]).slice(0,3).map(t=>({name:t.name,sub:t.game+' · '+t.streams+' streams',value:full(t.viewers),logo:t.art,frac:0})):B.sort((a,b)=>b.peak-a.peak).slice(0,3).map(b=>({name:b.name,sub:b.game+' · '+(NAMES[b.platform]||''),value:full(b.peak),logo:b.logo,platform:b.platform}));
   const am=Math.max(1,...A.map(r=>+String(r.value).replace(/\D/g,'')));A.forEach(r=>r.frac=+String(r.value).replace(/\D/g,'')/am);
