@@ -15,8 +15,9 @@ How it works
     adds auth=1 to the locked APIs when signed in; that answer is never cached (no-store). Without auth=1 (or
     without a valid session) the API gives the visitor version, which caches as before. The locks are on the
     server, so the data can't be pulled around them.
-  - Weekly report consent is a box people tick (never pre-ticked: India's DPDP Act); every email will carry a
-    one-click unsubscribe link (signed, no login needed). People can download or delete their data at /account.
+  - The weekly email: the sign-in screen and the popup say every account gets it; every email carries a one-click
+    unsubscribe link (signed, no login needed), and /account switches it off. A returning person who unsubscribed
+    stays unsubscribed. People can download or delete their data at /account.
 """
 import base64
 import hashlib
@@ -205,10 +206,10 @@ def signin_page():
     body = f"""<div class="box"><h1>Sign in, it's free</h1><p>See everything on the site:</p>
 <ul><li>Full rankings: top 100 and beyond, every platform, game and country</li><li>Every channel's full history: 30 days, all-time peaks, past streams</li>
 <li>Compare up to 4 channels side by side</li></ul>{f'<div class="err">{err}</div>' if err else ''}
-<form method="get" action="/auth/google"><input type="hidden" name="next" value="{html.escape(nxt)}">
-<label><input type="checkbox" name="weekly" value="1"> <span>Email me the weekly report: the week's biggest streams, rising creators and tournaments. Unsubscribe in one click.</span></label>
+<form method="get" action="/auth/google" style="margin-top:6px"><input type="hidden" name="next" value="{html.escape(nxt)}">
 <button class="g" type="submit">{G_LOGO} Continue with Google</button></form>
-<p class="small" style="margin-top:16px">We get your name, email and profile picture from Google, nothing else (no passwords, no access to your YouTube or Gmail). See the <a href="/privacy">Privacy Policy</a>; you can download or delete your data any time.</p></div>"""
+<p class="small" style="margin-top:14px;color:#d8d7e4">Every week we'll email you the top stats: the biggest streams, rising creators and tournaments. Unsubscribe any time in one click.</p>
+<p class="small" style="margin-top:10px">We get your name, email and profile picture from Google, nothing else (no passwords, no access to your YouTube or Gmail). See the <a href="/privacy">Privacy Policy</a>; you can download or delete your data any time.</p></div>"""
     return Response(_page("Sign in", body), mimetype="text/html")
 
 
@@ -221,7 +222,8 @@ def start():
         return redirect("/")
     st, nonce, ver = secrets.token_urlsafe(24), secrets.token_urlsafe(24), secrets.token_urlsafe(48)
     session["oauth"] = {"state": st, "nonce": nonce, "ver": ver, "next": _safe_next(request.args.get("next")),
-                        "weekly": request.args.get("weekly") == "1", "ts": int(time.time())}
+                        "weekly": True, "ts": int(time.time())}   # new accounts get the weekly email (said on the
+                                                                           # sign-in screen; unsubscribe any time)
     q = {"client_id": CLIENT_ID, "redirect_uri": REDIRECT, "response_type": "code", "scope": "openid email profile",
          "state": st, "nonce": nonce, "prompt": "select_account",
          "code_challenge": _b64(hashlib.sha256(ver.encode()).digest()), "code_challenge_method": "S256"}
@@ -268,8 +270,6 @@ def callback():
             db.execute("UPDATE users SET email=?, name=?, picture=?, last_seen=? WHERE id=?",
                        (c["email"].lower(), c.get("name", "")[:120], c.get("picture", "")[:500], now, row["id"]))
             uid, ver = row["id"], row["sess"]
-            if o.get("weekly") and not row["weekly"]:
-                db.execute("UPDATE users SET weekly=1, weekly_ts=? WHERE id=?", (now, uid))
         else:
             cur = db.execute("INSERT INTO users (sub, email, name, picture, created, last_seen, weekly, weekly_ts, region, sess) "
                              "VALUES (?,?,?,?,?,?,?,?,?,1)",
@@ -457,7 +457,18 @@ function btn(){var top=document.querySelector('.top .in')||document.querySelecto
  if(IN){a.href='/account';a.title='Your account';a.textContent='Account';fetch('/auth/me').then(function(r){return r.json()}).then(function(j){if(!j.signed_in){document.cookie='lge_in=; Max-Age=0; path=/';a.href='/signin?next='+nx();a.textContent='Sign in';return}
   if(j.picture){a.textContent='';var i=document.createElement('img');i.src=j.picture;i.alt='';i.referrerPolicy='no-referrer';a.appendChild(i)}}).catch(function(){})}
  else{a.href='/signin?next='+nx();a.setAttribute('aria-label','Sign in');a.innerHTML='<span class="t">Sign in</span><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>'}top.appendChild(a)}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',btn);else btn()})()</script>
+function pop(){if(IN)return;var p=location.pathname.replace(/^\\/(global|india)(?=\\/|$)/,'')||'/';
+ if(/^\\/(signin|account|admin|auth|privacy|terms|embed|badge)/.test(p))return;try{if(sessionStorage.getItem('lgepop'))return}catch(e){}
+ var n=nx(),m=document.createElement('div');m.id='lgepop';m.setAttribute('role','dialog');m.setAttribute('aria-modal','true');m.setAttribute('aria-label','Sign in');
+ m.innerHTML='<div class="bx"><button class="x" aria-label="Close">&times;</button><div class="h">Sign in to see the full stats</div>'
+ +'<ul><li>Full rankings: top 100 and beyond, every platform and game</li><li>Every channel\\'s full history and past streams</li><li>Compare channels side by side</li><li>The week\\'s top stats in your inbox</li></ul>'
+ +'<a class="g" href="/auth/google?next='+n+'">'+%s+' Continue with Google</a><button class="later">Maybe later</button>'
+ +'<div class="s">Free. We\\'ll email you the top stats every week; unsubscribe any time. <a href="/privacy">Privacy</a></div></div>';
+ var close=function(){m.remove();try{sessionStorage.setItem('lgepop','1')}catch(e){}};
+ m.querySelector('.x').onclick=close;m.querySelector('.later').onclick=close;m.addEventListener('click',function(e){if(e.target===m)close()});
+ document.addEventListener('keydown',function k(e){if(e.key==='Escape'){close();document.removeEventListener('keydown',k)}});document.body.appendChild(m)}
+function go(){var fr=false;try{fr=window.top!==window.self}catch(e){fr=true}if(fr)return;btn();pop()}   // not inside the map frame
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go()})()</script>
 <style>#lgeacct{margin-left:auto;flex:none;align-self:center;background:#b6f23a;color:#0b0b12!important;font:700 13px Figtree,system-ui,sans-serif;padding:7px 13px;border-radius:8px;text-decoration:none;white-space:nowrap}
 #lgeacct.nx{margin-left:8px}#lgeacct img{width:26px;height:26px;border-radius:50%%;display:block}
 #lgeacct .i{display:none}
@@ -466,4 +477,13 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 @media(max-width:420px){.top .in .brand{font-size:15px!important;letter-spacing:.02em!important;white-space:nowrap}}#lgeacct:has(img){background:none;padding:0}
 #lgelock{position:fixed;left:50%%;transform:translateX(-50%%);bottom:16px;z-index:90;display:flex;gap:12px;align-items:center;background:#14141c;border:1px solid #2a2a38;border-radius:12px;padding:10px 12px 10px 16px;box-shadow:0 10px 30px rgba(0,0,0,.5);color:#e6e6ef;font:14px/1.4 Figtree,system-ui,sans-serif;max-width:calc(100vw - 24px);box-sizing:border-box}
 #lgelock a{background:#b6f23a;color:#0b0b12;font-weight:700;padding:8px 14px;border-radius:8px;text-decoration:none;white-space:nowrap}#lgelock button{background:none;border:0;color:#8d8ca3;font-size:20px;cursor:pointer;padding:0 4px}
-@media(max-width:600px){#lgelock{font-size:13px;bottom:10px;width:calc(100vw - 20px)}}</style>""" % json.dumps(list(LOCKED_API))
+@media(max-width:600px){#lgelock{font-size:13px;bottom:10px;width:calc(100vw - 20px)}}
+#lgepop{position:fixed;inset:0;z-index:100;background:rgba(4,4,8,.72);display:flex;align-items:center;justify-content:center;padding:16px;animation:lgef .18s ease-out}
+#lgepop .bx{position:relative;background:#0f0f16;border:1px solid #2a2a38;border-radius:16px;padding:26px 24px 20px;max-width:420px;width:100%%;color:#ececf3;font:15px/1.5 Figtree,system-ui,sans-serif;box-shadow:0 24px 60px rgba(0,0,0,.6)}
+#lgepop .h{font-size:22px;font-weight:800;line-height:1.25;margin:0 28px 10px 0}#lgepop ul{margin:0 0 16px;padding-left:20px;color:#c9c8d6}#lgepop li{margin:4px 0}
+#lgepop .g{display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;color:#1f1f1f;border-radius:10px;padding:12px;font-weight:700;text-decoration:none}
+#lgepop .later{display:block;width:100%%;background:none;border:0;color:#8d8ca3;font:600 14px Figtree,system-ui,sans-serif;padding:12px 0 4px;cursor:pointer}
+#lgepop .x{position:absolute;top:10px;right:12px;background:none;border:0;color:#8d8ca3;font-size:24px;cursor:pointer;line-height:1}
+#lgepop .s{font-size:12px;color:#8d8ca3;text-align:center;margin-top:8px}#lgepop .s a{color:#b6f23a}
+@keyframes lgef{from{opacity:0}to{opacity:1}}
+@media(max-width:600px){#lgepop{align-items:flex-end;padding:0}#lgepop .bx{border-radius:16px 16px 0 0;max-width:none;padding:22px 18px 16px}#lgepop .h{font-size:20px}#lgepop ul{font-size:14px}}</style>""" % (json.dumps(list(LOCKED_API)), json.dumps(G_LOGO))

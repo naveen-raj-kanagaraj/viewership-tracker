@@ -23,7 +23,7 @@ assert c.get("/api/compare?c=yt:UCaaaaaaaaaaaaaaaaaaaaaa").get_json()["locked"][
 assert c.get("/auth/me").get_json() == {"enabled": True, "signed_in": False}
 
 # sign in: redirect to Google with state, nonce and PKCE
-r = c.get("/auth/google?next=/global/rankings&weekly=1")
+r = c.get("/auth/google?next=/global/rankings")
 assert r.status_code == 302 and r.location.startswith(auth.AUTH_URL)
 q = {k: v[0] for k, v in parse_qs(urlparse(r.location).query).items()}
 assert q["client_id"] == auth.CLIENT_ID and q["redirect_uri"] == "https://live.example.test/auth/google/callback"
@@ -48,11 +48,11 @@ requests.post = post
 TOK = tok(aud="someone-else")                                               # token for another app: refused
 r = c.get(f"/auth/google/callback?state={q['state']}&code=abc")
 assert "e=failed" in r.location and c.get("/auth/me").get_json()["signed_in"] is False
-r = c.get("/auth/google?next=/global/rankings&weekly=1")
+r = c.get("/auth/google?next=/global/rankings")
 q = {k: v[0] for k, v in parse_qs(urlparse(r.location).query).items()}
 TOK = tok()
 assert "e=failed" in c.get("/auth/google/callback?state=wrong&code=abc").location   # forged state
-r = c.get("/auth/google?next=/global/rankings&weekly=1")
+r = c.get("/auth/google?next=/global/rankings")
 q = {k: v[0] for k, v in parse_qs(urlparse(r.location).query).items()}
 TOK = tok()
 r = c.get(f"/auth/google/callback?state={q['state']}&code=abc")
@@ -99,6 +99,15 @@ uid = auth.weekly_list()[0][0]
 assert c.get(f"/auth/unsub?u={uid}&t=bad").status_code == 400
 assert c.get(f"/auth/unsub?u={uid}&t={auth.unsub_token(uid)}").status_code == 200 and auth.weekly_list() == []
 assert json.loads(c.get("/auth/export").data)["email"] == "fan@example.com"
+# signing in again after unsubscribing keeps you unsubscribed
+r = c.get("/auth/google?next=/")
+q = {k: v[0] for k, v in parse_qs(urlparse(r.location).query).items()}
+TOK = tok()
+c.get(f"/auth/google/callback?state={q['state']}&code=abc")
+assert c.get("/auth/me").get_json()["weekly"] is False
+# the visitor popup is in every page's script, with Google straight from it
+js = auth.page_js()
+assert "lgepop" in js and "/auth/google?next=" in js and "sessionStorage" in js
 c.post("/auth/delete")
 assert c.get("/auth/me").get_json()["signed_in"] is False
 assert len(c.get("/api/topch?platform=youtube&metric=size&auth=1").get_json()["rows"]) == 25
