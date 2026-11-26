@@ -97,6 +97,13 @@ class GameError(Exception):
 
 def _db():
     if not _init[0]:
+        try:                                      # made already: no need to wait for the write lock (a 25 s scan
+            with store.reading():                  # write after a restart made the first page load take 14 s)
+                if store.conn().execute("SELECT 1 FROM sqlite_master WHERE name='pg_entries'").fetchone():
+                    _init[0] = True
+                    return store.conn()
+        except Exception:
+            pass
         c = store.main()
         with store._lock:
             c.executescript("""

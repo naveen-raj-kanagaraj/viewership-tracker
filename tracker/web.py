@@ -34,11 +34,12 @@ def _gate(key, ttl, build, trim, mimetype="application/json"):
     if _auth.full():
         return _memo(key, ttl, _jdump(build), mimetype)
 
-    def vis():                             # from the full answer when it's fresh (warm-ups build that one): one build
+    def vis():                             # trimmed from the full answer: one build serves both (single-flight in _memo)
+        _memo(key, ttl, _jdump(build), mimetype)
         hit = _MEMO.get(key)
-        if hit and time.time() - hit[0] < ttl:
+        if hit:
             try:
-                return trim(json.loads(hit[1]))
+                return trim(json.loads(gzip.decompress(hit[1]) if hit[1][:2] == b"\x1f\x8b" else hit[1]))
             except Exception:
                 pass
         return trim(build())
@@ -125,9 +126,10 @@ def _headers(resp):
         secs = None                       # POSTs, signed-in (auth=1), personal and error responses are never cached
     if request.path.startswith(("/elogo/", "/tlogo/", "/pimg/", "/tmark/", "/gameart/", "/pmgc/logo/")):
         return resp
-    resp.headers["Cache-Control"] = f"public, max-age={secs}, s-maxage={secs}" if secs else "no-store"
+    swr = min(600, max(30, secs * 10)) if secs else 0      # an expired copy is shown at once while a fresh one loads
+    resp.headers["Cache-Control"] = f"public, max-age={secs}, s-maxage={secs}, stale-while-revalidate={swr}" if secs else "no-store"
     if secs:   # Cloudflare's Browser Cache TTL can override max-age; this one it passes through for its own cache
-        resp.headers["CDN-Cache-Control"] = f"max-age={secs}"
+        resp.headers["CDN-Cache-Control"] = f"max-age={secs}, stale-while-revalidate={swr}"
     resp.headers["Referrer-Policy"] = "no-referrer"
     resp.headers["Access-Control-Allow-Origin"] = "*"
     if (resp.status_code == 200 and not resp.direct_passthrough and "Content-Encoding" not in resp.headers and "gzip" in request.headers.get("Accept-Encoding", "")
@@ -1059,15 +1061,15 @@ def api_videos():
     from tracker import ytextra
     sid = (request.args.get("sid") or "")[:60]
     rng = request.args.get("range", "30d") if request.args.get("range") in ytextra.RANGES else "30d"
-    vis_lock = not _auth.full() and rng not in _auth.FREE_RANGES
-    if vis_lock:
-        rng = "7d"                                # visitors: the last 7 days (the answer says so)
+    vis_lock = not _auth.full()
+    if vis_lock and rng not in _auth.FREE_RANGES:
+        rng = "7d"                                # visitors: their last 3 videos / streams (the answer says so)
     kind = request.args.get("kind", "all") if request.args.get("kind") in ("all", "uploads", "shorts", "live") else "all"
     if not __import__("re").fullmatch(r"(yt:UC[\w-]{22}|(twitch|kick):[a-z0-9_-]{2,40})", sid):
         return Response("{}", status=404, mimetype="application/json")
     key = f"/api/videos:{sid}:{rng}:{kind}" + (":visitor" if vis_lock else "")
-    r = _memo(key, 8, _jdump(lambda: {**ytextra.videos_summary(sid, rng, kind),
-                                      **({"locked": _auth.lock_info("history", _auth.FREE_DAYS)} if vis_lock else {})}), "application/json")
+    r = _memo(key, 8, _jdump(lambda: _auth.trim_videos(ytextra.videos_summary(sid, rng, kind)) if vis_lock
+                             else ytextra.videos_summary(sid, rng, kind)), "application/json")
     body = (_MEMO.get(key) or (0, b""))[1]
     if b'"loading":true' in body or b'"oldest":null' in body:
         r.headers["X-Short-Cache"] = "1"        # still reading the channel: don't let the CDN keep this copy

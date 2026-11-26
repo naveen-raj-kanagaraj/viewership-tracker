@@ -143,7 +143,17 @@ def trim_rows(d: dict, what: str = "rows") -> dict:
     n = len(d["rows"])
     if n <= FREE_ROWS:
         return d
-    return {**d, "rows": d["rows"][:FREE_ROWS], "locked": lock_info(what, FREE_ROWS, d.get("total") or n)}
+    small = {k: [] for k in ("games",) if k in d}             # the filter lists visitors can't use (most of the bytes)
+    return {**d, **small, "rows": d["rows"][:FREE_ROWS], "locked": lock_info(what, FREE_ROWS, d.get("total") or n)}
+
+
+def trim_videos(d: dict) -> dict:
+    """A channel's videos / past streams for visitors: the newest FREE_STREAMS, no history chart."""
+    if not isinstance(d, dict):
+        return d
+    vids = d.get("videos") if isinstance(d.get("videos"), list) else []
+    return {**d, "videos": sorted(vids, key=lambda v: -(v.get("ts") or 0))[:FREE_STREAMS], "series": [],
+            "locked": lock_info("history", FREE_STREAMS)}
 
 
 def trim_channel(d: dict) -> dict:
@@ -173,8 +183,10 @@ def trim_past(d: dict) -> dict:
 
 
 def default_ranking(platform: str, metric: str, country: str, category: str, game: str) -> bool:
-    """The one rankings view visitors get: every platform, peak live viewers over 7 days, worldwide or India."""
-    return platform == "all" and metric == "peak_7d" and country in ("", "IN") and not category and not game
+    """The rankings visitors get: every platform over 7 days, worldwide or India, by peak, average or hours watched
+    (owner, 26 Nov: let them switch the measure); other platforms, periods, games and countries need sign-in."""
+    return (platform == "all" and metric in ("peak_7d", "avg_7d", "live_7d") and country in ("", "IN")
+            and not category and not game)
 
 
 # ---- pages and endpoints ---------------------------------------------------------------------------------------
@@ -216,7 +228,6 @@ def signin_page():
 <li>Compare up to 4 channels side by side</li></ul>{f'<div class="err">{err}</div>' if err else ''}
 <form method="get" action="/auth/google" style="margin-top:6px"><input type="hidden" name="next" value="{html.escape(nxt)}">
 <button class="g" type="submit">{G_LOGO} Continue with Google</button></form>
-<p class="small" style="margin-top:14px;color:#d8d7e4">Every week we'll email you the top stats: the biggest streams, rising creators and tournaments. Unsubscribe any time in one click.</p>
 <p class="small" style="margin-top:10px">We get your name, email and profile picture from Google, nothing else (no passwords, no access to your YouTube or Gmail). See the <a href="/privacy">Privacy Policy</a>; you can download or delete your data any time.</p></div>"""
     return Response(_page("Sign in", body), mimetype="text/html")
 
@@ -471,7 +482,7 @@ function pop(){if(IN)return;var p=location.pathname.replace(/^\\/(global|india)(
  m.innerHTML='<div class="bx"><button class="x" aria-label="Close">&times;</button><div class="h">Sign in to see the full stats</div>'
  +'<ul><li>Full rankings: top 100 and beyond, every platform and game</li><li>Every channel\\'s full history and past streams</li><li>Compare channels side by side</li><li>The week\\'s top stats in your inbox</li></ul>'
  +'<a class="g" href="/auth/google?next='+n+'">'+%s+' Continue with Google</a><button class="later">Maybe later</button>'
- +'<div class="s">Free. We\\'ll email you the top stats every week; unsubscribe any time. <a href="/privacy">Privacy</a></div></div>';
+ +'<div class="s">Free · <a href="/privacy">Privacy Policy</a></div></div>';
  var close=function(){m.remove()};
  m.querySelector('.x').onclick=close;m.querySelector('.later').onclick=close;m.addEventListener('click',function(e){if(e.target===m)close()});
  document.addEventListener('keydown',function k(e){if(e.key==='Escape'){close();document.removeEventListener('keydown',k)}});document.body.appendChild(m)}
