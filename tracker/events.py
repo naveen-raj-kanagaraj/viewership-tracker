@@ -541,7 +541,7 @@ def relevant(ev: dict, s: dict) -> bool:
     terms = set(ev["match"]) | {m.lower() for m in PRESETS.get(ev.get("key", ""), {}).get("match", [])}   # preset edits apply to existing events
     if any(m in text for m in terms):
         if pr.get("verify") and not _official_s(ev, s):
-            why = wp_check(ev, s)
+            why = wp_check(ev, s) or chat_says_no(ev, s)
             if why:
                 _reject(ev, s, why)
                 return False
@@ -636,6 +636,115 @@ def _card_filter(ev: dict, found: dict):
         if g and not GAME_OK.search(g):
             _reject(ev, found[v], f"YouTube shows the game as {g}")
             found.pop(v, None)
+
+
+# ---------- the chat check (owner, 26 Nov: "why don't you read the chat?") ----------
+# In a real watch party the chat talks about the match: PMGC, the Gauntlet, team names, chicken dinners. A stream that
+# only has PMGC in its title chats about room IDs, custom rooms, rank push, or nothing related. Every YouTube stream
+# a verify tracker counts (not official, not counted by hand) has its recent live chat read (the chat popout page,
+# as the Super Chat reader does; no API quota) every 3 minutes, the last 150 messages kept. It only ever takes a
+# stream off: 40+ readable messages with no word about the event or any team, or 20+ with none and 3+ about rooms /
+# IDs / rank push. Chats mostly in Arabic, Thai, Cyrillic, Devanagari or Bengali script are not judged (team names
+# may be written in that script). Kick / Twitch: title check only.
+CHAT_EVENT = re.compile(r"pmgc|gauntlet|global\s*champ|grand\s*finals?|\bfinals?\b|qualif|points?\s*table|leader\s*board|"
+                        r"\bwwcd\b|chicken|dinner|istanbul|\bgc\b|\bpts\b|krafton|tencent|level\s*infinite|"
+                        r"soul|mongol|aurora|\b4k\b|s2g|ikurd|kurd|gaming\s*stars|hustler|hatyara|wolves|\brow\b|x\s*force|"
+                        r"rejects|all\s*gamers|red\s*force|\bns\b|sharper|thrive|ak\s*gold|falcons|alpha\s*7|vampire|\bihc\b|"
+                        r"\bdrx\b|nigma|fluxo|talon|bigetron|\bbtr\b|stalwart|dplus|yoodo|regnum|\bteam\b", re.I)
+CHAT_PLAY = re.compile(r"room\s*id|custom\s*room|\bid\s*(pass|do|de|bhej)|\bpass(word)?\b|rank\s*push|\buid\b|add\s*me|"
+                       r"join\s*(me|kar)|squad\s*(me|mein|join)|\blobby\b|sensi(tivity)?\b|\btdm\b", re.I)
+_OTHER_SCRIPT = re.compile(r"[؀-ۿ฀-๿Ѐ-ӿऀ-ॿঀ-৿᠀-᢯぀-ヿ一-鿿가-힯]")
+_CHATV = {}     # vid -> {"seen": set of message ids, "msgs": deque[(hit, play, readable)], "ts", "verdict", "n", "hits", "err"}
+
+
+def chat_judge(msgs) -> tuple:
+    """('no' | 'yes' | '', readable messages, about the event, about rooms/IDs) from [(hit, play, readable)]."""
+    rd = [m for m in msgs if m[2]]
+    n, hits, play = len(rd), sum(1 for m in msgs if m[0]), sum(1 for m in rd if m[1])
+    if hits >= 2:
+        return "yes", n, hits, play
+    if hits == 0 and (n >= 40 or (n >= 20 and play >= 3)):
+        return "no", n, hits, play
+    return "", n, hits, play
+
+
+def chat_says_no(ev: dict, s: dict) -> str:
+    st = _CHATV.get(s.get("vid", ""))
+    if not st or st.get("verdict") != "no" or s.get("vid") in ev.get("videos", []) or _forced_channel(ev, s):
+        return ""
+    return f'the chat never mentions PMGC or a team ({st["n"]} messages read{", talk of rooms / IDs" if st.get("play") else ""})'
+
+
+def _chat_texts(vid: str) -> list:
+    from tracker import ytextra
+    got = ytextra._chat_start(vid)
+    out = []
+    for a in got["actions"]:
+        it = (a.get("addChatItemAction") or {}).get("item") or {}
+        r = it.get("liveChatTextMessageRenderer") or it.get("liveChatPaidMessageRenderer")
+        if r:
+            out.append((r.get("id") or "", ytextra._text(r.get("message"))))
+    return out
+
+
+def _chat_check(key: str, vid: str):
+    st = _CHATV.setdefault(vid, {"seen": set(), "msgs": deque(maxlen=150), "ts": 0, "verdict": "", "n": 0, "hits": 0})
+    st["ts"] = time.time()
+    try:
+        texts = _chat_texts(vid)
+        st.pop("err", None)
+    except Exception as e:
+        st["err"] = str(e)[:100]
+        return
+    for mid, t in texts:
+        if not t or (mid and mid in st["seen"]):
+            continue
+        if mid:
+            st["seen"].add(mid)
+        st["msgs"].append((bool(CHAT_EVENT.search(t)), bool(CHAT_PLAY.search(t)),
+                           bool(re.search(r"[A-Za-z]{2}", t)) and not _OTHER_SCRIPT.search(t)))
+    if len(st["seen"]) > 2000:
+        st["seen"] = set()
+    st["verdict"], st["n"], st["hits"], st["play"] = chat_judge(st["msgs"])
+    if st["verdict"] == "no":
+        ev = events().get(key) or {}
+        s = (_LIVE.get(key) or {}).get(vid)
+        if s and not (vid in ev.get("videos", []) or _forced_channel(ev, s)):
+            _reject(ev, s, chat_says_no(ev, s))
+            (_LIVE.get(key) or {}).pop(vid, None)     # off the 2-second counter now
+            (_FAST.get(key) or {}).pop(vid, None)
+
+
+def run_chat_checks():
+    """Every 15 s: the counted watch parties whose chat is due (3 min; 10 min once the chat is about the match),
+    biggest first, 12 at a time."""
+    while True:
+        time.sleep(15)
+        try:
+            now = time.time()
+            due = []
+            evs = events()
+            for key, live in list(_LIVE.items()):
+                pr = PRESETS.get(key, {})
+                ev = evs.get(key)
+                if not pr.get("verify") or not ev:
+                    continue
+                for vid, s in list(live.items()):
+                    if platforms.is_other(vid) or s.get("kind") == "official" or _official_s(ev, s) \
+                            or vid in ev.get("videos", []) or _forced_channel(ev, s):
+                        continue
+                    st = _CHATV.get(vid)
+                    if not st or now - st["ts"] > (600 if st.get("verdict") == "yes" else 180):
+                        due.append((int(s.get("viewers") or 0), key, vid))
+            due.sort(reverse=True)
+            if due:
+                with ThreadPoolExecutor(max_workers=4) as pool:
+                    list(pool.map(lambda d: _safe(_chat_check, d[1], d[2]), due[:12]))
+            if len(_CHATV) > 3000:
+                for v in [v for v, x in _CHATV.items() if now - x["ts"] > 6 * 3600]:
+                    _CHATV.pop(v, None)
+        except Exception as e:
+            print(f"Chat check: {str(e)[:120]}")
 
 
 def set_stream(key: str, vid: str, count: bool):
