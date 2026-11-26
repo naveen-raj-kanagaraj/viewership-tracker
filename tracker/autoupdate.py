@@ -44,8 +44,16 @@ def check_once() -> str:
     head, remote = _git("rev-parse", "HEAD"), _git("rev-parse", "origin/main")
     if head == remote:
         return "up to date"
+    changed = [f for f in _git("diff", "--name-only", head, remote).split("\n") if f]
+    if changed and all(f.startswith("tracker/live/") for f in changed):
+        # only the live lists (watch parties added / removed): no restart, the tracker reads them again by itself
+        if _git("status", "--porcelain", "--untracked-files=no"):
+            return "skipped: files in the folder were edited by hand (git status shows them)"
+        _git("merge", "--ff-only", "-q", "origin/main")
+        return "live lists updated (no restart): " + ", ".join(changed)
     if _on_air() and "[live]" not in _git("log", "--format=%s", f"{head}..{remote}"):
-        return "skipped: a tournament broadcast is live"     # a fix marked [live] goes out during a broadcast too (owner, 26 Nov)
+        return "skipped: a tournament broadcast is live"     # code waits for the broadcast to end (owner: no restarts
+                                                             # while people are on the site); [live] only with his OK
     if _git("status", "--porcelain", "--untracked-files=no"):
         return "skipped: files in the folder were edited by hand (git status shows them)"
     try:
@@ -70,7 +78,7 @@ def check_once() -> str:
 def start():
     if os.getenv("AUTO_UPDATE", "true").lower() != "true":
         return
-    every = max(2, int(os.getenv("AUTO_UPDATE_MIN", "3"))) * 60
+    every = max(1, int(os.getenv("AUTO_UPDATE_MIN", "1"))) * 60
 
     def loop():
         while True:
