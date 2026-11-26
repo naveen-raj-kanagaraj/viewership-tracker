@@ -211,7 +211,7 @@ def run():
         time.sleep(15)
         try:
             _from_lists()
-            todo = _candidates()[:6]
+            todo = _candidates()[:3]
             if todo:
                 with ThreadPoolExecutor(max_workers=3) as pool:
                     list(pool.map(lambda c: check_channel(*c), todo))

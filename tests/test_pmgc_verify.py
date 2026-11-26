@@ -80,4 +80,9 @@ assert not events.relevant(ev, s("PMGC 2026 Gauntlet Day 1 LIVE", vid="c_play"))
 assert events.set_stream("pmgc", "c_play", True) and events.relevant(events.events()["pmgc"], s("PMGC 2026 Gauntlet Day 1 LIVE", vid="c_play"))
 assert events.chat_judge([(False, False, True)] * 39)[0] == "" and events.chat_judge([(False, False, True)] * 40)[0] == "no"
 assert events.chat_judge([(True, False, True)] * 2 + [(False, False, True)] * 80)[0] == "yes"
+# Day 1 fixes: PUBG MOBILE's regional channels are official; "IGL leaks" talk is not a watch party
+for nm in ("PUBG MOBILE Türkiye", "PUBG MOBILE Malaysia", "PUBG MOBILE JAPAN LEAGUE OFFICIAL", "pubgmobile_cis", "PUBG Mobile ببجي موبايل"):
+    assert events.kind_of(ev, {"vid": "zz", "channel": nm, "channel_id": "UCzz", "title": "2026 PMGC League"}) == "official", nm
+assert events.kind_of(ev, {"vid": "zz", "channel": "Snax Gaming", "channel_id": "UCzz", "title": "PMGC watch party"}) == "watch party"
+assert not events.relevant(ev, s("TAG HUMBLE IGL LEAKS ?SOUL PMGC ACTION #jonathangaming #soul #tag #pmgc"))
 print("PMGC VERIFY OK")
