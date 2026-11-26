@@ -1404,6 +1404,31 @@ def admin_trackers():
                                                         "" if _auth.is_admin() else request.args.get("key", "")), mimetype="text/html"))
 
 
+@app.route("/admin/trackers/<tk>")
+def admin_tracker(tk):
+    if not _owner():
+        return Response("Not found", status=404, mimetype="text/plain")
+    from tracker import adminpage
+    return _admin_page(Response(adminpage.tracker_page(tk[:40], _auth.user() if _auth.ENABLED else None,
+                                                       "" if _auth.is_admin() else request.args.get("key", ""),
+                                                       request.args.get("msg", "")[:200]), mimetype="text/html"))
+
+
+@app.route("/admin/trackers/<tk>/act", methods=["POST"])
+def admin_tracker_act(tk):
+    """Count a stream the watch-party check left out, or stop counting one."""
+    if not _owner():
+        return Response("Not found", status=404, mimetype="text/plain")
+    from tracker import events
+    f = request.form
+    vid = (f.get("vid") or "")[:80]
+    a = f.get("action")
+    ok = a in ("include", "exclude") and events.set_stream(tk[:40], vid, a == "include")
+    msg = ("Counted. It is on the counter now." if a == "include" else "Excluded. It is off the counter now.") if ok else "Not changed."
+    key = "" if _auth.is_admin() else f.get("key", "")
+    return redirect(f"/admin/trackers/{quote(tk[:40])}?" + "&".join(x for x in (f"key={quote(key)}" if key else "", "msg=" + quote(msg)) if x))
+
+
 @app.route("/admin/pmgc")
 def admin_pmgc():
     if not _owner():

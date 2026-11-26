@@ -195,6 +195,16 @@ PRESETS = {
                  "category": ["PUBG Mobile", "Battlegrounds Mobile India"]},   # + every stream in these categories
         "twitch": {"category": ["PUBG MOBILE"]},  # titled with the event (Twitch: top 100 by viewers)
         "official_title": True,                 # official channels count only streams whose title names the event
+        "verify": True,                         # a PMGC title is not enough: wp_check (gameplay, scrims, other games out)
+        # worldwide: the same search from each region's YouTube, in its own words (nobar = watch party in Indonesian,
+        # izle = watch in Turkish, ao vivo = live in Portuguese ...). All of them every poll in the first hour on air,
+        # then four at a time in turn (each one about every 5 minutes)
+        "world_queries": [("PMGC 2026", "ID"), ("nobar PMGC", "ID"), ("PMGC 2026", "MY"), ("PMGC 2026", "TH"),
+                          ("PMGC 2026", "VN"), ("PMGC 2026 canlı", "TR"), ("PMGC izle", "TR"), ("PMGC 2026", "SA"),
+                          ("PMGC مباشر", "AE"), ("PMGC 2026 ao vivo", "BR"), ("PMGC en vivo", "MX"), ("PMGC 2026", "PK"),
+                          ("PMGC 2026", "NP"), ("PMGC 2026", "BD"), ("PMGC 2026", "MN"), ("PMGC 2026", "RU"),
+                          ("PMGC 2026", "UZ"), ("PMGC 2026", "PH"), ("PMGC 2026", "US"), ("PMGC watch party", "US"),
+                          ("PUBG Mobile Global Championship", "GB")],
         "scene_world": True,                    # worldwide YouTube from the site-wide scan too (not only Indian)
         "all_watch": True,                      # every non-official stream carrying it is a watch party
         "scene_match": r"\bpmgc\b|pubg mobile global championship|\bgc (league|gauntlet)\b|\b20\d\d gc (league|gauntlet|group|last chance|grand finals?)\b",
@@ -530,6 +540,11 @@ def relevant(ev: dict, s: dict) -> bool:
     text = f"{s.get('title', '')} {s.get('channel', '')}".lower()
     terms = set(ev["match"]) | {m.lower() for m in PRESETS.get(ev.get("key", ""), {}).get("match", [])}   # preset edits apply to existing events
     if any(m in text for m in terms):
+        if pr.get("verify") and not _official_s(ev, s):
+            why = wp_check(ev, s)
+            if why:
+                _reject(ev, s, why)
+                return False
         return True
     tour = opt(ev, "tour")                       # a tracker made from Liquipedia: the site's own tournament matcher
     if tour:
@@ -539,6 +554,108 @@ def relevant(ev: dict, s: dict) -> bool:
         except Exception:
             return False
     return False
+
+
+# ---------- is it really a watch party? (owner, 26 Nov) ----------
+# A title naming the event is not enough: some streamers put PMGC in the title, or only in its hashtags, while they
+# play ranked, run custom rooms or scrims, talk predictions, or play another game. For presets with "verify" a stream
+# that is not official counts only when its title names the event outside hashtags and nothing in it says it is
+# something else; a title that says watch party / co-stream / watching (in the main languages) always counts.
+# YouTube's game card, once read, must be PUBG Mobile / BGMI (or none). Official channels, and streams the owner
+# counted by hand (admin page), skip the check. Rejected streams are kept for the admin page (_REJ).
+WP_SAYS = re.compile(r"watch\s*-?\s*part(y|ies)|watch\s*-?\s*along|co-?\s*stream|\bwp\b|reaction|reacting|live\s*react|"
+                     r"commentary|\bnobar\b|nonton\s*bareng|izliyoruz|\bizle\b|assistindo|reagindo|\bviendo\b|смотрим|"
+                     r"xem\s+c[uù]ng|مشاهدة|بث\s*مشترك|dekh\s*(rahe|te|enge)|watching", re.I)
+NOT_WP = re.compile(r"rank\s*push|\branked\b|gameplay|rush\s*game\s*play|\brushing\b|conqueror|ace\s*(master|dominator)|"
+                    r"custom\s*rooms?|room\s*cards?|\bscrims?\b|\bt\.?d\.?m\b|classic\s*(match|games?)|solo\s*vs\s*squad|"
+                    r"\b1\s*v\s*[234]\b|road\s*to\s*(pmgc|conq|ace|crown|top\s*\d)|play(ing)?\s+with\s+(subs|subscribers|viewers|fans|you)|"
+                    r"\bgrind|podcast|tier\s*list|\bpreview\b|practice|bootcamp|24\s*[x/]\s*7|non-?stop|lo-?fi|free\s*fire|"
+                    r"\bff\s*(max|live)\b|valorant|minecraft|\bgta\b|cod\s*mobile|\bcodm\b|fortnite|roblox|clash\s*(of|royale)|"
+                    r"mobile\s*legends|\bmlbb\b", re.I)
+GAME_OK = re.compile(r"pubg|battlegrounds", re.I)
+_REJ = {}       # event -> {vid: {channel, channel_id, title, viewers, why, ts}}: candidates the check left out (last hour)
+
+
+def _official_s(ev: dict, s: dict) -> bool:
+    offs = set(ev.get("official", [])) | set(PRESETS.get(ev.get("key", ""), {}).get("official", []))
+    ch = (s.get("channel") or "").lower()
+    return bool(s.get("from_official")) or any(o and o in ch for o in offs) or (s.get("channel_id") or "").lower() in offs
+
+
+def wp_check(ev: dict, s: dict) -> str:
+    """'' when a stream that names the event is really carrying it, else why not (shown on the admin page)."""
+    pr = PRESETS.get(ev.get("key", ""), {})
+    if s.get("vid") in ev.get("videos", []) + pr.get("videos_extra", []) or _forced_channel(ev, s):
+        return ""                                # counted by hand
+    ti = s.get("title") or ""
+    if WP_SAYS.search(ti):
+        return ""
+    terms = set(ev.get("match") or []) | {m.lower() for m in pr.get("match", [])}
+    bare = re.sub(r"#\S+", " ", ti).lower()
+    if not any(m in bare for m in terms):
+        return "the title names it only in hashtags or the channel name"
+    m = NOT_WP.search(ti)
+    if m:
+        return f'the title says "{m.group(0).strip()}"'
+    if not platforms.is_other(s.get("vid", "")):
+        try:
+            from tracker import scene
+            g = scene._YCARD.get(s.get("vid", "")) or ""
+        except Exception:
+            g = ""
+        if g and not GAME_OK.search(g):
+            return f"YouTube shows the game as {g}"
+    return ""
+
+
+def _reject(ev: dict, s: dict, why: str):
+    r = _REJ.setdefault(ev["key"], {})
+    now = time.time()
+    r[s["vid"]] = {"vid": s["vid"], "channel": s.get("channel") or "", "channel_id": s.get("channel_id") or "",
+                   "title": s.get("title") or "", "viewers": int(s.get("viewers") or 0), "why": why, "ts": now}
+    if len(r) > 400:
+        for v in [v for v, x in r.items() if now - x["ts"] > 3600]:
+            r.pop(v, None)
+
+
+def _card_filter(ev: dict, found: dict):
+    """YouTube's game card for new candidates (one watch page each, then cached): another game is not a watch party."""
+    try:
+        from tracker import scene
+    except Exception:
+        return
+    yt = [v for v, s in found.items() if not platforms.is_other(v) and not _official_s(ev, s)
+          and not WP_SAYS.search(s.get("title") or "")]
+    yt = [v for v in yt if v not in ev.get("videos", []) and not _forced_channel(ev, found[v])]
+    try:
+        scene._card_get(yt[:30], 6)
+    except Exception as e:
+        print(f"{ev['key']}: game cards: {str(e)[:100]}")
+    for v in yt:
+        g = scene._YCARD.get(v) or ""
+        if g and not GAME_OK.search(g):
+            _reject(ev, found[v], f"YouTube shows the game as {g}")
+            found.pop(v, None)
+
+
+def set_stream(key: str, vid: str, count: bool):
+    """Admin: count a stream the check left out, or stop counting one (by video). Takes effect at once."""
+    ev = events().get(key)
+    if not ev or not vid:
+        return False
+    vids = [v for v in ev.get("videos", []) if v != vid]
+    exc = [v for v in ev.get("excluded", []) if v != vid]
+    if count:
+        vids.append(vid)
+        r = (_REJ.get(key) or {}).pop(vid, None)
+        if r:                                   # back on the counter right away
+            _LIVE.setdefault(key, {})[vid] = {**r, "kind": "watch party"}
+    else:
+        exc.append(vid)
+        (_LIVE.get(key) or {}).pop(vid, None)
+        (_FAST.get(key) or {}).pop(vid, None)
+    update(key, videos=vids, excluded=exc)
+    return True
 
 
 REPLAY = re.compile(r"\b(replay|re-?run|re-?telecast|rebroadcast|re-?stream of|highlights?|recap|full match|vod)\b", re.I)
@@ -1206,6 +1323,12 @@ def poll(ev: dict, now: int = None) -> dict:
         jobs = [(q, "IN") for q in core + rest]
         if opt(ev, "scene_world"):
             jobs += [(q, "US") for q in core[:2]]  # the worldwide edition ranks other countries' streams
+        wq = list(pr.get("world_queries") or [])
+        if wq:                                   # each region's YouTube in its own words (2 pages each)
+            if now - ph["on_ts"] > FIRST_HOUR:
+                k = (ph["n"] * 4) % len(wq)
+                wq = (wq[k:] + wq[:k])[:4]
+            jobs += [(q, gl, 2) for q, gl in wq]
         with ThreadPoolExecutor(max_workers=4) as pool:
             for res in pool.map(lambda a: _safe(_search, *a), jobs):
                 if res is None:
@@ -1230,6 +1353,8 @@ def poll(ev: dict, now: int = None) -> dict:
             for s in pool.map(check_channel, third):
                 if s and s["vid"] not in found and relevant(ev, s):
                     found[s["vid"]] = s
+        if pr.get("verify"):
+            _card_filter(ev, found)              # another game on YouTube's card: not a watch party
     with store.reading():
         c = _db()
         recent = [dict(r) for r in c.execute(
@@ -1237,6 +1362,8 @@ def poll(ev: dict, now: int = None) -> dict:
             (ev["key"], now - RECHECK_MIN * 60))]
     vids = ev.get("videos", []) + pr.get("videos_extra", [])
     recent = [r for r in recent if not platforms.is_other(r["vid"])]   # Kick/Twitch are re-checked by discover()
+    if pr.get("verify"):                         # a title changed, or the owner left it out: not carried over
+        recent = [r for r in recent if r["vid"] in official_now or relevant(ev, r)]
     if mode != "full":
         recent = [r for r in recent if r["vid"] in official_now]
     # Streams found before that this poll's searches missed: the 2-second counter already knows if they are live
