@@ -1480,30 +1480,181 @@ def _india_ctx(key: str) -> tuple:
     return _ICTX[key]
 
 
+# ---------- who a channel is: its bio, and the same streamer on YouTube and Kick (owner, 27 Nov) ----------
+# A YouTube channel's country setting is often wrong: Nepali streamers set India (Ansh YT: "Nepali Esports Talent",
+# Cr7 HORAA, SuKu "from Nepal"). The channel's own description, and a Kick bio, decide first. The same streamer on
+# YouTube and Kick is one row on the leaderboard: the YouTube About links (kick.com/<slug>), the Kick profile's YouTube
+# handle, or the same name.
+BIO_ABROAD = re.compile(r"\b(nepal|nepali|nepalese|kathmandu|pokhara|bangladesh|bangladeshi|dhaka|pakistan|pakistani|"
+                        r"lahore|karachi|islamabad|sri\s*lanka|lankan|bhutan|bhutanese|a1\s*esports)\b|\U0001F1F3\U0001F1F5|"
+                        r"\U0001F1E7\U0001F1E9|\U0001F1F5\U0001F1F0|\U0001F1F1\U0001F1F0", re.I)
+BIO_INDIA = re.compile(r"\b(india|indian|mumbai|delhi|noida|gurgaon|bangalore|bengaluru|kolkata|chennai|hyderabad|pune|"
+                       r"jaipur|lucknow|ahmedabad|kerala|assam|tamil|telugu|kannada|marathi|hindi|krafton\s*india)\b|"
+                       r"\U0001F1EE\U0001F1F3", re.I)
+_ABQ, _ABBUSY, _ABL, _ABRUN = [], set(), threading.Lock(), [False]
+
+
+def yt_about(cid: str) -> dict:
+    """{desc, country, links, handle} of a YouTube channel's About page (kv, 7 days; read in the background)."""
+    if not (cid or "").startswith("UC"):
+        return {}
+    v = store.kv_get(f"ev_about:{cid}")
+    if v and time.time() - v.get("ts", 0) < 7 * 86400:
+        return v
+    with _ABL:
+        if cid not in _ABBUSY and len(_ABBUSY) < 400:
+            _ABBUSY.add(cid)
+            _ABQ.append(cid)
+            if not _ABRUN[0]:
+                _ABRUN[0] = True
+                threading.Thread(target=_about_loop, daemon=True).start()
+    return v or {}
+
+
+def about_pending(cid: str) -> bool:
+    """The About page of this YouTube channel is queued and not read yet."""
+    return cid in _ABBUSY
+
+
+def _about_loop():
+    while True:
+        with _ABL:
+            if not _ABQ:
+                _ABRUN[0] = False
+                return
+            cid = _ABQ.pop(0)
+        try:
+            r = _http.get(f"https://www.youtube.com/channel/{cid}/about", headers={"User-Agent": _UA, "Accept-Language": "en"},
+                          cookies={"CONSENT": "YES+", "SOCS": "CAI"}, timeout=15)
+            m = re.search(r"var ytInitialData\s*=\s*(\{.+?\});</script>", r.text, re.S)
+            out = {"ts": time.time(), "desc": "", "country": "", "links": [], "handle": ""}
+            if m:
+                import json as _json
+                stack = [_json.loads(m.group(1))]
+                while stack:
+                    o = stack.pop()
+                    if isinstance(o, dict):
+                        a = o.get("aboutChannelViewModel")
+                        if isinstance(a, dict):
+                            out.update(desc=(a.get("description") or "")[:2000], country=a.get("country") or "",
+                                       links=[((l.get("channelExternalLinkViewModel") or {}).get("link") or {}).get("content", "")
+                                              for l in a.get("links") or []],
+                                       handle=(a.get("displayCanonicalChannelUrl") or a.get("canonicalChannelUrl") or "").split("/")[-1])
+                            break
+                        stack.extend(o.values())
+                    elif isinstance(o, list):
+                        stack.extend(o)
+            store.kv_set(f"ev_about:{cid}", out)
+        except Exception as e:
+            print(f"YouTube about {cid}: {str(e)[:100]}")
+        finally:
+            with _ABL:
+                _ABBUSY.discard(cid)
+        time.sleep(1.5)
+
+
+def _bio_of(sid: str) -> tuple:
+    """(the channel's own words about itself, its links / handles) for yt:/kick:/twitch: sids."""
+    if sid.startswith("yt:"):
+        a = yt_about(sid[3:])
+        return a.get("desc") or "", " ".join(a.get("links") or [])
+    try:
+        from tracker import profiles
+        ln = profiles.links(sid)
+        return profiles.bio(sid) or "", " ".join(str(v) for v in ln.values())
+    except Exception:
+        return "", ""
+
+
+_WHO = {}       # event -> (built at, {stream sid: merged streamer key})
+_PREF = set()   # Kick / Twitch profiles already asked for
+
+
+def who_map(key: str) -> dict:
+    """Stream sid -> the streamer it belongs to (a YouTube sid when the same streamer is on YouTube and Kick / Twitch).
+    Built every 10 minutes from the event's channels: a YouTube channel's About links to kick.com/<slug> or
+    twitch.tv/<login>, a Kick profile's YouTube handle, or the same name."""
+    hit = _WHO.get(key)
+    if hit and time.time() - hit[0] < 600:
+        return hit[1]
+    out = {}
+    try:
+        with store.reading():
+            rows = _db().execute("SELECT DISTINCT vid, channel_id, channel FROM ev_streams WHERE event=?", (key,)).fetchall()
+        yts = {}                                  # yt sid -> (name, about)
+        others = {}                               # kick/twitch sid -> name
+        for vid, cid, ch in rows:
+            if platforms.is_other(vid):
+                others[vid.lower()] = ch or vid.split(":", 1)[1]
+            elif (cid or "").startswith("UC"):
+                yts["yt:" + cid] = (ch, yt_about(cid))
+        by_link, by_handle, by_name = {}, {}, {}
+        for sid, (ch, ab) in yts.items():
+            for l in ab.get("links") or []:
+                m = re.search(r"(kick\.com|twitch\.tv)/([A-Za-z0-9_-]+)", l or "", re.I)
+                if m:
+                    by_link[("kick:" if "kick" in m.group(1).lower() else "twitch:") + m.group(2).lower()] = sid
+            if ab.get("handle"):
+                by_handle[_norm_name(ab["handle"].lstrip("@"))] = sid
+            by_name.setdefault(_norm_name(ch), sid)
+        try:
+            from tracker import profiles
+        except Exception:
+            profiles = None
+        for sid, nm in others.items():
+            yh = str(((profiles.links(sid) if profiles else {}) or {}).get("youtube") or "").rstrip("/").split("/")[-1].split("?")[0]
+            out[sid] = by_link.get(sid) or (by_handle.get(_norm_name(str(yh).lstrip("@"))) if yh else None) \
+                or by_name.get(_norm_name(nm)) or by_name.get(_norm_name(sid.split(":", 1)[1])) or sid
+        for sid in yts:
+            out[sid] = sid
+        if profiles:                              # Kick bios / YouTube handles of the event's Kick channels (once)
+            miss = [s for s in others if s not in _PREF and not profiles.bio(s) and not profiles.links(s)][:60]
+            _PREF.update(miss)
+            if miss:
+                threading.Thread(target=profiles.refresh, args=(miss,), daemon=True).start()
+    except Exception as e:
+        print(f"Same streamer map {key}: {str(e)[:120]}")
+    wait = any(about_pending(s[3:]) for s in out if s.startswith("yt:"))   # About pages still being read: again in a minute
+    _WHO[key] = (time.time() - (540 if wait else 0), out)
+    return out
+
+
+def stream_sid(vid: str, channel_id: str = "") -> str:
+    return vid.lower() if platforms.is_other(vid) else ("yt:" + channel_id if (channel_id or "").startswith("UC") else "")
+
+
 def stream_india(vid: str, channel_id: str = "", title: str = "", channel: str = "", key: str = "pmgc") -> bool:
     """Is this stream's channel Indian? (owner, 27 Nov: PMGC watch-party rankings split India / outside India.)
-    In order: the owner's live list (india / not_india: video, channel id, kick:slug), the YouTube channel's own
-    country, a YouTube channel of the same name, the live scan's verdict for the tournament (chat language ...), the
-    scan's current verdict, then the site's India rules on the title and name. Cached 30 minutes per channel."""
+    In order: the owner's live list (india / not_india: video, channel id, kick:slug, for the streamer's YouTube or
+    Kick), the channel's own bio (YouTube description, Kick / Twitch bio: Nepal, Bangladesh, Pakistan ... outside),
+    the same streamer's YouTube channel for Kick / Twitch, the YouTube channel's country setting, the live scan's
+    verdict for the tournament (chat language ...), the scan's current verdict, then the site's India rules on the
+    title and name. Cached 30 minutes per channel."""
     plat = platforms.platform_of(vid)
-    sid = vid.lower() if plat in ("kick", "twitch") else ("yt:" + channel_id if (channel_id or "").startswith("UC") else "")
+    sid = stream_sid(vid, channel_id)
     if not sid:
         return False
+    who = who_map(key).get(sid) or sid
     ll = live_list(key)
-    ids = {vid, channel_id or "-", sid}
-    if ids & set(ll.get("india") or []):
-        return True
+    ids = {vid, channel_id or "-", sid, who, who[3:] if who.startswith("yt:") else who}
     if ids & set(ll.get("not_india") or []):
         return False
+    if ids & set(ll.get("india") or []):
+        return True
     now = time.time()
     hit = _INC.get(sid)
     if hit and now - hit[0] < 1800:
         return hit[1]
     try:
         from tracker import scene
+        bios = " ".join(_bio_of(s)[0] for s in {sid, who})
         _, ctry, verd, names = _india_ctx(key)
-        cc = ctry.get(sid) or (scene._CTRY.get(sid[3:]) if sid.startswith("yt:") else None)
-        if cc and cc != "-":
+        cc = ctry.get(who) or ctry.get(sid) or (scene._CTRY.get(who[3:]) if who.startswith("yt:") else None)
+        if BIO_ABROAD.search(bios) and not re.search(r"\b(india|indian)\b|\U0001F1EE\U0001F1F3", bios, re.I):
+            v = False                             # the streamer says where they're from
+        elif BIO_INDIA.search(bios) and not BIO_ABROAD.search(bios):
+            v = True
+        elif cc and cc != "-":
             v = cc == "IN"
         elif plat in ("kick", "twitch") and names.get(_norm_name(channel or sid.split(":", 1)[-1])):
             v = names[_norm_name(channel or sid.split(":", 1)[-1])] == "IN"
@@ -1516,7 +1667,9 @@ def stream_india(vid: str, channel_id: str = "", title: str = "", channel: str =
             v = bool(scene.india_why(x, None, scene.india_known())[0])
     except Exception:
         v = False
-    _INC[sid] = (now, v)
+    # a YouTube About page still being read: decide again in a minute instead of keeping this answer for 30
+    wait = any(about_pending(s[3:]) for s in {sid, who} if s.startswith("yt:"))
+    _INC[sid] = (now - (1800 - 60 if wait else 0), v)
     if len(_INC) > 20000:
         _INC.clear()
     return v

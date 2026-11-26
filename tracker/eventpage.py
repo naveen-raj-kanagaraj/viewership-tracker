@@ -80,7 +80,9 @@ def _overlay(out: dict, ev: dict):
                              "platform": events.platforms.platform_of(r["vid"]), "viewers": r["viewers"],
                              "url": events.yt_link(r["vid"]), "logo": events.avatar(r.get("channel_id", "")),
                              "in": int(events.stream_india(r["vid"], r.get("channel_id", ""), r.get("title", ""), r.get("channel", ""), k))
-                             if out.get("split_in") else 0})
+                             if out.get("split_in") else 0,
+                             "who": (events.who_map(k).get(events.stream_sid(r["vid"], r.get("channel_id", ""))) or r["vid"])
+                             if out.get("split_in") else r["vid"]})
         out["live"] = sorted(live, key=lambda x: -x["viewers"])
         if out.get("wp"):
             out["wp"] = [{**w, "viewers": next((r["viewers"] for r in mr[1] if r["vid"] == w["vid"]), w["viewers"]),
@@ -137,11 +139,13 @@ def _build(ev: dict) -> dict:
                      if not any(d in v for d in ("liquipedia.", "escharts.", "esportscharts.", "streamscharts."))}}   # people stay here
     split = bool(events.PRESETS.get(ev["key"], {}).get("scene_world"))   # a worldwide event: India / outside India
     inn = (lambda x: int(events.stream_india(x["vid"], x.get("channel_id", ""), x.get("title", ""), x.get("channel", ""), ev["key"]))) if split else (lambda x: 0)
+    wm = events.who_map(ev["key"]) if split else {}
+    who = lambda x: wm.get(events.stream_sid(x["vid"], x.get("channel_id", ""))) or x["vid"]   # same streamer on YouTube + Kick
     out["split_in"] = split
     if st.get("ticks"):
         live = [{"vid": s["vid"], "channel": s.get("channel", ""), "title": s.get("title", ""), "kind": s["kind"],
                  "platform": events.platforms.platform_of(s["vid"]), "viewers": s["viewers"], "url": events.yt_link(s["vid"]), "logo": events.avatar(s.get("channel_id", "")),
-                 "in": inn(s)}
+                 "in": inn(s), "who": who(s)}
                 for s in st["live_now"]]
         series = [list(t) for t in st["series"]]
         recent = [t for t in series if t[0] >= series[-1][0] - 6 * 3600]
@@ -176,7 +180,7 @@ def _build(ev: dict) -> dict:
                              "platform": x.get("platform", "youtube"),
                              "logo": events.avatar(x.get("channel_id", "")), "avg": x.get("avg", 0),
                              "viewers": x["peak"], "at": tf(x["peak_at"]).strftime("%I:%M %p"), "url": events.yt_link(x["vid"]),
-                             "in": inn(x)}
+                             "in": inn(x), "who": who(x)}
                             for x in lb["streams"][:300]]}
     if out.get("ticks"):
         if out.get("official_live"):
@@ -614,7 +618,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 .sw{display:inline-block;width:9px;height:9px;margin-right:5px;vertical-align:-1px}
 .kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px}.kpi.tpk{grid-column:1/-1;border-color:rgba(182,242,58,.45);background:linear-gradient(90deg,rgba(182,242,58,.12),rgba(182,242,58,.02))}.kpi.tpk .v{color:var(--lime);text-shadow:0 0 18px rgba(182,242,58,.35)}
 .kpi .v{font:700 24px "Barlow",sans-serif;margin-top:4px;font-variant-numeric:tabular-nums}.kpi .s{color:var(--muted);font-size:12px}
-.head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}.head>div:first-child{margin-right:auto}.rfw{flex-basis:100%}
+.head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}.head>div:first-child{margin-right:auto}.rfw{flex-basis:100%}.alt{font-size:11px;font-weight:600;white-space:nowrap}
 h2{font:700 15px "Barlow",sans-serif;text-transform:uppercase;letter-spacing:.04em;margin:0}
 .tabs{display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid var(--line);overflow-x:auto}
 .tabs button{all:unset;cursor:pointer;padding:9px 14px;font:700 13px "Barlow",sans-serif;text-transform:uppercase;color:var(--muted);border-bottom:3px solid transparent;white-space:nowrap}
@@ -864,8 +868,13 @@ function wpBoard(){   // the leaderboard's streamers: the hand-made roster, or (
  const off=isOff();let R=D.roster||[];
  if(!D.roster){const src=off?((D.last_broadcast||{}).streams||[]):(D.live||[]);
   const pk={};(D.wp||[]).forEach(w=>pk[w.vid]=w.peak);
-  R=src.filter(s=>s.kind==='watch party').map(s=>({vid:s.vid,name:s.channel,url:s.url,logo:s.logo,status:off?'ended':'live',viewers:s.viewers,
-   peak:Math.max(s.viewers,pk[s.vid]||0),in:s.in})).sort((a,b)=>(off?b.peak-a.peak:b.viewers-a.viewers))}
+  const rows=src.filter(s=>s.kind==='watch party').map(s=>({vid:s.vid,name:s.channel,url:s.url,logo:s.logo,status:off?'ended':'live',viewers:s.viewers,
+   peak:Math.max(s.viewers,pk[s.vid]||0),in:s.in,who:s.who||s.vid,platform:s.platform||'youtube'}));
+  // the same streamer on YouTube and Kick (owner, 27 Nov): one row, the bigger number, the other platform after a slash
+  const by={},val=r=>off?r.peak:r.viewers;rows.forEach(r=>{(by[r.who]=by[r.who]||[]).push(r)});
+  R=Object.values(by).map(g=>{g.sort((a,b)=>val(b)-val(a));const m=g.find(r=>r.platform==='youtube')||g[0],top=g[0];
+   const alt={};g.slice(1).forEach(r=>{alt[r.platform]=Math.max(alt[r.platform]||0,val(r))});
+   return {...top,name:m.name,logo:m.logo||top.logo,in:m.in,alts:Object.entries(alt)}}).sort((a,b)=>val(b)-val(a))}
  return R.filter(inReg)}
 function wpRows(){const sb=document.getElementById('shareBoard');if(sb)sb.onclick=()=>openShare('board');
  const off=isOff(),cd=!!(D.next_start&&!D.official_live),R=wpBoard();
@@ -878,7 +887,9 @@ function wpRows(){const sb=document.getElementById('shareBoard');if(sb)sb.onclic
  let wt=document.getElementById('wpwait');if(!wt&&mb){wt=document.createElement('div');wt.id='wpwait';wt.className='wpwait';mb.after(wt)}
  if(wt)wt.innerHTML=WAIT.length?`<div class="lbl" style="color:var(--muted)">// not started yet (${WAIT.length})</div><div class="wpw">${WAIT.map(w=>`<a class="wpc" href="${esc(w.url||'#')}" target="_blank" rel="noopener">${w.logo?`<img src="${esc(w.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}<span>${esc(w.name)}</span></a>`).join('')}</div>`:'';
  document.getElementById('wprows').innerHTML=RR.map(w=>{const has=w.status!=='upcoming';if(has)rank++;
-  const st=w.status==='live'?`<span class="lv"><i></i>LIVE</span> <b>${full(w.viewers)}</b>`:w.status==='ended'?`<span class="muted">PEAK</span> <b>${full(w.peak||0)}</b>`:'<span class="muted">YET TO START</span>';
+  const PN={youtube:'YT',kick:'KICK',twitch:'TWITCH'},alt=(w.alts||[]).map(([p,v])=>`<span class="muted alt"> / ${PN[p]||p.toUpperCase()} ${fmt(v)}</span>`).join(''),
+   pf=(w.alts||[]).length?`<span class="muted alt">${PN[w.platform]||''} </span>`:'';
+  const st=w.status==='live'?`<span class="lv"><i></i>LIVE</span> ${pf}<b>${full(w.viewers)}</b>${alt}`:w.status==='ended'?`<span class="muted">PEAK</span> ${pf}<b>${full(w.peak||0)}</b>${alt}`:'<span class="muted">YET TO START</span>';
   const logo=w.logo?`<img class="lg" src="${esc(w.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:`<span class="lg" style="display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">${esc(w.name.slice(0,2).toUpperCase())}</span>`;
   const nm=w.url?`<a class="ch" href="${esc(w.url)}" target="_blank" rel="noopener" style="color:var(--ink)">${esc(w.name)}</a>`:`<span class="ch">${esc(w.name)}</span>`;
   return `<tr><td class="rk ${has?'watch':''}" style="${has?'':'background:var(--line);color:var(--muted)'}">${has?rank:'-'}</td><td class="t">${logo}${nm}</td>
@@ -1089,7 +1100,8 @@ function card(type,vid,avatar){if(type==='history')return histCard();
    T(String(j+1),96,y+14,B(36),c);avatarAt(x,avs[r.vid]||avs[r.name],170,y+31,28,j===0?'#f5c451':'#262636',r.name);
    T(r.name.toUpperCase(),214,y+6,B(34),'#ffffff','left',W-214-300);
    x.fillStyle=c;x.globalAlpha=.85;x.fillRect(214,y+50,Math.max(8,(W-520)*v/top),6);x.globalAlpha=1;
-   T(full(v),W-80,y+12,B(40),c,'right')});
+   T(full(v),W-80,y+12,B(40),c,'right');
+   if((r.alts||[]).length)T(r.alts.map(([p,v2])=>'/ '+({youtube:'YT',kick:'KICK',twitch:'TWITCH'}[p]||p.toUpperCase())+' '+fmt(v2)).join('  '),W-80,y+52,M(20),'#8d8ca3','right')});
  }else{
   let i=type==='streamer'?wp.findIndex(w=>w.vid===vid):0;if(i<0){const d=(D.wp||[]).find(w=>w.vid===vid);if(d){wp.push({vid:d.vid,channel:d.channel,logo:d.logo,peak:d.peak,avg:0});wp.sort((a,b)=>b.peak-a.peak);i=wp.findIndex(w=>w.vid===vid)}}
   if(i<0)i=0;const me=wp[i]||{channel:'-',peak:0,avg:0},champ=i===0,GOLD='#f5c451',acc=champ?GOLD:'#b6f23a';
