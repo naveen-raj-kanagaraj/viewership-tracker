@@ -33,6 +33,7 @@ POLL_SEC = int(os.getenv("EVENT_POLL_SEC", "60"))          # discovery: search Y
 FAST_SEC = float(os.getenv("EVENT_FAST_SEC", "2"))          # live counter: re-count live streams this often
 MINOR_SEC = 30                                              # streams under MINOR_VIEWERS are re-counted less often
 MINOR_VIEWERS = 50
+ALL_FAST_MAX = int(os.getenv("EVENT_ALL_FAST_MAX", "150"))   # up to this many live streams, all every FAST_SEC
 SAMPLE_EVERY = 30
 ANOM_MIN = int(os.getenv("EVENT_ANOMALY_MIN", "2000"))      # a jump/drop this big ...
 ANOM_PCT = float(os.getenv("EVENT_ANOMALY_PCT", "0.15"))    # ... and at least this share of the stream, within ~15s                                           # per-stream history is stored every 30s
@@ -190,7 +191,11 @@ PRESETS = {
         # the same Indian streamers on Kick (one API call): counted when the title names the event
         "kick": {"channels": ["snaxgaming", "sheekgaming", "lolzzzgaming", "soulaman", "neyoo_gaming", "neyoo-gaming",
                               "mrspikeyt", "vaadhiyaar", "shreemanlegend", "sharkshe", "mizo", "ravensharplive",
-                              "mazyislive", "kushalmahajan"]},
+                              "mazyislive", "kushalmahajan"],
+                 "category": ["PUBG Mobile", "Battlegrounds Mobile India"]},   # + every stream in these categories
+        "twitch": {"category": ["PUBG MOBILE"]},  # titled with the event (Twitch: top 100 by viewers)
+        "official_title": True,                 # official channels count only streams whose title names the event
+        "scene_world": True,                    # worldwide YouTube from the site-wide scan too (not only Indian)
         "all_watch": True,                      # every non-official stream carrying it is a watch party
         "scene_match": r"\bpmgc\b|pubg mobile global championship|\bgc (league|gauntlet)\b|\b20\d\d gc (league|gauntlet|group|last chance|grand finals?)\b",
         "allowed": [],
@@ -198,8 +203,10 @@ PRESETS = {
         "next_start": "2026-11-26 17:00",       # IST (owner, 25 Nov); countdown until the official stream goes live
         "match": ["pmgc", "pubg mobile global championship", "pubgm global championship", "gc league", "gc gauntlet",
                   "2026 gc"],
-        "queries": ["PMGC 2026", "PMGC live", "PMGC watch party", "PUBG Mobile Global Championship 2026",
-                    "PMGC 2026 Gauntlet"],
+        # the first four run every poll; the rest two at a time in turn (all of them in the first hour on air)
+        "queries": ["PMGC 2026", "PMGC live", "PMGC watch party", "PUBG Mobile Global Championship",
+                    "PMGC watchparty", "PMGC 2026 Gauntlet", "PMGC 2026 live stream", "PMGC Team SouL",
+                    "GC League Gauntlet", "PMGC co stream"],
         "official": ["pubg mobile esports", "pubg mobile espor"] + [c.lower() for c in (
             "UCmeeY9kzNswUpbYyJntb3Aw", "UCTal2V5RbkPNUWUa2E6RPEA", "UCMus-ap67HdQVz_QMHtaxXw", "UCvTg9BK7sRKwu1H9_VDPYIQ",
             "UCqFXoUdIMsNg_ZHb_zyuBew", "UCBFhZyGQUIpvwcD_OGyT0XA", "UCtMMTyOYb20ZbYOBfsfQBOw", "UCkB_AwGXxPAKdahxGHpeC4Q",
@@ -269,6 +276,15 @@ def _schema(c):
             c.execute("DELETE FROM ev_streams WHERE event='cegc' AND vid NOT LIKE 'kick:%'")
             c.commit()
             store.kv_set("ev_cegc_clean_v1", 1)
+        if not store.kv_get("ev_pmgc_clean_v1"):    # 26 Nov 06:53 IST: PUBG MOBILE Brasil's 'Power Camp' (another
+            t0 = int(datetime(2026, 11, 26, 12, 0, tzinfo=REPORT_TZ).timestamp())   # show) was counted as PMGC
+            for t in ("ev_samples", "ev_fine", "ev_anomalies", "ev_ticks"):
+                c.execute(f"DELETE FROM {t} WHERE event='pmgc' AND ts<?", (t0,))
+            c.execute("DELETE FROM ev_streams WHERE event='pmgc' AND first_seen<?", (t0,))
+            c.commit()
+            if (store.kv_get("event_peak_break:pmgc") or {}).get("ts", 0) < t0:
+                store.kv_set("event_peak_break:pmgc", {})
+            store.kv_set("ev_pmgc_clean_v1", 1)
     return c
 
 
@@ -509,9 +525,38 @@ def relevant(ev: dict, s: dict) -> bool:
     if platforms.official(ev, preset(ev.get("key")), s["vid"]) or \
             (platforms.is_other(s["vid"]) and opt(ev, "any_title")):
         return True
+    if not_live_coverage(ev, s.get("title", "")):
+        return False                             # a replay, highlights, or last year's edition re-streamed
     text = f"{s.get('title', '')} {s.get('channel', '')}".lower()
     terms = set(ev["match"]) | {m.lower() for m in PRESETS.get(ev.get("key", ""), {}).get("match", [])}   # preset edits apply to existing events
-    return any(m in text for m in terms)
+    if any(m in text for m in terms):
+        return True
+    tour = opt(ev, "tour")                       # a tracker made from Liquipedia: the site's own tournament matcher
+    if tour:
+        try:
+            from tracker import scene
+            return scene.tournament(s.get("title", ""), s.get("category") or opt(ev, "game") or "") == tour
+        except Exception:
+            return False
+    return False
+
+
+REPLAY = re.compile(r"\b(replay|re-?run|re-?telecast|rebroadcast|re-?stream of|highlights?|recap|full match|vod)\b", re.I)
+_YEAR = re.compile(r"\b(20[1-3]\d)\b")
+
+
+def not_live_coverage(ev: dict, title: str) -> bool:
+    """A stream that is not this edition live: a replay or highlights, or a title naming another year only (a
+    '2025 PMGC Grand Finals' loop during PMGC 2026). Counting those would repeat old matches as new viewers."""
+    t = title or ""
+    if REPLAY.search(t):
+        return True
+    y = re.findall(r"\b(20[2-3]\d)\b", f"{ev.get('name', '')} {opt(ev, 'tour') or ''}")
+    if y:
+        yrs = set(_YEAR.findall(t))
+        if yrs and not (yrs & set(y)) and not yrs & {str(int(y[0]) + 1)}:   # 'PMGC 2026' only; 2026-27 seasons kept
+            return True
+    return False
 
 
 def _forced_channel(ev, s) -> bool:
@@ -523,8 +568,10 @@ def scene_matches(ev: dict) -> list:
     """Live streams in the site-wide scan (YouTube, Kick, Twitch) whose title names the event (preset "scene_match",
     a regex). YouTube ones must be Indian channels (a Portuguese church channel is also called CEGC)."""
     rx = PRESETS.get(ev.get("key", ""), {}).get("scene_match")
-    if not rx:
+    tour = opt(ev, "tour")
+    if not rx and not tour:
         return []
+    world = bool(opt(ev, "scene_world"))
     try:
         from tracker import scene
         with scene._lock:
@@ -533,9 +580,13 @@ def scene_matches(ev: dict) -> list:
         return []
     out = []
     for sid, x, streams in items:
-        if not re.search(rx, x.get("title") or "", re.I):
+        ti = x.get("title") or ""
+        if rx and not re.search(rx, ti, re.I):
+            if not tour or scene.tournament(ti, x.get("game") or "") != tour:
+                continue
+        elif not rx and scene.tournament(ti, x.get("game") or "") != tour:
             continue
-        if sid.startswith("yt:") and not x.get("india"):
+        if sid.startswith("yt:") and not x.get("india") and not world:
             continue
         for vid, v in streams.items():
             out.append({"vid": vid, "channel": x.get("name") or sid, "channel_id": sid[3:] if sid.startswith("yt:") else sid,
@@ -544,7 +595,7 @@ def scene_matches(ev: dict) -> list:
 
 
 def kind_of(ev: dict, s: dict) -> str:
-    if platforms.official(ev, preset(ev.get("key")), s.get("vid", "")):
+    if s.get("from_official") or platforms.official(ev, preset(ev.get("key")), s.get("vid", "")):
         return "official"
     ch = s.get("channel", "").lower()
     if any(o and o in ch for o in ev.get("official", [])) or (s.get("channel_id") or "").lower() in ev.get("official", []):
@@ -593,9 +644,24 @@ def yt_quota_left(share: float = 1.0) -> bool:
     return used < share * YT_QUOTA
 
 
+_CL = {}       # vid -> (time, viewers): one live-counter reading shared by the site-wide counter and the trackers
+
+
 def count_live(vid: str):
     """Current concurrent viewers from YouTube's live counter (what the player shows). None if not live.
-    Raises if it can't be read (then the caller falls back to reading the page)."""
+    Raises if it can't be read (then the caller falls back to reading the page). A reading under 1.5 s old is
+    reused: the site's 2-second counter and a tournament tracker counting the same stream make one request."""
+    hit = _CL.get(vid)
+    if hit and time.time() - hit[0] < 1.5:
+        return hit[1]
+    n = _count_live(vid)
+    if len(_CL) > 20000:
+        _CL.clear()
+    _CL[vid] = (time.time(), n)
+    return n
+
+
+def _count_live(vid: str):
     r = _http.post("https://www.youtube.com/youtubei/v1/updated_metadata?prettyPrint=false",
                    json={"context": {"client": _ITV}, "videoId": vid},
                    headers={"User-Agent": _UA, "Content-Type": "application/json", "Origin": "https://www.youtube.com"},
@@ -667,6 +733,8 @@ _JUMP = {}       # vid -> (ts, viewers) of an unconfirmed big jump from the watc
 
 
 _fast_pool = ThreadPoolExecutor(max_workers=24)
+FAST_BUDGET = int(os.getenv("EVENT_FAST_BUDGET", "160"))   # YouTube live-counter requests per 2-second round, all trackers
+_BUDGET = {"left": FAST_BUDGET}
 
 
 def paused(key: str) -> bool:
@@ -687,11 +755,22 @@ def fast_tick(ev: dict, now: float = None) -> dict:
         return {}
     fast = _FAST.setdefault(key, {})
     due = []
+    crowd = sum(len(v) for v in _LIVE.values()) > ALL_FAST_MAX   # every stream every 2 s; past this many live in all
+                                                                  # trackers together, the under-50 ones every 30 s
     for vid, st in live.items():
         f = fast.get(vid)
-        big = (f["viewers"] if f else st.get("viewers", 0)) >= MINOR_VIEWERS or st.get("kind") == "official"
+        big = not crowd or (f["viewers"] if f else st.get("viewers", 0)) >= MINOR_VIEWERS or st.get("kind") == "official"
         if not f or now - f["ts"] >= (FAST_SEC * .75 if big else MINOR_SEC):   # .75: a tick 1.99s later still counts
             due.append(vid)
+    # one budget of YouTube counts per 2-second round across every tracker (Kick/Twitch are batched, free):
+    # official streams first, then the ones counted longest ago, then the biggest
+    yt = [v for v in due if not platforms.is_other(v)]
+    if len(yt) > _BUDGET["left"]:
+        yt.sort(key=lambda v: (live[v].get("kind") != "official", -(now - fast.get(v, {}).get("ts", 0) > MINOR_SEC),
+                               -(fast.get(v, {}).get("viewers") or live[v].get("viewers", 0))))
+        keep = set(yt[:max(0, _BUDGET["left"])])
+        due = [v for v in due if platforms.is_other(v) or v in keep]
+    _BUDGET["left"] -= sum(1 for v in due if not platforms.is_other(v))
     methods, errs, anomalies = [], 0, []
     # Never let one slow stream hold the tick: give the counts ~1.5s, use what's back, and pick up the rest next tick.
     for vid in due:
@@ -974,7 +1053,8 @@ def run_fast_forever():
     threading.Thread(target=minutely, daemon=True).start()
     while True:
         t0 = time.time()
-        for ev in events().values():
+        _BUDGET["left"] = FAST_BUDGET
+        for ev in sorted(events().values(), key=lambda e: bool(PRESETS.get(e["key"], {}).get("lp"))):   # hand-made first
             if ev.get("active") and _LIVE.get(ev["key"]):
                 try:
                     fast_tick(ev)
@@ -983,74 +1063,214 @@ def run_fast_forever():
         time.sleep(max(0.3, FAST_SEC * 2 ** _FASTSTATE.get("slow", 0) - (time.time() - t0)))
 
 
+def _search(q: str, gl: str = "IN", pages: int = 3) -> list:
+    """YouTube live search: the site's light search (about 20 streams a page, several pages) first, yt-dlp if it fails."""
+    try:
+        from tracker import scene
+        return scene.yt_search_pages(q, gl, pages)
+    except Exception:
+        return search_live(q)
+
+
+GRACE_SEC = 20 * 60        # official off air this long (a break, a restart) still counts as the broadcast day
+FIRST_HOUR = 3600          # after the official goes live: every search, every poll (late starters)
+PRE_SEC = 30 * 60          # before the scheduled start: full search too (watch parties start early)
+_PHASE = {}                # event -> {"off_ts": last seen live, "on_ts": went live, "n": polls}
+
+
+def on_air(ev: dict, now: float, official_found: bool) -> str:
+    """'full' (search everything) or 'watch' (official channels only). Off air the poll costs a few requests."""
+    ph = _PHASE.setdefault(ev["key"], {"off_ts": 0, "on_ts": 0, "n": 0})
+    if official_found:
+        if now - ph["off_ts"] > GRACE_SEC:
+            ph["on_ts"] = now                   # a new broadcast day
+        ph["off_ts"] = now
+    ns = next_start(ev["key"])
+    if official_found or now - ph["off_ts"] < GRACE_SEC or (ns and ns - now < PRE_SEC):
+        return "full"
+    if not need_official(ev):                   # no official channel known: on air while the site's scan sees it live
+        return "full" if scene_matches(ev) else "watch"
+    return "watch"
+
+
+_HANDLE = {}               # @handle -> channel id (UC...)
+_NOTLIVE = {}              # vid -> time its counter said not live (feed entries that are uploads / ended streams)
+
+
+def _channel_id(h: str):
+    """@handle -> UC id, from the channel page once (kept in the database)."""
+    h = h.strip()
+    if h.startswith("UC") and len(h) == 24:
+        return h
+    if h in _HANDLE:
+        return _HANDLE[h]
+    ids = store.kv_get("ev_handle_ids") or {}
+    if h in ids:
+        _HANDLE[h] = ids[h]
+        return ids[h]
+    try:
+        r = _http.get(f"https://www.youtube.com/@{h.lstrip('@')}", headers={"User-Agent": _UA}, timeout=10)
+        m = re.search(r'"externalId":"(UC[\w-]{22})"', r.text) or re.search(r'<meta itemprop="identifier" content="(UC[\w-]{22})"', r.text) \
+            or re.search(r'"channelId":"(UC[\w-]{22})"', r.text)
+        cid = m.group(1) if m else None
+    except Exception:
+        return None
+    _HANDLE[h] = cid
+    if cid:
+        ids[h] = cid
+        store.kv_set("ev_handle_ids", ids)
+    return cid
+
+
+def feed_live(h: str) -> list:
+    """Streams live now on a channel from its public feed (a small XML file) + the live counter: no yt-dlp, no
+    API quota. The feed lists a stream from when it is scheduled or starts."""
+    cid = _channel_id(h)
+    if not cid:
+        return []
+    try:
+        r = _http.get(f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}", timeout=8, headers={"User-Agent": _UA})
+        if r.status_code != 200:
+            return []
+    except Exception:
+        return []
+    import html as _html
+    out, now = [], time.time()
+    name = re.search(r"<author>\s*<name>([^<]+)</name>", r.text)
+    for e in re.findall(r"<entry>(.*?)</entry>", r.text, re.S)[:5]:
+        v = re.search(r"<yt:videoId>([\w-]{11})</yt:videoId>", e)
+        pub = re.search(r"<published>([^<]+)</published>", e)
+        ti = re.search(r"<title>([^<]*)</title>", e)
+        if not v or not pub:
+            continue
+        vid = v.group(1)
+        try:
+            ts = datetime.fromisoformat(pub.group(1).replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            continue
+        if now - ts > 7 * 86400 or now - _NOTLIVE.get(vid, 0) < 600:
+            continue
+        try:
+            n = count_live(vid)
+        except Exception:
+            n = None
+        if n is None:
+            _NOTLIVE[vid] = now
+            continue
+        out.append({"vid": vid, "title": _html.unescape(ti.group(1)) if ti else "", "channel": _html.unescape(name.group(1)) if name else "",
+                    "channel_id": cid, "viewers": int(n)})
+    return out
+
+
 def poll(ev: dict, now: int = None) -> dict:
-    """Find live streams, record viewers. Returns {'total', 'live', 'streams': [...]}."""
+    """Find live streams, record viewers. Returns {'total', 'live', 'streams': [...]}.
+
+    Off air only the official channels are checked (every poll). When one goes live (or the scheduled start is under
+    30 minutes away) the full search runs every poll: YouTube searches, the listed channels, Kick and Twitch
+    channels and categories, and the site-wide live scan; every query each poll for the first hour (streamers who
+    start late), then the main queries every poll and the rest in turn. It keeps going 20 minutes after the official
+    stream goes off air (breaks between days, restarts)."""
     now = now or int(time.time())
     found = {}
     errors = 0
-    for q in ev["queries"][:8]:
-        try:
-            for s in search_live(q):
-                if relevant(ev, s) and s["viewers"] >= found.get(s["vid"], {}).get("viewers", -1):
-                    found[s["vid"]] = s
-        except Exception as e:
-            errors += 1
-            print(f"Event search '{q}' failed: {str(e)[:120]}")
+    pr = PRESETS.get(ev["key"], {})
     official_now = set()
-    ocs = PRESETS.get(ev["key"], {}).get("official_channels", [])
+    ocs = pr.get("official_channels", [])
     with ThreadPoolExecutor(max_workers=min(6, max(1, len(ocs)))) as pool:   # PMGC has 11 language channels
         for res in pool.map(lambda oc: _safe(channel_live_all, oc), ocs):
             for s in res or []:
-                official_now.add(s["vid"])
-                if s["vid"] not in found:
+                if not pr.get("official_title") or relevant(ev, s):   # PMGC: a channel's other shows don't count
+                    s["from_official"] = True
+                    official_now.add(s["vid"])
                     found[s["vid"]] = s
     for v in official_now:           # the channel itself says these are live: never drop them as ended
         _ENDED.pop(v, None)
+    plat = []
     if platforms.enabled(ev, preset(ev["key"])):
-        for s in platforms.discover(ev, preset(ev["key"])):
-            if relevant(ev, s):
-                found[s["vid"]] = s
-                _ENDED.pop(s["vid"], None)       # the platform API says it's live now (no search lag to guard against)
-    for s in scene_matches(ev):                  # streams carrying it that only the site-wide live scan saw
-        if s["vid"] not in found and relevant(ev, s):
+        plat = [s for s in platforms.discover(ev, preset(ev["key"])) if relevant(ev, s)]
+    off_found = bool(official_now) or any(s.get("official") for s in plat)
+    mode = on_air(ev, now, off_found)
+    ph = _PHASE[ev["key"]]
+    ph["n"] += 1
+    ph["mode"] = mode
+    for s in plat:
+        if mode == "full" or s.get("official"):
             found[s["vid"]] = s
-            _ENDED.pop(s["vid"], None)
-    chans = list(dict.fromkeys(ev.get("channels", []) + PRESETS.get(ev["key"], {}).get("always_check", [])
-                               + [h for _, _, h in roster(ev["key"]) if h]))[:48]
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        for s in pool.map(check_channel, chans):
-            if s and s["vid"] not in found and relevant(ev, s):
+            _ENDED.pop(s["vid"], None)       # the platform API says it's live now (no search lag to guard against)
+    if mode == "full":
+        qs = list(pr.get("queries") or ev["queries"])[:10]
+        core, rest = qs[:4], qs[4:]
+        if rest and now - ph["on_ts"] > FIRST_HOUR:
+            k = ph["n"] % len(rest)
+            rest = (rest[k:] + rest[:k])[:2]       # two of the others each poll, in turn
+        jobs = [(q, "IN") for q in core + rest]
+        if opt(ev, "scene_world"):
+            jobs += [(q, "US") for q in core[:2]]  # the worldwide edition ranks other countries' streams
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            for res in pool.map(lambda a: _safe(_search, *a), jobs):
+                if res is None:
+                    errors += 1
+                    continue
+                for s in res:
+                    if relevant(ev, s) and s["viewers"] >= found.get(s["vid"], {}).get("viewers", -1):
+                        found[s["vid"]] = s
+        for s in scene_matches(ev):              # streams carrying it that only the site-wide live scan saw
+            if s["vid"] not in found and relevant(ev, s):
                 found[s["vid"]] = s
+                _ENDED.pop(s["vid"], None)
+        chans = list(dict.fromkeys(ev.get("channels", []) + pr.get("always_check", [])
+                                   + [h for _, _, h in roster(ev["key"]) if h]))[:60]
+        with ThreadPoolExecutor(max_workers=8) as pool:       # every listed channel's feed, every poll (cheap)
+            for res in pool.map(lambda h: _safe(feed_live, h), chans):
+                for s in res or []:
+                    if s["vid"] not in found and relevant(ev, s):
+                        found[s["vid"]] = s
+        third = [h for i, h in enumerate(chans) if i % 3 == ph["n"] % 3]   # and a third of them through their
+        with ThreadPoolExecutor(max_workers=4) as pool:                    # /live page (a feed can lag)
+            for s in pool.map(check_channel, third):
+                if s and s["vid"] not in found and relevant(ev, s):
+                    found[s["vid"]] = s
     with store.reading():
         c = _db()
         recent = [dict(r) for r in c.execute(
             "SELECT vid, channel, channel_id, title FROM ev_streams WHERE event=? AND last_seen>?",
             (ev["key"], now - RECHECK_MIN * 60))]
-    api = {}
-    vids = ev.get("videos", []) + PRESETS.get(ev["key"], {}).get("videos_extra", [])
-    known = [v for v in {*found, *[r["vid"] for r in recent], *vids} if not platforms.is_other(v)]
+    vids = ev.get("videos", []) + pr.get("videos_extra", [])
     recent = [r for r in recent if not platforms.is_other(r["vid"])]   # Kick/Twitch are re-checked by discover()
-    try:
-        api = api_counts(known)
-    except Exception as e:
-        print(f"YouTube API failed: {str(e)[:120]}")
-    if api:
-        for r in recent:
+    if mode != "full":
+        recent = [r for r in recent if r["vid"] in official_now]
+    # Streams found before that this poll's searches missed: the 2-second counter already knows if they are live
+    # (no request at all); the rest get one live-counter request each. The Data API is only the fallback when
+    # the counter is failing, so the quota is kept for the site's daily stats.
+    fast = _FAST.get(ev["key"], {})
+    ask = []
+    for r in recent:
+        if r["vid"] in found:
+            continue
+        f = fast.get(r["vid"])
+        if f and not f.get("misses") and now - f["ts"] < 15 and f["viewers"]:
+            found[r["vid"]] = {**r, "viewers": f["viewers"]}
+        else:
+            ask.append(r)
+    ask += [{"vid": v, "channel": "", "channel_id": "", "title": ""} for v in vids if v not in found]
+    if ask and fast_healthy():
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            for r, n in zip(ask, pool.map(lambda r: _safe(count_live, r["vid"]), ask)):
+                if n:
+                    found[r["vid"]] = {**r, "viewers": int(n)}
+    elif ask:
+        try:
+            api = api_counts([r["vid"] for r in ask])
+        except Exception as e:
+            api = {}
+            print(f"YouTube API failed: {str(e)[:120]}")
+        for r in ask:
             v = api.get(r["vid"])
-            if v is not None and r["vid"] not in found:
+            if v:
                 found[r["vid"]] = {**r, "viewers": v}
-        for vid, v in api.items():
-            if vid in found:
-                if v is None:
-                    found.pop(vid)          # API says it ended
-                else:
-                    found[vid]["viewers"] = v
-    else:
-        missing = [r["vid"] for r in recent if r["vid"] not in found][:MAX_DIRECT_CHECKS]
-        missing += [v for v in vids if v not in found and v not in missing]
-        if missing:
+        if not api:
             with ThreadPoolExecutor(max_workers=6) as pool:
-                for s in pool.map(lambda v: _safe(check_video, v), missing):
+                for s in pool.map(lambda r: _safe(check_video, r["vid"]), ask[:MAX_DIRECT_CHECKS]):
                     if s:
                         found[s["vid"]] = s
     for vid in [v for v in found if time.time() - _ENDED.get(v, 0) < 900]:
@@ -1097,13 +1317,32 @@ def _safe(fn, *a):
 
 
 def run_all():
-    """Scheduler job: poll every active event."""
-    for ev in events().values():
-        if ev.get("active") and not PRESETS.get(ev["key"], {}).get("ended"):   # a finished event needs no searching
-            try:
-                poll(ev)
-            except Exception as e:
-                print(f"Event {ev['key']} poll failed: {str(e)[:200]}")
+    """Scheduler job: poll every active event (and, every 6 hours, make trackers for new Liquipedia tournaments)."""
+    try:
+        from tracker import autoev
+        autoev.sync()
+    except Exception as e:
+        print(f"Auto trackers failed: {str(e)[:200]}")
+    try:
+        from tracker import scene
+        busy = scene.overloaded()
+    except Exception:
+        busy = False
+    _RUNS[0] += 1
+    todo = [ev for ev in events().values() if ev.get("active") and not PRESETS.get(ev["key"], {}).get("ended")
+            and not (busy and PRESETS.get(ev["key"], {}).get("lp") and _RUNS[0] % 3)]   # server busy: automatic
+                                                                                        # trackers every 3rd minute
+
+    def one(ev):
+        try:
+            poll(ev)
+        except Exception as e:
+            print(f"Event {ev['key']} poll failed: {str(e)[:200]}")
+    with ThreadPoolExecutor(max_workers=3) as pool:     # one slow tracker never delays the others
+        list(pool.map(one, todo))
+
+
+_RUNS = [0]
 
 
 # ---------- numbers ----------

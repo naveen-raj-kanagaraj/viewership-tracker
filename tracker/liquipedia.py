@@ -123,6 +123,11 @@ def fetch_once() -> int:
         store.kv_set("lp_tours", {"ts": time.time(), "tours": tours})
         _CACHE["ts"] = 0
         try:
+            from tracker import autoev
+            autoev._LAST["ts"] = 0         # look for new tournaments to track on the next discovery poll
+        except Exception:
+            pass
+        try:
             from tracker import scene
             scene.merge_aliases()          # readings filed under a league name move onto the edition on now
         except Exception as e:

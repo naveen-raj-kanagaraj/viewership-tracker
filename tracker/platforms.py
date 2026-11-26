@@ -72,7 +72,7 @@ def cfg(ev: dict, preset: dict, platform: str) -> dict:
     c = ev.get(platform) or preset.get(platform) or {}
     return {"official": [x.lower().lstrip("@") for x in c.get("official", [])],
             "channels": [x.lower().lstrip("@") for x in c.get("channels", [])],
-            "category": c.get("category") or ""}
+            "category": c.get("category") or ""}     # one name or a list
 
 
 def listed(ev: dict, preset: dict, vid: str) -> bool:
@@ -373,9 +373,11 @@ def discover(ev: dict, preset: dict) -> list:
                 out[s["vid"]] = s
         except Exception as e:
             print(f"{NAMES[p]} channel check failed: {str(e)[:150]}")
-        if c["category"]:
+        for cat in ([c["category"]] if isinstance(c["category"], str) else c["category"]):
+            if not cat:
+                continue
             try:
-                for s in (_tw_category if p == "twitch" else _kick_category)(c["category"]):
+                for s in (_tw_category if p == "twitch" else _kick_category)(cat):
                     out.setdefault(s["vid"], s)
             except Exception as e:
                 print(f"{NAMES[p]} category check failed: {str(e)[:150]}")
