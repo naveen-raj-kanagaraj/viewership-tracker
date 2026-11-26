@@ -338,10 +338,22 @@ def tracker_page(tk: str, me: dict = None, key: str = "", msg: str = "") -> str:
     btn = lambda x, act, label: (f'<form method="post" action="/admin/trackers/{E(tk)}/act" style="margin:0">{kf}'
                                  f'<input type="hidden" name="vid" value="{E(x["vid"])}"><input type="hidden" name="action" value="{act}">'
                                  f'<button class="btn{" bad" if act == "exclude" else ""}">{label}</button></form>')
+    def chat(x):
+        if x.get("kind") == "official":
+            return ""
+        if str(x["vid"]).startswith(("kick:", "twitch:")):
+            return "title check"
+        st = events._CHATV.get(x["vid"])
+        if not st:
+            return "chat: not read yet"
+        if st.get("err") and not st.get("n"):
+            return "chat: can't read (off?)"
+        return (f'chat: about the match ({st["hits"]} of {len(st["msgs"])})' if st.get("verdict") == "yes"
+                else f'chat: reading ({st.get("hits", 0)} of {len(st["msgs"])} about it)')
     plat = lambda x: "Kick" if str(x["vid"]).startswith("kick:") else "Twitch" if str(x["vid"]).startswith("twitch:") else "YouTube"
     rows_l = "".join(f'<tr><td><a href="{link(x)}" target="_blank" rel="noopener"><b>{E(x.get("channel") or "-")}</b></a>'
                      f'<div class="mut">{plat(x)} · {E((x.get("title") or "")[:110])}</div></td>'
-                     f'<td>{E(x.get("kind") or "")}</td><td class="n"><b>{_fmt(x.get("viewers") or 0)}</b></td>'
+                     f'<td>{E(x.get("kind") or "")}<div class="mut">{chat(x)}</div></td><td class="n"><b>{_fmt(x.get("viewers") or 0)}</b></td>'
                      f'<td>{"" if x.get("kind") == "official" else btn(x, "exclude", "Exclude")}</td></tr>' for x in live)
     rows_r = "".join(f'<tr><td><a href="{link(x)}" target="_blank" rel="noopener"><b>{E(x["channel"] or "-")}</b></a>'
                      f'<div class="mut">{plat(x)} · {E(x["title"][:110])}</div></td><td class="mut">{E(x["why"])}</td>'
