@@ -35,3 +35,23 @@ assert "kick:amigomvp" not in scene._curated()
 scene._KNOWN["at"] = 0
 assert "kick:amigomvp" not in scene.india_known() and "yt:UCturk0000000000000000" not in scene.india_known()
 print("PMGC SPLIT OK")
+
+# accuracy: the YouTube channel's own country decides; a Kick channel with the same name as a YouTube one takes its
+# country; the owner's live list decides over everything
+events._INC.clear(); events._ICTX.clear()
+with store._lock:
+    c = store.conn()
+    c.execute("INSERT OR REPLACE INTO sc_channels (sid, platform, name, country) VALUES (?,?,?,?)", ("yt:UCsnax0000000000000000", "youtube", "Snax Gaming", "IN"))
+    c.execute("INSERT OR REPLACE INTO sc_channels (sid, platform, name, country) VALUES (?,?,?,?)", ("yt:UCnerx0000000000000000", "youtube", "NERXOxLive", "TR"))
+    c.execute("INSERT INTO ev_streams (event, vid, channel, channel_id, title, kind, first_seen, last_seen, peak, peak_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+              ("pmgc", "kick:snaxgaming", "snaxgaming", "kick:snaxgaming", "PMGC watch party", "watch party", now - 7200, now - 3600, 50, now - 5000))
+    c.commit()
+scene._LIVE.clear()
+assert events.stream_india("a", "UCsnax0000000000000000", "x", "Snax Gaming") is True
+assert events.stream_india("b", "UCnerx0000000000000000", "Team India 🇮🇳 PMGC", "NERXOxLive") is False   # country beats the title
+assert events.stream_india("kick:snaxgaming", "kick:snaxgaming", "PMGC", "snaxgaming") is True          # same name as the YouTube channel
+events.LIVE_DIR = __import__("pathlib").Path(tempfile.mkdtemp())
+(events.LIVE_DIR / "pmgc.json").write_text('{"not_india": ["UCsnax0000000000000000"]}')
+events._LL.clear()
+assert events.stream_india("a", "UCsnax0000000000000000", "x", "Snax Gaming") is False                  # the owner's list wins
+print("PMGC SPLIT ACCURACY OK")

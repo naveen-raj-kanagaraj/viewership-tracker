@@ -79,7 +79,7 @@ def _overlay(out: dict, ev: dict):
                 live.append({"vid": r["vid"], "channel": r.get("channel", ""), "title": r.get("title", ""), "kind": r["kind"],
                              "platform": events.platforms.platform_of(r["vid"]), "viewers": r["viewers"],
                              "url": events.yt_link(r["vid"]), "logo": events.avatar(r.get("channel_id", "")),
-                             "in": int(events.stream_india(r["vid"], r.get("channel_id", ""), r.get("title", ""), r.get("channel", "")))
+                             "in": int(events.stream_india(r["vid"], r.get("channel_id", ""), r.get("title", ""), r.get("channel", ""), k))
                              if out.get("split_in") else 0})
         out["live"] = sorted(live, key=lambda x: -x["viewers"])
         if out.get("wp"):
@@ -136,7 +136,7 @@ def _build(ev: dict) -> dict:
            "links": {k: v for k, v in (ev.get("links") or {}).items()            # no links to other stats sites:
                      if not any(d in v for d in ("liquipedia.", "escharts.", "esportscharts.", "streamscharts."))}}   # people stay here
     split = bool(events.PRESETS.get(ev["key"], {}).get("scene_world"))   # a worldwide event: India / outside India
-    inn = (lambda x: int(events.stream_india(x["vid"], x.get("channel_id", ""), x.get("title", ""), x.get("channel", "")))) if split else (lambda x: 0)
+    inn = (lambda x: int(events.stream_india(x["vid"], x.get("channel_id", ""), x.get("title", ""), x.get("channel", ""), ev["key"]))) if split else (lambda x: 0)
     out["split_in"] = split
     if st.get("ticks"):
         live = [{"vid": s["vid"], "channel": s.get("channel", ""), "title": s.get("title", ""), "kind": s["kind"],
