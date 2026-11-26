@@ -101,7 +101,9 @@ def cmd_run(args) -> int:
 
     # Live counters, the per-minute export thread and the one-time repair all start here.
     threading.Thread(target=events.run_fast_forever, daemon=True).start()
-    threading.Thread(target=events.run_chat_checks, daemon=True).start()   # watch parties: is the chat about the match?
+    from tracker import wptrust
+    threading.Thread(target=wptrust.run, daemon=True).start()          # which channels carried PUBG Mobile / BGMI before
+    threading.Thread(target=events.run_chat_checks, daemon=True).start()   # sus watch parties: is the chat about the match?
     threading.Thread(target=_discovery_loop, daemon=True).start()
     if os.getenv("SCENE_ENABLED", "true").lower() == "true":     # India rankings at /india
         from tracker import scene

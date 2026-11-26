@@ -343,13 +343,19 @@ def tracker_page(tk: str, me: dict = None, key: str = "", msg: str = "") -> str:
             return ""
         if str(x["vid"]).startswith(("kick:", "twitch:")):
             return "title check"
+        from tracker import wptrust
+        ts = wptrust.status(x.get("channel_id") or "")
+        if ts == "trusted":
+            return "trusted: " + E(wptrust.why(x.get("channel_id") or ""))
+        if ts == "unchecked":
+            return "checking the channel's past streams"
         st = events._CHATV.get(x["vid"])
         if not st:
-            return "chat: not read yet"
+            return "new channel: chat check queued"
         if st.get("err") and not st.get("n"):
             return "chat: can't read (off?)"
-        return (f'chat: about the match ({st["hits"]} of {len(st["msgs"])})' if st.get("verdict") == "yes"
-                else f'chat: reading ({st.get("hits", 0)} of {len(st["msgs"])} about it)')
+        return (f'new channel, chat about the match ({st["hits"]} of {len(st["msgs"])})' if st.get("verdict") == "yes"
+                else f'new channel, reading chat ({st.get("hits", 0)} of {len(st["msgs"])} about it)')
     plat = lambda x: "Kick" if str(x["vid"]).startswith("kick:") else "Twitch" if str(x["vid"]).startswith("twitch:") else "YouTube"
     rows_l = "".join(f'<tr><td><a href="{link(x)}" target="_blank" rel="noopener"><b>{E(x.get("channel") or "-")}</b></a>'
                      f'<div class="mut">{plat(x)} · {E((x.get("title") or "")[:110])}</div></td>'

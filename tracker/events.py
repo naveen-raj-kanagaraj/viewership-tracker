@@ -638,11 +638,11 @@ def _card_filter(ev: dict, found: dict):
             found.pop(v, None)
 
 
-# ---------- the chat check (owner, 26 Nov: "why don't you read the chat?") ----------
+# ---------- the chat check (owner, 26 Nov: "read the chat", then "only for channels that seem sus") ----------
 # In a real watch party the chat talks about the match: PMGC, the Gauntlet, team names, chicken dinners. A stream that
-# only has PMGC in its title chats about room IDs, custom rooms, rank push, or nothing related. Every YouTube stream
-# a verify tracker counts (not official, not counted by hand) has its recent live chat read (the chat popout page,
-# as the Super Chat reader does; no API quota) every 3 minutes, the last 150 messages kept. It only ever takes a
+# only has PMGC in its title chats about room IDs, custom rooms, rank push, or nothing related. Only channels with no
+# PUBG Mobile / BGMI tournament behind them (wptrust: 'new') are read; trusted ones are not. Their recent live chat
+# (the chat popout page, as the Super Chat reader does; no API quota) every 3 minutes, the last 150 messages kept. It only ever takes a
 # stream off: 40+ readable messages with no word about the event or any team, or 20+ with none and 3+ about rooms /
 # IDs / rank push. Chats mostly in Arabic, Thai, Cyrillic, Devanagari or Bengali script are not judged (team names
 # may be written in that script). Kick / Twitch: title check only.
@@ -715,32 +715,41 @@ def _chat_check(key: str, vid: str):
             (_FAST.get(key) or {}).pop(vid, None)
 
 
+def chat_due(now: float = None) -> list:
+    """[(viewers, event, vid)] of sus watch parties (wptrust 'new') whose chat is due: 3 min, 10 min once it is about
+    the match. Trusted channels (carried PUBG Mobile / BGMI before) and ones whose history isn't read yet are skipped."""
+    from tracker import wptrust
+    now = now or time.time()
+    due = []
+    evs = events()
+    for key, live in list(_LIVE.items()):
+        pr = PRESETS.get(key, {})
+        ev = evs.get(key)
+        if not pr.get("verify") or not ev:
+            continue
+        for vid, s in list(live.items()):
+            if platforms.is_other(vid) or s.get("kind") == "official" or _official_s(ev, s) \
+                    or vid in ev.get("videos", []) or _forced_channel(ev, s):
+                continue
+            if wptrust.status(s.get("channel_id") or "") != "new":
+                continue
+            st = _CHATV.get(vid)
+            if not st or now - st["ts"] > (600 if st.get("verdict") == "yes" else 180):
+                due.append((int(s.get("viewers") or 0), key, vid))
+    return sorted(due, reverse=True)
+
+
 def run_chat_checks():
-    """Every 15 s: the counted watch parties whose chat is due (3 min; 10 min once the chat is about the match),
-    biggest first, 12 at a time."""
+    """Every 15 s: the due sus watch parties, biggest first, 12 at a time."""
     while True:
         time.sleep(15)
         try:
-            now = time.time()
-            due = []
-            evs = events()
-            for key, live in list(_LIVE.items()):
-                pr = PRESETS.get(key, {})
-                ev = evs.get(key)
-                if not pr.get("verify") or not ev:
-                    continue
-                for vid, s in list(live.items()):
-                    if platforms.is_other(vid) or s.get("kind") == "official" or _official_s(ev, s) \
-                            or vid in ev.get("videos", []) or _forced_channel(ev, s):
-                        continue
-                    st = _CHATV.get(vid)
-                    if not st or now - st["ts"] > (600 if st.get("verdict") == "yes" else 180):
-                        due.append((int(s.get("viewers") or 0), key, vid))
-            due.sort(reverse=True)
+            due = chat_due()
             if due:
                 with ThreadPoolExecutor(max_workers=4) as pool:
                     list(pool.map(lambda d: _safe(_chat_check, d[1], d[2]), due[:12]))
             if len(_CHATV) > 3000:
+                now = time.time()
                 for v in [v for v, x in _CHATV.items() if now - x["ts"] > 6 * 3600]:
                     _CHATV.pop(v, None)
         except Exception as e:
