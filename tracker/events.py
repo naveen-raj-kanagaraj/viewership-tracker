@@ -223,7 +223,9 @@ PRESETS = {
         # the same Indian streamers on Kick (one API call): counted when the title names the event
         "kick": {"channels": ["snaxgaming", "sheekgaming", "lolzzzgaming", "soulaman", "neyoo_gaming", "neyoo-gaming",
                               "mrspikeyt", "vaadhiyaar", "shreemanlegend", "sharkshe", "mizo", "ravensharplive",
-                              "mazyislive", "kushalmahajan"],
+                              "mazyislive", "kushalmahajan", "ghatak", "mortal", "sinisterplayss", "mafianinja",
+                              "deltapubgm", "engineerytgaming", "amigomvp", "3lok", "bloodthrust", "rohanmodhera",
+                              "leovent18", "regaltos", "dynamo", "8bitthug", "lolzzzgaming"],
                  "category": ["PUBG Mobile", "Battlegrounds Mobile India"]},   # + every stream in these categories
         "twitch": {"category": ["PUBG MOBILE"]},  # titled with the event (Twitch: top 100 by viewers)
         "official_title": True,                 # official channels count only streams whose title names the event

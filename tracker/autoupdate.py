@@ -40,12 +40,12 @@ def _compiles() -> bool:
 
 def check_once() -> str:
     """One check. Returns what happened (for the log); restarts the process when it updated."""
-    if _on_air():
-        return "skipped: a tournament broadcast is live"
     _git("fetch", "-q", "origin", "main")
     head, remote = _git("rev-parse", "HEAD"), _git("rev-parse", "origin/main")
     if head == remote:
         return "up to date"
+    if _on_air() and "[live]" not in _git("log", "--format=%s", f"{head}..{remote}"):
+        return "skipped: a tournament broadcast is live"     # a fix marked [live] goes out during a broadcast too (owner, 26 Nov)
     if _git("status", "--porcelain", "--untracked-files=no"):
         return "skipped: files in the folder were edited by hand (git status shows them)"
     try:
@@ -70,7 +70,7 @@ def check_once() -> str:
 def start():
     if os.getenv("AUTO_UPDATE", "true").lower() != "true":
         return
-    every = max(2, int(os.getenv("AUTO_UPDATE_MIN", "10"))) * 60
+    every = max(2, int(os.getenv("AUTO_UPDATE_MIN", "3"))) * 60
 
     def loop():
         while True:
