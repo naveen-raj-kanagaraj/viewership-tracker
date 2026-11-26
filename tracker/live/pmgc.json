@@ -1,8 +1,30 @@
 {
-  "youtube": ["UC-OELhLH1SF4D8-ncXQF0Eg", "UCnJK8nTQ7wFewtu9vvW821Q"],
-  "kick": ["engineerytgaming", "rohanmodhera", "amitsewda332", "samisalivee", "choudharygaming", "dimogoeslive",
-           "zimba-is-live", "vinogaminglive", "s2james", "bloodthrust", "leovent18"],
+  "youtube": [
+    "UC-OELhLH1SF4D8-ncXQF0Eg",
+    "UCnJK8nTQ7wFewtu9vvW821Q"
+  ],
+  "kick": [
+    "ghatakofficial",
+    "engineerytgaming",
+    "rohanmodhera",
+    "amitsewda332",
+    "samisalivee",
+    "choudharygaming",
+    "dimogoeslive",
+    "zimba-is-live",
+    "vinogaminglive",
+    "s2james",
+    "bloodthrust",
+    "leovent18"
+  ],
   "twitch": [],
-  "exclude": ["yYQb9Zl89c0", "kick:jonathaangaming1"],
-  "count": ["kick:engineerytgaming", "kick:rohanmodhera"]
+  "exclude": [
+    "yYQb9Zl89c0",
+    "kick:jonathaangaming1"
+  ],
+  "count": [
+    "kick:ghatakofficial",
+    "kick:engineerytgaming",
+    "kick:rohanmodhera"
+  ]
 }
