@@ -129,9 +129,11 @@ def _search_past(q: str, gl: str, pages: int = 2) -> list:
     for v in items:
         by = (v.get("ownerText") or v.get("longBylineText") or v.get("shortBylineText") or {}).get("runs") or [{}]
         cid = ((by[0].get("navigationEndpoint") or {}).get("browseEndpoint") or {}).get("browseId", "")
+        ued = v.get("upcomingEventData") or {}
         out.append({"vid": v.get("videoId") or "", "channel": by[0].get("text", ""), "channel_id": cid,
                     "title": scene._text(v.get("title")), "when": scene._text(v.get("publishedTimeText")),
-                    "live": "watching" in scene._text(v.get("viewCountText")).lower()})
+                    "live": "watching" in scene._text(v.get("viewCountText")).lower(),
+                    "upcoming": bool(ued), "start": int(ued.get("startTime") or 0) if str(ued.get("startTime") or "").isdigit() else 0})
     return out
 
 
@@ -185,8 +187,9 @@ def build(force: bool = False):
 
 
 def _candidates() -> list:
+    """Unknown channels that are live or scheduled (checked before they go live), biggest first."""
     out = []
-    for key, live in list(events._LIVE.items()):
+    for key, live in list(events._LIVE.items()) + [(k, v) for k, v in list(events._SCHED.items())]:
         if not (events.PRESETS.get(key) or {}).get("verify"):
             continue
         for vid, s in list(live.items()):

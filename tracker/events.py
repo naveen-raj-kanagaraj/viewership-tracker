@@ -756,6 +756,45 @@ def run_chat_checks():
             print(f"Chat check: {str(e)[:120]}")
 
 
+# ---------- scheduled streams (owner, 26 Nov: "those with scheduled streams, add them now") ----------
+# Most watch parties are scheduled on YouTube before they go live. A plain YouTube search (not live-only) lists them
+# with their start time; the ones whose title passes the check are kept here and asked for their live count every
+# poll, so each one is counted from its first live minute even when the live search ranks it low. Their channels'
+# history is read before they start (wptrust). Searched on the first poll and every 5th poll from 3 hours before
+# the start, and while on air.
+_SCHED = {}     # event -> {vid: {vid, channel, channel_id, title, start, ts, viewers: 0}}
+SCHED_MAX = 200
+
+
+def scheduled_search(ev: dict) -> int:
+    from tracker import wptrust
+    pr = PRESETS.get(ev["key"], {})
+    qs = [(q, "IN") for q in (pr.get("queries") or ev.get("queries") or [])[:6]] + list(pr.get("world_queries") or [])
+    now = time.time()
+    sch = _SCHED.setdefault(ev["key"], {})
+    n = 0
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for res in pool.map(lambda a: _safe(wptrust._search_past, a[0], a[1], 2), qs):
+            for x in res or []:
+                if not x.get("vid") or not x.get("upcoming") or x["vid"] in sch:
+                    continue
+                if x.get("start") and not (now - 3 * 3600 < x["start"] < now + 6 * 3600):
+                    continue                    # another day's stream
+                st = {"vid": x["vid"], "channel": x.get("channel") or "", "channel_id": x.get("channel_id") or "",
+                      "title": x.get("title") or "", "viewers": 0}
+                if _official_s(ev, st) or not relevant(ev, st):
+                    continue                    # official channels are polled anyway; the title check applies
+                sch[x["vid"]] = {**st, "start": x.get("start") or 0, "ts": now}
+                n += 1
+    for v in [v for v, x in sch.items() if x.get("start") and now - x["start"] > 3 * 3600]:
+        sch.pop(v, None)                        # never went live
+    while len(sch) > SCHED_MAX:
+        sch.pop(next(iter(sch)))
+    if n:
+        print(f"{ev['key']}: {n} scheduled streams added ({len(sch)} waiting)")
+    return n
+
+
 def set_stream(key: str, vid: str, count: bool):
     """Admin: count a stream the check left out, or stop counting one (by video). Takes effect at once."""
     ev = events().get(key)
@@ -772,6 +811,7 @@ def set_stream(key: str, vid: str, count: bool):
         exc.append(vid)
         (_LIVE.get(key) or {}).pop(vid, None)
         (_FAST.get(key) or {}).pop(vid, None)
+        (_SCHED.get(key) or {}).pop(vid, None)
     update(key, videos=vids, excluded=exc)
     return True
 
@@ -1428,6 +1468,9 @@ def poll(ev: dict, now: int = None) -> dict:
     ph = _PHASE[ev["key"]]
     ph["n"] += 1
     ph["mode"] = mode
+    ns = next_start(ev["key"])
+    if pr.get("verify") and ph["n"] % 5 == 1 and (mode == "full" or (ns and 0 < ns - now < 3 * 3600)):
+        threading.Thread(target=_safe, args=(scheduled_search, ev), daemon=True).start()
     for s in plat:
         if mode == "full" or s.get("official"):
             found[s["vid"]] = s
@@ -1471,6 +1514,14 @@ def poll(ev: dict, now: int = None) -> dict:
             for s in pool.map(check_channel, third):
                 if s and s["vid"] not in found and relevant(ev, s):
                     found[s["vid"]] = s
+        sch = [x for v, x in list((_SCHED.get(ev["key"]) or {}).items()) if v not in found]
+        if sch and fast_healthy():               # scheduled watch parties: counted from their first live minute
+            sch.sort(key=lambda x: x.get("start") or 0)
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                for x, n in zip(sch[:150], pool.map(lambda x: _safe(count_live, x["vid"]), sch[:150])):
+                    if n and relevant(ev, x):
+                        found[x["vid"]] = {**x, "viewers": int(n)}
+                        _ENDED.pop(x["vid"], None)
         if pr.get("verify"):
             _card_filter(ev, found)              # another game on YouTube's card: not a watch party
     with store.reading():

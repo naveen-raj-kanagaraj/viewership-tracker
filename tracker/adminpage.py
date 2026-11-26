@@ -364,13 +364,21 @@ def tracker_page(tk: str, me: dict = None, key: str = "", msg: str = "") -> str:
     rows_r = "".join(f'<tr><td><a href="{link(x)}" target="_blank" rel="noopener"><b>{E(x["channel"] or "-")}</b></a>'
                      f'<div class="mut">{plat(x)} · {E(x["title"][:110])}</div></td><td class="mut">{E(x["why"])}</td>'
                      f'<td class="n">{_fmt(x["viewers"])}</td><td>{btn(x, "include", "Count it")}</td></tr>' for x in rej)
+    sch = sorted((x for v, x in (events._SCHED.get(tk) or {}).items() if v not in (events._LIVE.get(tk) or {})),
+                 key=lambda x: x.get("start") or 0)
+    rows_s = "".join(f'<tr><td><a href="{link(x)}" target="_blank" rel="noopener"><b>{E(x["channel"] or "-")}</b></a>'
+                     f'<div class="mut">{E(x["title"][:110])}</div></td>'
+                     f'<td class="mut">{datetime.fromtimestamp(x["start"], IST).strftime("%d %b %I:%M %p") if x.get("start") else "-"}</td>'
+                     f'<td><div class="mut">{chat(x)}</div></td><td>{btn(x, "exclude", "Exclude")}</td></tr>' for x in sch)
     tot = sum(int(x.get("viewers") or 0) for x in live)
     body = (f'<h1>{E(ev.get("name") or tk)}</h1><p class="sub">{"Searching YouTube (India and worldwide), Kick and Twitch" if ph.get("mode") == "full" else "Watching the official channels; the full search starts 30 minutes before the start or when one goes live"}. '
             f'<a href="/e/{E(tk)}/" target="_blank">Public page</a></p>'
             + (f'<div class="msg">{E(msg)}</div>' if msg else "")
-            + f'<div class="k">{_card("Counted now", str(len(live)), _fmt(tot) + " watching")}{_card("Left out by the check", str(len(rej)), "last 30 minutes")}</div>'
+            + f'<div class="k">{_card("Counted now", str(len(live)), _fmt(tot) + " watching")}{_card("Scheduled", str(len(sch)), "waiting to go live")}{_card("Left out by the check", str(len(rej)), "last 30 minutes")}</div>'
             f'<div class="card"><h2>Counted now</h2><table><tr><th>Stream</th><th>Kind</th><th class="n">Watching</th><th></th></tr>'
             f'{rows_l or "<tr><td class=mut colspan=4>Nothing live yet.</td></tr>"}</table></div>'
+            f'<div class="card"><h2>Scheduled: counted the moment they go live ({len(sch)})</h2><table><tr><th>Stream</th><th>Starts (IST)</th><th>Channel</th><th></th></tr>'
+            f'{rows_s or "<tr><td class=mut colspan=4>None found yet. The search for scheduled streams runs every 5 minutes from 3 hours before the start.</td></tr>"}</table></div>'
             f'<div class="card"><h2>Left out: names the event but is not a watch party</h2><p class="sub">Gameplay, custom rooms, scrims, talk shows, '
             f'another game, or the event only in hashtags. If one is really a watch party, Count it.</p><table><tr><th>Stream</th><th>Why</th><th class="n">Watching</th><th></th></tr>'
             f'{rows_r or "<tr><td class=mut colspan=4>Nothing left out.</td></tr>"}</table></div>'
