@@ -618,7 +618,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 .sw{display:inline-block;width:9px;height:9px;margin-right:5px;vertical-align:-1px}
 .kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px}.kpi.tpk{grid-column:1/-1;border-color:rgba(182,242,58,.45);background:linear-gradient(90deg,rgba(182,242,58,.12),rgba(182,242,58,.02))}.kpi.tpk .v{color:var(--lime);text-shadow:0 0 18px rgba(182,242,58,.35)}
 .kpi .v{font:700 24px "Barlow",sans-serif;margin-top:4px;font-variant-numeric:tabular-nums}.kpi .s{color:var(--muted);font-size:12px}
-.head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}.head>div:first-child{margin-right:auto}.rfw{flex-basis:100%}.alt{font-size:11px;font-weight:600;white-space:nowrap}
+.head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}.head>div:first-child{margin-right:auto}.rfw{flex-basis:100%}.alt{display:block;font-size:11px;font-weight:600;white-space:nowrap;margin-top:2px}
 h2{font:700 15px "Barlow",sans-serif;text-transform:uppercase;letter-spacing:.04em;margin:0}
 .tabs{display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid var(--line);overflow-x:auto}
 .tabs button{all:unset;cursor:pointer;padding:9px 14px;font:700 13px "Barlow",sans-serif;text-transform:uppercase;color:var(--muted);border-bottom:3px solid transparent;white-space:nowrap}
@@ -887,9 +887,9 @@ function wpRows(){const sb=document.getElementById('shareBoard');if(sb)sb.onclic
  let wt=document.getElementById('wpwait');if(!wt&&mb){wt=document.createElement('div');wt.id='wpwait';wt.className='wpwait';mb.after(wt)}
  if(wt)wt.innerHTML=WAIT.length?`<div class="lbl" style="color:var(--muted)">// not started yet (${WAIT.length})</div><div class="wpw">${WAIT.map(w=>`<a class="wpc" href="${esc(w.url||'#')}" target="_blank" rel="noopener">${w.logo?`<img src="${esc(w.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}<span>${esc(w.name)}</span></a>`).join('')}</div>`:'';
  document.getElementById('wprows').innerHTML=RR.map(w=>{const has=w.status!=='upcoming';if(has)rank++;
-  const PN={youtube:'YT',kick:'KICK',twitch:'TWITCH'},alt=(w.alts||[]).map(([p,v])=>`<span class="muted alt"> / ${PN[p]||p.toUpperCase()} ${fmt(v)}</span>`).join(''),
-   pf=(w.alts||[]).length?`<span class="muted alt">${PN[w.platform]||''} </span>`:'';
-  const st=w.status==='live'?`<span class="lv"><i></i>LIVE</span> ${pf}<b>${full(w.viewers)}</b>${alt}`:w.status==='ended'?`<span class="muted">PEAK</span> ${pf}<b>${full(w.peak||0)}</b>${alt}`:'<span class="muted">YET TO START</span>';
+  // same streamer on two platforms: the number is the bigger one; under it, small: where it was / the other one
+  const PN={youtube:'YT',kick:'KICK',twitch:'TWITCH'},alt=(w.alts||[]).length?`<span class="muted alt">${PN[w.platform]||''}${(w.alts||[]).map(([p,v])=>` / ${PN[p]||p.toUpperCase()} ${fmt(v)}`).join('')}</span>`:'';
+  const st=w.status==='live'?`<span class="lv"><i></i>LIVE</span> <b>${full(w.viewers)}</b>${alt}`:w.status==='ended'?`<span class="muted">PEAK</span> <b>${full(w.peak||0)}</b>${alt}`:'<span class="muted">YET TO START</span>';
   const logo=w.logo?`<img class="lg" src="${esc(w.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:`<span class="lg" style="display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">${esc(w.name.slice(0,2).toUpperCase())}</span>`;
   const nm=w.url?`<a class="ch" href="${esc(w.url)}" target="_blank" rel="noopener" style="color:var(--ink)">${esc(w.name)}</a>`:`<span class="ch">${esc(w.name)}</span>`;
   return `<tr><td class="rk ${has?'watch':''}" style="${has?'':'background:var(--line);color:var(--muted)'}">${has?rank:'-'}</td><td class="t">${logo}${nm}</td>
