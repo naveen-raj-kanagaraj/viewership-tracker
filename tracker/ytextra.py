@@ -2137,6 +2137,31 @@ def _latest_gains(day_back: int = 1) -> dict:
     return out
 
 
+def _prev_gains() -> dict:
+    """{sid: (views gained, subs gained)} one day earlier than _latest_gains: for rank arrows."""
+    out = {}
+    with store.reading():
+        rows = _db().execute("SELECT sid, day, subs, views FROM sc_chstats WHERE day >= ? ORDER BY sid, day",
+                             ((datetime.now(events.REPORT_TZ).date() - timedelta(days=5)).strftime("%Y-%m-%d"),)).fetchall()
+    by = {}
+    for r in rows:
+        by.setdefault(r[0], []).append(r)
+    for sid, L in by.items():
+        if len(L) >= 3:
+            a, b = L[-3], L[-2]
+            ok = a[3] is not None and b[3] is not None and 0 <= b[3] - a[3] <= 0.25 * max(b[3], 1)
+            out[sid] = (b[3] - a[3] if ok else None, b[2] - a[2] if a[2] is not None and b[2] is not None else None)
+    return out
+
+
+def _arrows(L: list, key: str, prev: dict, i: int):
+    """delta = place among these channels the day before minus place now (None: no number the day before)."""
+    have = sorted((x for x in L if (prev.get(x["sid"]) or (None, None))[i] is not None), key=lambda x: -prev[x["sid"]][i])
+    pr = {x["sid"]: n + 1 for n, x in enumerate(have)}
+    for n, x in enumerate(L):
+        x["delta"] = (pr[x["sid"]] - (n + 1)) if x["sid"] in pr else None
+
+
 def _chan_rows(sids: list) -> dict:
     if not sids:
         return {}
@@ -2185,6 +2210,12 @@ def home_lists(region: str = "global", game: str = "", n: int = 25, topic: str =
         vids = [dict(r) for r in _db().execute(q + " ORDER BY v.views DESC LIMIT ?", (*a, n))]
         live_sids = [r[0] for r in _db().execute("SELECT sid FROM sc_channels WHERE COALESCE(NULLIF(ytcat,''), topic)=? AND last_live>?",
                                                   (topic, time.time() - 2 * 86400))] if topic else []
+    try:
+        pg = _prev_gains()
+        _arrows(top, "views_day", pg, 0)
+        _arrows(subs, "subs_day", pg, 1)
+    except Exception as e:
+        print(f"Home arrows: {str(e)[:80]}")
     return {"channels_today": top, "subs_today": subs, "trending": vids, "live_sids": live_sids}
 
 

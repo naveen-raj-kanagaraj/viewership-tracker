@@ -143,10 +143,42 @@ def due(limit: int = 400) -> list:
     return [s for s in want if time.time() - (checked.get(s) or 0) > EVERY][:limit]
 
 
+def logo_fill(limit: int = 1000) -> int:
+    """Twitch / Kick channels seen live lately with no profile picture stored (25 Nov: Twitch rows showed initials):
+    read them (Twitch: 100 per API call) and keep them in sc_channels, so boards and rankings have them too."""
+    from tracker import platforms
+    with store.reading():
+        L = [r[0] for r in store.conn().execute(
+            "SELECT sid FROM sc_channels WHERE platform IN ('twitch','kick') AND COALESCE(logo,'')='' AND last_live>? "
+            "ORDER BY last_live DESC LIMIT ?", (time.time() - 14 * 86400, limit))]
+    tw = [s.split(":", 1)[1] for s in L if s.startswith("twitch:")]
+    if tw and platforms._keys("twitch"):
+        try:
+            platforms._tw_logos(tw)
+        except Exception as e:
+            print(f"Twitch logos: {str(e)[:100]}")
+    kk = [s for s in L if s.startswith("kick:")]
+    if kk:
+        try:
+            platforms.kick_logos(kk)
+        except Exception as e:
+            print(f"Kick logos: {str(e)[:100]}")
+    rows = [(platforms.logo(s), s) for s in L if platforms.logo(s)]
+    if rows:
+        store.write_slices("UPDATE sc_channels SET logo=? WHERE sid=?", rows, n=200)
+    return len(rows)
+
+
 def run_forever():
     load()
     time.sleep(120)
     while True:
+        try:
+            n = logo_fill()
+            if n:
+                print(f"Logos: {n} Twitch / Kick profile pictures stored")
+        except Exception as e:
+            print(f"Logos: {str(e)[:150]}")
         try:
             todo = due()
             if todo:

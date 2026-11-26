@@ -129,11 +129,18 @@ __PANEL_CSS__
 .hbar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-top:18px}.hbar h2{margin:0;font-size:22px}.hbar .lbl{font:600 11px "Barlow Condensed",sans-serif;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
 .hsel{margin-left:auto;display:flex;align-items:center;gap:8px;font:600 12px "Barlow Condensed",sans-serif;letter-spacing:.05em;color:var(--muted);text-transform:uppercase}
 .hsel select{background:var(--card);color:var(--ink);border:1px solid #3a2f6b;font:15px "Barlow",sans-serif;padding:7px 30px 7px 10px;max-width:240px;appearance:none;background-image:linear-gradient(45deg,transparent 50%,#8d8ca3 50%),linear-gradient(135deg,#8d8ca3 50%,transparent 50%);background-position:calc(100% - 15px) 52%,calc(100% - 10px) 52%;background-size:5px 5px;background-repeat:no-repeat}
+.pulse{width:100%;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font:600 13px "Barlow Condensed",sans-serif;letter-spacing:.03em;color:var(--muted);margin-top:8px;padding:8px 12px;background:var(--card);border:1px solid var(--line)}
+.pulse b{color:var(--ink);font-weight:700}.pulse .pl{display:inline-flex;align-items:center;gap:5px}.pulse .pl i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.pulse .pbs{margin-left:auto;color:#ffd23f;cursor:pointer;background:none;border:1px solid #4a4020;font:600 12px "Barlow Condensed",sans-serif;padding:3px 8px}
+.qf{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.qf .seg{margin:0}.qf .seg a,.qf .seg button{text-decoration:none}
+.qf .seg.rg a{display:inline-block;padding:6px 10px;color:var(--muted);font:600 12px "Barlow Condensed",sans-serif;letter-spacing:.04em}.qf .seg.rg a.on{background:var(--lime);color:#0b0b12}
+.ytt{display:inline-flex;border:1px solid var(--line);margin-left:auto}.ytt button{background:none;border:0;color:var(--muted);font:600 11px "Barlow Condensed",sans-serif;letter-spacing:.04em;padding:4px 8px;cursor:pointer}.ytt button.on{background:var(--lime);color:#0b0b12}
+.pbb{margin-left:5px;font-size:12px}.vv small.up{color:#3ddc84}.vv small.dn{color:var(--red)}
 .hopen{color:var(--lime);font:600 13px "Barlow Condensed",sans-serif;letter-spacing:.04em;text-decoration:none;align-self:center}
 .hcs{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;align-items:start}.hcs .list.open .hrows{max-height:420px;overflow-y:auto;overscroll-behavior:contain}.hcs .list{margin-top:12px}.hcs .lh{padding:11px 14px}.hcs .lh h2{font-size:16px;flex:1;min-width:0}.hcs .lh .r{margin-left:auto}
 .hcs .lh .cap{width:100%;font-size:11.5px;color:var(--muted);margin-top:-4px}
 .row.v{grid-template-columns:22px 64px minmax(0,1fr) auto}.row.v .th{width:64px;height:36px;object-fit:cover;background:var(--card2);display:block}
-@media(max-width:640px){.hcs .lh .r{width:auto!important;margin-left:auto!important}.hcs{grid-template-columns:1fr}.hsel{margin-left:0;width:100%}.hsel select{flex:1;max-width:none}}
+@media(max-width:640px){.hcs .lh .r{width:auto!important;margin-left:auto!important}.hcs{grid-template-columns:1fr}.hsel{margin-left:0;width:100%}.hsel select{flex:1;max-width:none}.qf{width:100%}.pulse .pbs{margin-left:0}}
 .mtw{overflow-x:auto;padding:0 16px 14px}.mtab{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}.mtab th{font:600 12px "Barlow Condensed",sans-serif;letter-spacing:.06em;color:var(--muted);text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}.mtab td{padding:8px;border-bottom:1px solid #1c1c29;text-align:right;white-space:nowrap}.mtab .l{text-align:left}.mtab .up{color:var(--lime)}.mtab .dn{color:#ff4d5e}.mtab .mu{color:var(--muted)}
 @media(max-width:640px){.mtab .hide{display:none}.mtab td,.mtab th{padding:7px 4px}.mtw{padding:0 12px 12px}}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -235,7 +242,7 @@ body{font-size:14px}.wrap{padding:0 12px 20px}
 <div id="evwrap"></div>
 <div class="card" id="otcard" style="display:none"><div class="head"><div><div class="lbl">Esports</div><h2>Ongoing tournaments</h2><div class="sub" id="ots">Every channel streaming a tournament added together: official broadcasts in every country and language, and co-streams. Tap one for all its numbers.</div></div></div>
 <div class="otchips" id="otchips"></div><div class="otg" id="otg"></div><div class="otmore" id="otmore"></div></div>
-<div class="hbar" id="hbar"><div><div class="lbl">Today</div><h2 id="hbt">Top today</h2></div><label class="hsel"><span>Category</span><select id="hcat"><option value="">All categories</option></select></label><a class="hopen" id="hopen" style="display:none"></a></div>
+<div class="hbar" id="hbar"><div><div class="lbl">Today</div><h2 id="hbt">Top today</h2></div><div class="qf" id="qf"></div><label class="hsel"><span>Category</span><select id="hcat"><option value="">All categories</option></select></label><a class="hopen" id="hopen" style="display:none"></a><div class="pulse" id="pulse" style="display:none"></div></div>
 <div class="hcs" id="hcs"></div>
 <div class="card" id="histcard" style="display:none"><div class="head"><div><div class="lbl" id="hl">Past events</div><h2 id="hh">Peak viewers of past tournaments</h2><div class="sub">Highest number watching at once, official broadcast plus co-streams.</div></div><button class="btn" data-share="hist">SHARE</button></div><div class="hchart"><canvas id="hc"></canvas></div></div>
 <div class="card" id="secard"><div class="head"><div><div class="lbl">Sections</div><h2>What people are watching</h2><div class="sub">Viewers right now in each section. Tap one to open it.</div></div><button class="btn" data-share="sections">SHARE</button></div><div class="secs" id="secs"></div></div>
@@ -348,7 +355,71 @@ async function homeLoad(){const sl=HM.slug,tp=hTopic(),gn=hGame();
 function hcard(id,title,cap,L,fn,empty,link){const n=L.length,o=HM.open[id],show=o?L.slice(0,50):L.slice(0,5);
  // "See all" scrolls inside the card, so the cards next to it keep their size
  return `<div class="list${o?' open':''}"><div class="lh"><h2>${title}</h2>${link?`<div class="r"><a class="hopen" href="${link}">ALL</a></div>`:''}<div class="cap">${cap}</div></div><div class="hrows">${show.map(fn).join('')||`<div class="empty">${empty}</div>`}</div>${n>5?`<button class="more" data-hm="${id}">${o?'Show top 5':'See all '+Math.min(n,50)}</button>`:''}</div>`}
+// The overview's six cards (owner, 25 Nov): live now first (real time is the edge), streamers today, rising today,
+// watch parties, games & categories, YouTube today (views / subscribers / trending in one card). Rank arrows on every
+// card, a platform filter, World / India, a pulse line, and a trophy on rows that beat their own best day.
+HM.plat=HM.plat||'all';HM.yt=HM.yt||'views';
+const pbBadge=x=>x.pb?`<span class="pbb" title="New personal best (best day before: ${fmt(x.was)})">&#127942;</span>`:'';
+const pfOk=x=>HM.plat==='all'||x.platform===HM.plat;
+// place now vs 30 minutes ago among the same rows (NEW when it wasn't live then)
+function arrows30(L,val,prev){const P=L.filter(x=>prev(x)!=null).slice().sort((a,b)=>prev(b)-prev(a)),pr=new Map(P.map((x,i)=>[x,i+1]));
+ return L.map((x,i)=>({...x,delta:pr.has(x)?pr.get(x)-(i+1):null}))}
+function pulse(){const el=document.getElementById('pulse');if(!el)return;const P=D.platforms||[],tot=P.reduce((a,p)=>a+p.viewers,0);
+ if(!tot){el.style.display='none';return}el.style.display='';
+ const pbs=[...new Map([...(D.board||[]),...(D.live||[])].filter(x=>x.pb).map(x=>[x.sid,x])).values()];
+ const W=Math.max((D.kpis||{}).watching||0,tot),S=(D.live_count||0)+(D.twitch_full?Math.max(0,(D.twitch_full.streams||0)-(D.live||[]).filter(x=>x.platform==='twitch').length):0);
+ el.innerHTML=`<span><b>${fmt(W)}</b> watching live now</span><span><b>${full(S)}</b> streams</span>`+
+  P.map(p=>`<span class="pl"><i style="background:${COL[p.platform]}"></i>${NAMES[p.platform]} <b>${Math.round(100*p.viewers/tot)}%</b></span>`).join('')+
+  (pbs.length?`<button class="pbs" data-share="pb">&#127942; ${pbs.length} NEW PERSONAL BEST${pbs.length>1?'S':''} TODAY · SHARE</button>`:'');
+ const b=el.querySelector('[data-share]');if(b)b.onclick=()=>openShare('pb')}
+function quick(){const q=document.getElementById('qf');if(!q)return;const here=location.pathname.replace(/^\/(global|india)/,'');
+ q.innerHTML=`<div class="seg">${[['all','ALL'],['youtube','YOUTUBE'],['twitch','TWITCH'],['kick','KICK']].map(([v,l])=>`<button data-pf="${v}" class="${HM.plat===v?'on':''}">${l}</button>`).join('')}</div>`+
+  `<div class="seg rg"><a href="/global${here}${location.search}" class="${GL?'on':''}">WORLD</a><a href="/india${here}${location.search}" class="${GL?'':'on'}">INDIA</a></div>`;
+ q.onclick=e=>{const b=e.target.closest('[data-pf]');if(b){HM.plat=b.dataset.pf;quick();renderHome()}}}
 function renderHome(){const box=document.getElementById('hcs');if(!box)return;if(SEC){box.remove();document.getElementById('hbar').remove();return}
+ if(CAT||hTopic()){document.getElementById('qf').innerHTML='';document.getElementById('pulse').style.display='none';return renderHomeCat()}
+  // the category picker (same as before)
+ {const sel=document.getElementById('hcat'),G=[...new Map([...ALLG,...(D.categories||[]).slice(0,150)].map(x=>[x.slug,{slug:x.slug,game:x.game}])).values()].sort((a,b)=>a.game.localeCompare(b.game));
+  const opts='<option value="">All categories</option><optgroup label="YouTube categories">'+TOPICS.map(t=>`<option value="t:${esc(t)}">${esc(t)}</option>`).join('')+'</optgroup><optgroup label="Games &amp; streaming categories">'+G.map(x=>`<option value="${esc(x.slug)}">${esc(x.game)}</option>`).join('')+'</optgroup>';
+  if(sel._o!==opts){sel.innerHTML=opts;sel._o=opts}sel.value=HM.slug;sel.onchange=()=>{HM.slug=sel.value;HM.gname=sel.selectedOptions[0]?sel.selectedOptions[0].textContent:'';HM.j=HM.m=null;HM.open={};renderHome();homeLoad()};
+  document.getElementById('hopen').style.display='none'}
+ setT('hbt','Top today');quick();pulse();
+ const lm=liveMap(),J=HM.j||{},ld=HM.j?'':'Loading...',chL=c=>`${RP}/ch/${encodeURIComponent(c.sid)}`,PF=x=>`<span class="pf">${NAMES[x.platform]||''}</span>`;
+ const R=(i,inner,href,cls)=>`<a class="row${cls?' '+cls:''}" href="${href}"${/^https?:/.test(href)?' target="_blank" rel="noopener"':''}><span class="rk${i<3?' r'+(i+1):''}">${i+1}</span>${inner}</a>`;
+ const PL=HM.plat==='all'?'':' on '+NAMES[HM.plat];
+ // 1. live now
+ const live=arrows30((D.live||[]).filter(pfOk),x=>x.viewers,x=>x.prev);
+ // 2. streamers today
+ const board=(D.board||[]).filter(pfOk).map(x=>({...x,now:lm[x.sid]||x.now||0})).sort((a,b)=>b.hw-a.hw);
+ // 3. rising: watching now against their usual (30-day average) audience
+ const rise=arrows30((D.live||[]).filter(x=>pfOk(x)&&x.norm&&x.viewers>=(GL?500:200)&&x.viewers>=1.5*x.norm).map(x=>({...x,ratio:x.viewers/x.norm})).sort((a,b)=>b.ratio-a.ratio),x=>x.ratio,x=>x.prev!=null&&x.norm?x.prev/x.norm:null);
+ // 4. watch parties, grouped by what they're watching
+ let parties=D.parties||[];
+ if(HM.plat!=='all'){const g={};(D.live||[]).filter(x=>pfOk(x)&&x.event).forEach(x=>{const z=g[x.event]=g[x.event]||{event:x.event,kind:x.ekind,viewers:0,streams:0,top:[],prev:0};z.viewers+=x.viewers;z.streams++;z.prev+=x.prev||0;if(z.top.length<4)z.top.push(x)});parties=Object.values(g).sort((a,b)=>b.viewers-a.viewers)}
+ const pprev={};(D.live||[]).filter(x=>x.event).forEach(x=>{pprev[x.event]=(pprev[x.event]||0)+(x.prev||0)});
+ parties=arrows30(parties,x=>x.viewers,x=>pprev[x.event]||null);
+ // 5. games and categories by hours watched today
+ let games=(D.games||[]).filter(g=>g.game&&g.game!=='Other'||g.hw>0);
+ if(HM.plat!=='all'){const g={};board.forEach(x=>{const z=g[x.game]=g[x.game]||{game:x.game,slug:x.game_slug,hw:0,channels:0};z.hw+=x.hw;z.channels++});games=Object.values(g).sort((a,b)=>b.hw-a.hw).map(z=>({...z,delta:undefined}))}
+ // 6. YouTube today
+ const yv=J.channels_today||[],ys=J.subs_today||[],yt=(J.trending||[]).map(v=>({...v,vph:v.views/Math.max(1,(Date.now()/1000-v.ts)/3600)})).sort((a,b)=>b.vph-a.vph);
+ const cards=[
+  hcard('live','Top live now','Most watching at once, right now'+PL+'. Arrows: place 30 minutes ago.',live,(x,i)=>R(i,`${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}${PF(x)}${dl(x.delta)}${pbBadge(x)}</div><div class="ds">${esc(x.game)} · ${esc(x.title)}</div></span><span class="vv">${full(x.viewers)}${x.prev?`<small class="${x.viewers>=x.prev?'up':'dn'}">${x.viewers>=x.prev?'+':''}${Math.round(100*(x.viewers-x.prev)/x.prev)}% 30 min</small>`:''}</span>`,chL(x)),'Nothing live right now.'),
+  hcard('board','Top streamers today','Hours watched live in the last 24 hours'+PL+'. Arrows: place yesterday.',board,(x,i)=>R(i,`${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}${PF(x)}${dl(x.delta)}${pbBadge(x)}</div><div class="ds">${x.now?`<span class="lv">LIVE</span>${full(x.now)} · `:''}${esc(x.game)} · peak ${fmt(x.peak)}</div></span><span class="vv">${fmt(x.hw)}h<small>avg ${fmt(x.avg)}</small></span>`,chL(x)),'No streamers recorded today yet.',RP+'/rankings?mode=live'),
+  hcard('rise','Rising today','Watching now against their usual audience (30-day average live viewers)'+PL+'.',rise,(x,i)=>R(i,`${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}${PF(x)}${dl(x.delta)}${pbBadge(x)}</div><div class="ds">${full(x.viewers)} watching · usually ${fmt(x.norm)} · ${esc(x.game)}</div></span><span class="vv">${x.ratio>=10?Math.round(x.ratio):x.ratio.toFixed(1)}&times;<small>normal</small></span>`,chL(x)),'Nobody far above their usual audience right now.'),
+  hcard('party','Top watch parties now','Streams of the same match or tournament added together'+PL+'.',parties,(g,i)=>R(i,`${g.kind==='esports'?`<span class="av">${art(g.game||g.event,'','')}</span>`:av({logo:(g.top&&g.top[0]||{}).logo,name:g.event})}<span style="min-width:0"><div class="nm">${esc(g.event)}${dl(g.delta)}</div><div class="ds">${g.streams} stream${g.streams>1?'s':''} · ${(g.top||[]).slice(0,3).map(t=>esc(t.name)).join(', ')}</div></span><span class="vv">${fmt(g.viewers)}<small>watching</small></span>`,(g.top&&g.top[0])?chL(g.top[0]):RP),'No watch parties live right now.'),
+  hcard('games','Top games & categories today','Hours watched live in the last 24 hours'+PL+'. Arrows: place yesterday.',games,(g,i)=>R(i,`<span class="av">${art(g.game,g.art,'')}</span><span style="min-width:0"><div class="nm">${esc(g.game)}${dl(g.delta)}</div><div class="ds">${g.channels} channel${g.channels>1?'s':''}${g.peak_stream?' · biggest stream '+fmt(g.peak_stream):''}</div></span><span class="vv">${fmt(g.hw)}h<small>watched</small></span>`,g.slug?CU(g.slug):RP),'No games recorded today yet.'),
+  hcard('yt',`YouTube today <span class="ytt">${[['views','VIEWS'],['subs','SUBSCRIBERS'],['vids','TRENDING']].map(([v,l])=>`<button data-yt="${v}" class="${HM.yt===v?'on':''}">${l}</button>`).join('')}</span>`,
+   HM.yt==='views'?'Channel views gained in the last day (all videos). Arrows: place the day before.':HM.yt==='subs'?'Subscribers gained in the last day. Arrows: place the day before.':'Videos posted in the last 3 days, by views per hour since posting.',
+   HM.yt==='views'?yv:HM.yt==='subs'?ys:yt,
+   HM.yt==='vids'?(v,i)=>R(i,`<img class="th" src="https://i.ytimg.com/vi/${esc(v.vid)}/mqdefault.jpg" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'"><span style="min-width:0"><div class="nm">${esc(v.title)}</div><div class="ds">${esc(v.name)} · ${ago(v.ts)} · ${fmt(v.views)} views${v.short?' · Short':v.live?' · stream':''}</div></span><span class="vv">${fmt(v.vph)}<small>views / hour</small></span>`,v.url||('https://youtu.be/'+v.vid),'v')
+   :(x,i)=>R(i,`${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}${dl(x.delta)}</div><div class="ds">${esc([x.topic,x.country==='IN'?'India':''].filter(Boolean).join(' · ')||'YouTube')}${HM.yt==='views'?(x.subs_day?' · '+(x.subs_day>0?'+':'')+fmt(x.subs_day)+' subs':''):(x.views_day?' · +'+fmt(x.views_day)+' views':'')}</div></span><span class="vv">+${fmt(HM.yt==='views'?x.views_day:x.subs_day)}<small>${HM.yt==='views'?'views':'subs'}</small></span>`,chL(x)),
+   ld||'Fills in after two daily snapshots of each channel.')];
+ const h=cards.join('');if(HM.key!==h){HM.key=h;box.innerHTML=h}
+ box.onclick=e=>{const t=e.target.closest('[data-yt]');if(t){e.preventDefault();HM.yt=t.dataset.yt;HM.open.yt=false;renderHome();return}
+  const b=e.target.closest('[data-hm]');if(b){HM.open[b.dataset.hm]=!HM.open[b.dataset.hm];renderHome()}};
+ if(!HM.j&&!HM._busy){HM._busy=1;homeLoad().finally(()=>{HM._busy=0})}}
+function renderHomeCat(){const box=document.getElementById('hcs');if(!box)return;if(SEC){box.remove();document.getElementById('hbar').remove();return}
  const sl=HM.slug,tp=hTopic(),gn=hGame(),lab=tp||gn;
  if(!CAT){const sel=document.getElementById('hcat'),G=[...new Map([...ALLG,...(D.categories||[]).slice(0,150)].map(x=>[x.slug,{slug:x.slug,game:x.game}])).values()].sort((a,b)=>a.game.localeCompare(b.game));
   const opts='<option value="">All categories</option><optgroup label="YouTube categories">'+TOPICS.map(t=>`<option value="t:${esc(t)}">${esc(t)}</option>`).join('')+'</optgroup><optgroup label="Games &amp; streaming categories">'+G.map(x=>`<option value="${esc(x.slug)}">${esc(x.game)}</option>`).join('')+(sl&&!tp&&!G.some(x=>x.slug===sl)?`<option value="${esc(sl)}">${esc(gn||sl)}</option>`:'')+'</optgroup>';
@@ -596,6 +667,10 @@ async function card(type){let c,x,text;const sc=SCOPE(),K=D.kpis||{};
   text=`${SEC?SECNAME[SEC]:'Games'} live now ${WHERE}: ${R.slice(0,3).map((g,i)=>`${i+1}. ${g.game} ${fmt(g.viewers)}`).join(' | ')}.`}
  else if(type==='tours'){const T=(D.tournaments||[]).slice(0,10);[c,x]=base('ESPORTS LIVE NOW',`Tournaments ${WHERE} · official + co-streams`);listRows(x,T.map(t=>({name:t.name,tag:`${t.game} · ${t.streams} streams`,value:fmt(t.viewers)})));
   text=`Esports live now ${WHERE}: ${T.slice(0,3).map((t,i)=>`${i+1}. ${t.name} ${fmt(t.viewers)}`).join(' | ')}.`}
+ else if(type==='pb'){const L=[...new Map([...(D.board||[]),...(D.live||[])].filter(x=>x.pb).map(x=>[x.sid,x])).values()].sort((a,b)=>Math.max(b.peak||0,b.viewers||0)-Math.max(a.peak||0,a.viewers||0)).slice(0,10);
+  [c,x]=base('NEW PERSONAL BESTS TODAY',sc);const avs=await Promise.all(L.map(s=>loadImg(s.logo)));
+  listRows(x,L.map(s=>({name:s.name,tag:`${(NAMES[s.platform]||'').toUpperCase()} · ${s.game||''} · BEST DAY BEFORE ${fmt(s.was)}`,color:'#ffd23f',value:fmt(Math.max(s.peak||0,s.viewers||0))})),avs);
+  text=`New personal bests ${WHERE} today: ${L.slice(0,3).map(s=>`${s.name} ${fmt(Math.max(s.peak||0,s.viewers||0))} (was ${fmt(s.was)})`).join(' | ')}.`}
  else if(type==='live'){const L=liveList().slice(0,10);[c,x]=base('TOP LIVE STREAMS',sc);const avs=await Promise.all(L.map(s=>loadImg(s.logo)));
   listRows(x,L.map(s=>({name:s.name,tag:`${(NAMES[s.platform]||'').toUpperCase()} · ${s.game} · PEAK TODAY ${fmt(s.peak||s.viewers)}`,color:COL[s.platform],value:fmt(s.viewers)})),avs);text=`Top live streams ${WHERE} right now: ${L.slice(0,3).map((s,i)=>`${i+1}. ${s.name} ${fmt(s.viewers)}`).join(' | ')}.`}
  else if(type==='hist'){const mx=Math.max(...(D.history||[]).map(h=>h.peak)),r=(D.history||[]).find(h=>h.peak===mx);[c,x]=base((D.history_game||CATNAME).toUpperCase()+' VIEWERSHIP TILL DATE','Peak viewers, every event, official + co-streams');

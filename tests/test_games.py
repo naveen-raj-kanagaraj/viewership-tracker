@@ -49,3 +49,16 @@ with store.reading():
 # a YouTube channel with more watching than subscribers is a viewbot
 assert ranks._viewbot(800, 2500, 900) and not ranks._viewbot(500000, 20000, 9000)
 print("GAMES OK")
+
+# watch parties: streams of the same match grouped, whatever the title's extra words
+L = [{"sid": f"yt:{i}", "title": t, "viewers": v, "section": "sports", "game": "Sports"} for i, (t, v) in enumerate([
+    ("🔴 Atlético-MG x Corinthians | Brasileirão AO VIVO", 105534), ("ATLÉTICO-MG X CORINTHIANS AO VIVO COM IMAGENS", 40000),
+    ("Corinthians x Atlético-MG - jogo ao vivo", 36000), ("Flamengo x Palmeiras", 900), ("bate papo", 5000)])]
+P = scene._parties(L)
+assert P[0]["event"] == "Atlético-MG x Corinthians" and P[0]["streams"] == 3 and P[0]["viewers"] == 181534, P
+assert len(P) == 1                                           # one small single stream is not a watch party
+# YouTube streams that name no game go under the channel's YouTube category, not 'Other'
+scene._YTC.update(at=time.time(), m={"yt:s": "Sports", "yt:n": "News & Politics", "yt:g": "Gaming"})
+assert scene.yt_category_game("yt:s") == "Sports" and scene.yt_category_game("yt:n") == "News" and scene.yt_category_game("yt:g") == ""
+assert scene.section_of("Sports") == "sports" and scene.section_of("Entertainment") == "other" and scene.section_of("People & Blogs") == "irl"
+print("PARTIES AND CATEGORIES OK")

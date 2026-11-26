@@ -21,6 +21,7 @@ import os
 import re
 import threading
 import time
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 
@@ -1215,7 +1216,36 @@ SECTIONS = [("gaming", "Gaming"), ("esports", "Esports"), ("irl", "IRL"), ("just
             ("podcasts", "Podcasts & Talk"), ("other", "Other")]
 SECTION_NAMES = dict(SECTIONS)
 _SEC_FIXED = {"Just Chatting": "just-chatting", "IRL": "irl", "News": "news", "Music": "music",
-              "Cricket": "sports", "Devotional": "devotional", "Podcast / Talk": "podcasts", "Other": "other"}
+              "Cricket": "sports", "Devotional": "devotional", "Podcast / Talk": "podcasts", "Other": "other",
+              # YouTube's own categories, for streams that name no game (they were all "Other" before, 25 Nov)
+              "Sports": "sports", "Entertainment": "other", "People & Blogs": "irl", "Comedy": "other", "Education": "other",
+              "Film & Animation": "other", "Science & Technology": "other", "Howto & Style": "irl", "Autos & Vehicles": "other",
+              "Pets & Animals": "irl", "Nonprofits & Activism": "other", "Travel & Events": "irl"}
+YT_CAT_GAME = {"News & Politics": "News", "Gaming": ""}     # YouTube category -> the name filed; "" = stays Other
+_YTC = {"at": 0, "m": {}, "busy": False}
+
+
+def _ytcat_load():
+    try:
+        with store.reading():
+            m = {sid: c for sid, c in _db().execute(
+                "SELECT sid, COALESCE(NULLIF(ytcat,''), topic) FROM sc_channels WHERE platform='youtube' "
+                "AND COALESCE(NULLIF(ytcat,''), topic) IS NOT NULL AND COALESCE(NULLIF(ytcat,''), topic) NOT IN ('', 'Other')")}
+        _YTC.update(at=time.time(), m=m)
+    except Exception as e:
+        print(f"YouTube categories: {str(e)[:100]}")
+    finally:
+        _YTC["busy"] = False
+
+
+def yt_category_game(sid: str) -> str:
+    """What to file a YouTube stream under when its title and game card name no game: the channel's YouTube category
+    ('Sports', 'Entertainment', 'News' ...), not 'Other'."""
+    if time.time() - _YTC["at"] > 1800 and not _YTC["busy"]:
+        _YTC["busy"] = True
+        threading.Thread(target=_ytcat_load, daemon=True).start()
+    c = _YTC["m"].get(sid) or ""
+    return YT_CAT_GAME.get(c, c)
 _SEC_WORDS = [("irl", ("irl", "travel", "outdoor", "food", "cooking", "vlog")), ("sports", ("sport", "football", "cricket",
               "basketball", "wrestling", "racing")), ("music", ("music", "dj", "concert")), ("podcasts", ("podcast", "talk")),
               ("news", ("news", "politic")), ("other", ("slots", "casino", "pools", "asmr", "art", "special events"))]
@@ -1567,14 +1597,32 @@ def refile_games(days: int = 30, max_vids: int = 2500, pace=None) -> int:
         g = gs.pop()
         if g and g != "Other":
             todo.append((sid, d, g))
+    moved = _move_days(todo, pace)
+    # streams that name no game: filed under the channel's YouTube category ('Sports', 'Entertainment') not 'Other'
+    _ytcat_load()
+    d0 = day(since)
+    with store.reading():
+        oth = store.conn().execute("SELECT DISTINCT sid, day FROM sc_daily WHERE game='Other' AND day>=? AND sid LIKE 'yt:%'",
+                                   (d0,)).fetchall()
+    todo2 = [(sid, d, yt_category_game(sid), "Other") for sid, d in oth if yt_category_game(sid)]
+    moved2 = _move_days(todo2, pace)
+    print(f"Game cards: {len(rows)} Indian YouTube streams of {days} days read, {moved} channel-day rows moved to their "
+          f"card's game, {moved2} 'Other' rows to the channel's YouTube category")
+    return moved + moved2
+
+
+def _move_days(todo, pace=None) -> int:
+    """[(sid, day, to_game[, from_game])]: merge that day's rows of other games (or just from_game) into to_game."""
+    moved = 0
     for i in range(0, len(todo), 20):
         while pace and pace():
             time.sleep(30)
         with store._lock:
             c = store.main()
-            for sid, d, g in todo[i:i + 20]:
-                other = c.execute("SELECT game, peak, peak_at, mins, hw FROM sc_daily WHERE day=? AND sid=? AND game!=?",
-                                  (d, sid, g)).fetchall()
+            for t in todo[i:i + 20]:
+                sid, d, g = t[:3]
+                other = c.execute("SELECT game, peak, peak_at, mins, hw FROM sc_daily WHERE day=? AND sid=? AND game!=?"
+                                  + (" AND game=?" if len(t) > 3 else ""), (d, sid, g, *t[3:])).fetchall()
                 for og, pk, pat, mn, hw in other:
                     c.execute("""INSERT INTO sc_daily VALUES (?,?,?,?,?,?,?) ON CONFLICT(day, sid, game) DO UPDATE SET
                                  peak_at=CASE WHEN excluded.peak>sc_daily.peak THEN excluded.peak_at ELSE sc_daily.peak_at END,
@@ -1583,7 +1631,6 @@ def refile_games(days: int = 30, max_vids: int = 2500, pace=None) -> int:
                     c.execute("DELETE FROM sc_daily WHERE day=? AND sid=? AND game=?", (d, sid, og))
                     moved += 1
             c.commit()
-    print(f"Game cards: {len(rows)} Indian YouTube streams of {days} days read, {moved} channel-day rows moved to their card's game")
     return moved
 
 
@@ -2272,6 +2319,8 @@ def cycle(now: float = None) -> dict:
             rejected.append(x)                # too small to matter worldwide; remembered so it isn't looked up again
             continue
         x["game"] = classify(x.get("category", ""), x.get("title", ""))
+        if x["platform"] == "youtube" and x["game"] == "Other":
+            x["game"] = yt_category_game(sid) or "Other"
         x["tour"] = tournament(x.get("title", ""), x["game"])
         if x["tour"] and TOUR_GAME.get(x["tour"]):
             x["game"] = TOUR_GAME[x["tour"]]          # a VCT broadcast or co-stream is Valorant, whatever the category says
@@ -3353,15 +3402,140 @@ def _kpis(c, region: str, sec: str, game, lv: dict, ct: bool = False) -> dict:
             "top": {k: top.get(k) for k in ("name", "viewers", "platform", "url", "logo", "game", "title")} if top else None}
 
 
+_P30 = {"key": None, "m": {}}
+_PB = {"day": None, "m": {}, "busy": False}
+
+
+def _prev30() -> dict:
+    """{sid: viewers} at the scan closest to 30 minutes ago (once per scan)."""
+    k = _SCANMEM.get("ts")
+    if _P30["key"] == k:
+        return _P30["m"]
+    _P30["key"] = k
+    try:
+        with store.reading():
+            c = _db()
+            t = c.execute("SELECT MAX(ts) FROM sc_samples WHERE ts<=?", ((k or time.time()) - 1800,)).fetchone()[0]
+            _P30["m"] = dict(c.execute("SELECT sid, MAX(viewers) FROM sc_samples WHERE ts=? GROUP BY sid", (t,)).fetchall()) if t else {}
+    except Exception as e:
+        print(f"Live 30 min ago: {str(e)[:100]}")
+    return _P30["m"]
+
+
+def _pb_build(day):
+    """Each channel's best day before today (the rankings' peak rule), over the last year, for 'new personal best'."""
+    try:
+        d0 = (datetime.now(events.REPORT_TZ).date() - timedelta(days=365)).strftime("%Y-%m-%d")
+        with store.reading():
+            m = dict(_db().execute("""SELECT sid, MAX(CASE WHEN COALESCE(mins,0)>=10 AND NOT (mins>=30 AND hw>0 AND peak > 8*hw*60/mins)
+                THEN peak END) FROM sc_daily WHERE day>=? AND day<? GROUP BY sid HAVING COUNT(DISTINCT day)>=5""", (d0, day)).fetchall())
+        _PB.update(day=day, m={s: v for s, v in m.items() if v})
+    except Exception as e:
+        print(f"Personal bests: {str(e)[:100]}")
+    finally:
+        _PB["busy"] = False
+
+
+def personal_best(sid: str):
+    """The channel's best peak before today, or None (not known yet / under 5 days of history)."""
+    day = datetime.now(events.REPORT_TZ).strftime("%Y-%m-%d")
+    if _PB["day"] != day and not _PB["busy"]:
+        _PB["busy"] = True
+        threading.Thread(target=_pb_build, args=(day,), daemon=True).start()
+    return _PB["m"].get(sid) if _PB["day"] == day else None
+
+
+def _norm30() -> dict:
+    try:
+        from tracker import ranks
+        return ranks._R.get("rows") or {}
+    except Exception:
+        return {}
+
+
+_EVT = re.compile(r"([A-Za-zÀ-ÿ0-9.'&\- ]{2,40}?)\s+(?:x|vs\.?|v)\s+([A-Za-zÀ-ÿ0-9.'&\- ]{2,40})", re.I)
+_EVT_DROP = re.compile(r"\b(live|ao vivo|en vivo|en directo|watch ?along|watch ?party|reaction|stream|streaming|hoje|today|"
+                       r"agora|now|full|match|highlights?|jogo|partida|campeonato|brasileir[aã]o|libertadores|"
+                       r"premier league|la liga|serie a|ipl|odi|t20|test|final|semi|quarter)\b", re.I)
+
+
+_EVT_STOP = {"com", "con", "imagens", "imagenes", "ao", "vivo", "en", "live", "e", "y", "and", "na", "no", "on", "in", "at",
+             "asia", "world", "cup", "trophy", "league", "series", "champions"}
+
+
+def _event_key(title: str):
+    """('Atlético-MG x Corinthians', key) when a title names a match 'A x B' / 'A vs B', else None."""
+    m = _EVT.search(re.sub(r"[|•·:\[\]()🔴⚽🏏#!]+", " | ", title or ""))
+    if not m:
+        return None
+    a = _EVT_DROP.sub(" | ", m.group(1)).split("|")[-1].split()
+    b = _EVT_DROP.sub(" | ", m.group(2)).split("|")[0].split()
+    stop = lambda w: any(ch.isdigit() for ch in w) or w.lower() in _EVT_STOP
+    for i in range(len(b)):                    # 'Palmeiras COM IMAGENS', 'Australia 3rd': the team ends there
+        if stop(b[i]):
+            b = b[:i]
+            break
+    for i in range(len(a) - 1, -1, -1):
+        if stop(a[i]):
+            a = a[i + 1:]
+            break
+    a, b = " ".join(a[-3:]), " ".join(b[:3])
+    if len(a) < 2 or len(b) < 2 or a.isdigit() or b.isdigit():
+        return None
+    k = tuple(sorted(re.sub(r"[^a-z0-9]", "", unicodedata.normalize("NFKD", t).encode("ascii", "ignore").decode().lower()) for t in (a, b)))
+    if not all(k):
+        return None
+    return f"{a.strip()} x {b.strip()}", "|".join(k)
+
+
+def _parties(live: list, mark: dict = None) -> list:
+    """Watch parties live now, grouped by what they're watching: a tournament, or a match named in the title
+    ('Atlético-MG x Corinthians: 6 streams, 182K')."""
+    ev = {}
+    for x in live:
+        if x.get("tour"):
+            name, key, kind = x["tour"], "t:" + x["tour"], "esports"
+        else:
+            if x.get("section") not in ("sports", "other", "just-chatting", "irl") and x.get("game") not in ("Sports", "Cricket", "Football"):
+                continue
+            e = _event_key(x.get("title") or "")
+            if not e:
+                continue
+            name, key, kind = e[0], "m:" + e[1], "match"
+        g = ev.setdefault(key, {"event": name, "kind": kind, "viewers": 0, "streams": 0, "game": x.get("game"), "top": []})
+        if mark is not None:
+            mark[x["sid"]] = (g["event"], kind)
+        g["viewers"] += x["viewers"]
+        g["streams"] += 1
+        if len(g["top"]) < 4:
+            g["top"].append({k: x.get(k) for k in ("sid", "platform", "name", "logo", "viewers", "url")})
+    out = [g for g in ev.values() if g["kind"] == "esports" or g["streams"] >= 2 or g["viewers"] >= 5000]
+    return sorted(out, key=lambda g: -g["viewers"])[:30]
+
+
 def _common(lv: dict, region: str) -> dict:
+    p30, R30 = _prev30(), _norm30()
+
+    def row(x):
+        r = {k: x.get(k) for k in ("sid", "platform", "name", "url", "logo", "game", "title", "viewers", "section", "peak")}
+        r["prev"] = p30.get(x["sid"])                 # watching 30 minutes ago
+        n = (R30.get(x["sid"]) or {}).get("avg_30d")
+        r["norm"] = n if n and n >= 50 else None      # its usual audience: 30-day average live viewers
+        pb = personal_best(x["sid"])
+        r["pb"] = bool(pb and pb >= 100 and max(x.get("peak") or 0, x["viewers"]) > pb)
+        r["was"] = pb if r["pb"] else None
+        r["event"], r["ekind"] = ev.get(x["sid"], (None, None))
+        return r
+    ev = {}
+    parties = _parties(lv["_live"], ev)
     return {"updated": lv["updated"], "fresh": lv["fresh"], "india_total": lv["region_total"],
             "live_total": lv["live_total"], "live_count": len(lv["_live"]), "now": lv["now"], "sections": lv["sections"],
             "platforms": [{"platform": k, "name": platforms.NAMES[k], "viewers": v}
                           for k, v in sorted(lv["_by_plat"].items(), key=lambda kv: -kv[1])],
             "categories": sorted(filter(shown, lv["_by_game"].values()), key=lambda g: -g["viewers"])[:200],
             "tournaments": _tour_list(lv["_tours"], region),
-            "live": [{k: x.get(k) for k in ("sid", "platform", "name", "url", "logo", "game", "title", "viewers", "section", "peak")}
-                     for x in lv["_live"][:300]]}
+            "live": [row(x) for x in lv["_live"][:300]],
+            "parties": parties}
 
 
 def _sec(sec: str) -> str:
@@ -3547,6 +3721,9 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
     for i, x in enumerate(board):
         x["rank"] = i + 1
         x["delta"] = (prev[x["sid"]] - x["rank"]) if x["sid"] in prev else None   # None = new in the ranking
+        pb = personal_best(x["sid"])
+        x["pb"] = bool(pb and pb >= 100 and x["peak"] > pb)                       # beat its best day today
+        x["was"] = pb if x["pb"] else None
     for x in board:
         x["now"] = lv["_now"].get(x["sid"], 0)   # live right now (in any section), else last_live says when
     if sec == "esports":
@@ -3561,7 +3738,9 @@ def data(period: str = "today", cat: str = "", region: str = "in", sec: str = ""
             "peak": {"viewers": pk[1], "ts": pk[0]} if pk else None,
             "peak_all": {"viewers": pk_all[1], "ts": pk_all[0]} if pk_all else None,
             "series": series, "daily": daily, "board": board[:300], "tour_day": tour_day,
-            "games": [{**g, "hw": round(g["hw"])} for g in sorted(games.values(), key=lambda g: -g["hw"])][:60],
+            "games": [{**g, "hw": round(g["hw"]), "rank": i + 1,
+                       "delta": ((prev.get("__games__") or {})[g["game"]] - i - 1) if g["game"] in (prev.get("__games__") or {}) else None}
+                      for i, g in enumerate(sorted(games.values(), key=lambda g: -g["hw"])[:60])],
             "events": ([] if region != "in" else         # tournaments are India events: India pages only
                        [e for e in _events() if e["state"] in ("live", "upcoming")] if not (game or sec)
                        else [e for e in _events() if game and e["game"] == game]),
@@ -3588,12 +3767,14 @@ def _prev_ranks(c, region, game, sec, period) -> dict:
     hit = _PR.get(key)
     if hit and time.time() - hit[0] < 3600:
         return hit[1]
-    tot = {}
+    tot, gt = {}, {}
     for r in c.execute(q + " GROUP BY d.sid, d.game HAVING MAX(d.peak) >= ?", args + [RANK_MIN_PEAK]):
         if sec and sec != "esports" and section_of(r["game"]) != sec:
             continue
         tot[r["sid"]] = tot.get(r["sid"], 0) + (r["hw"] or 0)
+        gt[r["game"]] = gt.get(r["game"], 0) + (r["hw"] or 0)
     out = {sid: i + 1 for i, (sid, _) in enumerate(sorted(tot.items(), key=lambda kv: -kv[1]))}
+    out["__games__"] = {g: i + 1 for i, (g, _) in enumerate(sorted(gt.items(), key=lambda kv: -kv[1]))}
     if len(_PR) > 400:
         _PR.clear()
     _PR[key] = (time.time(), out)
