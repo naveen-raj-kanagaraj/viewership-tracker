@@ -124,7 +124,7 @@ def _headers(resp):
         secs = 15
     if request.method != "GET" or resp.status_code >= 400 or request.args.get("auth") == "1":
         secs = None                       # POSTs, signed-in (auth=1), personal and error responses are never cached
-    if request.path.startswith(("/elogo/", "/tlogo/", "/pimg/", "/tmark/", "/gameart/", "/pmgc/logo/")):
+    if request.path.startswith(("/elogo/", "/tlogo/", "/pimg/", "/tmark/", "/gameart/", "/pmgc/logo/", "/brand/")):
         return resp
     swr = min(600, max(30, secs * 10)) if secs else 0      # an expired copy is shown at once while a fresh one loads
     resp.headers["Cache-Control"] = f"public, max-age={secs}, s-maxage={secs}, stale-while-revalidate={swr}" if secs else "no-store"
@@ -1623,6 +1623,20 @@ def _hit_writer():   # visitor counts are written here, one at a time, so page r
 
 threading.Thread(target=_hit_writer, daemon=True).start()
 threading.Thread(target=__import__("tracker.scene", fromlist=["scene"]).search_index_loop, daemon=True).start()   # search in memory
+
+
+@app.route("/brand/<name>")
+def brand(name):
+    """The letsgrowesports wordmark and the share-card strap (static/brand): same origin, so a share card can draw the
+    logo without tainting its canvas."""
+    import re as _re
+    m = _re.fullmatch(r"([a-z0-9-]{1,40})\.(png|js)", name)
+    path = os.path.join(os.path.dirname(eventpage.ELOGO_DIR), "brand", name)
+    if not m or not os.path.isfile(path):
+        return Response(status=404)
+    r = _memo(path, 600, _file(path), {"png": "image/png", "js": "application/javascript"}[m.group(2)])
+    r.headers["Cache-Control"] = "public, max-age=600"
+    return r
 
 
 @app.route("/gameart/<name>")
