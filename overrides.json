@@ -7,7 +7,9 @@
   "twitch:guddu_kim",
   "twitch:olivescrossing",
   "twitch:sig07tv",
-  "twitch:nozygoat"
+  "twitch:nozygoat",
+  "kick:kukudota2",
+  "yt:UCXY5pi3MbsaP1WEgClmglsA"
  ],
  "block": [
   "twitch:sazof36",
@@ -24,9 +26,23 @@
   "yt:UCqd-H86Mfq2DLZGpcgJaf1g",
   "yt:UCOv_jSlym76tqFoAxY6UTYg",
   "yt:UChnJAsQKY_al2wCSZlre7hg",
-  "yt:UC0PXBMGRU7Fehq0buLkC8dw"
+  "yt:UC0PXBMGRU7Fehq0buLkC8dw",
+  "twitch:alwaysraawuyt",
+  "kick:nakwalgamar07",
+  "kick:kryzor9",
+  "yt:UCsvmzLvHTmXUnIxzkwQfbPw",
+  "yt:UCg17wCnMiiYoc22L1I604Aw",
+  "yt:UCH0YlD6laiDQEDvgB0Dn2-w",
+  "yt:UC7nPBLOIsJKHArhcEXCCplg"
  ],
- "category": {},
+ "category": {
+  "yt:UCIsEhwBMPkRHsEgqYAPQHsA": "Gaming",
+  "kick:kalkilive": "Just Chatting",
+  "kick:crakkpot": "Other",
+  "yt:UCxWx-MPft_7mKrFtN6uOaAA": "People & Blogs",
+  "yt:UCsg1GnpY-b4iMhQd5VpSZag": "People & Blogs",
+  "yt:UC8av6fOAlatKRJWq9rTdtkA": "People & Blogs"
+ },
  "reviewed": {
   "twitch:sazof36": "2026-11-24",
   "twitch:pepewwwpew": "2026-11-24",
@@ -48,7 +64,26 @@
   "yt:UChnJAsQKY_al2wCSZlre7hg": "2026-11-24",
   "yt:UC0PXBMGRU7Fehq0buLkC8dw": "2026-11-24",
   "kick:rajatpawar": "2026-11-24",
-  "kick:mogambo": "2026-11-24"
+  "kick:mogambo": "2026-11-24",
+  "twitch:alwaysraawuyt": "2026-11-26",
+  "kick:nakwalgamar07": "2026-11-26",
+  "kick:kryzor9": "2026-11-26",
+  "yt:UCsvmzLvHTmXUnIxzkwQfbPw": "2026-11-26",
+  "yt:UCg17wCnMiiYoc22L1I604Aw": "2026-11-26",
+  "yt:UCH0YlD6laiDQEDvgB0Dn2-w": "2026-11-26",
+  "yt:UC7nPBLOIsJKHArhcEXCCplg": "2026-11-26",
+  "kick:kukudota2": "2026-11-26",
+  "yt:UCXY5pi3MbsaP1WEgClmglsA": "2026-11-26",
+  "yt:UCIsEhwBMPkRHsEgqYAPQHsA": "2026-11-26",
+  "kick:kalkilive": "2026-11-26",
+  "kick:crakkpot": "2026-11-26",
+  "yt:UCxWx-MPft_7mKrFtN6uOaAA": "2026-11-26",
+  "yt:UCsg1GnpY-b4iMhQd5VpSZag": "2026-11-26",
+  "yt:UC8av6fOAlatKRJWq9rTdtkA": "2026-11-26",
+  "yt:UCHxYDy5uZ3tCaM3fn2Y3U-g": "2026-11-26",
+  "yt:UC53-j1QpLvpCrfBpHaeaq5w": "2026-11-26",
+  "kick:upthrustesports": "2026-11-26",
+  "kick:kaashplays": "2026-11-26"
  },
  "notes": {
   "twitch:sazof36": "634 followers, 17,184 peak: viewbots",
@@ -71,6 +106,25 @@
   "yt:UChnJAsQKY_al2wCSZlre7hg": "KingwrathH: 32.6K subs, 7d avg 22,671, no streams or content listed, no Indian evidence: viewbots",
   "yt:UC0PXBMGRU7Fehq0buLkC8dw": "Bhajan Bhakti Bhav: 7d peak 27,703 above 25.7K subs: viewbots (peak rule)",
   "kick:rajatpawar": "31.7K followers, 7d avg 8,140 (just over a quarter); 65% Hindi chat, known Indian creator: left for owner",
-  "kick:mogambo": "11.1K followers, 30d peak 12,399; title says Bigg Boss 24x7 watch party: left for owner"
+  "kick:mogambo": "11.1K followers, 30d peak 12,399; title says Bigg Boss 24x7 watch party: left for owner",
+  "twitch:alwaysraawuyt": "203 followers, 7d peak 215, avg 201: viewbots",
+  "kick:nakwalgamar07": "132 followers, 7d peak 268: viewbots",
+  "kick:kryzor9": "113 followers, 7d peak 216: viewbots",
+  "yt:UCsvmzLvHTmXUnIxzkwQfbPw": "Lillybilliii: 3,240 subs, 7d peak 14,780, avg 13,830: viewbots",
+  "yt:UCg17wCnMiiYoc22L1I604Aw": "lx show tv: 10K subs, 7d peak 15,072, avg 12,409: viewbots",
+  "yt:UCH0YlD6laiDQEDvgB0Dn2-w": "GoldPlayz: 10.5K subs, 7d peak 14,084 above subs: viewbots (peak rule)",
+  "yt:UC7nPBLOIsJKHArhcEXCCplg": "Carrom King: carrom Shorts channel (3.82M subs) live-restreaming US college football (BYU vs Providence NCAA) on 26 Nov, 0 views gained in 7d: match restream",
+  "kick:kukudota2": "Kick bio: professional Dota 2 player, Philippines: not Indian",
+  "yt:UCXY5pi3MbsaP1WEgClmglsA": "Noah Kahan: American singer-songwriter: not Indian",
+  "yt:UCIsEhwBMPkRHsEgqYAPQHsA": "ChessBase India: chess streams, owner rule chess is Gaming (was Sports)",
+  "kick:kalkilive": "streams Chat Roulette, was ranked as Gaming",
+  "kick:crakkpot": "streams Slots & Casino, had no category",
+  "yt:UCxWx-MPft_7mKrFtN6uOaAA": "Gurdwara Shaheed Ganj: gurbani live like SGPC (was Nonprofits & Activism, not a ranking category)",
+  "yt:UCsg1GnpY-b4iMhQd5VpSZag": "Madaneeyam Latheef Saqafi: religious talks (was Education, not a ranking category)",
+  "yt:UC8av6fOAlatKRJWq9rTdtkA": "AKFOODLAB: cooking, like Veg Delight by Priyanka (was Howto & Style, not a ranking category)",
+  "yt:UCHxYDy5uZ3tCaM3fn2Y3U-g": "Iqbal Sports: 2.71M subs, fan commentary on India matches: OK",
+  "yt:UC53-j1QpLvpCrfBpHaeaq5w": "kangguz Live: Hindi posts, #freefireindia: OK",
+  "kick:upthrustesports": "Indian BGMI org; 6,960 Kick followers, 7d avg 1,882 (just over a quarter): left for owner",
+  "kick:kaashplays": "205K followers, 7d avg 16,363: real; title says Bigg Boss watch party (like mogambo): left for owner"
  }
 }
