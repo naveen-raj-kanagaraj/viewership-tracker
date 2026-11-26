@@ -98,7 +98,8 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const fmt=n=>{n=+n||0;return n>=1e9?(n/1e9).toFixed(2)+'B':n>=1e7?(n/1e6).toFixed(1)+'M':n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e4?(n/1e3).toFixed(1)+'K':Math.round(n).toLocaleString('en-IN')};
 const full=n=>Math.round(+n||0).toLocaleString(location.pathname.startsWith('/india')?'en-IN':'en-US');   // worldwide pages: 7,079,086; India: 70,79,086
 const ini=s=>esc(String(s||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase()||'?');
-const av=x=>`<span class="av">${x.logo?`<img src="${esc(x.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=ph>${ini(x.name)}</span>'">`:`<span class="ph">${ini(x.name)}</span>`}</span>`;
+function imgErr(i){if(!i.dataset.r&&i.dataset.sid){i.dataset.r=1;i.src='/api/logo?sid='+encodeURIComponent(i.dataset.sid)}else{const s=document.createElement('span');s.className='ph';s.textContent=i.dataset.ini||'';i.replaceWith(s)}}
+const av=x=>`<span class="av">${x.logo||x.sid?`<img src="${esc(x.logo||('/api/logo?sid='+encodeURIComponent(x.sid)))}" alt="" loading="lazy" referrerpolicy="no-referrer" data-sid="${esc(x.logo?x.sid||'':'')}" data-ini="${ini(x.name)}" onerror="imgErr(this)">`:`<span class="ph">${ini(x.name)}</span>`}</span>`;
 const cv=document.getElementById('gl'),ctx=cv.getContext('2d'),tip=document.getElementById('tip'),TOUCH=window.matchMedia('(hover:none)').matches;
 let W=0,H=0,R=0,zoom=1,rot=[-60,-20,0],spin=true,idleT=0,G=null,BY={},RANK={},MAX=1,FEATS=[],sel=null,hover=null,anim=null,selCat='';
 const SPEED=24;   // degrees per second

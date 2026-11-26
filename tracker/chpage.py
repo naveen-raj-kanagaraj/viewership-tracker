@@ -141,7 +141,8 @@ const CZ=location.pathname.startsWith('/india')?{tz:'Asia/Kolkata',lb:'IST',loc:
 const ctm=(ts,o)=>new Date(ts*1000).toLocaleString(CZ.loc,Object.assign({timeZone:CZ.tz},o));
 const ago=ts=>{const s=Date.now()/1000-ts;return s<120?'just now':s<3600?Math.round(s/60)+' min ago':s<86400?Math.round(s/3600)+' h ago':Math.round(s/86400)+' d ago'};
 const ini=s=>esc(String(s||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase()||'?');
-const av=x=>x.logo?`<img src="${esc(x.logo)}" alt="" referrerpolicy="no-referrer" onerror="this.outerHTML='<span class=ph>${ini(x.name)}</span>'">`:`<span class="ph">${ini(x.name)}</span>`;
+function imgErr(i){if(!i.dataset.r&&i.dataset.sid){i.dataset.r=1;i.src='/api/logo?sid='+encodeURIComponent(i.dataset.sid)}else{const s=document.createElement('span');s.className='ph';s.textContent=i.dataset.ini||'';i.replaceWith(s)}}
+const av=x=>x.logo||x.sid?`<img src="${esc(x.logo||('/api/logo?sid='+encodeURIComponent(x.sid)))}" alt="" referrerpolicy="no-referrer" data-sid="${esc(x.logo?x.sid||'':'')}" data-ini="${ini(x.name)}" onerror="imgErr(this)">`:`<span class="ph">${ini(x.name)}</span>`;
 const liveMap=()=>({});let OPEN=null;function render(){}
 __PANEL_JS__
 let VR=30,VRANGE='30d',VKIND='all',VMET='views',VSORT='top',VID=null,CDATA=null;
