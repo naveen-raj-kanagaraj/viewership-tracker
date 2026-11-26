@@ -873,7 +873,7 @@ function wpBoard(){   // the leaderboard's streamers: the hand-made roster, or (
   // the same streamer on YouTube and Kick (owner, 27 Nov): one row, the bigger number, the other platform after a slash
   const by={},val=r=>off?r.peak:r.viewers;rows.forEach(r=>{(by[r.who]=by[r.who]||[]).push(r)});
   R=Object.values(by).map(g=>{g.sort((a,b)=>val(b)-val(a));const m=g.find(r=>r.platform==='youtube')||g[0],top=g[0];
-   const alt={};g.slice(1).forEach(r=>{alt[r.platform]=Math.max(alt[r.platform]||0,val(r))});
+   const alt={};g.slice(1).forEach(r=>{if(r.platform!==top.platform)alt[r.platform]=Math.max(alt[r.platform]||0,val(r))});
    return {...top,name:m.name,logo:m.logo||top.logo,in:m.in,alts:Object.entries(alt)}}).sort((a,b)=>val(b)-val(a))}
  return R.filter(inReg)}
 function wpRows(){const sb=document.getElementById('shareBoard');if(sb)sb.onclick=()=>openShare('board');
