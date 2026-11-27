@@ -5,7 +5,17 @@ Live at [live.letsgrowesports.com](https://live.letsgrowesports.com), used by 5,
 
 > Maintaining it? Start with [docs/HANDOFF.md](docs/HANDOFF.md). How it works under the hood: [docs/TECHNICAL.md](docs/TECHNICAL.md).
 
-![The live dashboard, worldwide](docs/site-overview.jpg)
+![India overview: everyone streaming live in India right now, updated every 2 seconds](docs/site-overview.jpg)
+
+| Event tracker (PMGC 2026) | Watch-party leaderboard |
+|---|---|
+| ![PMGC 2026 tracker: 4,99,214 peak, official vs watch parties](docs/site-event.jpg) | ![Watch parties ranked, India / outside India, YouTube and Kick merged](docs/site-event-board.jpg) |
+| **Rankings, India** | **Worldwide overview** |
+| ![Top channels in India by peak live viewers](docs/site-rankings.jpg) | ![Everyone streaming live worldwide](docs/site-global.jpg) |
+
+**Share cards** (made on the site, sized for Instagram posts and stories and for X):
+
+![Leaderboard, streams and streamer rank cards for PMGC 2026](docs/share-cards.jpg)
 
 ## The problem
 
@@ -16,6 +26,8 @@ Audience numbers for creators and live events are late, partial and split across
 - Channel trackers say little about creators outside the US, about live audiences, or about how a channel's recent videos actually perform.
 
 **GTA 6 launch day (18 Nov 2026):** the site measured **12.7 million people watching live streams at once worldwide**, with GTA 6 alone peaking at **7.08 million** across YouTube, Twitch and Kick, and the top Indian GTA 6 creators (Mythpat 125K, CarryisLive 103K, GamerFleet 90K) ranked against the world.
+
+**PMGC 2026, Day 1 (26 Nov):** the site measured **4,99,214 people watching at once** at 8:21 PM IST across 300 streams, and **73% of them (3.63 lakh) were on watch parties**, led by Snax Gaming at 2,11,073. The official broadcasts peaked at 1.36 lakh.
 
 **What the data showed:** at the peak of BMSD 2026, a national esports final, this site measured **653,067 people watching at once, and 57% of them were on creators' watch parties, not the official stream.** An official-only report would have missed most of the audience.
 
@@ -35,7 +47,7 @@ keeps its region in the address.
 
 - **Live dashboard:** everyone watching right now across YouTube, Twitch and Kick, by platform, category and game, refreshed every 2 seconds. Every live Twitch stream is counted, plus Kick and YouTube: over 100,000 live streams at once (126,100 on 5 Nov 2026).
 - **Esports and tournaments:** every tournament on now, grouped by game. Each one has its own page (`/global/t/<name>`, `/india/t/<name>`) that adds up every channel carrying it, in any country or language: official broadcasts, regional channels (for example Garena's country channels for one Free Fire event) and co-streams. Combined watching now, combined peak, today's line, peak by day, hours watched, every channel's own peak, languages, and a share card. League names and editions (FFWS and FFWS 2026, CEGC and CEGC 2026) are one event, never two cards.
-- **Event trackers:** the site's own end-to-end trackers for Indian esports (official broadcast plus permitted watch parties every 2 seconds, with the split). Tracked so far: BMSD 2026 (653K peak), BMIC 2026, CEGC 2026, PIC 2026. Tracking starts by itself when the official channel goes live.
+- **Event trackers:** the site's own end-to-end trackers for esports (official broadcast plus watch parties every 2 seconds, with the split). Tracked so far: BMSD 2026 (653K peak), BMIC 2026, CEGC 2026, PIC 2026, PMGC 2026 (worldwide). Tracking starts by itself when the official channel goes live. For worldwide events, watch parties are found across every region, checked against each channel's past PUBG Mobile / BGMI streams (and their chat when unknown), split into India and outside India from the streamer's own bio, and a streamer live on both YouTube and Kick is one row with both peaks. Each stream shows a viewer line, average and peak time; a CSV of the day goes to the owner after every broadcast.
 - **GTA 6 launch coverage:** from release (18 Nov 2026, 10:00 UTC) the site sweeps the whole world for GTA 6 streams: every Twitch page of the category (up to 40,000 streams), Kick by viewers and in 16 languages, and 32 YouTube searches across the main countries and languages. The top 1,000 streams are re-read every 2 seconds. Streams count from 1 viewer. A channel is in the GTA 6 lists if even one of its streams was GTA 6. Because YouTube does not label a stream's game in its API, YouTube channels are checked against their own streams: the game card YouTube shows under the video, then the title. Titles that only talk about GTA 6 ("waiting", "countdown", "reaction", `#gta6` tags) and re-streams that copy a bigger channel's title word for word are kept out.
 - **Channel pages for any channel:** subscribers, lifetime views, views gained per day, every recent video (sortable by date, views, likes, engagement), past live streams with each stream's peak, best day and time to post, rank in its category and country, the same creator's channels on other platforms, and a live-day share card while the channel is streaming. Kick and Twitch views come from their VODs. Official esports channels (for example Krafton India Esports) show their events first.
 - **Rankings:** one list per platform plus **All platforms** (YouTube, Twitch and Kick together), by peak live viewers, average live viewers, hours watched, views gained, engagement, subscribers gained or total views. Channels live right now are tagged LIVE. Every metric has a period: 24 hours, 3 / 7 / 30 days, 3 / 6 months, year to date, 1 year, lifetime. Filter by category, country and any game (a type-to-search box that also works on phones). India rankings show each channel's **worldwide rank** when it is in the world's top 50. Share cards come in ranges (top 1 to 10, 11 to 20 ... 41 to 50) for posts and stories.
@@ -46,11 +58,7 @@ keeps its region in the address.
 - **One definition of "today":** every "today" number (peaks, hours watched, top lists, cards) is the last 24 hours, so the overview, rankings and cards always agree.
 - **Compare, world map, Predict & Win** (a free prediction game per tournament).
 
-| Rankings | World map |
-|---|---|
-| ![Rankings](docs/site-rankings.jpg) | ![The 3D globe of who the world is watching](docs/site-map.jpg) |
-| **Channel page** | **Game page (BGMI)** |
-| ![A channel page](docs/site-channel.jpg) | ![BGMI live in India with event history](docs/site-bgmi.jpg) |
+<p align="center"><img src="docs/site-mobile.jpg" width="260" alt="The PMGC tracker on a phone"></p>
 
 ## Product management
 
