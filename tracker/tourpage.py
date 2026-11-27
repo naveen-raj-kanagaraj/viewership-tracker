@@ -108,7 +108,7 @@ async function card(){const d=D,W=1080,H=1350,cv=document.createElement('canvas'
  const M=s=>`${s}px "Barlow Condensed",sans-serif`,B=s=>`700 ${s}px "Barlow",sans-serif`;
  const SITE=(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\./,'')+RP;
  const dl=new Date().toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',timeZone:'Asia/Kolkata'}).replace(',','').toUpperCase();
- T(`${d.name.toUpperCase()} // ${dl}`,80,110,B(50),'#eeeef5','left',W-160);
+ T(`${d.name.toUpperCase()} // ${dl}`,80,100,B(50),'#eeeef5','left',W-160);T('by letsgrowesports',80,164,M(24),'#a9a8be');
  x.font=M(24);const ww=0;T('// PEAK CONCURRENT VIEWERS',80,205,M(30),'#ff4d5e','left',W-160-ww-30);
  x.shadowColor='rgba(182,242,58,.35)';x.shadowBlur=30;T(full(d.peak),72,245,B(170),'#ffffff');x.shadowBlur=0;
  const bw=(W-200)/3,box=(X,l,v,s,c)=>{x.fillStyle='rgba(26,26,38,.9)';x.fillRect(X,490,bw,170);x.strokeStyle='#262636';x.lineWidth=2;x.strokeRect(X,490,bw,170);T(l,X+22,510,M(24),'#ff4d5e','left',bw-44);T(v,X+22,544,B(56),c,'left',bw-44);T(s,X+22,616,M(22),'#8d8ca3','left',bw-44)};

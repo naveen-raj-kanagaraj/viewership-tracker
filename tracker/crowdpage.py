@@ -186,7 +186,7 @@ async function shareRes(){const R=window._RES;if(!R)return;await document.fonts.
  const T=(t,X,Y,f,col,al,mw)=>{x.font=f;if(mw){const w=x.measureText(t).width;if(w>mw){const m=f.match(/(\d+)px/);x.font=f.replace(/\d+px/,Math.floor(+m[1]*mw/w)+'px')}}x.fillStyle=col;x.textAlign=al||'left';x.textBaseline='top';x.fillText(t,X,Y)};
  const M=s=>`${s}px "Barlow Condensed",sans-serif`,B=s=>`700 ${s}px "Barlow",sans-serif`;
  x.strokeStyle='#b6f23a';x.lineWidth=5;x.beginPath();x.moveTo(40,80);x.lineTo(40,40);x.lineTo(80,40);x.stroke();
- T('letsgrowesports // BMSD 2026',80,72,M(28),'#b6f23a');T('PREDICT & WIN RESULTS',80,110,B(68),'#eeeef5',null,Wd-160);
+ T('BMSD 2026',80,62,M(28),'#b6f23a');T('PREDICT & WIN RESULTS',80,96,B(68),'#eeeef5',null,Wd-160);T('by letsgrowesports',80,176,M(24),'#a9a8be');
  const ch=(window._RES.rows[0]||[])[1]||'';const lg=TL[key(ch)];let y=220;
  if(lg){const im=new Image();im.src=lg;await new Promise(r=>{im.onload=r;im.onerror=r});const h=120,w=Math.min(240,im.width*h/im.height||h);x.drawImage(im,80,y,w,h);T('CHAMPIONS',80+w+24,y+16,M(26),'#ff4d5e');T(ch.toUpperCase(),80+w+24,y+46,B(64),'#b6f23a')}
  else{T('CHAMPIONS',80,y,M(26),'#ff4d5e');T(ch.toUpperCase(),80,y+30,B(64),'#b6f23a')}

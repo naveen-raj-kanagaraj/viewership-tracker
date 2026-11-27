@@ -225,7 +225,7 @@ async function makeCard(logos){const ST=FMT==='story',H=ST?1920:1350,RG=String((
  const where=CH?(C.country?((CR.countries.find(z=>z.code===C.country)||{}).name||C.country):'WORLDWIDE'):(GL?'WORLDWIDE':'INDIA');
  const y0=ST?210:64;
   x.fillStyle='#fff';x.font='700 64px "Barlow Condensed",sans-serif';
- x.fillText(shrink(CH?'TOP '+(NAMES[C.platform]||'').toUpperCase()+' CHANNELS':['TOP',S.platform?(NAMES[S.platform]||'').toUpperCase():'',cat?cat.toUpperCase():({gaming:'GAMING',esports:'ESPORTS'})[S.sec]||'','STREAMERS'].filter(Boolean).join(' '),936,64,'700 #px "Barlow Condensed",sans-serif'),72,y0+100);
+ x.fillText(shrink(CH?'TOP '+(NAMES[C.platform]||'').toUpperCase()+' CHANNELS':['TOP',S.platform?(NAMES[S.platform]||'').toUpperCase():'',cat?cat.toUpperCase():({gaming:'GAMING',esports:'ESPORTS'})[S.sec]||'','STREAMERS'].filter(Boolean).join(' '),936,64,'700 #px "Barlow Condensed",sans-serif'),72,y0+76);x.fillStyle='#a9a8be';x.font='600 24px "Barlow Condensed",sans-serif';x.fillText('by letsgrowesports',72,y0+108);
  const WM='';x.font='600 22px "Barlow Condensed",sans-serif';const wmW=x.measureText(WM).width+28;
  if(CH){x.fillStyle='#b6f23a';x.fillText(shrink([OFF0?'#'+(OFF0+1)+' TO #'+Math.min(END0,((CH?CR.rows:R.rows)||[]).length):'',cat,where,'BY '+CML(C.metric).replace('PAST STREAM ','')].filter(Boolean).join(' · ').toUpperCase(),936-wmW,34,'700 #px "Barlow Condensed",sans-serif'),72,y0+145)}
  else{x.fillStyle='#8d8ca3';const pl=document.getElementById('period'),pt=pl&&pl.selectedOptions&&pl.selectedOptions[0]?pl.selectedOptions[0].text:'';
