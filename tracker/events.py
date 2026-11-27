@@ -308,7 +308,7 @@ def live_list(key: str) -> dict:
         import json as _json
         d = _json.loads(f.read_text())
         d = {k: [str(x).strip() for x in (d.get(k) or []) if str(x).strip()]
-             for k in ("youtube", "kick", "twitch", "exclude", "count", "india", "not_india")}
+             for k in ("youtube", "kick", "twitch", "exclude", "count", "india", "not_india", "import")}
         print(f"Live list {key}: " + ", ".join(f"{k} {len(v)}" for k, v in d.items()))
     except Exception as e:
         print(f"Live list {key}: {str(e)[:120]}")
@@ -1200,6 +1200,116 @@ def broadcast_over(key: str, official: int, now: float) -> bool:
     return True
 
 
+# ---------- streams the event counter missed, filled in from the live scan ----------
+# live list "import": [yt:UC id / kick:slug]. Owner, 28 Nov: MazyisLive's PMGC streams ("Global Championship Day 1",
+# "GC DAY 1": no "PMGC" in the titles) were not counted, but the site-wide live scan has his readings (every few
+# minutes). For every broadcast day that ended, the scan readings inside the broadcast window are copied into the
+# event's readings, so the streamer is on the day boards, the share cards and the CSV. The totals (ev_ticks) are not
+# changed. Once per streamer per day; where the counter has readings they stay (only the gaps are filled).
+IMPORT_PAD = (1800, 600)
+GAP = 300                      # a scan reading within 5 minutes of a counter reading is not needed       # from 30 minutes before the official stream to 10 minutes after it
+_IMP_AT = {}
+
+
+def broadcast_windows(key: str) -> list:
+    """[(IST day, start, end)]: per day, the first official reading to the last one at 10% or more of that day's
+    official peak (a regional stream's tail is not the broadcast)."""
+    with store.reading():
+        rows = _db().execute("SELECT ts, official FROM ev_ticks WHERE event=? AND official>0 ORDER BY ts", (key,)).fetchall()
+    days = {}
+    for ts, off in rows:
+        d = datetime.fromtimestamp(ts, REPORT_TZ).strftime("%Y-%m-%d")
+        days.setdefault(d, []).append((ts, off))
+    out = []
+    for d, xs in sorted(days.items()):
+        pk = max(o for _, o in xs)
+        out.append((d, xs[0][0], max(t for t, o in xs if o >= pk * OVER_PCT)))
+    return out
+
+
+def import_scan(key: str, now: float = None, force: bool = False) -> list:
+    """Fills in the live list's "import" streamers from the scan; returns [(sid, day, readings)] imported."""
+    sids = live_list(key).get("import") or []
+    now = now or time.time()
+    if not sids or (not force and now - _IMP_AT.get(key, 0) < 600):
+        return []
+    _IMP_AT[key] = now
+    done = []
+    for day, b0, b1 in broadcast_windows(key):
+        if now - b1 < 1800:                       # still on air or just ended
+            continue
+        t0, t1 = b0 - IMPORT_PAD[0], b1 + IMPORT_PAD[1]
+        for sid in sids:
+            flag = f"ev_imp:{key}:{sid}:{day}"
+            if store.kv_get(flag):
+                continue
+            n = _import_one(key, sid, t0, t1)
+            store.kv_set(flag, {"readings": n, "ts": int(now)})
+            done.append((sid, day, n))
+            print(f"Import {key} {sid} {day}: {n} readings")
+    if done:
+        for k in [k for k in _DAYS if k[0] == key]:
+            _DAYS.pop(k, None)
+        _WHO.pop(key, None)
+    return done
+
+
+def _import_one(key: str, sid: str, t0: float, t1: float) -> int:
+    with store.reading():
+        c = _db()
+        pts = c.execute("SELECT ts, MAX(viewers) FROM sc_samples WHERE sid=? AND ts BETWEEN ? AND ? AND viewers>0 "
+                        "GROUP BY ts ORDER BY ts", (sid, t0, t1)).fetchall()
+        if not pts:
+            return 0
+        ch = c.execute("SELECT name, title FROM sc_channels WHERE sid=?", (sid,)).fetchone()
+        name, title = (ch[0], ch[1]) if ch else (sid.split(":", 1)[1], "")
+        if sid.startswith("yt:"):
+            cid = sid[3:]
+            v = c.execute("SELECT vid FROM sc_vstreams WHERE sid=? AND first_ts<=? AND last_ts>=? ORDER BY peak DESC LIMIT 1",
+                          (sid, t1, t0)).fetchone()
+            if not v:
+                return 0
+            vid = v[0]
+            try:
+                r = c.execute("SELECT title FROM yt_videos WHERE vid=?", (vid,)).fetchone()
+                title = (r and r[0]) or title
+            except Exception:
+                pass
+        else:
+            cid = vid = sid.lower()
+        # where the counter already has this streamer (any of their streams), its readings stay: the scan fills only
+        # the gaps (e.g. before the live list added him mid-broadcast)
+        hv = c.execute("SELECT s.ts, s.vid FROM ev_samples s JOIN ev_streams e ON e.event=s.event AND e.vid=s.vid "
+                                        "WHERE s.event=? AND s.ts BETWEEN ? AND ? AND (s.vid=? OR e.channel_id=?) ORDER BY s.ts",
+                                        (key, t0 - 300, t1 + 300, vid, cid)).fetchall()
+        fine = c.execute("SELECT 1 FROM ev_fine WHERE event=? AND ts BETWEEN ? AND ? LIMIT 1", (key, t0, t1)).fetchone()
+    have = [r[0] for r in hv]
+    if have:
+        vid = hv[-1][1]                           # the counter's own stream id, so it stays one row
+        import bisect
+        def near(t):
+            i = bisect.bisect_left(have, t - GAP)
+            return i < len(have) and have[i] <= t + GAP
+        pts = [p for p in pts if not near(p[0])]
+        if not pts:
+            return 0
+    pk = max(pts, key=lambda p: p[1])
+    with store._lock:
+        c = _db()
+        c.executemany("INSERT INTO ev_samples (event, ts, vid, viewers) VALUES (?,?,?,?)", [(key, int(t), vid, int(v)) for t, v in pts])
+        if fine:     # the day boards read ev_fine when the day has it (never start ev_fine for a day without it)
+            c.executemany("INSERT INTO ev_fine (event, ts, vid, viewers) VALUES (?,?,?,?)", [(key, int(t), vid, int(v)) for t, v in pts])
+        c.execute("""INSERT INTO ev_streams (event, vid, channel, channel_id, title, kind, first_seen, last_seen, peak, peak_at)
+                     VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(event, vid) DO UPDATE SET
+                     first_seen=MIN(ev_streams.first_seen, excluded.first_seen),
+                     last_seen=MAX(ev_streams.last_seen, excluded.last_seen),
+                     peak_at=CASE WHEN excluded.peak > ev_streams.peak THEN excluded.peak_at ELSE ev_streams.peak_at END,
+                     peak=MAX(ev_streams.peak, excluded.peak)""",
+                  (key, vid, name, cid, title or "", "watch party", pts[0][0], pts[-1][0], int(pk[1]), pk[0]))
+        c.commit()
+    return len(pts)
+
+
 def is_over(key: str) -> bool:
     """broadcast_over said so at the last count (the page shows off air, not a regional stream's leftovers)."""
     op = _OFFPK.get(key)
@@ -1791,6 +1901,11 @@ def run_fast_forever():
                 except Exception as e:
                     print(f"Report zip: {str(e)[:150]}")
                 evs = [ev for ev in events().values() if ev.get("active")]
+                for ev in evs:       # streams missed by the counter, from the scan (off air, every 10 minutes)
+                    try:
+                        import_scan(ev["key"])
+                    except Exception as e:
+                        print(f"Import {ev.get('key')}: {str(e)[:150]}")
                 for ev in evs:       # the daily CSV first: it is quick and must not wait behind the slower jobs
                     try:
                         eventlog.send_day_csv(ev)
