@@ -1787,10 +1787,11 @@ def run_fast_forever():
                 from tracker import eventlog, dataexport
                 for ev in events().values():
                     if ev.get("active"):
-                        eventlog.check(ev)
-                        eventlog.send_day_csv(ev)
-                        eventlog.check_roster(ev)
-                        dataexport.tick(ev)
+                        for f in (eventlog.send_day_csv, eventlog.check, eventlog.check_roster, dataexport.tick):
+                            try:     # one failing step (or event) no longer skips the rest, e.g. the daily CSV
+                                f(ev)
+                            except Exception as e:
+                                print(f"Event log {ev.get('key')} {f.__name__}: {str(e)[:150]}")
             except Exception as e:
                 print(f"Event log failed: {str(e)[:150]}")
             time.sleep(60)
