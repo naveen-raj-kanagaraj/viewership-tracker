@@ -168,19 +168,28 @@ CSV_AFTER_MIN = 15   # minutes after the broadcast ends
 
 def send_day_csv(ev: dict, force: bool = False):
     """Once per broadcast, CSV_AFTER_MIN after it ends, the day's CSV goes to the owner's Telegram bot."""
-    if ev.get("key") == "pmgc" and not store.kv_get("ev_csv_force:pmgc:1"):
-        store.kv_set("ev_csv_force:pmgc:1", True)   # owner, 27 Nov: "I'm not seeing the PMGC csv, send it": once more
+    if ev.get("key") == "pmgc" and not store.kv_get("ev_csv_force:pmgc:2"):
+        store.kv_set("ev_csv_force:pmgc:2", True)   # owner, 27 Nov: "I'm not seeing the PMGC csv, send it": once more
         force = True
     st = events.stats(ev["key"])
     lb = st.get("last_broadcast")
-    if not lb or (not force and (st.get("official_live") or time.time() - lb["end"] < CSV_AFTER_MIN * 60)):
+    # the broadcast's own last reading decides, not "official live" (a regional PUBG MOBILE stream on in the morning
+    # kept PMGC "live" and the CSV never went)
+    if not lb or (not force and time.time() - lb["end"] < CSV_AFTER_MIN * 60):
         return
     if not force and time.time() - lb["end"] > 30 * 3600:
         return   # an older event's last broadcast (BMIC 1 Nov): only days that just ended
     flag = f"ev_csv_sent:{ev['key']}:{lb['start']}"
     if store.kv_get(flag) and not force:
         return
-    data, cap, _ = day_csv(ev["key"])
+    try:
+        data, cap, _ = day_csv(ev["key"])
+    except Exception as e:
+        last = store.kv_get("ev_csv_last") or {}
+        last = last if isinstance(last, dict) and "event" not in last else {}
+        last[ev["key"]] = {"ts": int(time.time()), "result": "csv failed: " + str(e)[:120]}
+        store.kv_set("ev_csv_last", last)
+        raise
     if not data:
         return
     name = f"{ev['key']}-{datetime.fromtimestamp(lb['start'], events.REPORT_TZ):%Y-%m-%d}-viewership.csv"
