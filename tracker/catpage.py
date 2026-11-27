@@ -119,7 +119,7 @@ async function makeCard(){const ST=FMT==='story',W=1080,H=ST?1920:1350,c=documen
  const top=ST?260:0,fit=(t,w)=>{t=String(t||'');while(x.measureText(t).width>w&&t.length>2)t=t.slice(0,-1);return t};
  const rl=(RN.find(r=>r[0]===RNG)||RN[0])[2];
  x.textBaseline='alphabetic';
- x.fillStyle='#eeeef5';x.font='700 72px "Barlow Condensed",sans-serif';x.fillText(T0?'TRENDING CATEGORIES':'TOP CATEGORIES',72,top+160);
+ x.fillStyle='#eeeef5';x.font='700 72px "Barlow Condensed",sans-serif';x.fillText(T0?'TRENDING CATEGORIES':'TOP CATEGORIES',72,top+130);x.fillStyle='#a9a8be';x.font='600 24px "Barlow Condensed",sans-serif';x.fillText('by letsgrowesports',72,top+166);
  const WM='';x.font='600 22px "Barlow Condensed",sans-serif';const wmW=x.measureText(WM).width;
  x.textAlign='right';x.fillStyle='#a9a8be';x.fillText(WM,W-72,top+204);x.textAlign='left';
  const sub=[REGION==='in'?'INDIA':'WORLDWIDE',SEC?(SECN[SEC]||SEC).toUpperCase():'',T0?'RISE VS 24 HOURS AGO':'WATCHING NOW'].filter(Boolean).join(' · ');

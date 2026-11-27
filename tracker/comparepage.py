@@ -198,7 +198,7 @@ async function makeCard(logos){const ST=FMT==='story',H=ST?1920:1350,L=J.channel
  const shrink=(t,w,px,f)=>{t=String(t??'');let k=px;x.font=f.replace('#',k);while(x.measureText(t).width>w&&k>px*.6){k--;x.font=f.replace('#',k)}return fit(t,w)};
  const col=s=>PAL[Math.max(0,C.indexOf(s.sid))];
  const y0=ST?200:60;
-  x.fillStyle='#fff';x.fillText(shrink((n===2?L[0].name+' VS '+L[1].name:n>2?'HEAD TO HEAD':L[0].name).toUpperCase(),936,64,'700 #px "Barlow Condensed",sans-serif'),72,y0+100);
+  x.fillStyle='#fff';x.fillText(shrink((n===2?L[0].name+' VS '+L[1].name:n>2?'HEAD TO HEAD':L[0].name).toUpperCase(),936,64,'700 #px "Barlow Condensed",sans-serif'),72,y0+76);x.fillStyle='#a9a8be';x.font='600 24px "Barlow Condensed",sans-serif';x.fillText('by letsgrowesports',72,y0+108);
  const WM=(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\./,'')+location.pathname;
  x.font='600 22px "Barlow Condensed",sans-serif';const wmW=x.measureText(WM).width+28;
  const sub=RNG==='all'?'ALL TIME':'LAST '+(RL[RNG]||RNG);

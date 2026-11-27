@@ -687,7 +687,7 @@ tr.fu td.num{animation:fu 1.2s}tr.fd td.num{animation:fd 1.2s}@keyframes fu{0%{c
  .grid2{gap:8px;margin-top:8px}.q{width:100%}.foot{font-size:11px}}
 .modal{position:fixed;inset:0;z-index:60;background:rgba(3,2,12,.82);display:none;align-items:center;justify-content:center;padding:16px}
 .modal.on{display:flex}.mbox{background:var(--bg2);border:1px solid var(--line);padding:14px;max-width:440px;width:100%;max-height:94vh;overflow:auto}
-.mbox img{width:100%;display:block;border:1px solid var(--line);margin:10px 0}.mrow{display:flex;gap:8px;flex-wrap:wrap}
+.mbox img{width:100%;display:block;border:1px solid var(--line);margin:10px 0}.mrow{display:flex;gap:8px;flex-wrap:wrap}#mimg{max-height:62vh;object-fit:contain}
 .dayr{cursor:pointer}.dayr:hover td{background:rgba(182,242,58,.05)}.dayr .car{display:inline-block;width:14px;color:var(--lime);transition:transform .2s}.dayr.open .car{transform:rotate(90deg)}.dayr.open td{background:rgba(182,242,58,.07)}
 .dayx>td{padding:0!important;background:var(--bg2)}.dxin{padding:10px 12px;display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:780px){.dxin{grid-template-columns:1fr}}
 .dxt table{width:100%}.dxt .lbl{margin-bottom:4px}.dxs{display:flex;align-items:center;gap:8px;color:var(--ink)}.dxs img{width:22px;height:22px;border-radius:50%}.dxs span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
@@ -706,6 +706,7 @@ tr.fu td.num{animation:fu 1.2s}tr.fd td.num{animation:fd 1.2s}@keyframes fu{0%{c
  const o=document.createElement('div');o.className='pwx';o.innerHTML='<b>PREDICT &amp; WIN</b>';o.style.setProperty('--x',e.clientX+'px');o.style.setProperty('--y',e.clientY+'px');
  document.body.appendChild(o);requestAnimationFrame(()=>requestAnimationFrame(()=>o.classList.add('on')));setTimeout(()=>{location.href=u},480);return false}</script>
 <div class="modal" id="modal"><div class="mbox"><div class="head"><div><h2 id="mt">Share</h2></div><button class="btn ghost sm" id="mclose">Close</button></div>
+ <div class="seg" id="mfmt" style="margin:0 0 10px"><button data-f="post" class="on">POST 4:5</button><button data-f="story">STORY 9:16</button></div>
  <img id="mimg" alt="Share card"><div class="mrow"><button class="btn" id="mig">Instagram</button><button class="btn" id="mxb">X</button><button class="btn ghost" id="mdl">Download</button></div>
  <p class="muted" id="mhint" style="font-size:12px;margin:10px 0 0">On your phone, Instagram and X open the share menu with the image attached: pick Instagram (Story or Post) or X.</p></div></div>
 <script>
@@ -1043,7 +1044,7 @@ function hasVid(w,vid){return w.vid===vid||(w.vids||[]).includes(vid)}
 function histCard(){const W=1080,H=1350,SC=2,c=document.createElement('canvas');c.width=W*SC;c.height=H*SC;const x=c.getContext('2d');x.scale(SC,SC);
  const g=x.createRadialGradient(W*.8,0,40,W*.8,0,1200);g.addColorStop(0,'#2a1d5c');g.addColorStop(1,'#0b0b12');x.fillStyle=g;x.fillRect(0,0,W,H);
  const T=(t,X,Y,f,c,a,mw)=>{x.font=f;if(mw){const w=x.measureText(t).width;if(w>mw){const m=f.match(/(\d+)px/);x.font=f.replace(/\d+px/,Math.max(10,Math.floor(+m[1]*mw/w))+'px')}}x.fillStyle=c;x.textAlign=a||'left';x.textBaseline='top';x.fillText(t,X,Y)};const h=hist(),top=[...h].sort((a,b)=>b[2]-a[2]);
- T('BGMI VIEWERSHIP TILL DATE',80,92,'700 70px "Barlow Condensed",sans-serif','#ffffff');
+ T('by letsgrowesports',80,166,'600 24px "Barlow Condensed",sans-serif','#a9a8be');T('BGMI VIEWERSHIP TILL DATE',80,88,'700 70px "Barlow Condensed",sans-serif','#ffffff');
  T(`// ALL-TIME HIGH // ${HNAME[top[0][0]].toUpperCase()} 20${top[0][1]}`,80,200,'600 30px "Barlow Condensed",sans-serif','#ff4d5e');T(top[0][2]+'K',72,232,'700 170px "Barlow Condensed",sans-serif','#ffffff');
  T(`${h.length} EVENTS // 2021 TO 2026`,W-80,300,'600 30px "Barlow Condensed",sans-serif','#b6f23a','right');
  x.save();x.translate(40,420);x._keep=1;drawHist(x,W-80,420,2);x._keep=0;x.restore();
@@ -1066,7 +1067,7 @@ function card(type,vid,avatar){if(type==='history')return histCard();
  const T=(t,X,Y,font,col,al,mw)=>{x.font=font;if(mw){const w=x.measureText(t).width;if(w>mw){const m=font.match(/(\d+)px/);x.font=font.replace(/\d+px/,Math.max(10,Math.floor(+m[1]*mw/w))+'px')}}x.fillStyle=col;x.textAlign=al||'left';x.fillText(t,X,Y)};
  const M=s=>`600 ${s}px "Barlow Condensed",sans-serif`,B=s=>`700 ${s}px "Barlow",sans-serif`,N=s=>`700 ${s}px "Barlow Condensed",sans-serif`;
  x.textBaseline='top';
- T(`${TITLE} // ${LB.date||''}${RG&&type!=='total'&&type!=='split'?' // '+RG:''}`.toUpperCase(),80,96,N(64),'#ffffff','left',W-160);
+ T(`${TITLE} // ${LB.date||''}${RG&&type!=='total'&&type!=='split'?' // '+RG:''}`.toUpperCase(),80,92,N(64),'#ffffff','left',W-160);T('by letsgrowesports',80,162,M(24),'#a9a8be');
  const box=(X,Y,w,h,lab,val,sub,col)=>{x.fillStyle='rgba(26,26,38,.9)';x.fillRect(X,Y,w,h);x.strokeStyle='#262636';x.lineWidth=2;x.strokeRect(X,Y,w,h);
   T(lab,X+22,Y+20,M(24),'#ff4d5e','left',w-44);T(val,X+22,Y+50,N(64),col||'#eeeef5','left',w-44);if(sub)T(sub,X+22,Y+h-44,M(22),'#8d8ca3','left',w-44)};
  let L,y0;
@@ -1160,23 +1161,32 @@ function card(type,vid,avatar){if(type==='history')return histCard();
 function dayTotal(col){col=col||1;const LB=D.last_broadcast;let src=(D.series_all||[]).concat((D.series_recent||[]));
  const m=new Map();src.forEach(r=>m.set(r[0],r));src=[...m.values()].sort((a,b)=>a[0]-b[0]);
  if(LB)src=src.filter(r=>r[0]>=LB.start-60&&r[0]<=LB.end+120);const step=Math.max(1,Math.floor(src.length/900));return src.filter((_,i)=>i%step===0).map(r=>[r[0],r[col]])}
+let FMT='post',LAST=null;
+function toStory(c,hist){const SC=c.width/1080,W=1080,H=1350,SH=1920,OY=284,s=document.createElement('canvas');s.width=W*SC;s.height=SH*SC;
+ const x=s.getContext('2d');x.scale(SC,SC);
+ const g=x.createRadialGradient(W*.8,OY,40,W*.8,OY,1200);g.addColorStop(0,hist?'#2a1d5c':'#1f1a3d');g.addColorStop(1,'#0b0b12');x.fillStyle=g;x.fillRect(0,0,W,SH);
+ if(!hist){x.fillStyle='rgba(255,255,255,.02)';for(let yy=0;yy<SH;yy+=4)x.fillRect(0,yy,W,1)}
+ x.drawImage(c,0,0,W*SC,(H-STRAP_H)*SC,0,OY,W,H-STRAP_H);
+ x.drawImage(c,0,(H-STRAP_H)*SC,W*SC,STRAP_H*SC,0,SH-STRAP_H,W,STRAP_H);return s}
 function opaque(c){const x=c.getContext('2d');x.save();x.setTransform(1,0,0,1,0,0);x.globalCompositeOperation='destination-over';x.fillStyle='#0b0b12';x.fillRect(0,0,c.width,c.height);x.restore();return c}   // no see-through pixels: apps show them white
 let cur=null;
 async function openShare(type,vid){
+ LAST=[type,vid];
  try{await Promise.all([document.fonts.ready,window.lgeReady?lgeReady():0])}catch(e){}
  const mi=document.getElementById('mimg');mi.removeAttribute('src');mi.alt='Making the image...';cur=null;document.getElementById('modal').classList.add('on');
  const big=u=>String(u||'').replace(/=s\d+-/,'=s800-');let av=null;avs={};
- if(type==='streams'){const S=(isOff()?(D.last_broadcast||{}).streams||[]:D.live||[]).slice(0,10);
+ if(type==='streams'){const S=(isOff()?(D.last_broadcast||{}).streams||[]:D.live||[]).filter(inReg).slice(0,10);
   const ims=await Promise.all(S.map(s=>loadImg(big(s.logo))));S.forEach((s,k)=>{if(ims[k])avs[s.vid]=ims[k]})}
  if(type==='battle'||type==='streamer'||type==='board'){
   const w=wpByPeak(),list=type==='board'?wpBoard().slice(0,10).map(r=>({vid:r.vid,name:r.name,logo:r.logo})):w.slice(0,5).map(x=>({vid:x.vid,logo:x.logo||logoOf(x.channel)}));
   const me=type==='streamer'?(w.find(x=>hasVid(x,vid))||(D.wp||[]).find(x=>x.vid===vid)):w[0];
   const ims=await Promise.all(list.slice(0,12).map(l=>loadImg(big(l.logo))));list.slice(0,12).forEach((l,k)=>{if(ims[k]){avs[l.vid]=ims[k];if(l.name)avs[l.name]=ims[k]}});
   if(me&&type!=='board')av=avs[me.vid]||await loadImg(big(me.logo||logoOf(me.channel)))}
- let c=opaque(card(type,vid,av));const done=(b,ext)=>{cur={blob:b,name:`${TITLE.toLowerCase().replace(/[^a-z0-9]+/g,'-')}-${type}.${ext||'png'}`};document.getElementById('mimg').src=URL.createObjectURL(b)};
+ const mk=a=>{const c0=opaque(card(type,vid,a));return FMT==='story'?opaque(toStory(c0,type==='history')):c0};
+ let c=mk(av);const done=(b,ext)=>{cur={blob:b,name:`${TITLE.toLowerCase().replace(/[^a-z0-9]+/g,'-')}-${type}${FMT==='story'?'-story':''}.${ext||'png'}`};document.getElementById('mimg').src=URL.createObjectURL(b)};
  // X re-compresses images over 5 MB hard: keep the PNG if it's under 4.5 MB, else a near-lossless JPEG
  const enc=cv=>cv.toBlob(b=>{if(b&&b.size<=4.5e6)done(b,'png');else cv.toBlob(j=>done(j,'jpg'),'image/jpeg',.95)},'image/png');
- try{enc(c)}catch(e){avs={};c=opaque(card(type,vid,null));enc(c)}
+ try{enc(c)}catch(e){avs={};c=mk(null);enc(c)}
  const wp=D.wp||[],i=wp.findIndex(w=>w.vid===vid);
  const dpk=wp.slice().sort((a,b)=>b.peak-a.peak),today=(D.days||[]).slice(-1)[0]||{},nowT=(D.live||[]).reduce((a,s)=>a+s.viewers,0);
  const LB=D.last_broadcast||{},wpp=wpByPeak(),RG=RGN(),RGS=RG?' '+RG:'';let text;
@@ -1197,6 +1207,8 @@ async function openShare(type,vid){
  document.getElementById('modal').classList.add('on');cur&&(cur.text=text);window._shareText=text;
 }
 document.getElementById('mclose').onclick=()=>document.getElementById('modal').classList.remove('on');
+document.getElementById('mfmt').onclick=e=>{const b=e.target.closest('button');if(!b||b.dataset.f===FMT)return;FMT=b.dataset.f;
+ document.querySelectorAll('#mfmt button').forEach(z=>z.classList.toggle('on',z===b));if(LAST)openShare(...LAST)};
 document.getElementById('modal').onclick=e=>{if(e.target.id==='modal')e.target.classList.remove('on')};
 document.getElementById('mdl').onclick=()=>{if(!cur)return;const a=document.createElement('a');a.href=URL.createObjectURL(cur.blob);a.download=cur.name;a.click()};
 async function shareTo(app){if(!cur)return;const f=new File([cur.blob],cur.name,{type:cur.blob.type||'image/png'}),t=window._shareText+' '+URLX+' @letsgrowesports';
