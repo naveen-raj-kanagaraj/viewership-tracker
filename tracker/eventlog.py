@@ -172,6 +172,8 @@ def send_day_csv(ev: dict, force: bool = False):
     lb = st.get("last_broadcast")
     if not lb or (not force and (st.get("official_live") or time.time() - lb["end"] < CSV_AFTER_MIN * 60)):
         return
+    if not force and time.time() - lb["end"] > 30 * 3600:
+        return   # an older event's last broadcast (BMIC 1 Nov): only days that just ended
     flag = f"ev_csv_sent:{ev['key']}:{lb['start']}"
     if store.kv_get(flag) and not force:
         return
