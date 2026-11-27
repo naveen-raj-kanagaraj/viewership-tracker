@@ -1,72 +1,78 @@
 {
-  "youtube": [
-    "UC-OELhLH1SF4D8-ncXQF0Eg",
-    "UCnJK8nTQ7wFewtu9vvW821Q"
-  ],
-  "kick": [
-    "ghatakofficial",
-    "engineerytgaming",
-    "rohanmodhera",
-    "amitsewda332",
-    "samisalivee",
-    "choudharygaming",
-    "dimogoeslive",
-    "zimba-is-live",
-    "vinogaminglive",
-    "s2james",
-    "bloodthrust",
-    "leovent18"
-  ],
-  "twitch": [],
-  "exclude": [
-    "yYQb9Zl89c0",
-    "kick:jonathaangaming1"
-  ],
-  "count": [
-    "kick:ghatakofficial",
-    "kick:engineerytgaming",
-    "kick:rohanmodhera"
-  ],
-  "india": [
-    "kick:soulviper",
-    "kick:mortal",
-    "kick:neyoo_gaming",
-    "kick:mrspikeyt",
-    "kick:ghatakofficial",
-    "kick:mafianinja",
-    "kick:vaadhiyaar",
-    "kick:ravensharplive",
-    "kick:engineerytgaming",
-    "kick:rohanmodhera",
-    "kick:amitsewda332",
-    "kick:choudharygaming",
-    "kick:vinogaminglive",
-    "kick:s2james",
-    "kick:bloodthrust",
-    "kick:leovent18",
-    "kick:bgmilivensr",
-    "kick:8bitthug",
-    "kick:lolzzzgaming"
-  ],
-  "not_india": [
-    "kick:amigomvp",
-    "kick:3lok",
-    "kick:4kgamingnepal",
-    "kick:casterwiseneko",
-    "kick:pmgc2026",
-    "kick:jonathaangaming1",
-    "UClHbJ2iUOVlgyG8-Y-CNzpA",
-    "kick:anshyt",
-    "UC27pyUnJTUyxe_z_0WxxNXw",
-    "kick:cr7horaa55",
-    "UCJZJcBJwfX4zIl0xDl2Q9ag",
-    "kick:sukugod",
-    "UCQIO7KKx7QGTEiAsSVC1MvA",
-    "kick:zevenlive",
-    "UCzArVBVK5KbFmL1NM2Sar4w",
-    "UCTbETTu3HNzQaZSprwNMjGQ",
-    "kick:sinisterplayss",
-    "kick:timeburnergg",
-    "UCSslzCYfi-PA6q1atGYUqSg"
-  ]
+ "youtube": [
+  "UC-OELhLH1SF4D8-ncXQF0Eg",
+  "UCnJK8nTQ7wFewtu9vvW821Q",
+  "UCk0oFjuGfJBLypWEY5kh4yw"
+ ],
+ "kick": [
+  "ghatakofficial",
+  "engineerytgaming",
+  "rohanmodhera",
+  "amitsewda332",
+  "samisalivee",
+  "choudharygaming",
+  "dimogoeslive",
+  "zimba-is-live",
+  "vinogaminglive",
+  "s2james",
+  "bloodthrust",
+  "leovent18",
+  "mazyislive"
+ ],
+ "twitch": [],
+ "exclude": [
+  "yYQb9Zl89c0",
+  "kick:jonathaangaming1"
+ ],
+ "count": [
+  "kick:ghatakofficial",
+  "kick:engineerytgaming",
+  "kick:rohanmodhera",
+  "UCk0oFjuGfJBLypWEY5kh4yw",
+  "kick:mazyislive"
+ ],
+ "india": [
+  "kick:soulviper",
+  "kick:mortal",
+  "kick:neyoo_gaming",
+  "kick:mrspikeyt",
+  "kick:ghatakofficial",
+  "kick:mafianinja",
+  "kick:vaadhiyaar",
+  "kick:ravensharplive",
+  "kick:engineerytgaming",
+  "kick:rohanmodhera",
+  "kick:amitsewda332",
+  "kick:choudharygaming",
+  "kick:vinogaminglive",
+  "kick:s2james",
+  "kick:bloodthrust",
+  "kick:leovent18",
+  "kick:bgmilivensr",
+  "kick:8bitthug",
+  "kick:lolzzzgaming",
+  "UCk0oFjuGfJBLypWEY5kh4yw",
+  "kick:mazyislive"
+ ],
+ "not_india": [
+  "kick:amigomvp",
+  "kick:3lok",
+  "kick:4kgamingnepal",
+  "kick:casterwiseneko",
+  "kick:pmgc2026",
+  "kick:jonathaangaming1",
+  "UClHbJ2iUOVlgyG8-Y-CNzpA",
+  "kick:anshyt",
+  "UC27pyUnJTUyxe_z_0WxxNXw",
+  "kick:cr7horaa55",
+  "UCJZJcBJwfX4zIl0xDl2Q9ag",
+  "kick:sukugod",
+  "UCQIO7KKx7QGTEiAsSVC1MvA",
+  "kick:zevenlive",
+  "UCzArVBVK5KbFmL1NM2Sar4w",
+  "UCTbETTu3HNzQaZSprwNMjGQ",
+  "kick:sinisterplayss",
+  "kick:timeburnergg",
+  "UCSslzCYfi-PA6q1atGYUqSg"
+ ]
 }
