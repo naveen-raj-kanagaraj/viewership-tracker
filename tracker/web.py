@@ -602,7 +602,8 @@ def _health() -> dict:
                         for k, v in __import__("tracker.ranks", fromlist=["x"]).STATUS.items()}},
         "chat_lang": _chat_lang(),
         "daily_csv": store.kv_get("ev_csv_last"),
-        "report_zip": store.kv_get("report_zip_last"),   # the last weekly / monthly data zip: size, parts, result   # the last daily CSV to the owner's Telegram bot: file and result
+        "report_zip": store.kv_get("report_zip_last"),
+        "lifetime_videos": __import__("tracker.deep", fromlist=["x"]).LIFE,   # channels whose every past video is in   # the last weekly / monthly data zip: size, parts, result   # the last daily CSV to the owner's Telegram bot: file and result
         "busy_threads": busy[:40],
         "recent": [f"{time.strftime('%H:%M:%S', time.gmtime(t))}Z {s}" for t, s in list(sys.stdout.lines)[-40:]]
                   if isinstance(sys.stdout, _Tee) else [],

@@ -154,6 +154,34 @@ def backfill_once(n_api: int = 30, n_free: int = 8) -> int:
     return api
 
 
+LIFE = {"done": 0, "last": 0}
+
+
+def lifetime_once(n: int = 12) -> int:
+    """Every video, Short and past live stream since the channel started (owner, 27 Nov: "their entire lifetime data,
+    whatever YouTube and the other platforms show, for all channels"). Ranked channels whose 2026 history is in,
+    biggest first; YouTube only while over 60% of the day's API allowance is left (about 2 units per 50 videos, up to
+    3,000 videos a channel); Kick and Twitch from their own pages. Marked once done (kv life:<sid>)."""
+    a, b = ranked_set()
+    key = os.getenv("YOUTUBE_API_KEY")
+    done = 0
+    for sid in a + b:
+        if done >= n:
+            break
+        if sid in ytextra._VBUSY or store.kv_get(f"life:{sid}") or time.time() - ytextra._VFAIL.get(sid, 0) < 6 * 3600:
+            continue
+        m = store.kv_get(f"vids:{sid}") or {}
+        if (m.get("since") or 9e12) > BACKFILL_FROM + 86400 and not m.get("full"):
+            continue                                  # this year's history first (the backfill above)
+        if sid.startswith("yt:") and not (key and events.yt_quota_left(.6)):
+            continue
+        ytextra._refresh_videos(sid, full=True)
+        store.kv_set(f"life:{sid}", int(time.time()))
+        done += 1
+    LIFE.update(done=LIFE["done"] + done, last=int(time.time()))
+    return done
+
+
 def backfill_progress() -> dict:
     a, b = ranked_set()
     allc = a + b
@@ -442,7 +470,8 @@ def run_forever():
     time.sleep(180)
     last_metrics = 0
     while True:
-        for name, fn in (("refresh", refresh_once), ("backfill", backfill_once), ("comments", comments_once)):
+        for name, fn in (("refresh", refresh_once), ("backfill", backfill_once), ("comments", comments_once),
+                         ("lifetime", lifetime_once)):
             try:
                 fn()
             except Exception as e:
