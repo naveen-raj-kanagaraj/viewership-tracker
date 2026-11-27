@@ -168,6 +168,9 @@ CSV_AFTER_MIN = 15   # minutes after the broadcast ends
 
 def send_day_csv(ev: dict, force: bool = False):
     """Once per broadcast, CSV_AFTER_MIN after it ends, the day's CSV goes to the owner's Telegram bot."""
+    if ev.get("key") == "pmgc" and not store.kv_get("ev_csv_force:pmgc:1"):
+        store.kv_set("ev_csv_force:pmgc:1", True)   # owner, 27 Nov: "I'm not seeing the PMGC csv, send it": once more
+        force = True
     st = events.stats(ev["key"])
     lb = st.get("last_broadcast")
     if not lb or (not force and (st.get("official_live") or time.time() - lb["end"] < CSV_AFTER_MIN * 60)):
@@ -182,7 +185,10 @@ def send_day_csv(ev: dict, force: bool = False):
         return
     name = f"{ev['key']}-{datetime.fromtimestamp(lb['start'], events.REPORT_TZ):%Y-%m-%d}-viewership.csv"
     res = _send(cap, data, name)
-    store.kv_set("ev_csv_last", {"ts": int(time.time()), "event": ev["key"], "file": name, "result": res})
+    last = store.kv_get("ev_csv_last") or {}
+    last = last if isinstance(last, dict) and "event" not in last else {}
+    last[ev["key"]] = {"ts": int(time.time()), "file": name, "result": res}
+    store.kv_set("ev_csv_last", last)
     if res == "ok":
         store.kv_set(flag, True)
     print(f"Daily CSV {name}: {res}")
