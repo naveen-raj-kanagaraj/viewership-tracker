@@ -119,20 +119,71 @@ def check_anomalies(ev: dict):
           xl, f"{key}-anomalies-{datetime.now(events.REPORT_TZ):%Y-%m-%d}.xlsx")
 
 
-def _send(text: str, doc: bytes = None, name: str = ""):
+def _send(text: str, doc: bytes = None, name: str = "") -> str:
+    """'ok', 'no bot' (TELEGRAM_BOT_TOKEN / OWNER_TELEGRAM_ID not set) or the error."""
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat = (os.getenv("OWNER_TELEGRAM_ID") or "").split(",")[0].strip()
     if not (token and chat):
-        return
+        return "no bot"
     try:
         if doc:
-            requests.post(f"https://api.telegram.org/bot{token}/sendDocument", data={"chat_id": chat, "caption": text[:1000]},
-                          files={"document": (name, doc)}, timeout=60)
+            r = requests.post(f"https://api.telegram.org/bot{token}/sendDocument", data={"chat_id": chat, "caption": text[:1000]},
+                              files={"document": (name, doc)}, timeout=60)
         else:
-            requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={"chat_id": chat, "text": text,
-                          "disable_web_page_preview": True}, timeout=20)
-    except requests.RequestException:
-        pass
+            r = requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={"chat_id": chat, "text": text,
+                              "disable_web_page_preview": True}, timeout=20)
+        return "ok" if r.ok else f"telegram {r.status_code}"
+    except requests.RequestException as e:
+        return type(e).__name__
+
+
+def day_csv(key: str) -> tuple:
+    """The last broadcast's streams as CSV (owner, 27 Nov: "share the viewership csv to my telegram bot every day"):
+    rank, channel, platform, type, region, peak, peak time, average, link. Returns (csv bytes, caption, broadcast start)."""
+    import csv
+    from tracker import eventpage
+    d = eventpage.data(key)
+    lb = d.get("last_broadcast") or {}
+    if not lb.get("streams"):
+        return None, "", 0
+    tf = lambda ts: datetime.fromtimestamp(ts, events.REPORT_TZ).strftime("%I:%M %p") if ts else ""
+    day = lb.get("date") or (datetime.fromtimestamp(lb["start"], events.REPORT_TZ).strftime("%a %d %b %Y") if lb.get("start") else "")
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    split = d.get("split_in")
+    w.writerow(["Date", "Rank", "Channel", "Platform", "Type"] + (["Region"] if split else []) +
+               ["Peak viewers", "Peak time (IST)", "Average viewers", "Link"])
+    for i, x in enumerate(lb["streams"], 1):
+        w.writerow([day, i, x.get("channel", ""), (x.get("platform") or "youtube").title(), x.get("kind", "")] +
+                   (["India" if x.get("in") else "Outside India"] if split else []) +
+                   [x.get("viewers", 0), x.get("at", ""), x.get("avg", 0), x.get("url", "")])
+    ev = events.get(key)
+    cap = (f"{ev['name']} // {day}\nPeak {lb.get('peak', 0):,} at {lb.get('peak_when') or tf(lb.get('peak_at'))} IST"
+           f" // {len(lb['streams'])} streams\nlive.letsgrowesports.com/e/{key}/")
+    return buf.getvalue().encode("utf-8-sig"), cap, lb.get("start") or 0
+
+
+CSV_AFTER_MIN = 15   # minutes after the broadcast ends
+
+
+def send_day_csv(ev: dict, force: bool = False):
+    """Once per broadcast, CSV_AFTER_MIN after it ends, the day's CSV goes to the owner's Telegram bot."""
+    st = events.stats(ev["key"])
+    lb = st.get("last_broadcast")
+    if not lb or (not force and (st.get("official_live") or time.time() - lb["end"] < CSV_AFTER_MIN * 60)):
+        return
+    flag = f"ev_csv_sent:{ev['key']}:{lb['start']}"
+    if store.kv_get(flag) and not force:
+        return
+    data, cap, _ = day_csv(ev["key"])
+    if not data:
+        return
+    name = f"{ev['key']}-{datetime.fromtimestamp(lb['start'], events.REPORT_TZ):%Y-%m-%d}-viewership.csv"
+    res = _send(cap, data, name)
+    store.kv_set("ev_csv_last", {"ts": int(time.time()), "event": ev["key"], "file": name, "result": res})
+    if res == "ok":
+        store.kv_set(flag, True)
+    print(f"Daily CSV {name}: {res}")
 
 
 def day_summary(ev: dict, lb: dict, st: dict) -> str:

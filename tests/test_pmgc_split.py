@@ -111,3 +111,16 @@ assert who["kick:anshyt"] == who["v1"] == "yt:UCansh0000000000000000" and who["k
 ins = {x["vid"]: x["in"] for x in d["last_broadcast"]["streams"]}
 assert ins["v1"] == 0 and ins["kick:anshyt"] == 0 and ins["v2"] == 1, ins
 print("PMGC BIOS + SAME STREAMER OK")
+
+# the daily CSV for the owner's Telegram bot: one row per stream, region column on worldwide events, sent once
+from tracker import eventlog
+data, cap, start = eventlog.day_csv("pmgc")
+txt = data.decode("utf-8-sig").splitlines()
+assert txt[0].startswith("Date,Rank,Channel,Platform,Type,Region,Peak viewers"), txt[0]
+assert len(txt) > 5 and "PMGC" in cap, (len(txt), cap)
+sent = []
+eventlog._send = lambda t, d=None, n="": sent.append(n) or "ok"
+eventlog.CSV_AFTER_MIN = 0
+eventlog.send_day_csv(events.get("pmgc")); eventlog.send_day_csv(events.get("pmgc"))
+assert len(sent) == 1 and sent[0].endswith("-viewership.csv"), sent
+print("DAILY CSV OK")

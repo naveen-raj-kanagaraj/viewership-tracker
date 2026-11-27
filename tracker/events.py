@@ -1788,6 +1788,7 @@ def run_fast_forever():
                 for ev in events().values():
                     if ev.get("active"):
                         eventlog.check(ev)
+                        eventlog.send_day_csv(ev)
                         eventlog.check_roster(ev)
                         dataexport.tick(ev)
             except Exception as e:
