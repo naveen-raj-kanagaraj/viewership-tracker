@@ -114,10 +114,51 @@ def data(key: str = None) -> dict:
                 _REFRESHING.add(ev["key"])       # itself, each one waiting on the database, and the site stopped loading)
                 threading.Thread(target=_refresh, args=(ev["key"],), daemon=True).start()
             return {**hit[1], "now": time.time()}
+        disk = _disk_load(ev["key"])             # after a restart: the copy saved on disk, while the first build runs
+        if disk:                                 # (27 Nov: a cold build took minutes and the PMGC page was blank)
+            _cache[ev["key"]] = (0, disk)
+            if ev["key"] not in _REFRESHING:
+                _REFRESHING.add(ev["key"])
+                threading.Thread(target=_refresh, args=(ev["key"],), daemon=True).start()
+            return {**disk, "now": time.time()}
     return _build(ev)
 
 
 _REFRESHING = set()
+DISK = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "evcache")
+DISK_MAX_AGE = 6 * 3600
+_DISK_AT = {}
+
+
+def _disk_path(key: str) -> str:
+    return os.path.join(DISK, re.sub(r"[^A-Za-z0-9_-]", "_", key) + ".json")
+
+
+def _disk_load(key: str):
+    p = _disk_path(key)
+    try:
+        if time.time() - os.path.getmtime(p) > DISK_MAX_AGE:
+            return None
+        with open(p) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def _disk_save(key: str, out: dict):
+    """At most once a minute per event, written to a temp file and renamed (never a half-written copy)."""
+    now = time.time()
+    if now - _DISK_AT.get(key, 0) < 60:
+        return
+    _DISK_AT[key] = now
+    try:
+        os.makedirs(DISK, exist_ok=True)
+        p = _disk_path(key)
+        with open(p + ".tmp", "w") as f:
+            json.dump(out, f, default=str, separators=(",", ":"))
+        os.replace(p + ".tmp", p)
+    except Exception as e:
+        print(f"Event page disk copy {key}: {str(e)[:120]}")
 
 
 def _refresh(key):
@@ -211,6 +252,7 @@ def _build(ev: dict) -> dict:
         out["roster"] = _roster(out)
     with _cache_lock:
         _cache[ev["key"]] = (time.time(), out)
+    _disk_save(ev["key"], out)
     return out
 
 
