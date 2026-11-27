@@ -899,7 +899,7 @@ def scene_channel():
             with __import__("tracker").store.reading():
                 r = scene._db().execute("SELECT sid, platform, name, url, logo, title, game FROM sc_channels WHERE sid=?", (sid,)).fetchone()
             return {**dict(r), "now": 0, "periods": {}, "days": [], "recent": [], "ranks": [], "linked": []} if r else {}
-    return _gate(f"/api/channel:{sid}", 15, build, _auth.trim_channel)
+    return _gate(f"/api/channel:{sid}", 30, build, _auth.trim_channel)   # 30 s: served stale up to 6 h while it rebuilds, kept across restarts
 
 
 @app.route("/api/chlive")
@@ -1888,6 +1888,18 @@ def _warm_more():
                 top = sorted(lv["_live"], key=lambda x: -x["viewers"])[:40]
                 for x in top:
                     urls += [f"/api/channel?sid={x['sid']}"]
+                # the ranked channels too (owner, 27 Nov: channel pages take time to load): India's top 400 and the
+                # world's top 200 by 7-day peak, rebuilt only when their copy is over 2 hours old, never during a broadcast
+                if not scene._event_on_air():
+                    try:
+                        from tracker import ranks
+                        rk = ranks.top("all", "peak_7d", country="IN" if region == "in" else "", limit=400 if region == "in" else 200)
+                        for r in rk.get("rows") or []:
+                            k = f"/api/channel:{r['sid']}"
+                            if k not in _MEMO or time.time() - _MEMO[k][0] > 7200:
+                                urls.append(f"/api/channel?sid={r['sid']}")
+                    except Exception as e:
+                        print(f"Warm channels: {str(e)[:120]}")
                 for u in urls:
                     if scene.overloaded():
                         break
