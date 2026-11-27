@@ -1,7 +1,8 @@
 {
  "_about": "Manual decisions from the daily review (docs/DAILY_REVIEW.md). The server re-reads this file from GitHub every 10 minutes.",
  "india": [
-  "twitch:invadingdarkness"
+  "twitch:invadingdarkness",
+  "kick:ghatak"
  ],
  "not_india": [
   "twitch:guddu_kim",
@@ -129,7 +130,8 @@
   "yt:UCmgKVM_O9tLA1w4rFVaGyig": "2026-11-27",
   "yt:UC9zh516XCUhN1EVIdblTXXQ": "2026-11-27",
   "yt:UCk0oFjuGfJBLypWEY5kh4yw": "2026-11-27",
-  "kick:mazyislive": "2026-11-27"
+  "kick:mazyislive": "2026-11-27",
+  "kick:ghatak": "2026-11-27"
  },
  "notes": {
   "twitch:sazof36": "634 followers, 17,184 peak: viewbots",
@@ -213,6 +215,7 @@
   "yt:UCmgKVM_O9tLA1w4rFVaGyig": "Jothi Tv Live: Tamil temple lives (Tiruvannamalai Deepam, Pradosham), devotional like SGPC (was Entertainment)",
   "yt:UC9zh516XCUhN1EVIdblTXXQ": "The Trade Room: live crypto & gold analysis (was Education, not a ranking category); 2.35M subs, avg 35,469 in a 20-min live",
   "yt:UCk0oFjuGfJBLypWEY5kh4yw": "MazyisLive (YouTube, 322K, linked to kick:mazyislive): BGMI streamer, PMGC Hindi casting was labelled Other; owner asked 27 Nov",
-  "kick:mazyislive": "Mazy on Kick: BGMI / GTA, Indian, on the event list; fine"
+  "kick:mazyislive": "Mazy on Kick: BGMI / GTA, Indian, on the event list; fine",
+  "kick:ghatak": "Ghatak (Abhijeet Andhare), Indian BGMI player / streamer, PMGC watch-party list; site said 'nothing Indian found' (no streams seen yet)"
  }
 }
