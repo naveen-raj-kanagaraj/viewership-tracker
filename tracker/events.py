@@ -1785,6 +1785,11 @@ def run_fast_forever():
         while True:
             try:
                 from tracker import eventlog, dataexport
+                try:
+                    from tracker import reportzip
+                    reportzip.tick()       # weekly / monthly data zip for the owner (own thread)
+                except Exception as e:
+                    print(f"Report zip: {str(e)[:150]}")
                 evs = [ev for ev in events().values() if ev.get("active")]
                 for ev in evs:       # the daily CSV first: it is quick and must not wait behind the slower jobs
                     try:
