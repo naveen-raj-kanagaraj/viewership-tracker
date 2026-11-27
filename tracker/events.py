@@ -1785,9 +1785,15 @@ def run_fast_forever():
         while True:
             try:
                 from tracker import eventlog, dataexport
-                for ev in events().values():
+                evs = [ev for ev in events().values() if ev.get("active")]
+                for ev in evs:       # the daily CSV first: it is quick and must not wait behind the slower jobs
+                    try:
+                        eventlog.send_day_csv(ev)
+                    except Exception as e:
+                        print(f"Event log {ev.get('key')} send_day_csv: {str(e)[:150]}")
+                for ev in evs:
                     if ev.get("active"):
-                        for f in (eventlog.send_day_csv, eventlog.check, eventlog.check_roster, dataexport.tick):
+                        for f in (eventlog.check, eventlog.check_roster, dataexport.tick):
                             try:     # one failing step (or event) no longer skips the rest, e.g. the daily CSV
                                 f(ev)
                             except Exception as e:

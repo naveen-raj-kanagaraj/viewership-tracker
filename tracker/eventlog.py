@@ -168,9 +168,16 @@ CSV_AFTER_MIN = 15   # minutes after the broadcast ends
 
 def send_day_csv(ev: dict, force: bool = False):
     """Once per broadcast, CSV_AFTER_MIN after it ends, the day's CSV goes to the owner's Telegram bot."""
-    if ev.get("key") == "pmgc" and not store.kv_get("ev_csv_force:pmgc:2"):
-        store.kv_set("ev_csv_force:pmgc:2", True)   # owner, 27 Nov: "I'm not seeing the PMGC csv, send it": once more
+    if ev.get("key") == "pmgc" and not store.kv_get("ev_csv_force:pmgc:3"):
+        store.kv_set("ev_csv_force:pmgc:3", True)   # owner, 27 Nov: "I'm not seeing the PMGC csv, send it": once more
         force = True
+    with store.reading():   # cheap: the last reading, before any heavy work
+        last_ts = events._db().execute("SELECT MAX(ts) FROM ev_ticks WHERE event=?", (ev["key"],)).fetchone()[0] or 0
+    if not force and not (CSV_AFTER_MIN * 60 <= time.time() - last_ts <= 30 * 3600):
+        return
+    day = datetime.fromtimestamp(last_ts, events.REPORT_TZ).strftime("%Y-%m-%d")
+    if not force and store.kv_get(f"ev_csv_day:{ev['key']}:{day}"):
+        return
     st = events.stats(ev["key"])
     lb = st.get("last_broadcast")
     # the broadcast's own last reading decides, not "official live" (a regional PUBG MOBILE stream on in the morning
@@ -200,6 +207,7 @@ def send_day_csv(ev: dict, force: bool = False):
     store.kv_set("ev_csv_last", last)
     if res == "ok":
         store.kv_set(flag, True)
+        store.kv_set(f"ev_csv_day:{ev['key']}:{day}", True)
     print(f"Daily CSV {name}: {res}")
 
 
