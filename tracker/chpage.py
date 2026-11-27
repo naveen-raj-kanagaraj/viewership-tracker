@@ -222,10 +222,10 @@ window.addEventListener('resize',()=>{drawVids();if(CDATA)viewsCard(CDATA)});
 function loadImg(u){return new Promise(r=>{if(!u)return r(null);const i=new Image();i.crossOrigin='anonymous';i.onload=()=>r(i);i.onerror=()=>r(null);i.src=u})}
 async function shareCard(withLogo){const c=CDATA,j=VID,S=(c&&c.stats)||{};const cv=document.createElement('canvas');cv.width=2160;cv.height=2700;const x=cv.getContext('2d');x.scale(2,2);
  x.fillStyle='#0b0b12';x.fillRect(0,0,1080,1350);const g=x.createRadialGradient(860,-60,10,860,-60,720);g.addColorStop(0,'rgba(124,92,255,.24)');g.addColorStop(1,'rgba(124,92,255,0)');x.fillStyle=g;x.fillRect(0,0,1080,1350);
- x.fillStyle='#b6f23a';x.font='700 30px "Barlow Condensed",sans-serif';x.fillText('LETSGROWESPORTS',72,96);
+ x.fillStyle='#b6f23a';x.font='700 30px "Barlow Condensed",sans-serif';
  const im=withLogo?await loadImg(c.logo):null;let tx=72;if(im){x.save();x.beginPath();x.arc(132,190,60,0,7);x.clip();x.drawImage(im,72,130,120,120);x.restore();tx=220}
  x.fillStyle='#fff';x.font='700 64px "Barlow Condensed",sans-serif';let n=c.name.toUpperCase();while(x.measureText(n).width>1008-tx&&n.length>3)n=n.slice(0,-2);x.fillText(n,tx,195);
- x.fillStyle='#8d8ca3';x.font='28px "Barlow Condensed",sans-serif';x.fillText(`YOUTUBE · ${RNAME[VRANGE].toUpperCase()}${VKIND!=='all'?' · '+KINDN[VKIND].toUpperCase():''}`,tx,240);x.textAlign='right';x.fillStyle='#a9a8be';x.font='600 22px "Barlow Condensed",sans-serif';x.fillText('For more: '+(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\\./,'')+RP,1008,240);x.textAlign='left';
+ x.fillStyle='#8d8ca3';x.font='28px "Barlow Condensed",sans-serif';x.fillText(`YOUTUBE · ${RNAME[VRANGE].toUpperCase()}${VKIND!=='all'?' · '+KINDN[VKIND].toUpperCase():''}`,tx,240);x.textAlign='right';x.fillStyle='#a9a8be';x.font='600 22px "Barlow Condensed",sans-serif';x.textAlign='left';
  const T=[['LIFETIME VIEWS',S.views!=null?fmt(S.views):'-'],['SUBSCRIBERS',S.subs!=null?fmt(S.subs):'-'],['POSTED',full(j.count)],['VIEWS ON THEM',fmt(j.views)],['AVG PER POST',fmt(j.avg)],['ENGAGEMENT',j.engagement!=null?j.engagement+'%':'-']];
  T.forEach(([l,v],i)=>{const X0=72+(i%3)*316,Y0=290+Math.floor(i/3)*170;x.fillStyle='#13131c';x.fillRect(X0,Y0,300,150);x.fillStyle='#ff4d5e';x.font='22px "Barlow Condensed",sans-serif';x.fillText(l,X0+22,Y0+38);x.fillStyle='#fff';x.font='700 64px "Barlow Condensed",sans-serif';x.fillText(v,X0+22,Y0+112)});
  x.fillStyle='#ff4d5e';x.font='24px "Barlow Condensed",sans-serif';x.fillText(MET[VMET][0].toUpperCase()+' PER POST',72,670);
@@ -258,10 +258,9 @@ async function dayCard(d,withLogo){const c=CDATA||{},W=1080,H=1350,cv=document.c
  const PEAK=EV?EV.peak:d.peak,PAT=EV?EV.peak_at:d.peak_at;
  const dt=new Date(d.day+'T12:00:00'),dlab=dt.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'}).replace(',','').toUpperCase();
  const SITE=(location.hostname.endsWith('letsgrowesports.com')?location.host:'live.letsgrowesports.com').replace(/^www\./,'')+RP;
- T('letsgrowesports',80,78,M(30),'#b6f23a');
  T(`${name} // ${dlab}`,80,118,B(50),'#eeeef5','left',W-160);
- x.font=M(24);const wmw=x.measureText('For more: '+SITE).width;
- T('// PEAK CONCURRENT VIEWERS',80,205,M(30),'#ff4d5e','left',W-160-wmw-30);T('For more: '+SITE,W-80,210,M(24),'#a9a8be','right');
+ x.font=M(24);const wmw=0;
+ T('// PEAK CONCURRENT VIEWERS',80,205,M(30),'#ff4d5e','left',W-160-wmw-30);
  x.shadowColor='rgba(182,242,58,.35)';x.shadowBlur=30;T(full(PEAK),72,245,B(170),'#ffffff');x.shadowBlur=0;
  const im=withLogo&&c.logo?await loadImg(c.logo):null;
  if(im){const r=64,cx=W-80-r,cy=330;x.save();x.beginPath();x.arc(cx,cy,r,0,7);x.clip();x.drawImage(im,cx-r,cy-r,2*r,2*r);x.restore();x.beginPath();x.arc(cx,cy,r,0,7);x.lineWidth=4;x.strokeStyle='#b6f23a';x.stroke()}
