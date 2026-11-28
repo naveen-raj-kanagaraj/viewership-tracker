@@ -82,6 +82,11 @@ for _q in QUESTIONS:
 DEFAULTS = {"lock": datetime(2026, 11, 26, 17, 0, tzinfo=IST).timestamp(), "answers": {}, "show_lb": False,
             "prize": "Top predictors win free UC, cash prizes, gift cards and coupons. Winners are announced after the Gauntlet on 27 Nov.",
             "logo_urls": {}}
+# The Gauntlet results (owner's admin form, 28 Nov). Used when no results are saved from the admin page (a save there
+# still wins): the save on 28 Nov did not reach the site, so the final results live here too.
+FINAL = {"q1": ["AK Gold Esports", "Sharper Esports", "4Thrives", "S2G Esports", "All Gamers", "Team SouL"],
+         "q2": "AK Gold Esports", "q3": "Yes", "q4": ["Sharper Esports"], "q5": "Yes", "q6": "550K-650K", "q7": "9",
+         "q8": ["AK Gold Esports", "All Gamers", "4Thrives"]}
 AUTO_FROM = datetime(2026, 11, 26, 12, 0, tzinfo=IST).timestamp()   # an official PMGC stream after this locks picks
 
 _init = [False]
@@ -122,6 +127,8 @@ def _db():
 def settings() -> dict:
     s = dict(DEFAULTS)
     s.update(store.kv_get(SET_KEY, {}) or {})
+    if not any(v not in (None, "", []) for v in (s.get("answers") or {}).values()):
+        s["answers"] = dict(FINAL)
     return s
 
 
@@ -330,7 +337,8 @@ def _board(now: float = None) -> tuple:
         lb = [{"rank": i + 1, "handle": r["handle"], "name": r["name"], "pts": r["pts"], "right": r["right"]}
               for i, r in enumerate(rows[:10]) if r["pts"] > 0]
     out = {"lock": float(s["lock"]), "closed": shut, "prize": s["prize"], "answers": {k: v for k, v in s["answers"].items() if v not in (None, "", [])},
-           "crowd": pct, "leaderboard": lb, "show_lb": bool(s["show_lb"])}
+           "crowd": pct, "leaderboard": lb, "show_lb": bool(s["show_lb"]),
+           "final": all(_ans(q["id"], s) is not None for q in QUESTIONS), "players": n}
     _cache["board"] = (now, out, cr, n)
     return out, cr, n
 

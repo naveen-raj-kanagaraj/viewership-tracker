@@ -1481,6 +1481,8 @@ def admin_pmgc_act():
             msg = "Unknown action."
     except (pmgc.GameError, ValueError) as e:
         msg = f"Not saved: {e}"
+    except Exception as e:                       # never a blank error page: say what failed
+        msg = f"Not saved (server error): {str(e)[:150]}"
     key = "" if _auth.is_admin() else f.get("key", "")
     return redirect("/admin/pmgc?" + "&".join(x for x in (f"key={quote(key)}" if key else "", "msg=" + quote(msg)) if x))
 
