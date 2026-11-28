@@ -1913,6 +1913,7 @@ def run_fast_forever():
                     _sc.fix_tours_once()
                 except Exception as e:
                     print(f"Tournament clean-up: {str(e)[:150]}")
+                    store.kv_set("scene_fix_tours_err", {"error": str(e)[:200], "ts": int(time.time())})
                 for ev in evs:       # streams missed by the counter, from the scan (off air, every 10 minutes)
                     try:
                         import_scan(ev["key"])
