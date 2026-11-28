@@ -900,7 +900,8 @@ _T_GENERIC = re.compile(r"\b(championship|grand finals?|finals|playoffs|qualifie
                         r"league|major|showdown)\b", re.I)
 _T_MATCH = re.compile(r"\b(vs\.?|day \d+|week \d+|match \d+|stage|group [a-z0-9]|round|semi ?finals?|quarter ?finals?|"
                       r"bracket|map \d)\b", re.I)
-_T_NOT = re.compile(r"\bscrims?\b|\branked\b|\bcustom room|\bpublic match", re.I)
+_T_NOT = re.compile(r"\bscrims?\b|\branked\b|\bcustom room|\bpublic match|rank\s*push|\bgameplay\b|\brush\b|conqueror|"
+                    r"road\s*to|\b\d+\s*h(rs?|oras?|ours?)?\s+(de|of)\b|marathon|subathon|\btdm\b", re.I)
 
 
 TOUR_GAME = {"VCT": "Valorant", "VCT Challengers": "Valorant", "VCT Game Changers": "Valorant",
@@ -965,6 +966,8 @@ def _lp_match(title: str, game: str):
                 w = 2
         if not w:
             continue
+        if w < 4 and not _region_ok(t["name"] + " " + (t.get("full") or ""), nt):
+            continue                       # 'VCT' alone is not 'VCT Pacific: Kickoff SA' (28 Nov: Brazil, Taiwan, Japan)
         if w == 1 and (not game or game == "Other") and len(next(p_ for p_, ww in ph if ww == 1).strip()) < 4:
             continue                       # a three-letter tag alone, with no game to confirm it, is too weak
         score = w * 10 + sum(1 for k in toks if f" {k} " in nt) + (1 if t["status"] == "ongoing" else 0)
@@ -989,12 +992,39 @@ def _canon(name: str, title: str = "", game: str = "") -> str:
                  and rx.search(t["name"] + " " + t["full"]) and liquipedia.game_ok(t, game)]
     if not cands:
         return name
+    nt = _norm(title)
+    if title:                            # a regional edition ('VCT Pacific: Kickoff SA') only for a title naming its region:
+        cands = [t for t in cands if _region_ok(t["name"] + " " + (t.get("full") or ""), nt)]   # a Brazilian or Taiwanese VCT co-stream is not it (28 Nov)
+        if not cands:
+            return name
     if len(cands) == 1:
         return cands[0]["name"]
-    nt = _norm(title)
     sc = sorted(((sum(1 for k in set(_norm(t["name"]).split()) - _LP_GENERIC if f" {k} " in nt), t) for t in cands),
                 key=lambda x: -x[0])
     return sc[0][1]["name"] if sc[0][0] > 1 and sc[0][0] > sc[1][0] else name
+
+
+_REGION_WORDS = {"pacific", "americas", "emea", "china", "sa", "south", "asia", "na", "eu", "europe", "brazil", "latam",
+                 "japan", "korea", "india", "indonesia", "philippines", "vietnam", "thailand", "turkey", "mena", "cis",
+                 "sea", "oceania", "oce", "africa", "pakistan", "bangladesh", "nepal", "malaysia", "singapore", "mongolia"}
+
+
+def _region_ok(edition: str, nt: str) -> bool:
+    """True when the edition names no region, or the normalised title names one of its regions."""
+    rw = set(_norm(edition).split()) & _REGION_WORDS
+    return not rw or any(f" {w} " in nt for w in rw)
+
+
+_ESPORT_OF = {"bgmi": "pubg mobile"}
+
+
+def _game_clash(name: str, game: str) -> bool:
+    """A league tag on a stream of another known esports game ('FFWS' in a BGMI stream's title) is not that league."""
+    tg = TOUR_GAME.get(name)
+    if not tg or not game or game in ("Other", "Just Chatting") or not esports_game(game):
+        return False
+    a, b = _ESPORT_OF.get(tg.lower(), tg.lower()), _ESPORT_OF.get(game.lower(), game.lower())
+    return a != b and not b.startswith(a) and not a.startswith(b)
 
 
 def _start_ts(name: str):
@@ -1046,6 +1076,14 @@ def _rehome(c, src: str, dst: str, lo: int, hi: int) -> bool:
 
 
 def merge_aliases() -> int:
+    try:
+        fix_tours_once()
+    except Exception as e:
+        print(f"Tournament clean-up: {str(e)[:150]}")
+    return _merge_aliases()
+
+
+def _merge_aliases() -> int:
     """Readings already filed under a league name that is really the edition on now ('FFWS' -> 'FFWS Global Finals
     2026', 'CEGC' -> 'CEGC 2026') are moved onto that edition, from its Liquipedia start date on: per-scan totals
     added together, channel peaks merged, all-time numbers recomputed. Readings from before the start stay with the
@@ -1075,6 +1113,78 @@ def merge_aliases() -> int:
                 print(f"Tournament {ed!r}: readings before its start moved back to {league!r}")
             c.commit()
     return moved
+
+
+SA_LANG = {"hi", "en", "ur", "bn", "ta", "te", "kn", "ml", "mr", "gu", "pa", "ne", "si", ""}
+
+
+def _wrong_rows(c, t: dict) -> list:
+    """Channels filed under a Liquipedia tournament that cannot be it: a stream of another esports game, or (for a
+    regional edition) a channel from outside that region. [(sid, why)]"""
+    out = []
+    rw = set(_norm(t["name"] + " " + (t.get("full") or "")).split()) & _REGION_WORDS
+    sa = rw & {"sa", "south", "india"}
+    for sid, game, country, lang, india in c.execute(
+            "SELECT DISTINCT t.sid, c.game, c.country, c.language, COALESCE(c.india,0) FROM sc_tour_ch t "
+            "LEFT JOIN sc_channels c ON c.sid=t.sid WHERE t.tour=?", (t["name"],)).fetchall():
+        tg = TOUR_GAME.get(t["name"]) or t.get("game") or ""
+        if game and tg and _game_clash_g(tg, game):
+            out.append((sid, f"plays {game}"))
+        elif sa and not india and (country and country not in ("IN", "PK", "BD", "LK", "NP")
+                                   or (lang or "").split("-")[0].lower() not in SA_LANG):
+            out.append((sid, f"outside South Asia ({country or lang})"))
+    return out
+
+
+def _game_clash_g(tg: str, game: str) -> bool:
+    if not game or game in ("Other", "Just Chatting") or not esports_game(game):
+        return False
+    a, b = _ESPORT_OF.get(tg.lower(), tg.lower()), _ESPORT_OF.get(game.lower(), game.lower())
+    return a != b and not b.startswith(a) and not a.startswith(b)
+
+
+def fix_tours_once(flag: str = "scene_fix_tours_28nov") -> dict:
+    """One-time clean-up (owner, 28 Nov: 'PIC 2026, FFWS etc. mostly wrong'): channels filed under an ongoing
+    tournament that cannot be it come off its channel list; its totals are recomputed from the per-scan readings
+    still kept (the last KEEP_DAYS days) without them. Older totals stay (their readings are gone)."""
+    from tracker import liquipedia
+    if store.kv_get(flag):
+        return {}
+    done = {}
+    for t in liquipedia.active():
+        with store.reading():
+            bad = _wrong_rows(_db(), t)
+        if not bad:
+            continue
+        ids = [b[0] for b in bad]
+        q = ",".join("?" * len(ids))
+        with store._lock:
+            c = _db()
+            for region in ("global", "in"):
+                rg = f"tour:{region}"
+                keep = [r[0] for r in c.execute(f"SELECT DISTINCT sid FROM sc_tour_ch WHERE tour=? AND sid NOT IN ({q})"
+                                                + (" AND india=1" if region == "in" else ""), (t["name"], *ids))]
+                lo = c.execute("SELECT MIN(ts) FROM sc_samples").fetchone()[0] or 0
+                ts_rows = [r[0] for r in c.execute("SELECT ts FROM sc_reg WHERE region=? AND game=? AND ts>=?", (rg, t["name"], lo))]
+                if ts_rows:
+                    kq = ",".join("?" * len(keep)) or "''"
+                    got = {a: (v, n) for a, v, n in c.execute(
+                        f"SELECT ts, SUM(viewers), COUNT(*) FROM sc_samples WHERE ts>=? AND sid IN ({kq}) GROUP BY ts",
+                        (lo, *keep))} if keep else {}
+                    for ts in ts_rows:
+                        v, n = got.get(ts, (0, 0))
+                        c.execute("UPDATE sc_reg SET viewers=?, streams=? WHERE region=? AND game=? AND ts=?", (v, n, rg, t["name"], ts))
+                pk = c.execute("SELECT ts, viewers FROM sc_reg WHERE region=? AND game=? ORDER BY viewers DESC LIMIT 1", (rg, t["name"])).fetchone()
+                if pk:
+                    c.execute("UPDATE sc_tour SET peak=?, peak_at=? WHERE tour=? AND region=?", (pk[1], pk[0], t["name"], region))
+                c.execute(f"UPDATE sc_tour SET hw=MAX(0, hw - (SELECT COALESCE(SUM(hw),0) FROM sc_tour_ch WHERE tour=? AND sid IN ({q})"
+                          + (" AND india=1" if region == "in" else "") + ")) WHERE tour=? AND region=?", (t["name"], *ids, t["name"], region))
+            c.execute(f"DELETE FROM sc_tour_ch WHERE tour=? AND sid IN ({q})", (t["name"], *ids))
+            c.commit()
+        done[t["name"]] = bad
+        print(f"Tournament {t['name']!r}: {len(bad)} channels taken off: {bad[:12]}")
+    store.kv_set(flag, {"ts": int(time.time()), "removed": {k: [list(b) for b in v] for k, v in done.items()}})
+    return done
 
 
 def tournament_info(name: str):
@@ -1110,6 +1220,8 @@ def _tour_cached(title: str, game: str, _ts):
     low = t.lower()
     for rx, name, g in _T_RX:
         if rx.search(t) and (not g or g == game or g.lower() in low or g == "League of Legends" and re.search(r"\blol\b", low)):
+            if _game_clash(name, game):
+                continue
             return _canon(name, t, game or TOUR_GAME.get(name, ""))
     if _T_GENERIC.search(t) and _T_MATCH.search(t) and esports_game(game):
         return f"{game} tournaments"
@@ -1214,6 +1326,8 @@ def _schema(c):
         c.commit()
         store.kv_set("scene_mig_cricket", True)
     if not _COLS:
+        if "title" not in {r[1] for r in c.execute("PRAGMA table_info(sc_tour_ch)")}:   # the title that filed it there
+            c.execute("ALTER TABLE sc_tour_ch ADD COLUMN title TEXT")
         have = {r[1] for r in c.execute("PRAGMA table_info(sc_channels)")}
         for col, typ in (("country", "TEXT"), ("india", "INTEGER"), ("language", "TEXT"), ("tracked", "INTEGER"), ("topic", "TEXT"), ("ytcat", "TEXT"), ("tags", "TEXT")):
             if col not in have:
@@ -2640,12 +2754,13 @@ def _store(rows, now, last):
                       [("in", g, day, v) for g, (v, n) in cats.items()])
         for x in rows:                        # each channel's part in each tournament, per day
             if x.get("tour"):
-                c.execute("""INSERT INTO sc_tour_ch VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(tour, sid, day) DO UPDATE SET
+                c.execute("""INSERT INTO sc_tour_ch (tour, sid, day, peak, peak_at, mins, hw, india, title)
+                             VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(tour, sid, day) DO UPDATE SET
                              peak_at=CASE WHEN excluded.peak > sc_tour_ch.peak THEN excluded.peak_at ELSE sc_tour_ch.peak_at END,
                              peak=MAX(sc_tour_ch.peak, excluded.peak), mins=sc_tour_ch.mins+excluded.mins,
-                             hw=sc_tour_ch.hw+excluded.hw""",
+                             hw=sc_tour_ch.hw+excluded.hw, title=excluded.title""",
                           (x["tour"], x["sid"], day, max(x["viewers"], fpk.get(x["sid"], 0)), int(now), dt / 60,
-                           x["viewers"] * dt / 3600, 1 if x.get("india", True) else 0))
+                           x["viewers"] * dt / 3600, 1 if x.get("india", True) else 0, (x.get("title") or "")[:200]))
         for region, t, v, n in reg:           # each tournament's all-time numbers (all channels together)
             if region.startswith("tour:"):
                 c.execute("""INSERT INTO sc_tour VALUES (?,?,?,?,?,?,?) ON CONFLICT(tour, region) DO UPDATE SET
@@ -3428,7 +3543,7 @@ def tour_data(name: str, region: str = "global") -> dict:
         days = c.execute("""SELECT date(ts + 19800, 'unixepoch') d, MAX(viewers), COUNT(*) FROM sc_reg WHERE region=? AND game=?
                             GROUP BY d ORDER BY d""", (reg, name)).fetchall()
         ch = c.execute(f"""SELECT t.sid, MAX(t.peak), SUM(t.hw), SUM(t.mins), COUNT(DISTINCT t.day), c.name, c.logo, c.platform,
-                           c.url, c.country, c.language FROM sc_tour_ch t LEFT JOIN sc_channels c ON c.sid=t.sid
+                           c.url, c.country, c.language, MAX(t.title) FROM sc_tour_ch t LEFT JOIN sc_channels c ON c.sid=t.sid
                            WHERE t.tour=? {"AND t.india=1" if region == "in" else ""} GROUP BY t.sid ORDER BY 2 DESC LIMIT 300""",
                        (name,)).fetchall()
     nowv = sum(x["viewers"] for x in live)
@@ -3459,7 +3574,8 @@ def tour_data(name: str, region: str = "global") -> dict:
                       "country": x.get("country") or ""} for x in live[:200]],
             "channels": [{"sid": r[0], "peak": r[1] or 0, "hw": round(r[2] or 0), "hours": round((r[3] or 0) / 60, 1),
                           "days": r[4], "name": r[5] or r[0], "logo": _logo({"sid": r[0], "logo": r[6]}), "platform": r[7] or "",
-                          "url": r[8] or "", "country": r[9] or "", "language": r[10] or "", "live": any(x["sid"] == r[0] for x in live)}
+                          "url": r[8] or "", "country": r[9] or "", "language": r[10] or "", "title": r[11] or "",
+                          "live": any(x["sid"] == r[0] for x in live)}
                          for r in ch],
             "languages": sorted(({"lang": k, "hw": round(v)} for k, v in langs.items() if v), key=lambda x: -x["hw"])[:12],
             "tracker": trk, "updated": time.time()}
