@@ -2550,14 +2550,18 @@ def day_streams(key: str, date: str) -> dict:
         meta = {r["vid"]: dict(r) for r in c.execute("SELECT vid, channel, channel_id, title, kind FROM ev_streams WHERE event=?",
                                                     (key,))}
     out = {"date": date, "official": [], "watch": []}
+    g = ((get(key) or {}).get("game") or PRESETS.get(key, {}).get("game") or "").lower()
+    pubg = g in ("pubg mobile", "bgmi", "pubg: battlegrounds") or key in ("pmgc",)
     for r in sorted(rows, key=lambda r: -r["peak"]):
         m = meta.get(r["vid"], {})
         if not m or taken_off(key, {"vid": r["vid"], "channel_id": m.get("channel_id")}):
             continue
         name = m.get("channel", "")
         tag = re.search(r"\[([^\]]{2,20})\]", m.get("title", "")) if m.get("kind") == "official" else None
-        if tag:   # the official channel runs several streams at once: say which one
+        if tag and pubg:   # KRAFTON's channel runs several language streams at once: say which one
             name = f"KRAFTON {tag.group(1).upper()}"
+        elif tag and f"[{tag.group(1).upper()}]" not in name.upper():   # other publishers keep their own name (28 Nov: FFWS
+            name = f"{name} [{tag.group(1).upper()}]"                  # showed 'KRAFTON PT-BR' for Garena's channels)
         x = {"vid": r["vid"], "channel": name, "title": m.get("title", ""), "kind": m.get("kind", ""),
              "platform": platforms.platform_of(r["vid"]),
              "logo": avatar(m.get("channel_id", "")), "url": yt_link(r["vid"]), "peak": int(r["peak"]),
