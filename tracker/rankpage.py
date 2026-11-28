@@ -91,7 +91,7 @@ __PANEL_CSS__
  <div class="seg" id="mfmt" style="margin-bottom:8px"><button data-f="post" class="on">POST 4:5</button><button data-f="story">STORY 9:16</button></div><img id="mimg" alt="Share card" style="width:100%;max-height:70vh;object-fit:contain;display:block;border:1px solid var(--line);margin-bottom:10px"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="mshare">SHARE</button><button class="btn" id="mdl">DOWNLOAD</button><button class="btn" id="mcopy">COPY LINK</button><button class="btn" id="mclose" style="background:none;color:var(--muted);border:1px solid var(--line)">CLOSE</button></div></div></div>
 <script>
 const REGION=__REGION__,GL=REGION==='global',RP=GL?'/global':'/india',SITE=__SITEURL__,WHERE=GL?'worldwide':'in India';
-const NAMES={youtube:'YouTube',kick:'Kick',twitch:'Twitch',all:'YouTube, Twitch & Kick'},
+const NAMES={youtube:'YouTube',kick:'Kick',twitch:'Twitch',all:'YouTube, Twitch, Kick & TikTok'},
  // all platforms: the same creator's channel on another platform, folded into one entry (owner, 24 Nov)
  ALSO=(x,f)=>(x.also||[]).map(a=>'also on '+NAMES[a.platform]+(f&&a.value!=null?' '+f(a.value):'')).join(' · '),COL={youtube:'#ff4d5e',kick:'#53fc18',twitch:'#a970ff',tiktok:'#ff2a6d'},MEDAL=['#ffd23f','#d9dde8','#ff9f5a'];
 const MET={hw:['HOURS WATCHED',v=>fmt(v)+'h'],peak:['PEAK VIEWERS',v=>fmt(v)],avg:['AVG VIEWERS',v=>fmt(v)],hours:['HOURS LIVE',v=>v+'h'],

@@ -605,6 +605,7 @@ def _health() -> dict:
         "report_zip": store.kv_get("report_zip_last"),
         "lifetime_videos": __import__("tracker.deep", fromlist=["x"]).LIFE,
         "platform_probe": store.kv_get("plat_probe"),
+        "tiktok": __import__("tracker.tiktok", fromlist=["x"]).status(),
         "tour_fix": store.kv_get("scene_fix_tours_28nov_c") or store.kv_get("scene_fix_tours_err"),   # one-time tournament clean-up   # channels whose every past video is in   # the last weekly / monthly data zip: size, parts, result   # the last daily CSV to the owner's Telegram bot: file and result
         "busy_threads": busy[:40],
         "recent": [f"{time.strftime('%H:%M:%S', time.gmtime(t))}Z {s}" for t, s in list(sys.stdout.lines)[-40:]]
@@ -755,7 +756,7 @@ def scene_search():
 # ---------- media kits, shortlist, data API (tracker/kit.py) ----------
 
 def _sid_ok(sid):
-    return bool(__import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid or ""))
+    return bool(__import__("re").fullmatch(r"(yt|kick|twitch|tiktok):[A-Za-z0-9_.-]{1,100}", sid or ""))
 
 
 @app.route("/kit/<path:sid>")
@@ -847,7 +848,7 @@ def v1_streamers():
                               date=g("date", "") if re_.fullmatch(r"\d{4}-\d{2}-\d{2}", g("date", "")) else "",
                               cat=g("cat", "") if re_.fullmatch(r"[a-z0-9-]{0,40}", g("cat", "")) else "",
                               country=(g("country", "") or "")[:2].upper(),
-                              platform=g("platform", "") if g("platform", "") in ("youtube", "kick", "twitch") else "")
+                              platform=g("platform", "") if g("platform", "") in ("youtube", "kick", "twitch", "tiktok") else "")
     return _v1(build)
 
 
@@ -892,7 +893,7 @@ def scene_channel():
     """One channel's analytics: /api/channel?sid=yt:UC..."""
     from tracker import scene
     sid = (request.args.get("sid") or "")[:120]
-    if not __import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid):
+    if not __import__("re").fullmatch(r"(yt|kick|twitch|tiktok):[A-Za-z0-9_.-]{1,100}", sid):
         return Response("{}", status=404, mimetype="application/json")
     def build():
         try:
@@ -910,7 +911,7 @@ def scene_chlive():
     """A live channel's viewers for its page, every 2 seconds: /api/chlive?sid="""
     from tracker import scene
     sid = (request.args.get("sid") or "")[:120]
-    if not __import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid):
+    if not __import__("re").fullmatch(r"(yt|kick|twitch|tiktok):[A-Za-z0-9_.-]{1,100}", sid):
         return Response("{}", status=404, mimetype="application/json")
     return _memo(f"/api/chlive:{sid}", 1.5, _jdump(lambda: scene.live_now(sid)), "application/json")
 
@@ -1190,7 +1191,7 @@ def api_chevents():
     """Tournaments this channel broadcast officially, and BGMI's history for BGMI organisers: /api/chevents?sid=yt:UC..."""
     from tracker import eventpage
     sid = request.args.get("sid", "")
-    if not __import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid):
+    if not __import__("re").fullmatch(r"(yt|kick|twitch|tiktok):[A-Za-z0-9_.-]{1,100}", sid):
         return Response("Not found", status=404, mimetype="text/plain")
     return _memo(f"/api/chevents:{sid}", 300, _jdump(lambda: eventpage.channel_events(sid)), "application/json")
 
@@ -1200,7 +1201,7 @@ def api_streamday():
     """A channel's live day (all its streams) for the share card: /api/streamday?sid=yt:UC...&day=2026-11-12"""
     from tracker import ytextra
     sid, day = request.args.get("sid", ""), request.args.get("day", "")
-    if not __import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid) or not __import__("re").fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+    if not __import__("re").fullmatch(r"(yt|kick|twitch|tiktok):[A-Za-z0-9_.-]{1,100}", sid) or not __import__("re").fullmatch(r"\d{4}-\d{2}-\d{2}", day):
         return Response("Not found", status=404, mimetype="text/plain")
     return _memo(f"/api/streamday:{sid}:{day}", 120, _jdump(lambda: ytextra.stream_day(sid, day)), "application/json")
 
@@ -1260,14 +1261,14 @@ def scene_past():
     """A channel's streams in the last 30 days from the platform itself: /api/past?sid=yt:UC..."""
     from tracker import ytextra
     sid = (request.args.get("sid") or "")[:120]
-    if not __import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid):
+    if not __import__("re").fullmatch(r"(yt|kick|twitch|tiktok):[A-Za-z0-9_.-]{1,100}", sid):
         return Response("{}", status=404, mimetype="application/json")
     return _gate(f"/api/past:{sid}", 300, lambda: ytextra.past_streams(sid), _auth.trim_past)
 
 
 def _ch_page(sid, region):
     from tracker import chpage, scene
-    if not __import__("re").fullmatch(r"(yt|kick|twitch):[A-Za-z0-9_.-]{1,100}", sid or ""):
+    if not __import__("re").fullmatch(r"(yt|kick|twitch|tiktok):[A-Za-z0-9_.-]{1,100}", sid or ""):
         return Response("Not found", status=404, mimetype="text/plain")
     from tracker import ytextra
     with __import__("tracker").store.reading():
@@ -1630,6 +1631,7 @@ def _hit_writer():   # visitor counts are written here, one at a time, so page r
 
 threading.Thread(target=_hit_writer, daemon=True).start()
 __import__("tracker.platprobe", fromlist=["x"]).start()      # can the server read TikTok / Facebook / Loco / Rooter?
+__import__("tracker.tiktok", fromlist=["x"]).start()         # TikTok Live accounts for the whole site (own thread)
 threading.Thread(target=__import__("tracker.scene", fromlist=["scene"]).search_index_loop, daemon=True).start()   # search in memory
 
 
