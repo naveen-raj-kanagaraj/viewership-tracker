@@ -79,18 +79,12 @@ label.f{display:block;font:700 12px "Barlow Condensed",sans-serif;letter-spacing
 .btn.l{background:var(--lime);color:#0b0b12;border-color:var(--lime)}
 .sum{display:grid;gap:8px;margin:14px 0}.sum div{display:flex;gap:10px;justify-content:space-between;font-size:14px;border-bottom:1px solid var(--line);padding-bottom:8px}.sum span{color:var(--mut)}.sum b{text-align:right}
 .lbt{width:100%;border-collapse:collapse}.lbt td{padding:9px 6px;border-bottom:1px solid var(--line)}.lbt .rk{font:700 18px "Barlow Condensed",sans-serif;color:var(--mut);width:34px}.lbt tr:nth-child(-n+3) .rk{color:var(--gold)}.lbt .p{text-align:right;font-weight:700}
-.win{background:linear-gradient(160deg,rgba(245,197,66,.10),rgba(182,242,58,.06) 55%,var(--card));border-color:#3d3317}
-.win h2{font:700 30px/1.05 "Barlow Condensed",sans-serif;margin:4px 0 4px;text-transform:uppercase}.win h2 span{color:var(--gold)}.win p{color:var(--mut);margin:0 0 14px;font-size:14px}
-.pod{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:8px;align-items:end;margin:6px 0 14px}
-.pd{display:flex;flex-direction:column;align-items:center;text-align:center;gap:3px;padding:12px 6px 10px;border-radius:12px;background:rgba(7,7,11,.6);border:1px solid #2a2a36;min-width:0}
-.pd .md{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font:700 18px "Barlow Condensed",sans-serif;color:#1a1300}
-.pd.g{padding-top:18px;border-color:#6b5414}.pd.g .md{width:42px;height:42px;font-size:22px;background:linear-gradient(135deg,#ffe27a,#d99a00)}
-.pd.s .md{background:linear-gradient(135deg,#f0f0f5,#9a9aae)}.pd.b .md{background:linear-gradient(135deg,#f2b07a,#a8582a)}
-.pd .nm{font-weight:700;font-size:14px;line-height:1.2;max-width:100%;overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.pd .h{color:var(--mut);font-size:11.5px;max-width:100%;overflow-wrap:anywhere;line-height:1.25}
-.pd .pt{font:700 22px "Barlow Condensed",sans-serif;color:var(--lime);line-height:1}.pd.g .pt{font-size:28px}.pd .pt small{font-size:12px;color:var(--mut);margin-left:3px}
-.res8{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}.res8 span{font-size:12.5px;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:4px 8px;color:var(--mut)}.res8 b{color:var(--ink)}
-@media(max-width:420px){.pd .nm{font-size:12.5px}.pd .pt{font-size:19px}.pd.g .pt{font-size:24px}.win h2{font-size:26px}}
+.win .kick{margin-bottom:2px}.win h2{font:700 30px/1.05 "Barlow Condensed",sans-serif;margin:0 0 12px;text-transform:uppercase;letter-spacing:.01em}
+.wr{display:flex;align-items:center;gap:12px;padding:10px 2px;border-top:1px solid var(--line)}
+.wr .rk{font:700 22px "Barlow Condensed",sans-serif;width:30px;color:var(--mut);font-variant-numeric:tabular-nums}.wr.t .rk{color:var(--lime)}
+.wr .nm{flex:1;min-width:0}.wr .nm b{display:block;font-weight:700;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wr .nm span{color:var(--mut);font-size:13px}
+.wr .pt{font:700 24px "Barlow Condensed",sans-serif;color:var(--lime);font-variant-numeric:tabular-nums}.wr .pt small{font:600 12px Barlow,sans-serif;color:var(--mut);margin-left:3px}
+.by{color:var(--mut);font-size:12px;margin-top:10px}
 .rules{color:var(--mut);font-size:13.5px}.rules li{margin:4px 0}
 .sh{position:fixed;inset:0;z-index:50;background:rgba(3,3,6,.7);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .18s}
 .sh.open{opacity:1;pointer-events:auto}.shb{background:var(--card);border:1px solid #2a2a3a;border-radius:16px;width:100%;max-width:440px;max-height:min(680px,86vh);display:flex;flex-direction:column;transform:translateY(14px);transition:transform .22s}
@@ -191,12 +185,10 @@ function roBody(q,mine){const pc=(S.crowd||{})[q.id]||{},a=S.answers[q.id];let h
  return h}
 function resultsHead(){const me=S.me;if(!me||!me.picks)return `<div class="card gate"><h2>Overall results</h2><p>Picks are locked: the Gauntlet is on. Here's what everyone predicted, question by question.</p></div>`;
  return `<div class="card done"><h2>${S.answers&&Object.keys(S.answers).length?(me.pts||0)+' points':'You\'re in'}</h2><p>${Object.keys(S.answers||{}).length?(me.right||0)+(S.final?' right answers. Final results.':' right answers so far. Results fill in as the Gauntlet finishes.'):'Picks are locked. Results come in after the Gauntlet on 27 Nov.'} Playing as <b style="color:var(--ink)">@${esc(me.handle)}</b>.</p></div>`}
-function winners(){if(!S.final||!S.show_lb||!S.leaderboard.length)return '';const L=S.leaderboard,top=[L[1],L[0],L[2]],cls=['s','g','b'];
- const sh=q=>{const v=S.answers[q.id];return Array.isArray(v)?v.map((x,k)=>(q.kind==='rank'?'#'+(k+1)+' ':'')+x).join(', '):v};
- return `<div class="card win"><div class="tag" style="color:var(--gold)">FINAL RESULTS · THE GAUNTLET</div><h2>Predict &amp; Win <span>winners</span></h2><p>All 8 questions are settled. Winners get a DM from @letsgrowesports on Instagram.</p>
- <div class="pod">${top.map((r,k)=>r?`<div class="pd ${cls[k]}"><span class="md">${r.rank}</span><span class="nm">${esc(r.name||r.handle)}</span><span class="h">@${esc(r.handle)}</span><span class="pt">${r.pts}<small>pts</small></span></div>`:'<div></div>').join('')}</div>
- <table class="lbt">${L.slice(3).map(r=>`<tr><td class="rk">${r.rank}</td><td><b>${esc(r.name||r.handle)}</b><div class="qs" style="margin:0">@${esc(r.handle)} · ${r.right} right</div></td><td class="p">${r.pts}</td></tr>`).join('')}</table>
- <div class="res8">${S.questions.map(q=>`<span>${esc(q.tag)}: <b>${esc(sh(q))}</b></span>`).join('')}</div></div>`}
+function winners(){if(!S.final||!S.show_lb||!S.leaderboard.length)return '';
+ return `<div class="card win"><div class="kick">GAUNTLET · FINAL RESULTS</div><h2>Predict &amp; Win: top 10</h2>
+ ${S.leaderboard.map(r=>`<div class="wr ${r.rank<=3?'t':''}"><span class="rk">${r.rank}</span><div class="nm"><b>${esc(r.name||r.handle)}</b><span>@${esc(r.handle)} · ${r.right} right</span></div><span class="pt">${r.pts}<small>pts</small></span></div>`).join('')}
+ <div class="by">by letsgrowesports · winners get a DM on Instagram</div></div>`}
 function lb(){if(S.final)return '';if(!S.show_lb||!S.leaderboard.length)return '';return `<div class="card"><div class="tag" style="margin-bottom:8px">LEADERBOARD</div><table class="lbt">${S.leaderboard.map(r=>`<tr><td class="rk">${r.rank}</td><td><b>${esc(r.name||r.handle)}</b><div class="qs" style="margin:0">@${esc(r.handle)} · ${r.right} right</div></td><td class="p">${r.pts}</td></tr>`).join('')}</table></div>`}
 function doneCard(){const me=S.me,p=me.picks;const show=q=>{const v=p[q.id];return Array.isArray(v)?v.map((x,k)=>(q.kind==='rank'?'#'+(k+1)+' ':'')+x).join(', '):v};
  return `<div class="card done"><h2>You're in!</h2><p>Picks saved for <b style="color:var(--ink)">@${esc(me.handle)}</b>. You can change them until they lock at ${esc(S.lock_text)}.</p>
