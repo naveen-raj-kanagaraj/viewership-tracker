@@ -38,6 +38,15 @@ import os
 import sys
 import threading
 import time
+
+try:                                    # open files: systemd's default soft limit is 1024, and a busy broadcast holds
+    import resource                     # hundreds of connections; use the hard limit (28 Nov: "Too many open files")
+    _soft, _hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    _want = 65536 if _hard == resource.RLIM_INFINITY else min(_hard, 65536)
+    if _soft != resource.RLIM_INFINITY and _soft < _want:
+        resource.setrlimit(resource.RLIMIT_NOFILE, (_want, _hard))
+except Exception:
+    pass
 from concurrent.futures import ThreadPoolExecutor
 
 try:

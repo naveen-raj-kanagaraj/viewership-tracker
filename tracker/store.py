@@ -16,6 +16,7 @@ import sqlite3
 import sys
 import threading
 import time
+import weakref
 from datetime import datetime, timezone
 
 DB_PATH = os.getenv("TRACKER_DB", os.path.join("data", "tracker.db"))
@@ -125,7 +126,15 @@ def is_reading() -> bool:
     return getattr(_tl, "depth", 0) > 0
 
 
-_READERS = set()     # every read-only connection, so the checkpointer can interrupt them
+class _RConn(sqlite3.Connection):
+    """A read-only connection. A subclass so _READERS can hold it weakly (sqlite3.Connection itself can't be)."""
+
+
+# Every read-only connection, so the checkpointer can interrupt them. Weak: a connection belongs to its thread, and when
+# the thread ends (the short-lived pools each poll makes) it is closed with it. A plain set kept every one open for the
+# life of the process (28 Nov, FFWS final: "Too many open files" an hour after each start, the site stopped answering
+# and the watchdog restarted it at 7:13 PM IST, 11 minutes not counted).
+_READERS = weakref.WeakSet()
 
 
 class protected:
@@ -152,8 +161,9 @@ def _reader() -> sqlite3.Connection:
     if c is None or getattr(_tl, "rc_path", None) != DB_PATH:
         if _conn is None:                       # tables exist before anyone reads them; never wait on the write lock
             main()                              # otherwise (20 Nov: every new reader queued behind 36 s writes)
-        c = sqlite3.connect(DB_PATH, check_same_thread=False, isolation_level=None)   # autocommit: every read sees
-        c.row_factory = sqlite3.Row                                                    # the latest data, never an old snapshot
+        c = sqlite3.connect(DB_PATH, check_same_thread=False, isolation_level=None,   # autocommit: every read sees
+                            factory=_RConn)                                            # the latest data, never an old snapshot
+        c.row_factory = sqlite3.Row
         c.execute("PRAGMA busy_timeout=5000")
         c.execute("PRAGMA query_only=1")
         _tl.rc, _tl.rc_path, _tl.rc_at, _tl.rc_gen = c, DB_PATH, time.time(), _RGEN[0]

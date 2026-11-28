@@ -595,7 +595,7 @@ def _health() -> dict:
         "write_lock": {"held_s": round(now - h["at"], 1), "by": h.get("where"), "thread": h.get("thread")} if h.get("at") else "free",
         "wal_mb": round(wal / 1e6), "db_mb": round(os.path.getsize(db) / 1e6) if os.path.exists(db) else 0,
         "disk_free_gb": round(du.free / 1e9, 1), "disk_used_pct": round(100 * du.used / du.total),
-        "memory_mb": mem, "load": os.getloadavg(),
+        "memory_mb": mem, "load": os.getloadavg(), "open_files": _open_files(),
         "youtube_2s": sc_._YTF.get("last"),
         "rankings": {"updated_min_ago": round((now - (__import__("tracker.ranks", fromlist=["x"])._R.get("at") or 0)) / 60),
                      **{k: (round((now - v) / 60) if k in ("started", "done", "failed") and v else v)
@@ -677,6 +677,15 @@ def api_version():
 
 
 _STARTED = time.time()
+
+
+def _open_files() -> dict:
+    """Open file handles now and the limit (28 Nov: the site stopped answering at the limit)."""
+    try:
+        import resource
+        return {"n": len(os.listdir("/proc/self/fd")), "limit": resource.getrlimit(resource.RLIMIT_NOFILE)[0]}
+    except Exception:
+        return {}
 
 
 @app.route("/api/sweep")
