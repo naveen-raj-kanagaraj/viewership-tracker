@@ -27,6 +27,30 @@ AUTO_MAX = int(os.getenv("AUTO_EVENTS_MAX", "4"))
 AUTO_ON = os.getenv("AUTO_EVENTS", "1") == "1"
 IN_PEAK = int(os.getenv("AUTO_EVENTS_IN_PEAK", "5000"))
 GAMES = {"BGMI", "PUBG Mobile", "Free Fire", "PUBG: Battlegrounds"}
+# Who counts as the official broadcast: the publisher's own channels, by name (owner, 28 Nov: Liquipedia's stream
+# list also names co-streaming creators, e.g. RAADVAI YT, Jotinha, BAK for FFWS, and they were shown as official).
+# Every other channel carrying it, Liquipedia-listed or not, is a watch party.
+OFFICIAL_RX = {
+    "Free Fire": r"\bgarena\b|^free ?fire ?esports|^free ?fire ?(india|official|nepal|malaysia|global|brasil|brazil|latam|"
+                 r"middle east|bangladesh|mena|pakistan|indonesia|thailand|vietnam)\b|^ff ?esports\b",
+    "PUBG Mobile": r"pubg ?mobile|\bkrafton\b|battlegrounds mobile india|^bgmi ?esports",
+    "BGMI": r"pubg ?mobile|\bkrafton\b|battlegrounds mobile india|^bgmi ?esports",
+    "PUBG: Battlegrounds": r"^pubg ?(esports|battlegrounds)|\bkrafton\b",
+    "Valorant": r"^valorant|riot ?games|^vct\b",
+    "League of Legends": r"lol ?esports|riot ?games|^(lck|lec|lcs|lpl)\b",
+    "Mobile Legends": r"mobile legends|^mlbb|^mpl\b|moonton",
+    "Counter-Strike 2": r"^(esl|blast|pgl|cct)\b|esports world cup",
+    "Dota 2": r"^(esl|blast|pgl)\b|^dota ?2\b|esports world cup",
+}
+# Each region's YouTube, in its own words, so co-streamers in Brazil, Indonesia ... are found (owner, 28 Nov: "no
+# Brazilian streamers, they are doing watch parties too")
+WORLD = {
+    "Free Fire": [("{s}", "BR"), ("{s} ao vivo", "BR"), ("mundial free fire", "BR"), ("{s}", "MX"), ("{s} en vivo", "MX"),
+                  ("{s}", "ID"), ("nobar {s}", "ID"), ("{s}", "TH"), ("{s}", "VN"), ("{s}", "BD"), ("{s}", "PK"), ("{s}", "SA")],
+    "PUBG Mobile": [("{s}", "ID"), ("nobar {s}", "ID"), ("{s}", "TR"), ("{s} izle", "TR"), ("{s}", "PK"), ("{s}", "TH"),
+                    ("{s}", "MY"), ("{s}", "SA"), ("{s}", "BR"), ("{s}", "VN")],
+    "_": [("{s}", "BR"), ("{s}", "ID"), ("{s}", "TR"), ("{s}", "MX"), ("{s}", "PH")],
+}
 CATS = {   # the game's category on Kick / Twitch (streams in it still need the tournament in their title)
     "BGMI": (["Battlegrounds Mobile India", "PUBG Mobile"], ["Battlegrounds Mobile India", "PUBG MOBILE"]),
     "PUBG Mobile": (["PUBG Mobile"], ["PUBG MOBILE"]),
@@ -112,10 +136,12 @@ def build(t: dict, page: str) -> dict:
         "kick": {"official": off["kick"], "category": k_cat},
         "twitch": {"official": off["twitch"], "category": t_cat},
         "official_title": True, "scene_world": True,
+        "official_rx": OFFICIAL_RX.get(game), "official_strict": bool(OFFICIAL_RX.get(game)),
+        "world_queries": [(q.format(s=short or name), gl) for q, gl in WORLD.get(game, WORLD["_"])],
         "all_watch": has_off,                   # with an official broadcast every other stream is a co-stream
         "need_official": has_off,               # without one: on air whenever streams of it are live
         "match": [name.lower()], "queries": list(dict.fromkeys(q))[:6],
-        "ended": False, "v": 2,                 # no links out: everything stays on the site (owner)
+        "ended": False, "v": 3,                 # no links out: everything stays on the site (owner)
     }
 
 
@@ -178,9 +204,9 @@ def sync(force: bool = False) -> dict:
             done.append(p["name"])
     running = [k for k, p in auto.items() if not p.get("ended")]
     lp = {t["id"]: t for t in liquipedia.tours()}
-    for k in running:                         # made before the BGMI check (26 Nov): read the page again once
+    for k in running:                         # made by an older build (v3, 28 Nov: official by name, world queries)
         p = auto[k]
-        if p.get("v") != 2 and p.get("lp") in lp:
+        if p.get("v") != 3 and p.get("lp") in lp:
             auto[k] = {**build(lp[p["lp"]], _page(lp[p["lp"]])), "start": p.get("start"), "end": p.get("end")}
             changed = True
     for t in candidates(liquipedia.tours(), today, _india_peaks()):

@@ -892,7 +892,7 @@ TOURNAMENTS = [
     (r"\bpmgc\b|pubg mobile global championship|\bgc (league|gauntlet)\b|\b20\d\d gc (league|gauntlet|group|last chance|grand finals?)\b", "PMGC", None), (r"\bpmwi\b", "PMWI", None),
     (r"\bpmsl\b", "PMSL", None), (r"\bpmpl\b", "PMPL", None), (r"\bpmrc\b", "PMRC", None),
     (r"\bbgis\b", "BGIS", None), (r"\bbmps\b", "BMPS", None), (r"\bbmsd\b", "BMSD", None), (r"\bbmic\b", "BMIC", None),
-    (r"\bbmoc\b", "BMOC", None), (r"\bffws\b|free fire world series", "FFWS", None), (r"\bffic\b", "FFIC", None),
+    (r"\bbmoc\b", "BMOC", None), (r"\bffws\b|free ?fire world series|mundial (de |do )?(free ?fire|ff)\b|(free ?fire|ff) (world cup|mundial)|copa do mundo (de )?(free ?fire|ff)\b", "FFWS", None), (r"\bffic\b", "FFIC", None),
     (r"\bmpl\b", "MPL", None), (r"\bmsc\b", "MSC", None), (r"\bm[5-9] world championship", "MLBB M-Series", None),
     (r"\brlcs\b", "RLCS", None), (r"\bcdl\b|call of duty league", "CDL", None), (r"\bowcs\b", "OWCS", None),
     (r"\balgs\b", "ALGS", None), (r"\bfncs\b", "FNCS", None), (r"\bdreamhack\b", "DreamHack", None),
