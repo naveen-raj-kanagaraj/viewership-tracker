@@ -345,13 +345,13 @@ function rankBadges(c){const R=c.ranks||[];if(!R.length)return '';const yt_=c.pl
   return `<a class="rk g${r.rank<=3?r.rank:0}" href="${RP}/rankings?${q}" title="${r.rank} of ${r.of} tracked ${NAMES[c.platform]} channels"><b>#${full(r.rank)}</b>${esc(r.where)} · ${ML[r.metric]} <span style="opacity:.7">of ${full(r.of)}</span></a>`}).join('')}</div>`}
 const hm=s=>{s=+s||0;const h=Math.floor(s/3600),m=Math.round(s%3600/60);return h?`${h}h ${m}m`:`${m}m`};
 async function load(){try{const r_=await fetch('/api/channel?sid='+encodeURIComponent(SID)+'&t='+Math.floor(Date.now()/15000));if(!r_.ok){setTimeout(load,5000);return}const c=await r_.json();if(!c.sid){setTimeout(load,5000);return}CH[SID]=c;
- const now=c.now,S=c.stats;
+ const S=c.stats,now=LV.on&&LV.last!=null?LV.last:(LV.checked&&!LV.on?0:c.now);   // the 2-second count wins over the page data (which can be minutes old)
  document.getElementById('hd').className='hd'+(now?' live':'');
  document.getElementById('hd').innerHTML=`${av(c)}<div style="min-width:0"><h1>${esc(c.name)}</h1><div class="meta"><b style="color:${COL[c.platform]}">${NAMES[c.platform]||''}</b>${c.country?' · '+esc(c.country):''}${S&&S.subs!=null?' · <b>'+fmt(S.subs)+'</b> subscribers':''}${now||c.last_live?' · ':''}${now?`<span class="lv">LIVE</span><b id="hdnow">${full(LV.on&&LV.last!=null?LV.last:now)}</b> watching${c.game?' · '+esc(c.game):''}`:c.last_live?'last live '+ago(c.last_live):''}</div>${now&&c.title?`<div class="meta" style="margin-top:6px">${esc(c.title)}</div>`:''}</div>
   ${rankBadges(c)}
   <div class="act"><a class="btn${now?' red':''}" href="${esc(c.url)}" target="_blank" rel="noopener">${now?'WATCH LIVE':'OPEN'} ON ${(NAMES[c.platform]||'').toUpperCase()}</a><a class="btn ghost" href="${RP}/compare?c=${encodeURIComponent(SID)}">COMPARE</a><a class="btn ghost" href="/kit/${encodeURIComponent(SID)}">MEDIA KIT</a></div>`;
  CDATA=c;viewsCard(c);renderLife();
- {const pl=document.getElementById('pastlive');pl.innerHTML=now?`<div class="ps"><a href="${esc(c.url)}" target="_blank" rel="noopener"><span class="d"><span class="lv">LIVE</span> now</span><span class="t">${esc(c.title||'Live now')}</span><span class="n">-</span><span class="n">${fmt(now)}<small>watching</small></span><span class="n">-</span></a></div>`:'';
+ {const pl=document.getElementById('pastlive');pl.innerHTML=now?`<div class="ps"><a href="${esc(c.url)}" target="_blank" rel="noopener"><span class="d"><span class="lv">LIVE</span> now</span><span class="t">${esc(c.title||'Live now')}</span><span class="n">-</span><span class="n" id="plnow">${fmt(now)}<small>watching</small></span><span class="n">-</span></a></div>`:'';
   if(now)pl.closest('.card').style.display=''}
  const seen=c.periods&&((c.periods.all&&c.periods.all.days)||c.seen);   // visitors: no all-time column, the flag says
  document.getElementById('lcard').style.display=seen?'':'none';if(seen)document.getElementById('stats').innerHTML=panel(SID)}catch(e){console.error(e);setTimeout(load,8000)}}
@@ -369,12 +369,12 @@ async function moms(){try{const j=await (await fetch('/api/moments?sid='+encodeU
  document.getElementById('moms').innerHTML=L.slice(0,20).map(m=>`<a href="${esc(m.link||c_url)}" target="_blank" rel="noopener"><span class="d">${ist(m.ts,{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}</span><span class="t">${esc(m.title)}</span><span class="n" style="color:var(--lime)">+${fmt(m.peak-m.base)}</span><span class="n">${fmt(m.peak)}<small>peak</small></span><span class="n">${m.embed==='tw_clip'?'clip':m.embed?'replay':'channel'}</span></a>`).join('')}catch(e){}}
 let c_url='#';
 // live card: like the tournament page, re-read every 2 seconds while the channel is live
-let LV={on:false,last:null,t:null};
+let LV={on:false,last:null,t:null,checked:false};
 async function liveTick(){clearTimeout(LV.t);let j;try{j=await (await fetch('/api/chlive?sid='+encodeURIComponent(SID)+'&t='+Math.floor(Date.now()/2000))).json()}catch(e){LV.t=setTimeout(liveTick,4000);return}
- const box=document.getElementById('lvcard');if(!j.live){box.style.display='none';LV.on=false;return}
+ LV.checked=true;const box=document.getElementById('lvcard');if(!j.live){box.style.display='none';LV.on=false;return}
  box.style.display='';LV.on=true;
  const d=LV.last!=null?j.now-LV.last:0;LV.last=j.now;
- document.getElementById('lvnow').textContent=full(j.now);{const h=document.getElementById('hdnow');if(h)h.textContent=full(j.now)}   // the header too: the page data can be minutes old (28 Nov: 2,123 vs Kick 5,128)
+ document.getElementById('lvnow').textContent=full(j.now);{const h=document.getElementById('hdnow');if(h)h.textContent=full(j.now);const p=document.getElementById('plnow');if(p)p.innerHTML=fmt(j.now)+'<small>watching</small>'}   // the header too: the page data can be minutes old (28 Nov: 2,123 vs Kick 5,128)
  document.getElementById('lvd').innerHTML=d?`<span class="${d>0?'up':'dn'}">${d>0?'&#9650; +':'&#9660; '}${full(d)}</span> since last reading`:'watching now';
  document.getElementById('lvpk').textContent=fmt(j.peak);document.getElementById('lvavg').textContent=fmt(j.avg);
  document.getElementById('lvdur').textContent=j.start?hm(Date.now()/1000-j.start):'-';

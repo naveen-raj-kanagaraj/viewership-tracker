@@ -1560,13 +1560,28 @@ _G6PLAY = re.compile(r"\b(gameplay|playing|plays|played|walkthrough|part ?\d+|ep
                      r"100%|speedrun|online|exploring|exploration|vice city)\b")
 
 
+_CATN = {}
+
+
+def _canon_cat(name: str) -> str:
+    """One display name per platform category whatever its case (28 Nov: Twitch 'ROB RUN' and Kick 'Rob Run' were two
+    categories with one URL, so the category page showed the other one's 34 streams). An ALL-CAPS name gives way to
+    the mixed-case spelling when both are seen."""
+    k = re.sub(r"[^a-z0-9]+", " ", name.lower()).strip()
+    have = _CATN.get(k)
+    if have is None or (have.isupper() and not name.isupper()):
+        _CATN[k] = name if not name.isupper() or len(name) <= 4 else (have or name.title())
+        have = _CATN[k]
+    return have
+
+
 def classify(category: str, title: str) -> str:
     cat = (category or "").lower()
     if cat:
         for g, words in GAMES:
             if any(w in cat for w in words):
                 return g if g not in _hidden() else "Other"      # GTA VI category before release: reaction streams
-        return category.strip()[:40]        # the platform's own category name
+        return _canon_cat(category.strip()[:40])   # the platform's own category name, one spelling per game
     t = f" {(title or '').lower()} "
     for g, words in GAMES:
         if g in _hidden():
@@ -2522,6 +2537,24 @@ def cycle(now: float = None) -> dict:
             x["logo"] = events.avatar(sid[3:]) if x["platform"] == "youtube" else platforms.logo(sid)
         x["seen"] = now
         rows.append(x)
+    # A Kick / Twitch channel the platform's own API still shows live (the 2-second reading, by name) but this scan's
+    # listing missed (a rate-limited or short page) stays in, for up to 30 minutes since the scan last found it
+    # (28 Nov audit: upthrustesports live on Kick with 5,266 but gone from every list for a scan).
+    have = {x["sid"] for x in rows}
+    t_c = time.time()
+    with _lock:
+        prev = list(_LIVE.items())
+    for sid, x in prev:
+        if sid in have or x.get("platform") not in ("kick", "twitch") or sid in blk:
+            continue
+        f = _FASTV.get(sid)
+        if f and f[1] and t_c - f[0] < 30 and now - (x.get("found") or x.get("seen") or 0) < 1800:
+            y = dict(x)
+            y.update(viewers=f[1], streams={sid: f[1]}, seen=now, found=x.get("found") or x.get("seen"), carried=True)
+            rows.append(y)
+    for x in rows:
+        if not x.get("carried"):
+            x["found"] = now
     _SCANMEM.update(ts=int(now), rows=[{"sid": x["sid"], "viewers": x["viewers"], "game": x["game"], "platform": x["platform"],
                                         "name": x["name"], "url": x["url"], "logo": x.get("logo") or "", "title": x.get("title", ""),
                                         "country": x.get("country"), "language": x.get("language") or "",
@@ -3063,6 +3096,15 @@ def _with_full(out: dict, region: str, game, sec: str) -> dict:
         if best["v"] > (k.get("peak_today") or 0):
             k["peak_today"], k["peak_today_at"] = best["v"], best["ts"]
     out["india_total"] = (out.get("india_total") or 0) + extra
+    out["live_total"] = (out.get("live_total") or 0) + extra
+    # the small Twitch streams are in the total, so they go in a section too: the sections add up to the total
+    # (28 Nov audit: worldwide total 5.10M, sections 4.77M)
+    oth = next((z for z in out.get("sections") or [] if z.get("key") == "other"), None)
+    if oth is not None:
+        oth["viewers"] = (oth.get("viewers") or 0) + extra
+        oth["channels"] = (oth.get("channels") or 0) + int(f.get("tail_n") or 0)
+        oth["items"] = sorted((oth.get("items") or []) + [{"name": "Small Twitch streams", "viewers": extra}],
+                              key=lambda i: -i["viewers"])[:3]
     out["twitch_full"] = {"viewers": full, "streams": f["streams"], "ts": int(f["ts"]), "counted": f["viewers"]}
     return out
 
@@ -3578,6 +3620,8 @@ def tour_data(name: str, region: str = "global") -> dict:
         g = ev.get("game") or g
         if (ev.get("peak") or 0) > (pk or 0):
             pk, tot = ev["peak"], (ev["peak"], ev.get("peak_at")) + tuple(tot[2:] if tot else (None, None, None))
+        if (ev.get("viewers") or 0) > nowv:      # watching now too: the tracker counts every stream of it, the scan only
+            nowv = ev["viewers"]                   # the ones it found (28 Nov audit: FFWS 154K on the tracker, 14K here)
     return {"name": name, "slug": slug(name), "region": region, "game": g, "art": cat_art(g) if g else "",
             "liquipedia": info.get("url"), "start": info.get("start"), "end": info.get("end"), "status": info.get("status"),
             "now": nowv, "live_count": len(live), "peak": pk, "peak_at": tot[1] if tot else None,
