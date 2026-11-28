@@ -107,7 +107,7 @@ with store._lock:
     c_ = scene._db()
     c_.execute("INSERT INTO sc_reg VALUES (?,?,?,?,?)", (int(now + 120), "tour:global", "FFWS", 9000, 2))
     c_.execute("INSERT INTO sc_tour VALUES ('FFWS','global',9000,?,?,?,10)", (int(now + 120), int(now + 120), int(now + 120)))
-    c_.execute("INSERT INTO sc_tour_ch VALUES ('FFWS','yt:ffx',?,9000,?,2,10,0)",
+    c_.execute("INSERT INTO sc_tour_ch (tour, sid, day, peak, peak_at, mins, hw, india) VALUES ('FFWS','yt:ffx',?,9000,?,2,10,0)",
                (_dt.fromtimestamp(now + 120, events.REPORT_TZ).strftime("%Y-%m-%d"), int(now + 120)))
     c_.commit()
 assert scene.merge_aliases() == 1
