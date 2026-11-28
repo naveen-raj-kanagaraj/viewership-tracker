@@ -1908,6 +1908,11 @@ def run_fast_forever():
                 except Exception as e:
                     print(f"Report zip: {str(e)[:150]}")
                 evs = [ev for ev in events().values() if ev.get("active")]
+                try:                 # the one-time tournament clean-up (waits for Liquipedia to load)
+                    from tracker import scene as _sc
+                    _sc.fix_tours_once()
+                except Exception as e:
+                    print(f"Tournament clean-up: {str(e)[:150]}")
                 for ev in evs:       # streams missed by the counter, from the scan (off air, every 10 minutes)
                     try:
                         import_scan(ev["key"])
