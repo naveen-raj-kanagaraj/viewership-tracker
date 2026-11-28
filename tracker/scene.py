@@ -415,6 +415,8 @@ def india_why(x: dict, country: str = None, allow: set = frozenset()) -> tuple:
     """(Indian?, the reason in words). The reason is shown with the channel's data, so every flag can be checked."""
     sid, t, n = x.get("sid", ""), x.get("title") or "", x.get("name") or ""
     tags = x.get("tags") or ""
+    if x.get("platform") == "tiktok" or sid.startswith("tiktok:"):
+        return False, "TikTok is banned in India"
     from tracker import overrides
     if sid.lower() in NOT_INDIA_SIDS or sid.lower() in overrides.not_india() or sid in overrides.not_india():
         return False, "owner: not Indian"
@@ -2389,6 +2391,17 @@ def cycle(now: float = None) -> dict:
                           "streams": {sid: r["viewers"]}, "language": r.get("language", ""), "tags": r.get("tags", ""),
                           "seeded": sid.split(":", 1)[1] in [x.lower() for x in sd[p]]}
 
+    # TikTok: accounts followed on their own thread (tracker/tiktok.py); this only reads the latest results
+    try:
+        from tracker import tiktok as _tt
+        for r in _tt.rows():
+            sid = r["vid"]
+            found[sid] = {"sid": sid, "platform": "tiktok", "name": r["channel"], "url": platforms.link(sid),
+                          "logo": r.get("logo") or platforms.logo(sid), "title": r["title"], "category": "",
+                          "streams": {sid: r["viewers"]}, "language": "", "tags": "", "seeded": False}
+    except Exception as e:
+        errors["tiktok"] = str(e)[:120]
+
     # YouTube: streams already live are re-counted every cycle; searches and hand-added channels less often
     with _lock:
         prev_yt = dict(sorted(((k, dict(v)) for k, v in _LIVE.items() if v["platform"] == "youtube"),
@@ -2488,7 +2501,7 @@ def cycle(now: float = None) -> dict:
                 x["category"] = card
         x["game"] = classify(x.get("category", ""), x.get("title", ""))   # first pass (BGMI streams are Indian)
         x["india"] = verdict(x, x["country"], allow)
-        if x["platform"] != "youtube":
+        if x["platform"] in ("kick", "twitch"):
             x["india_hint"] = bool(x["india"]) or india_hint(x)     # its chat is read to confirm or rule it out
         if not x["india"] and x["viewers"] < GLOBAL_MIN and not swept and not x.get("india_hint"):
             rejected.append(x)                # too small to matter worldwide; remembered so it isn't looked up again

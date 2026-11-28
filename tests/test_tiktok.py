@@ -59,3 +59,22 @@ assert events.relevant(ev, {"vid": "tiktok:pubgmobile", "title": "PMGC League Th
 assert not events.relevant(ev, {"vid": "tiktok:pubgmobile", "title": "New skin giveaway", "channel": "PUBG MOBILE"})
 assert platforms.official(ev, pr, "tiktok:pubgmobile")
 print("TIKTOK OK")
+
+# ---- site-wide TikTok (tracker/tiktok.py) ----
+from tracker import tiktok, store, scene
+import json as _j
+c = store.main()
+c.execute("CREATE TABLE IF NOT EXISTS ch_profile (sid TEXT PRIMARY KEY, bio TEXT, links TEXT, checked INTEGER, followers INTEGER, src INTEGER)")
+c.execute("INSERT INTO ch_profile (sid, bio, links, checked) VALUES ('kick:abc','', ?, 0)", (_j.dumps({"tiktok": "https://www.tiktok.com/@Some.Creator?lang=en"}),))
+c.commit()
+store.kv_set("ev_about:UCx", {"links": ["instagram.com/x", "https://tiktok.com/@other_one"], "ts": 1})
+tiktok.FILE = __import__("pathlib").Path(tempfile.mkdtemp()) / "t.json"
+tiktok.FILE.write_text(_j.dumps({"add": ["@Handadded"], "remove": ["pubgmobile_br"]}))
+hs = tiktok.handles()
+assert "some.creator" in hs and "other_one" in hs and "handadded" in hs and "pubgmobile" in hs and "pubgmobile_br" not in hs, hs
+tiktok._check("pubgmobile")
+assert [r["vid"] for r in tiktok.rows()] == ["tiktok:pubgmobile"]
+tiktok._check("pubgmobilethailand")            # not live: no row
+assert len(tiktok.rows()) == 1
+assert scene.india_why({"sid": "tiktok:x", "platform": "tiktok", "title": "BGMI hindi live"})[0] is False
+print("TIKTOK SCENE OK")
