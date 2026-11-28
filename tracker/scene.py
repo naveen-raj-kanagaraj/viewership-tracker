@@ -992,11 +992,10 @@ def _canon(name: str, title: str = "", game: str = "") -> str:
                  and rx.search(t["name"] + " " + t["full"]) and liquipedia.game_ok(t, game)]
     if not cands:
         return name
-    nt = _norm(title)
-    if title:                            # a regional edition ('VCT Pacific: Kickoff SA') only for a title naming its region:
-        cands = [t for t in cands if _region_ok(t["name"] + " " + (t.get("full") or ""), nt)]   # a Brazilian or Taiwanese VCT co-stream is not it (28 Nov)
-        if not cands:
-            return name
+    nt = _norm(title or name)            # a regional edition ('VCT Pacific: Kickoff SA') only for a title naming its region;
+    cands = [t for t in cands if _region_ok(t["name"] + " " + (t.get("full") or ""), nt)]   # never the bare league's
+    if not cands:                        # readings either (28 Nov: Brazilian, Taiwanese, EU VCT co-streams merged into it)
+        return name
     if len(cands) == 1:
         return cands[0]["name"]
     sc = sorted(((sum(1 for k in set(_norm(t["name"]).split()) - _LP_GENERIC if f" {k} " in nt), t) for t in cands),
@@ -1125,8 +1124,8 @@ def _wrong_rows(c, t: dict) -> list:
     rw = set(_norm(t["name"] + " " + (t.get("full") or "")).split()) & _REGION_WORDS
     sa = rw & {"sa", "south", "india"}
     for sid, game, country, lang, india in c.execute(
-            "SELECT DISTINCT t.sid, c.game, c.country, c.language, COALESCE(c.india,0) FROM sc_tour_ch t "
-            "LEFT JOIN sc_channels c ON c.sid=t.sid WHERE t.tour=?", (t["name"],)).fetchall():
+            "SELECT t.sid, c.game, c.country, c.language, MAX(COALESCE(c.india,0), MAX(COALESCE(t.india,0))) FROM sc_tour_ch t "
+            "LEFT JOIN sc_channels c ON c.sid=t.sid WHERE t.tour=? GROUP BY t.sid", (t["name"],)).fetchall():
         tg = TOUR_GAME.get(t["name"]) or t.get("game") or ""
         if game and tg and _game_clash_g(tg, game):
             out.append((sid, f"plays {game}"))
@@ -1143,7 +1142,7 @@ def _game_clash_g(tg: str, game: str) -> bool:
     return a != b and not b.startswith(a) and not a.startswith(b)
 
 
-def fix_tours_once(flag: str = "scene_fix_tours_28nov_b") -> dict:
+def fix_tours_once(flag: str = "scene_fix_tours_28nov_c") -> dict:
     """One-time clean-up (owner, 28 Nov: 'PIC 2026, FFWS etc. mostly wrong'): channels filed under an ongoing
     tournament that cannot be it come off its channel list; its totals are recomputed from the per-scan readings
     still kept (the last KEEP_DAYS days) without them. Older totals stay (their readings are gone)."""
