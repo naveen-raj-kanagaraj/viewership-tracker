@@ -347,7 +347,7 @@ const hm=s=>{s=+s||0;const h=Math.floor(s/3600),m=Math.round(s%3600/60);return h
 async function load(){try{const r_=await fetch('/api/channel?sid='+encodeURIComponent(SID)+'&t='+Math.floor(Date.now()/15000));if(!r_.ok){setTimeout(load,5000);return}const c=await r_.json();if(!c.sid){setTimeout(load,5000);return}CH[SID]=c;
  const now=c.now,S=c.stats;
  document.getElementById('hd').className='hd'+(now?' live':'');
- document.getElementById('hd').innerHTML=`${av(c)}<div style="min-width:0"><h1>${esc(c.name)}</h1><div class="meta"><b style="color:${COL[c.platform]}">${NAMES[c.platform]||''}</b>${c.country?' · '+esc(c.country):''}${S&&S.subs!=null?' · <b>'+fmt(S.subs)+'</b> subscribers':''}${now||c.last_live?' · ':''}${now?`<span class="lv">LIVE</span><b>${full(now)}</b> watching${c.game?' · '+esc(c.game):''}`:c.last_live?'last live '+ago(c.last_live):''}</div>${now&&c.title?`<div class="meta" style="margin-top:6px">${esc(c.title)}</div>`:''}</div>
+ document.getElementById('hd').innerHTML=`${av(c)}<div style="min-width:0"><h1>${esc(c.name)}</h1><div class="meta"><b style="color:${COL[c.platform]}">${NAMES[c.platform]||''}</b>${c.country?' · '+esc(c.country):''}${S&&S.subs!=null?' · <b>'+fmt(S.subs)+'</b> subscribers':''}${now||c.last_live?' · ':''}${now?`<span class="lv">LIVE</span><b id="hdnow">${full(LV.on&&LV.last!=null?LV.last:now)}</b> watching${c.game?' · '+esc(c.game):''}`:c.last_live?'last live '+ago(c.last_live):''}</div>${now&&c.title?`<div class="meta" style="margin-top:6px">${esc(c.title)}</div>`:''}</div>
   ${rankBadges(c)}
   <div class="act"><a class="btn${now?' red':''}" href="${esc(c.url)}" target="_blank" rel="noopener">${now?'WATCH LIVE':'OPEN'} ON ${(NAMES[c.platform]||'').toUpperCase()}</a><a class="btn ghost" href="${RP}/compare?c=${encodeURIComponent(SID)}">COMPARE</a><a class="btn ghost" href="/kit/${encodeURIComponent(SID)}">MEDIA KIT</a></div>`;
  CDATA=c;viewsCard(c);renderLife();
@@ -374,7 +374,7 @@ async function liveTick(){clearTimeout(LV.t);let j;try{j=await (await fetch('/ap
  const box=document.getElementById('lvcard');if(!j.live){box.style.display='none';LV.on=false;return}
  box.style.display='';LV.on=true;
  const d=LV.last!=null?j.now-LV.last:0;LV.last=j.now;
- document.getElementById('lvnow').textContent=full(j.now);
+ document.getElementById('lvnow').textContent=full(j.now);{const h=document.getElementById('hdnow');if(h)h.textContent=full(j.now)}   // the header too: the page data can be minutes old (28 Nov: 2,123 vs Kick 5,128)
  document.getElementById('lvd').innerHTML=d?`<span class="${d>0?'up':'dn'}">${d>0?'&#9650; +':'&#9660; '}${full(d)}</span> since last reading`:'watching now';
  document.getElementById('lvpk').textContent=fmt(j.peak);document.getElementById('lvavg').textContent=fmt(j.avg);
  document.getElementById('lvdur').textContent=j.start?hm(Date.now()/1000-j.start):'-';
