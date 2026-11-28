@@ -1130,8 +1130,8 @@ def _wrong_rows(c, t: dict) -> list:
         tg = TOUR_GAME.get(t["name"]) or t.get("game") or ""
         if game and tg and _game_clash_g(tg, game):
             out.append((sid, f"plays {game}"))
-        elif sa and not india and (country and country not in ("IN", "PK", "BD", "LK", "NP")
-                                   or (lang or "").split("-")[0].lower() not in SA_LANG):
+        elif sa and not india and country not in ("IN", "PK", "BD", "LK", "NP") \
+                and (lang or "").split("-")[0].lower() not in SA_LANG - {"en", ""}:
             out.append((sid, f"outside South Asia ({country or lang})"))
     return out
 
@@ -1143,15 +1143,18 @@ def _game_clash_g(tg: str, game: str) -> bool:
     return a != b and not b.startswith(a) and not a.startswith(b)
 
 
-def fix_tours_once(flag: str = "scene_fix_tours_28nov") -> dict:
+def fix_tours_once(flag: str = "scene_fix_tours_28nov_b") -> dict:
     """One-time clean-up (owner, 28 Nov: 'PIC 2026, FFWS etc. mostly wrong'): channels filed under an ongoing
     tournament that cannot be it come off its channel list; its totals are recomputed from the per-scan readings
     still kept (the last KEEP_DAYS days) without them. Older totals stay (their readings are gone)."""
     from tracker import liquipedia
     if store.kv_get(flag):
         return {}
+    act = liquipedia.active()
+    if not act:                               # Liquipedia not loaded yet (at startup): next time
+        return {}
     done = {}
-    for t in liquipedia.active():
+    for t in act:
         with store.reading():
             bad = _wrong_rows(_db(), t)
         if not bad:
