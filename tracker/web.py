@@ -603,7 +603,8 @@ def _health() -> dict:
         "chat_lang": _chat_lang(),
         "daily_csv": store.kv_get("ev_csv_last"),
         "report_zip": store.kv_get("report_zip_last"),
-        "lifetime_videos": __import__("tracker.deep", fromlist=["x"]).LIFE,   # channels whose every past video is in   # the last weekly / monthly data zip: size, parts, result   # the last daily CSV to the owner's Telegram bot: file and result
+        "lifetime_videos": __import__("tracker.deep", fromlist=["x"]).LIFE,
+        "tour_fix": store.kv_get("scene_fix_tours_28nov_b") or store.kv_get("scene_fix_tours_err"),   # one-time tournament clean-up   # channels whose every past video is in   # the last weekly / monthly data zip: size, parts, result   # the last daily CSV to the owner's Telegram bot: file and result
         "busy_threads": busy[:40],
         "recent": [f"{time.strftime('%H:%M:%S', time.gmtime(t))}Z {s}" for t, s in list(sys.stdout.lines)[-40:]]
                   if isinstance(sys.stdout, _Tee) else [],
