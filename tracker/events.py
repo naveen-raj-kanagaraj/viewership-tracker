@@ -666,8 +666,12 @@ NOT_WP = re.compile(r"rank\s*push|\branked\b|gameplay|rush\s*game\s*play|\brushi
                     r"\b1\s*v\s*[234]\b|road\s*to\s*(pmgc|conq|ace|crown|top\s*\d)|play(ing)?\s+with\s+(subs|subscribers|viewers|fans|you)|"
                     r"\bgrind|podcast|tier\s*list|\bpreview\b|practice|bootcamp|24\s*[x/]\s*7|non-?stop|lo-?fi|free\s*fire|"
                     r"\bff\s*(max|live)\b|valorant|minecraft|\bgta\b|cod\s*mobile|\bcodm\b|fortnite|roblox|clash\s*(of|royale)|"
-                    r"mobile\s*legends|\bmlbb\b|\bleaks?\b", re.I)
+                    r"mobile\s*legends|\bmlbb\b|\bleaks?\b|\bclassic\b|shorts\s*live|#shorts", re.I)
 GAME_OK = re.compile(r"pubg|battlegrounds", re.I)
+# another game or show named next to the event: not a watch party even when the title also says "watch party"
+# (owner, 28 Nov: "most streams are not doing watch party"; e.g. "PMGC AND BIGBOSS WATCHPARTY", "PMGC watch Party | LAST OF US")
+OTHER_SHOW = re.compile(r"bigg?\s*boss|last\s*of\s*us|vanguard|뱅가드|upskill|\bffws\b|free\s*fire|valorant|\bgta\s*(v|5|6)\b|minecraft|"
+                        r"\bcodm?\b|fortnite|roblox|mobile\s*legends|\bmlbb\b|rank\s*push|conqueror", re.I)
 _REJ = {}       # event -> {vid: {channel, channel_id, title, viewers, why, ts}}: candidates the check left out (last hour)
 
 
@@ -685,6 +689,9 @@ def wp_check(ev: dict, s: dict) -> str:
     if s.get("vid") in ev.get("videos", []) + pr.get("videos_extra", []) or _forced_channel(ev, s):
         return ""                                # counted by hand
     ti = s.get("title") or ""
+    m = OTHER_SHOW.search(ti)
+    if m:
+        return f'the title also names "{m.group(0).strip()}"'
     if WP_SAYS.search(ti):
         return ""
     terms = set(ev.get("match") or []) | {m.lower() for m in pr.get("match", [])}
