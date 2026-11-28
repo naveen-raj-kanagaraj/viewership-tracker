@@ -20,8 +20,8 @@ YES = ["PMGC 2026 GAUNTLET DAY 1 WATCH PARTY LIVE | SouL TX", "NOBAR PMGC 2026 G
        "2026 GC League | Gauntlet Day 1 | WATCHPARTY WITH SNAX", "PMGC 2026 canlı izliyoruz", "Assistindo PMGC 2026 ao vivo",
        "PMGC 2026 Co-Stream | Day 1", "PMGC 2026 Hindi commentary live", "Watch party #pmgc",
        "PMGC 2026 GAUNTLET DAY 1 LIVE | PREDICTION GIVEAWAY", "PMGC 2026 Day 1 | SouL road to Grand Finals", "PMGC 2026 Day 1 live analysis"]
-NO = {"BGMI LIVE RANK PUSH #pmgc #bgmi": "hashtags", "PMGC Qualified Team Scrims | BGMI Live": "scrims",
-      "Road to PMGC | conqueror push": "road to", "PMGC 2026 Predictions & Tier List LIVE": "tier list",
+NO = {"BGMI LIVE RANK PUSH #pmgc #bgmi": "rank push", "PMGC Qualified Team Scrims | BGMI Live": "scrims",
+      "Road to PMGC | conqueror push": "conqueror", "PMGC 2026 Predictions & Tier List LIVE": "tier list",
       "Free Fire live PMGC 2026": "free fire", "PMGC custom rooms live | UC giveaway": "custom rooms",
       "Playing with subs after PMGC 2026": "playing with subs", "PMGC 2026 1v4 rush gameplay": "1v4", "PMGC 2026 gameplay live": "gameplay"}
 for t in YES:

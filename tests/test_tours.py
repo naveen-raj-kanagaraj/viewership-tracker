@@ -143,4 +143,17 @@ names = [t["name"] for t in o["tournaments"]] + [t["name"] for t in o["ongoing_n
 assert sum(1 for n in names if scene.tour_tag(n) == "cegc") == 1, names
 row = next(t for t in o["tournaments"] if scene.tour_tag(t["name"]) == "cegc")
 assert row["tracked"] and row["url"] == "/e/cegc/" and row["peak"] >= 48700 and row["name"] == "CEGC 2026", row
+# a worldwide tracker's totals are not India's: India's table keeps India's own peak (28 Nov audit: FFWS and PMGC showed
+# their worldwide numbers on India's table); worldwide pages list the tracker too
+with store._lock:
+    c_ = events._db()
+    c_.execute("INSERT INTO ev_ticks VALUES ('cegc', ?, 900000, 9, 500000, 400000, 0)", (int(now - 86400),))
+    c_.commit()
+scene._TRK["ts"] = 0
+assert next(t for t in scene.tours_overview("in")["tournaments"] if scene.tour_tag(t["name"]) == "cegc")["peak"] == 900000
+events.PRESETS["cegc"]["scene_world"] = True
+scene._TRK["ts"] = 0
+assert next(t for t in scene.tours_overview("in")["tournaments"] if scene.tour_tag(t["name"]) == "cegc")["peak"] == 48700
+assert any(t.get("tracked") and scene.tour_tag(t["name"]) == "cegc" for t in scene.tours_overview("global")["tournaments"])
+events.PRESETS["cegc"].pop("scene_world")
 print("TOURS OK")

@@ -9,7 +9,7 @@ from tracker import eventpage
 
 PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>World map of live streaming | __BRAND__ (beta)</title>
-<meta name="description" content="A live 3D globe of what the world is watching on YouTube, Kick and Twitch: viewers by country, top games and top streamers, updated every few seconds.">
+<meta name="description" content="A live 3D globe of what the world is watching on YouTube, Kick, Twitch and TikTok: viewers by country, top games and top streamers, updated every few seconds.">
 <meta property="og:title" content="World map of live streaming | __BRAND__"><meta name="theme-color" content="#07051a">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
@@ -77,7 +77,7 @@ body.emb .mini div{display:flex;gap:6px;white-space:nowrap}body.emb .mini span{c
 <div class="wrap">
 <div class="crumb"><a href="/global">WORLDWIDE</a> / WORLD MAP</div>
 <h1>Where the <em>streamers</em> are from</h1>
-<p class="intro">Everyone watching live on YouTube, Kick and Twitch right now, placed on the streamer's home country (not the viewer's). Grey countries have no located streamer live at the moment. Drag to spin, tap a country for its categories and streamers.</p>
+<p class="intro">Everyone watching live on YouTube, Kick, Twitch and TikTok right now, placed on the streamer's home country (not the viewer's). Grey countries have no located streamer live at the moment. Drag to spin, tap a country for its categories and streamers.</p>
 <div class="stage">
  <div class="globe" id="gwrap"><canvas id="gl"></canvas><div class="tip" id="tip"></div><div class="mini" id="mini"></div>
   <div class="legend"><div>VIEWERS WATCHING ITS STREAMERS</div><div class="bar"></div><div class="ends"><span>fewer</span><span>most</span></div><div style="margin-top:6px;display:flex;align-items:center;gap:6px"><span style="width:12px;height:8px;background:#211f35;border:1px solid #3a3850;display:inline-block"></span>no located streamer live</div></div>

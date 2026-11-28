@@ -9,7 +9,7 @@ from tracker import eventpage, scenepage
 
 PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>__TITLE__ | __BRAND__ (beta)</title>
-<meta name="description" content="Top live streamers __WHERE__ on YouTube, Kick and Twitch for any day, week or month: hours watched, peak and average viewers, by category and country.">
+<meta name="description" content="Top live streamers __WHERE__ on YouTube, Kick, Twitch and TikTok for any day, week or month: hours watched, peak and average viewers, by category and country.">
 <meta property="og:title" content="__TITLE__ | __BRAND__"><meta name="theme-color" content="#07051a">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
@@ -137,7 +137,7 @@ const CMV=(m,v)=>{if(v==null)return '-';const [b,p]=m.split('_');if(b==='eng'||b
  if((b==='views'&&YT()||b==='subs')&&p!=='all')return (v>0?'+':'')+fmt(v);return fmt(v)};
 const OTHERS=()=>{const p=C.per,b=C.base;if(b==='peak')return ['avg_'+p,'live_'+p];if(b==='avg')return ['peak_'+p,'live_'+p];if(b==='live')return ['peak_'+p,'avg_'+p];return b==='views'&&!YT()?['subs_'+p,'live_'+p]:b==='views'?['subs_'+p,'views_all']:b==='subs'?(YT()?['views_'+p,'subs_all']:['views_'+p,'live_'+p]):b==='views'&&!YT()?['subs_'+p,'live_'+p]:b==='eng'?['likes_'+p,'medv_'+p]:b==='likes'?['eng_'+p,'medv_'+p]:b==='medv'?['eng_'+p,'subs_all']:['subs_'+p,'subs_all']};
 function setMode(m){m='channels';MODE=m;document.querySelector('h1').innerHTML=(m==='live'?'Top streamers ':'Top channels ')+`<em>${WHERE}</em>`;document.getElementById('lf').style.display=m==='live'?'':'none';document.getElementById('cf').style.display=m==='channels'?'':'none';document.querySelector('.lth .lc').textContent=m==='live'?'STREAMER':'CHANNEL';
- document.getElementById('intro').textContent=m==='live'?'Ranked by what people actually watched live. Tap a streamer for their full numbers.':'Every YouTube, Twitch and Kick channel that streams live (10+ viewers on our records), ranked by views, subscribers or growth. Tap one for its full stats.';
+ document.getElementById('intro').textContent=m==='live'?'Ranked by what people actually watched live. Tap a streamer for their full numbers.':'Every YouTube, Twitch, Kick and TikTok channel that streams live (10+ viewers on our records), ranked by views, subscribers or growth. Tap one for its full stats.';
  document.getElementById('mode').style.display='none';m==='live'?go():goCh()}
 async function goCh(){if(!CMS().some(x=>x[0]===C.base))C.base=CMS()[0][0];C.metric=C.base+'_'+C.per;
  const p=new URLSearchParams({platform:C.platform,metric:C.metric});if(C.country)p.set('country',C.country);if(C.category)p.set('category',C.category);if(C.game)p.set('game',C.game);
