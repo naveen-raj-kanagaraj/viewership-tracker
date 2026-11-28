@@ -134,7 +134,8 @@ def rows() -> list:
 def status() -> dict:
     return {"accounts": len(_S["handles"]), "live": len(rows()), "ok": _S["ok"], "errors": _S["err"],
             "last_error": _S["last_err"], "paused": _S["pause_until"] > time.time(),
-            "round_min": round(len(_S["handles"]) / RATE / 60, 1)}
+            "round_min": round(len(_S["handles"]) / RATE / 60, 1),
+            "top": sorted(([r["channel"], r["viewers"], r["title"][:50]] for r in rows()), key=lambda z: -z[1])[:8]}
 
 
 def start():
