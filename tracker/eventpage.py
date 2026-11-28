@@ -748,7 +748,7 @@ tr.fu td.num{animation:fu 1.2s}tr.fd td.num{animation:fd 1.2s}@keyframes fu{0%{c
  <span class="pill" title="Time since the newest reading">UPDATED <span id="ago">-</span></span>
  <span class="pill" id="nx"><svg class="ring" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><circle class="p" id="rp" cx="10" cy="10" r="7" stroke-dasharray="44" stroke-dashoffset="0"/></svg>NEXT <span id="nxt">-</span></span>
 </div></div>
-<nav class="snav" aria-label="Site"><div class="in"><a href="/india">India overview</a><a href="/india/c/__GAMESLUG__">__GAMENAME__ live</a><a href="/india/rankings">Rankings</a><a href="/india/moments">Moments</a><a href="/map">World map</a><a href="/">Worldwide</a></div></nav>
+<nav class="snav" aria-label="Site"><div class="in"><a href="/india">India overview</a><a href="/india/c/__GAMESLUG__">__GAMENAME__ live</a><a href="/india/rankings">Rankings</a><a href="/map">World map</a><a href="/">Worldwide</a></div></nav>
 <div class="wrap" style="padding-bottom:0">__PWB__
 <div class="follow"><span>// FOLLOW FOR LIVE ESPORTS NUMBERS</span><a class="soc" href="/india"><b>INDIA LIVE</b><span>every channel, ranked &rarr;</span></a>__SOCIAL__</div></div>
 <div class="wrap" id="app"></div>
