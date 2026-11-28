@@ -81,7 +81,7 @@ label.f{display:block;font:700 12px "Barlow Condensed",sans-serif;letter-spacing
 .lbt{width:100%;border-collapse:collapse}.lbt td{padding:9px 6px;border-bottom:1px solid var(--line)}.lbt .rk{font:700 18px "Barlow Condensed",sans-serif;color:var(--mut);width:34px}.lbt tr:nth-child(-n+3) .rk{color:var(--gold)}.lbt .p{text-align:right;font-weight:700}
 .win .kick{margin-bottom:2px}.win h2{font:700 30px/1.05 "Barlow Condensed",sans-serif;margin:0 0 12px;text-transform:uppercase;letter-spacing:.01em}
 .wr{display:flex;align-items:center;gap:12px;padding:10px 2px;border-top:1px solid var(--line)}
-.wr .rk{font:700 22px "Barlow Condensed",sans-serif;width:30px;color:var(--mut);font-variant-numeric:tabular-nums}.wr.t .rk{color:var(--lime)}
+.wr .rk{font:700 22px "Barlow Condensed",sans-serif;width:30px;color:var(--mut);font-variant-numeric:tabular-nums}
 .wr .nm{flex:1;min-width:0}.wr .nm b{display:block;font-weight:700;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wr .nm span{color:var(--mut);font-size:13px}
 .wr .pt{font:700 24px "Barlow Condensed",sans-serif;color:var(--lime);font-variant-numeric:tabular-nums}.wr .pt small{font:600 12px Barlow,sans-serif;color:var(--mut);margin-left:3px}
 .by{color:var(--mut);font-size:12px;margin-top:10px}
@@ -100,7 +100,7 @@ label.f{display:block;font:700 12px "Barlow Condensed",sans-serif;letter-spacing
 .toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:#22222f;border:1px solid #33334a;color:var(--ink);padding:10px 16px;border-radius:10px;font-size:14px;z-index:60;display:none;max-width:calc(100vw - 32px);text-align:center}
 .toast.err{border-color:#5a1f28;color:#ffb3bb}
 .skel{height:90px;border-radius:14px;background:linear-gradient(90deg,#0f0f16,#151520,#0f0f16);background-size:200% 100%;animation:sk 1.2s infinite;margin:12px 0}@keyframes sk{to{background-position:-200% 0}}
-</style></head><body>
+</style><script src="/brand/strap.js?v=1"></script></head><body>
 <div class="top"><div class="in"><a class="brand" href="/india">letsgrowesports</a><span class="pill">PREDICT &amp; WIN</span></div></div>
 <main>
 <section class="hero"><div class="kick">PMGC 2026 · ISTANBUL · THE GAUNTLET</div><h1>Predict <span>&amp;</span> Win</h1>
@@ -147,7 +147,7 @@ function save(){store.set(DK,{p:P,h:F.handle,n:F.name})}
 function tick(){if(!S)return;const left=Math.max(0,S.lock*1000-(Date.now()+OFF));const l=$('lock');
  if(left<=0){l.classList.add('shut');$('cd').textContent='LOCKED';l.querySelector('.l').textContent='PICKS ARE';l.querySelector('.w').textContent='Locked '+S.lock_text;if(!S.closed){S.closed=true;render()}return}
  const h=Math.floor(left/3.6e6),m=Math.floor(left%3.6e6/6e4),s=Math.floor(left%6e4/1e3);$('cd').textContent=(h>47?Math.floor(h/24)+'d ':'')+String(h>47?h%24:h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');setTimeout(tick,1000-((Date.now()+OFF)%1000))}
-function render(){const a=$('app');const me=S.me;let h='';
+function render(){setTimeout(()=>{const w=$('wshare');if(w)w.onclick=shareWin},0);const a=$('app');const me=S.me;let h='';
  if(!S.auth){a.innerHTML='<div class="card gate"><h2>Opening soon</h2><p>Sign-in isn\'t switched on yet. Check back in a bit.</p></div>';$('sbar').style.display='none';return}
  if(!me&&shut()){a.innerHTML=winners()+resultsHead()+S.questions.map((q,i)=>qcard(q,i,true)).join('')+lb();$('sbar').style.display='none';return}
  if(!me){h+=`<div class="card gate"><h2>Sign in to play</h2><p>It's free. Sign in with Google, then add your Instagram ID so we can reach you if you win.</p><a class="gbtn" href="/auth/google?next=%2Fpredict%2Fpmgc">${G} Continue with Google</a></div>`;
@@ -187,8 +187,27 @@ function resultsHead(){const me=S.me;if(!me||!me.picks)return `<div class="card 
  return `<div class="card done"><h2>${S.answers&&Object.keys(S.answers).length?(me.pts||0)+' points':'You\'re in'}</h2><p>${Object.keys(S.answers||{}).length?(me.right||0)+(S.final?' right answers. Final results.':' right answers so far. Results fill in as the Gauntlet finishes.'):'Picks are locked. Results come in after the Gauntlet on 27 Nov.'} Playing as <b style="color:var(--ink)">@${esc(me.handle)}</b>.</p></div>`}
 function winners(){if(!S.final||!S.show_lb||!S.leaderboard.length)return '';
  return `<div class="card win"><div class="kick">GAUNTLET · FINAL RESULTS</div><h2>Predict &amp; Win: top 10</h2>
- ${S.leaderboard.map(r=>`<div class="wr ${r.rank<=3?'t':''}"><span class="rk">${r.rank}</span><div class="nm"><b>${esc(r.name||r.handle)}</b><span>@${esc(r.handle)} · ${r.right} right</span></div><span class="pt">${r.pts}<small>pts</small></span></div>`).join('')}
- <div class="by">by letsgrowesports · winners get a DM on Instagram</div></div>`}
+ ${S.leaderboard.map(r=>`<div class="wr"><span class="rk">${r.rank}</span><div class="nm"><b>${esc(r.name||r.handle)}</b><span>@${esc(r.handle)} · ${r.right} right</span></div><span class="pt">${r.pts}<small>pts</small></span></div>`).join('')}
+ <div class="by">by letsgrowesports · winners get a DM on Instagram</div><div class="row" style="margin-top:12px"><button class="btn l" id="wshare">Share card</button></div></div>`}
+// the winners as a share card, the same look as the tracker's cards (1080 x 1350, green strap)
+async function winCard(){if(!window.lgeStrap){window.STRAP_H=130;window.lgeStrap=()=>{};window.lgeWhen=()=>''}const W=1080,H=1350,SC=2,c=document.createElement('canvas');c.width=W*SC;c.height=H*SC;const x=c.getContext('2d');x.scale(SC,SC);
+ if(window.lgeReady)await lgeReady();
+ const g=x.createRadialGradient(W*.8,0,40,W*.8,0,1200);g.addColorStop(0,'#1f1a3d');g.addColorStop(1,'#0b0b12');x.fillStyle=g;x.fillRect(0,0,W,H);
+ x.fillStyle='rgba(255,255,255,.02)';for(let yy=0;yy<H;yy+=4)x.fillRect(0,yy,W,1);
+ x.strokeStyle='#b6f23a';x.lineWidth=5;x.beginPath();x.moveTo(40,80);x.lineTo(40,40);x.lineTo(80,40);x.stroke();
+ const T=(t,X,Y,f,col,al,mw)=>{x.font=f;if(mw){const w=x.measureText(t).width;if(w>mw){const m=f.match(/(\d+)px/);x.font=f.replace(/\d+px/,Math.max(10,Math.floor(+m[1]*mw/w))+'px')}}x.fillStyle=col;x.textAlign=al||'left';x.textBaseline='top';x.fillText(t,X,Y)};
+ const M=n=>`600 ${n}px "Barlow Condensed",sans-serif`,N=n=>`700 ${n}px "Barlow Condensed",sans-serif`,B=n=>`700 ${n}px "Barlow",sans-serif`;
+ T('PMGC 2026 GAUNTLET // PREDICT & WIN',80,92,N(64),'#ffffff','left',W-160);T('by letsgrowesports',80,162,M(24),'#a9a8be');
+ T('// FINAL TOP 10',80,215,M(30),'#ff4d5e');T('POINTS',W-80,220,M(24),'#8d8ca3','right');
+ const L=S.leaderboard.slice(0,10),y0=268,rh=(H-STRAP_H-40-y0)/10;
+ L.forEach((r,i)=>{const y=y0+i*rh;if(i){x.fillStyle='#232333';x.fillRect(80,y,W-160,1)}
+  T(String(r.rank),80,y+rh/2-24,N(48),'#8d8ca3');T(r.name||r.handle,160,y+rh/2-30,B(34),'#eeeef5','left',620);
+  T('@'+r.handle+' · '+r.right+' right',160,y+rh/2+10,M(24),'#8d8ca3','left',620);T(String(r.pts),W-80,y+rh/2-28,N(56),'#b6f23a','right')});
+ lgeStrap(x,W,H,{when:lgeWhen()});return c}
+async function shareWin(){const b=$('wshare');b.disabled=true;try{const c=await winCard();const blob=await new Promise(r=>c.toBlob(r,'image/png'));
+ const f=new File([blob],'pmgc-predict-win-winners.png',{type:'image/png'});
+ if(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)&&navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],text:'PMGC 2026 Gauntlet Predict & Win: final top 10 '+location.origin+'/predict/pmgc @letsgrowesports'});return}catch(e){if(e&&e.name==='AbortError')return}}
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=f.name;a.click()}finally{b.disabled=false}}
 function lb(){if(S.final)return '';if(!S.show_lb||!S.leaderboard.length)return '';return `<div class="card"><div class="tag" style="margin-bottom:8px">LEADERBOARD</div><table class="lbt">${S.leaderboard.map(r=>`<tr><td class="rk">${r.rank}</td><td><b>${esc(r.name||r.handle)}</b><div class="qs" style="margin:0">@${esc(r.handle)} · ${r.right} right</div></td><td class="p">${r.pts}</td></tr>`).join('')}</table></div>`}
 function doneCard(){const me=S.me,p=me.picks;const show=q=>{const v=p[q.id];return Array.isArray(v)?v.map((x,k)=>(q.kind==='rank'?'#'+(k+1)+' ':'')+x).join(', '):v};
  return `<div class="card done"><h2>You're in!</h2><p>Picks saved for <b style="color:var(--ink)">@${esc(me.handle)}</b>. You can change them until they lock at ${esc(S.lock_text)}.</p>
