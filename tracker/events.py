@@ -631,6 +631,10 @@ def relevant(ev: dict, s: dict) -> bool:
         return True
     if s["vid"] in ev.get("videos", []) + PRESETS.get(ev.get("key", ""), {}).get("videos_extra", []) or _forced_channel(ev, s):
         return True
+    if pr.get("lp"):                             # someone playing the game who names the event is not broadcasting it
+        from tracker import scene as _sc         # ('12 H DE FREE FIRE !! HOY FINAL FFWS', rank push, scrims ...)
+        if _sc._T_NOT.search(s.get("title") or ""):
+            return False
     if platforms.platform_of(s["vid"]) == "tiktok" and not any(m in f"{s.get('title', '')}".lower() for m in
                                                                set(ev["match"]) | {m.lower() for m in pr.get("match", [])}):
         return False                             # a TikTok account (official too) counts only while its title names the event
@@ -1014,10 +1018,40 @@ def scene_matches(ev: dict) -> list:
     return out
 
 
+def relabel_once(ev: dict) -> int:
+    """Stored streams of an automatic tracker get their kind again by kind_of (28 Nov: Liquipedia-listed creators had
+    been stored as official). Once per event (kv ev_relabel:<key>)."""
+    pr = PRESETS.get(ev.get("key", ""), {})
+    flag = f"ev_relabel3:{ev['key']}"
+    if not pr.get("official_strict") or store.kv_get(flag):
+        return 0
+    with store.reading():
+        rows = _db().execute("SELECT vid, channel, channel_id, title, kind FROM ev_streams WHERE event=?", (ev["key"],)).fetchall()
+    ch = [(kind_of(ev, {"vid": r[0], "channel": r[1], "channel_id": r[2], "title": r[3]}), ev["key"], r[0])
+          for r in rows if r[4] in ("official", "watch party", "community")]
+    ch = [c for c, r in zip(ch, rows) if c[0] != r[4]]
+    if ch:
+        with store._lock:
+            c = _db()
+            c.executemany("UPDATE ev_streams SET kind=? WHERE event=? AND vid=?", ch)
+            c.commit()
+        for k in [k for k in _DAYS if k[0] == ev["key"]]:
+            _DAYS.pop(k, None)
+    store.kv_set(flag, {"changed": len(ch), "ts": int(time.time())})
+    print(f"Relabel {ev['key']}: {len(ch)} streams")
+    return len(ch)
+
+
 def kind_of(ev: dict, s: dict) -> str:
+    pr = PRESETS.get(ev.get("key", ""), {})
+    if pr.get("official_strict"):            # automatic trackers: official = the publisher's channels, by name only;
+        orx = pr.get("official_rx")         # Liquipedia-listed creators and everyone else are watch parties
+        if orx and re.search(orx, (s.get("channel") or "").strip(), re.I):
+            return "official"
+        return "watch party"
     if s.get("from_official") or platforms.official(ev, preset(ev.get("key")), s.get("vid", "")):
         return "official"
-    orx = PRESETS.get(ev.get("key", ""), {}).get("official_rx")
+    orx = pr.get("official_rx")
     if orx and re.search(orx, (s.get("channel") or "").strip(), re.I):
         return "official"
     ch = s.get("channel", "").lower()
@@ -1915,6 +1949,11 @@ def run_fast_forever():
                 except Exception as e:
                     print(f"Report zip: {str(e)[:150]}")
                 evs = [ev for ev in events().values() if ev.get("active")]
+                for ev in evs:       # automatic trackers: official / watch party by the publisher-name rule (once)
+                    try:
+                        relabel_once(ev)
+                    except Exception as e:
+                        print(f"Relabel {ev.get('key')}: {str(e)[:150]}")
                 try:                 # the one-time tournament clean-up (waits for Liquipedia to load)
                     from tracker import scene as _sc
                     _sc.fix_tours_once()
