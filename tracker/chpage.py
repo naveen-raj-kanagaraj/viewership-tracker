@@ -132,7 +132,7 @@ __PANEL_CSS__
 </div>
 <script>
 const SID=__SID__,REGION=__REGION__,RP=REGION==='in'?'/india':'/global';
-const NAMES={youtube:'YouTube',kick:'Kick',twitch:'Twitch'},COL={youtube:'#ff4d5e',kick:'#53fc18',twitch:'#a970ff'};
+const NAMES={youtube:'YouTube',kick:'Kick',twitch:'Twitch',tiktok:'TikTok'},COL={youtube:'#ff4d5e',kick:'#53fc18',twitch:'#a970ff',tiktok:'#ff2a6d'};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>{n=+n||0;return n>=1e9?(n/1e9).toFixed(2)+'B':n>=1e7?(n/1e6).toFixed(1)+'M':n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e4?(n/1e3).toFixed(1)+'K':Math.round(n).toLocaleString('en-IN')};
 const full=n=>Math.round(+n||0).toLocaleString(location.pathname.startsWith('/india')?'en-IN':'en-US');   // worldwide pages: 7,079,086; India: 70,79,086

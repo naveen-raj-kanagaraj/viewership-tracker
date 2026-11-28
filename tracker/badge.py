@@ -5,7 +5,7 @@ import html
 
 from tracker import eventpage, ranks
 
-NAMES = {"youtube": "YouTube", "twitch": "Twitch", "kick": "Kick"}
+NAMES = {"youtube": "YouTube", "twitch": "Twitch", "kick": "Kick", "tiktok": "TikTok"}
 MIN_OF = 10            # don't badge a rank among fewer than this many channels ("#1 of 3" means nothing)
 
 

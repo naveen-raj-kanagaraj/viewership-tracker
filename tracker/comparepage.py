@@ -63,7 +63,7 @@ canvas{display:block;width:100%;height:260px;margin-top:10px}
  <div style="display:flex;gap:8px"><button class="shbtn" id="mshare">SHARE</button><button class="shbtn ghost" id="mdl">DOWNLOAD</button><button class="shbtn ghost" id="mclose" style="margin-left:auto">CLOSE</button></div></div></div>
 </div>
 <script>
-const RP=__RPJ__,PAL=['#b6f23a','#a58bff','#4cc9f0','#ff9f5a'],NAMES={youtube:'YouTube',kick:'Kick',twitch:'Twitch'};
+const RP=__RPJ__,PAL=['#b6f23a','#a58bff','#4cc9f0','#ff9f5a'],NAMES={youtube:'YouTube',kick:'Kick',twitch:'Twitch',tiktok:'TikTok'};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>{if(n==null)return '-';n=+n||0;return n>=1e9?(n/1e9).toFixed(2)+'B':n>=1e7?(n/1e6).toFixed(1)+'M':n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e4?(n/1e3).toFixed(1)+'K':Math.round(n).toLocaleString('en-IN')};
 const ini=s=>esc(String(s||'?').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase()||'?');

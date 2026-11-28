@@ -93,7 +93,7 @@ body.emb .mini div{display:flex;gap:6px;white-space:nowrap}body.emb .mini span{c
 <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
 <script>
 const EMBED=__EMBED__;
-const COL={youtube:'#ff4d5e',kick:'#53fc18',twitch:'#a970ff'},RANKC=['#ffd23f','#d9dde8','#ff9f5a'];
+const COL={youtube:'#ff4d5e',kick:'#53fc18',twitch:'#a970ff',tiktok:'#ff2a6d'},RANKC=['#ffd23f','#d9dde8','#ff9f5a'];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>{n=+n||0;return n>=1e9?(n/1e9).toFixed(2)+'B':n>=1e7?(n/1e6).toFixed(1)+'M':n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e4?(n/1e3).toFixed(1)+'K':Math.round(n).toLocaleString('en-IN')};
 const full=n=>Math.round(+n||0).toLocaleString(location.pathname.startsWith('/india')?'en-IN':'en-US');   // worldwide pages: 7,079,086; India: 70,79,086
@@ -181,7 +181,7 @@ function renderSide(){const box=document.getElementById('sel');if(!box)return;if
   <div class="kv"><div>${selCat?S.length:d.channels}<small>LIVE CHANNELS</small></div><div>${tot?(100*(selCat&&cg?cg.viewers:d.viewers)/tot).toFixed(1):0}%<small>OF EVERYONE TRACKED</small></div></div>
   <div class="gm"><a href="#" data-g="" class="${selCat?'':'on'}">All</a>${d.games.map(g=>`<a href="#" data-g="${esc(g.game)}" class="${selCat===g.game?'on':''}">${esc(g.game)}<b>${fmt(g.viewers)}</b></a>`).join('')}</div>
   ${selCat&&cg?`<a class="go" href="${catLink(d,cg)}">${d.country==='IN'?'Open '+esc(selCat)+' in India':'Open '+esc(selCat)+' worldwide'} &rarr;</a>`:''}
-  <div style="margin-top:8px">${S.slice(0,12).map(x=>`<a class="row" href="${esc(x.url)}" target="_blank" rel="noopener">${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}<span class="pf">${({youtube:'YouTube',kick:'Kick',twitch:'Twitch'})[x.platform]||''}</span></div><div class="ds">${esc(x.game)}</div></span><span class="vv">${full(x.viewers)}</span></a>`).join('')||'<div class="empty">Nothing live.</div>'}</div>
+  <div style="margin-top:8px">${S.slice(0,12).map(x=>`<a class="row" href="${esc(x.url)}" target="_blank" rel="noopener">${av(x)}<span style="min-width:0"><div class="nm">${esc(x.name)}<span class="pf">${({youtube:'YouTube',kick:'Kick',twitch:'Twitch',tiktok:'TikTok'})[x.platform]||''}</span></div><div class="ds">${esc(x.game)}</div></span><span class="vv">${full(x.viewers)}</span></a>`).join('')||'<div class="empty">Nothing live.</div>'}</div>
   ${d.country==='IN'&&!selCat?'<a class="go" href="/india">Full India dashboard &rarr;</a>':''}`;
  box.querySelectorAll('.gm a').forEach(a=>a.onclick=e=>{e.preventDefault();selCat=a.dataset.g;renderSide()})}
 function renderRank(){const el=document.getElementById('rank');if(!el)return;const C=(G?G.countries:[]).slice(0,30);
