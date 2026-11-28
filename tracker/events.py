@@ -231,7 +231,7 @@ PRESETS = {
         # official PUBG MOBILE TikTok accounts that carried the Gauntlet (checked 28 Nov: their last lives were PMGC
         # Gauntlet Day 2); counted only while the title names PMGC. More: live list "tiktok".
         "tiktok": {"official": ["pubgmobile", "pubgmobileesports", "pubgmobilethailand", "pubgmobile.latam",
-                                "pubgmobile.esports.id"]},
+                                "pubgmobile.esports.id", "pubgmobile.vng", "pubgmobile.esports.my", "pubgmobile_br"]},
         "official_title": True,                 # official channels count only streams whose title names the event
         "verify": True,                         # a PMGC title is not enough: wp_check (gameplay, scrims, other games out)
         # worldwide: the same search from each region's YouTube, in its own words (nobar = watch party in Indonesian,
