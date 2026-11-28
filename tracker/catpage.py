@@ -49,7 +49,7 @@ canvas.mob{display:none}@media(max-width:700px){canvas.mob{display:block;margin-
 </style></head><body>
 <div class="top"><div class="in"><a class="brand" href="__HOME__">__BRAND__</a><span class="beta">BETA</span>
 <span class="rg"><a href="/global/categories" class="__GON__">GLOBAL</a><a href="/india/categories" class="__ION__">INDIA</a></span>
-<span class="nav"><a href="__HOME__">DASHBOARD</a><a href="__RP__/rankings">RANKINGS</a><a href="__RP__/moments">MOMENTS</a><a href="/map">MAP</a></span></div></div>
+<span class="nav"><a href="__HOME__">DASHBOARD</a><a href="__RP__/rankings">RANKINGS</a><a href="/map">MAP</a></span></div></div>
 <div class="wrap">
 <div class="crumb"><a href="__HOME__">__WHERECAP__</a> / CATEGORIES</div>
 <h1>Top categories <em>__WHERE__</em></h1>
