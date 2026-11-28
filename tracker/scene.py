@@ -903,7 +903,7 @@ _T_GENERIC = re.compile(r"\b(championship|grand finals?|finals|playoffs|qualifie
 _T_MATCH = re.compile(r"\b(vs\.?|day \d+|week \d+|match \d+|stage|group [a-z0-9]|round|semi ?finals?|quarter ?finals?|"
                       r"bracket|map \d)\b", re.I)
 _T_NOT = re.compile(r"\bscrims?\b|\branked\b|\bcustom room|\bpublic match|rank\s*push|\bgameplay\b|\brush\b|conqueror|"
-                    r"road\s*to|\b\d+\s*h(rs?|oras?|ours?)?\s+(de|of)\b|marathon|subathon|\btdm\b", re.I)
+                    r"road\s*to|\b\d+\s*h(rs?|oras?|ours?)?\s+(de|of)\b|marathon|subathon|\btdm\b|tier\s*list|podcast", re.I)
 
 
 TOUR_GAME = {"VCT": "Valorant", "VCT Challengers": "Valorant", "VCT Game Changers": "Valorant",
@@ -3460,29 +3460,103 @@ def tour_show(name: str, region: str, game: str = None) -> bool:
 
 
 def _tracked_events(region: str) -> list:
-    """This site's own tournament trackers (/e/<key>/) that are running: CEGC, PIC ... with their numbers (30 s)."""
-    if region != "in":
-        return []
-    if time.time() - _TRK["ts"] < 30:
-        return _TRK["v"]
-    out = []
+    """This site's own tournament trackers (/e/<key>/) that are running: CEGC, PIC, FFWS ... with their numbers (30 s).
+    India pages list India's games only. 'world': a worldwide tracker (its totals are not India's)."""
+    if time.time() - _TRK["ts"] >= 30:
+        out = []
+        try:
+            for key, pr in list(events.PRESETS.items()):
+                if pr.get("ended") or not events.get(key):
+                    continue
+                with store.reading():
+                    c = events._db()
+                    pk = c.execute("SELECT ts, total, official, watch FROM ev_ticks WHERE event=? ORDER BY total DESC LIMIT 1", (key,)).fetchone()
+                    nw = c.execute("SELECT ts, total FROM ev_ticks WHERE event=? ORDER BY ts DESC LIMIT 1", (key,)).fetchone()
+                live = bool(nw and time.time() - nw[0] < 300 and nw[1])
+                out.append({"name": pr.get("name") or key.upper(), "game": pr.get("game") or "", "url": f"/e/{key}/",
+                            "key": key, "world": bool(pr.get("scene_world")),
+                            "tracked": True, "viewers": nw[1] if live else 0, "live": live, "lp": bool(pr.get("lp")),
+                            "tour": pr.get("tour"), "start": pr.get("start"), "end": pr.get("end"),
+                            "peak": pk[1] if pk else 0, "peak_at": pk[0] if pk else None, "art": tour_art(pr.get("game") or "")})
+        except Exception as e:
+            print(f"Tracked events: {str(e)[:100]}")
+        _TRK.update(ts=time.time(), v=out)
+    if region == "in":
+        return [e for e in _TRK["v"] if (e.get("game") or "") in INDIA_GAMES | {""}]
+    return list(_TRK["v"])
+
+
+def _trk_history(key: str, d0: float):
+    """A tracker's peak by day {date: peak} and today's line [(ts, total)], from its page's copy in memory (no database
+    read; empty until the tracker page has been built once)."""
     try:
-        for key, pr in list(events.PRESETS.items()):
-            if pr.get("ended") or not events.get(key) or (pr.get("game") or "") not in INDIA_GAMES | {""}:
-                continue
-            with store.reading():
-                c = events._db()
-                pk = c.execute("SELECT ts, total, official, watch FROM ev_ticks WHERE event=? ORDER BY total DESC LIMIT 1", (key,)).fetchone()
-                nw = c.execute("SELECT ts, total FROM ev_ticks WHERE event=? ORDER BY ts DESC LIMIT 1", (key,)).fetchone()
-            live = bool(nw and time.time() - nw[0] < 300 and nw[1])
-            out.append({"name": pr.get("name") or key.upper(), "game": pr.get("game") or "", "url": f"/e/{key}/",
-                        "tracked": True, "viewers": nw[1] if live else 0, "live": live, "lp": bool(pr.get("lp")),
-                        "tour": pr.get("tour"), "start": pr.get("start"), "end": pr.get("end"),
-                        "peak": pk[1] if pk else 0, "peak_at": pk[0] if pk else None, "art": tour_art(pr.get("game") or "")})
-    except Exception as e:
-        print(f"Tracked events: {str(e)[:100]}")
-    _TRK.update(ts=time.time(), v=out)
-    return out
+        from tracker import eventpage
+        hit = eventpage._cache.get(key) if key else None
+    except Exception:
+        hit = None
+    if not hit:
+        return {}, []
+    d = hit[1]
+    days = {x["date"]: x["peak"] for x in d.get("days") or [] if x.get("date") and x.get("peak")}
+    rec = d.get("series_recent") or []
+    r0 = rec[0][0] if rec else float("inf")
+    ser = [(t[0], t[1]) for t in d.get("series_all") or [] if d0 <= t[0] < r0] + [(t[0], t[1]) for t in rec if t[0] >= d0]
+    last = ser[-1][0] if ser else 0
+    ser += [(t[0], t[1]) for t in list(events._MEMT.get(key) or []) if t[0] > last and t[0] >= d0]   # the last seconds
+    return days, ser
+
+
+def _tour_tracker(name: str, region: str):
+    """This site's tracker of a tournament (its Liquipedia name first, then by name: 'PMGC' is 'PMGC 2026'), or None."""
+    trs, n = _tracked_events(region), name.lower()
+    return next((e for e in trs if e.get("tour") == name), None) or \
+        next((e for e in trs if e["name"].lower() in n or n in e["name"].lower()), None)
+
+
+def _trk_now(key: str, region: str):
+    """A tracker's streams live now (its 2-second counts), one row per channel shaped like the scan's; on India pages
+    only its Indian ones (the tracker page's own INDIA filter) when it is a worldwide tracker. None when it is not
+    counting (no official broadcast on)."""
+    mr = events._MEMROWS.get(key)
+    if not mr or time.time() - mr[0] > 20:
+        return None
+    world = bool(events.PRESETS.get(key, {}).get("scene_world"))
+    by = {}
+    for r in mr[1]:
+        v = int(r.get("viewers") or 0)
+        if v <= 0:
+            continue
+        vid, cid = r["vid"], r.get("channel_id") or ""
+        if region == "in" and world and not events.stream_india(vid, cid, r.get("title", ""), r.get("channel", ""), key):
+            continue
+        sid = events.stream_sid(vid, cid) or vid
+        if sid in by:
+            by[sid]["viewers"] += v                 # the same channel live twice (two streams): one row, both counted
+            continue
+        plat = platforms.platform_of(vid)
+        by[sid] = {"sid": sid, "name": r.get("channel") or sid, "platform": plat, "url": events.yt_link(vid),
+                   "logo": events.avatar(cid) if plat == "youtube" else platforms.logo(vid), "title": r.get("title") or "",
+                   "viewers": v, "language": "", "country": ""}
+    return by
+
+
+def _trk_merge(e: dict, region: str, scan: list):
+    """One tournament's live streams for a page, the site's tracker of it and the scan together (28 Nov audit: the FFWS
+    tournament page listed 63 streams, its tracker 145). Where the tracker covers the page's region (a worldwide
+    tracker everywhere, its Indian streams on India pages; an India tracker on India pages) its streams are the list,
+    so both pages show the same streams and numbers; an India tracker on a worldwide page adds its counts to the scan's
+    list. Returns (streams, use the tracker's peak) or (None, ...) when the tracker is not counting."""
+    world = bool(e.get("world"))
+    tr = _trk_now(e["key"], region) if e.get("key") else None
+    peak_ok = not (region == "in" and world)          # a worldwide tracker's peak is not India's
+    if tr is None:
+        return None, peak_ok
+    have = {x["sid"]: x for x in scan}
+    out = {} if (world or region == "in") else {sid: dict(x) for sid, x in have.items()}
+    for sid, t in tr.items():
+        s = have.get(sid)
+        out[sid] = {**s, "viewers": t["viewers"]} if s else t       # the scan's name, logo, language; the tracker's count
+    return sorted(out.values(), key=lambda x: -x["viewers"]), peak_ok
 
 
 def tour_tag(n: str) -> str:
@@ -3533,15 +3607,26 @@ def tours_overview(region: str = "global") -> dict:
     for e in trk:                        # this site's own tracker is the same event: one row, best of both numbers
         same = [x for x in rows if x["name"] in (e["name"], e.get("tour")) or
                 (not e.get("lp") and tour_tag(x["name"]) == tour_tag(e["name"]))]
+        scan = [s for x in same for s in (live.get(x["name"]) or {}).get("streams") or []]
+        merged, peak_ok = _trk_merge(e, region, scan)     # the same streams and numbers as the tournament page
+        if not peak_ok:                  # a worldwide tracker on India pages: India's own numbers, not its totals
+            e["peak"], e["peak_at"] = 0, None
+            if merged is None:
+                e["viewers"], e["live"] = 0, False
+        if merged is not None:
+            e["viewers"], e["live"], e["streams"] = sum(x["viewers"] for x in merged), True, len(merged)
+            e["peak"] = max(e.get("peak") or 0, e["viewers"])
         for x in same:
             rows.remove(x)
             e["game"] = e.get("game") or x["game"]
             e["start"], e["end"] = e.get("start") or x.get("start"), e.get("end") or x.get("end")
-            e["peak"] = max(e.get("peak") or 0, x["peak"])
+            if x["peak"] > (e.get("peak") or 0):
+                e["peak"], e["peak_at"] = x["peak"], x.get("peak_at") or e.get("peak_at")
             e["hw"] = max(e.get("hw") or 0, x["hw"])
-            if x["live"] and x["viewers"] > (e["viewers"] if e["live"] else 0):
-                e["viewers"], e["live"] = x["viewers"], True
-            e["streams"] = max(e.get("streams") or 0, x["streams"])
+            if merged is None:
+                if x["live"] and x["viewers"] > (e["viewers"] if e["live"] else 0):
+                    e["viewers"], e["live"] = x["viewers"], True
+                e["streams"] = max(e.get("streams") or 0, x["streams"])
             e["slug"] = x["slug"]
             if _lp_named(x["name"]) and len(x["name"]) > len(e["name"]):
                 e["name"] = x["name"]                 # 'CEGC' tracker shows as its edition, 'CEGC 2026' (26 Nov)
@@ -3612,16 +3697,29 @@ def tour_data(name: str, region: str = "global") -> dict:
         langs[lg] = langs.get(lg, 0) + (r[2] or 0)
     info = tournament_info(name) or {}
     g = info.get("game") or (live[0]["game"] if live else "")
-    ev = next((e for e in _tracked_events("in") if e["name"].lower() in name.lower() or name.lower() in e["name"].lower()), None)
+    ev = _tour_tracker(name, region)
     trk = {"url": ev["url"], "name": ev["name"]} if ev else None
     if ev:
         # this site's own tracker of the event (official channels + every watch party, curated lists) knows it best:
-        # its game (CEGC is BGMI, not Liquipedia's 'PUBG Mobile') and its peak (23 Nov: 48,736 here vs 1.17 lakh there)
+        # its game (CEGC is BGMI, not Liquipedia's 'PUBG Mobile'), its streams live now and its peak (23 Nov: 48,736
+        # here vs 1.17 lakh there; 28 Nov audit: FFWS 63 streams here, 145 on the tracker)
         g = ev.get("game") or g
-        if (ev.get("peak") or 0) > (pk or 0):
+        merged, peak_ok = _trk_merge(ev, region, live)
+        if merged is not None:
+            live = merged
+            nowv = sum(x["viewers"] for x in live)
+            pk = max(pk or 0, nowv)
+        if peak_ok and (ev.get("peak") or 0) > (pk or 0):
             pk, tot = ev["peak"], (ev["peak"], ev.get("peak_at")) + tuple(tot[2:] if tot else (None, None, None))
-        if (ev.get("viewers") or 0) > nowv:      # watching now too: the tracker counts every stream of it, the scan only
-            nowv = ev["viewers"]                   # the ones it found (28 Nov audit: FFWS 154K on the tracker, 14K here)
+        if peak_ok:                              # peak by day and today's line as on the tracker's page
+            tdays, tser = _trk_history(ev.get("key"), d0)
+            if tdays:
+                dd = {d: v for d, v, _ in days}
+                for d, v in tdays.items():
+                    dd[d] = max(dd.get(d, 0), v)
+                days = [(d, v, 0) for d, v in sorted(dd.items())]
+            if tser and (region == "in") != bool(ev.get("world")):    # the tracker covers this page's region
+                today, step = tser, max(1, len(tser) // 600)
     return {"name": name, "slug": slug(name), "region": region, "game": g, "art": cat_art(g) if g else "",
             "liquipedia": info.get("url"), "start": info.get("start"), "end": info.get("end"), "status": info.get("status"),
             "now": nowv, "live_count": len(live), "peak": pk, "peak_at": tot[1] if tot else None,
@@ -3652,6 +3750,11 @@ def _tour_list(tours: dict, region: str) -> list:
         if not tour_show(t["name"], region, g):
             continue
         st = sorted(t["streams"], key=lambda s_: -s_["viewers"])
+        e = _tour_tracker(t["name"], region)
+        merged = _trk_merge(e, region, st)[0] if e else None
+        if merged is not None:                   # the tracker's streams and count, as on the tournament page
+            st = merged
+            t = {**t, "viewers": sum(x["viewers"] for x in st)}
         out.append({"name": t["name"], "tslug": slug(t["name"]), "named": named_tour(t["name"]),
                     "game": g, "slug": slug(g), "art": tour_art(g), "viewers": t["viewers"],
                     "streams": len(st), "top": st[:6], "peak": max((pk.get(t["name"]) or (0,))[0], t["viewers"])})

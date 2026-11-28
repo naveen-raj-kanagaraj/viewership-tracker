@@ -8,7 +8,7 @@ from tracker import eventpage, scene
 
 PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>Top categories __WHERE__ | __BRAND__ (beta)</title>
-<meta name="description" content="Every game and category on YouTube, Twitch and Kick by viewers right now: trending, 24-hour change, 30-day peak and hours watched.">
+<meta name="description" content="Every game and category on YouTube, Twitch, Kick and TikTok by viewers right now: trending, 24-hour change, 30-day peak and hours watched.">
 <meta name="theme-color" content="#07051a">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">

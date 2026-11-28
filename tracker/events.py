@@ -615,6 +615,20 @@ def taken_off(key: str, s: dict) -> bool:
     return bool(ex) and (s.get("vid") in ex or (s.get("channel_id") or "-") in ex)
 
 
+def _tour_named(ev: dict, s: dict) -> bool:
+    """A tracker made from Liquipedia: does the site's own tournament matcher put this title on its tournament? (28 Nov
+    audit: TikTok 'CHUNG KẾT THẾ GIỚI FFWS GF 2026', 'FFWS | GLOBAL FINALS | FINAL' were on the FFWS tournament page,
+    about 47K watching, but not on its tracker, whose match words are longer.)"""
+    tour = opt(ev, "tour")
+    if not tour:
+        return False
+    try:
+        from tracker import scene
+        return scene.tournament(s.get("title", ""), s.get("category") or opt(ev, "game") or "") == tour
+    except Exception:
+        return False
+
+
 def relevant(ev: dict, s: dict) -> bool:
     pr = PRESETS.get(ev.get("key", ""), {})
     if pr.get("kick_only") and not str(s.get("vid", "")).startswith("kick:"):
@@ -636,7 +650,8 @@ def relevant(ev: dict, s: dict) -> bool:
         if _sc._T_NOT.search(s.get("title") or ""):
             return False
     if platforms.platform_of(s["vid"]) == "tiktok" and not any(m in f"{s.get('title', '')}".lower() for m in
-                                                               set(ev["match"]) | {m.lower() for m in pr.get("match", [])}):
+                                                               set(ev["match"]) | {m.lower() for m in pr.get("match", [])}) \
+            and not _tour_named(ev, s):
         return False                             # a TikTok account (official too) counts only while its title names the event
     if platforms.official(ev, preset(ev.get("key")), s["vid"]) or \
             (platforms.is_other(s["vid"]) and opt(ev, "any_title")):
