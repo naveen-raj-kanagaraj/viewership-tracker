@@ -43,8 +43,50 @@ def probe() -> dict:
                          "type": (r.headers.get("content-type") or "")[:40], "head": body[:160].replace("\n", " ")}
         except Exception as e:
             out[name] = {"error": str(e)[:160]}
+    out["tiktok_handles"] = tiktok_handles()
     store.kv_set("plat_probe", {"ts": int(time.time()), "checks": out})
     return out
+
+
+TT_CANDIDATES = ["pubgmobile", "pubgmobileesports", "pubgmobile.esports", "pubgmobile_esports", "pubgm.esports",
+                 "pubgmobile.id", "pubgmobileid", "pubgmobile_id", "pubgmobileesports.id", "pubgmobile.vn", "pubgmobilevn",
+                 "pubgmobilevietnam", "pubgmobile.th", "pubgmobileth", "pubgmobilethailand", "pubgmobile.mena",
+                 "pubgmobilemena", "pubgmobile.arabia", "pubgmobilearabia", "pubgmobile.tr", "pubgmobiletr",
+                 "pubgmobileturkiye", "pubgmobile.pk", "pubgmobilepk", "pubgmobilepakistan", "pubgmobile.my",
+                 "pubgmobilemy", "pubgmobile.ph", "pubgmobileph", "pubgmobile.br", "pubgmobilebr", "pubgmobile.latam",
+                 "pubgmobilelatam", "pubgmobile.ru", "pubgmobileru", "pubgmobile.jp", "pubgmobile.kr", "pmgc", "krafton",
+                 "kraftonesports", "pubgmobile.esports.id", "pubgmobileesports.tr", "pubgmobile.esports.tr"]
+
+
+def _keys(o, pre="", out=None, depth=0):
+    out = [] if out is None else out
+    if isinstance(o, dict) and depth < 4:
+        for k, v in o.items():
+            out.append(pre + k + (":" + str(v)[:40] if not isinstance(v, (dict, list)) else ""))
+            _keys(v, pre + k + ".", out, depth + 1)
+    return out
+
+
+def tiktok_handles() -> dict:
+    """Which candidate handles exist on TikTok, are live, and how many watch (the room JSON's shape kept once)."""
+    res, shape = {}, None
+    for h in TT_CANDIDATES:
+        try:
+            r = requests.get("https://www.tiktok.com/api-live/user/room/", headers=H, timeout=10,
+                             params={"aid": 1988, "app_language": "en", "app_name": "tiktok_web", "uniqueId": h, "sourceType": 54})
+            j = r.json()
+            d = j.get("data") or {}
+            u, lr = d.get("user") or {}, d.get("liveRoom") or {}
+            if shape is None and u:
+                shape = [k for k in _keys(d) if not k.startswith(("user.avatar", "liveRoom.coverUrl", "liveRoom.squareCoverImg"))][:120]
+            res[h] = {"code": j.get("statusCode"), "msg": (j.get("message") or "")[:40], "exists": bool(u.get("uniqueId")),
+                      "name": u.get("nickname") or "", "room": u.get("roomId") or "", "ustatus": u.get("status"),
+                      "lstatus": lr.get("status"), "viewers": (lr.get("liveRoomStats") or {}).get("userCount"),
+                      "title": (lr.get("title") or "")[:60]}
+        except Exception as e:
+            res[h] = {"error": str(e)[:80]}
+        time.sleep(0.4)
+    return {"handles": res, "shape": shape}
 
 
 def loop():
