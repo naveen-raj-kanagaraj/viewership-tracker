@@ -73,7 +73,7 @@ const full=n=>Math.round(+n||0).toLocaleString(location.pathname.startsWith('/in
 const ist=(t,o)=>new Date(t*1000).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',...o});
 const CZ=location.pathname.startsWith('/india')?{tz:'Asia/Kolkata',lb:'IST',loc:'en-IN'}:{tz:'America/Chicago',lb:'CT',loc:'en-US'};   // share cards: Central Time on worldwide pages, IST on India
 const ctm=(ts,o)=>new Date(ts*1000).toLocaleString(CZ.loc,Object.assign({timeZone:CZ.tz},o));
-const PF={youtube:'YouTube',twitch:'Twitch',kick:'Kick'};
+const PF={youtube:'YouTube',twitch:'Twitch',kick:'Kick',tiktok:'TikTok'};
 const LN=new Intl.DisplayNames(['en'],{type:'language'});const lang=l=>{if(!l||l==='unknown')return 'Unknown';try{return LN.of(l.split('-')[0])}catch(e){return l}};
 const dd=s=>s?new Date(s+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'}):'';
 const av=x=>x.logo?`<img src="${esc(x.logo)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`:'<span class="ph"></span>';

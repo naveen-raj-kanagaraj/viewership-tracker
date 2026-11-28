@@ -228,6 +228,10 @@ PRESETS = {
                               "leovent18", "regaltos", "dynamo", "8bitthug", "lolzzzgaming"],
                  "category": ["PUBG Mobile", "Battlegrounds Mobile India"]},   # + every stream in these categories
         "twitch": {"category": ["PUBG MOBILE"]},  # titled with the event (Twitch: top 100 by viewers)
+        # official PUBG MOBILE TikTok accounts that carried the Gauntlet (checked 28 Nov: their last lives were PMGC
+        # Gauntlet Day 2); counted only while the title names PMGC. More: live list "tiktok".
+        "tiktok": {"official": ["pubgmobile", "pubgmobileesports", "pubgmobilethailand", "pubgmobile.latam",
+                                "pubgmobile.esports.id"]},
         "official_title": True,                 # official channels count only streams whose title names the event
         "verify": True,                         # a PMGC title is not enough: wp_check (gameplay, scrims, other games out)
         # worldwide: the same search from each region's YouTube, in its own words (nobar = watch party in Indonesian,
@@ -268,10 +272,10 @@ def preset(key: str) -> dict:
     """The event's preset, with the Kick / Twitch channels of its live list (tracker/live/<key>.json) added."""
     p = PRESETS.get(key or "", {})
     ll = live_list(key)
-    if not (ll.get("kick") or ll.get("twitch")):
+    if not (ll.get("kick") or ll.get("twitch") or ll.get("tiktok")):
         return p
     out = dict(p)
-    for plat in ("kick", "twitch"):
+    for plat in ("kick", "twitch", "tiktok"):
         if ll.get(plat):
             c = dict(p.get(plat) or {})
             c["channels"] = list(dict.fromkeys(list(c.get("channels") or []) + [x.lower().lstrip("@") for x in ll[plat]]))
@@ -308,7 +312,7 @@ def live_list(key: str) -> dict:
         import json as _json
         d = _json.loads(f.read_text())
         d = {k: [str(x).strip() for x in (d.get(k) or []) if str(x).strip()]
-             for k in ("youtube", "kick", "twitch", "exclude", "count", "india", "not_india", "import")}
+             for k in ("youtube", "kick", "twitch", "tiktok", "exclude", "count", "india", "not_india", "import")}
         print(f"Live list {key}: " + ", ".join(f"{k} {len(v)}" for k, v in d.items()))
     except Exception as e:
         print(f"Live list {key}: {str(e)[:120]}")
@@ -627,6 +631,9 @@ def relevant(ev: dict, s: dict) -> bool:
         return True
     if s["vid"] in ev.get("videos", []) + PRESETS.get(ev.get("key", ""), {}).get("videos_extra", []) or _forced_channel(ev, s):
         return True
+    if platforms.platform_of(s["vid"]) == "tiktok" and not any(m in f"{s.get('title', '')}".lower() for m in
+                                                               set(ev["match"]) | {m.lower() for m in pr.get("match", [])}):
+        return False                             # a TikTok account (official too) counts only while its title names the event
     if platforms.official(ev, preset(ev.get("key")), s["vid"]) or \
             (platforms.is_other(s["vid"]) and opt(ev, "any_title")):
         return True

@@ -698,7 +698,7 @@ td.t{white-space:normal;min-width:0}td.t .ch{overflow-wrap:anywhere}.lg{width:22
 @keyframes lvb{50%{box-shadow:0 0 2px rgba(255,77,94,.2);opacity:.65}}
 .tag{font:11px "Barlow Condensed",sans-serif;padding:1px 6px;margin-left:6px;border:1px solid currentColor}
 .pf{font:10px "Barlow Condensed",sans-serif;padding:0 5px;margin-left:6px;border:1px solid currentColor;vertical-align:1px}
-.pf.kick{color:#53fc18}.pf.twitch{color:#a970ff}
+.pf.kick{color:#53fc18}.pf.twitch{color:#a970ff}.pf.tiktok{color:#ff2a6d}
 .tag.official{color:var(--orange)}.tag.watch{color:var(--cyan)}.tag.community{color:#a78bfa}
 .mini{height:3px;background:linear-gradient(90deg,var(--purple),var(--lime));margin-top:5px;transition:width .6s}
 tr.fu td.num{animation:fu 1.2s}tr.fd td.num{animation:fd 1.2s}@keyframes fu{0%{color:var(--up)}}@keyframes fd{0%{color:var(--down)}}
@@ -940,7 +940,7 @@ function wpRows(){const sb=document.getElementById('shareBoard');if(sb)sb.onclic
  if(wt)wt.innerHTML=WAIT.length?`<div class="lbl" style="color:var(--muted)">// not started yet (${WAIT.length})</div><div class="wpw">${WAIT.map(w=>`<a class="wpc" href="${esc(w.url||'#')}" target="_blank" rel="noopener">${w.logo?`<img src="${esc(w.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}<span>${esc(w.name)}</span></a>`).join('')}</div>`:'';
  document.getElementById('wprows').innerHTML=RR.map(w=>{const has=w.status!=='upcoming';if(has)rank++;
   // same streamer on two platforms: the number is the bigger one; under it, small: where it was / the other one
-  const PN={youtube:'YT',kick:'KICK',twitch:'TWITCH'},alt=(w.alts||[]).length?`<span class="muted alt">${PN[w.platform]||''}${(w.alts||[]).map(([p,v])=>` / ${PN[p]||p.toUpperCase()} ${fmt(v)}`).join('')}</span>`:'';
+  const PN={youtube:'YT',kick:'KICK',twitch:'TWITCH',tiktok:'TIKTOK'},alt=(w.alts||[]).length?`<span class="muted alt">${PN[w.platform]||''}${(w.alts||[]).map(([p,v])=>` / ${PN[p]||p.toUpperCase()} ${fmt(v)}`).join('')}</span>`:'';
   const st=w.status==='live'?`<span class="lv"><i></i>LIVE</span> <b>${full(w.viewers)}</b>${alt}`:w.status==='ended'?`<span class="muted">PEAK</span> <b>${full(w.peak||0)}</b>${alt}`:'<span class="muted">YET TO START</span>';
   const logo=w.logo?`<img class="lg" src="${esc(w.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:`<span class="lg" style="display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">${esc(w.name.slice(0,2).toUpperCase())}</span>`;
   const nm=w.url?`<a class="ch" href="${esc(w.url)}" target="_blank" rel="noopener" style="color:var(--ink)">${esc(w.name)}</a>`:`<span class="ch">${esc(w.name)}</span>`;
@@ -950,7 +950,7 @@ function wpRows(){const sb=document.getElementById('shareBoard');if(sb)sb.onclic
  document.querySelectorAll('[data-share]').forEach(b=>b.onclick=()=>openShare('streamer',b.dataset.share));
 }
 function platLeg(list,peaks){const m={};(list||[]).forEach(s=>{const p=s.platform||'youtube';m[p]=(m[p]||0)+s.viewers});
- const k=Object.keys(m);if(k.length<2)return '';const t=k.reduce((a,p)=>a+m[p],0)||1,N={youtube:'YOUTUBE',kick:'KICK',twitch:'TWITCH'};
+ const k=Object.keys(m);if(k.length<2)return '';const t=k.reduce((a,p)=>a+m[p],0)||1,N={youtube:'YOUTUBE',kick:'KICK',twitch:'TWITCH',tiktok:'TIKTOK'};
  return '<span class="muted">'+(peaks?'// PEAK BY PLATFORM':'//')+'</span>'+k.sort((a,b)=>m[b]-m[a]).map(p=>`<span>${N[p]||esc(p.toUpperCase())} <b>${fmt(m[p])}</b>${peaks?'':` (${(100*m[p]/t).toFixed(0)}%)`}</span>`).join('')}
 function rows(){
  const off=isOff(),src=off?D.last_broadcast.streams:(D.live||[]);
@@ -1161,7 +1161,7 @@ function card(type,vid,avatar){if(type==='history')return histCard();
   T(lv?'// WATCH PARTY LEADERBOARD, LIVE':'// WATCH PARTY LEADERBOARD',80,205,M(30),'#ff4d5e');
   T((lv?'concurrent viewers right now':'peak concurrent viewers')+RG,80,248,M(24),'#8d8ca3');
   if(!R.length){T('WATCH PARTIES GO LIVE WITH THE BROADCAST',80,330,B(40),'#eeeef5');R0.slice(0,10).forEach((r,j)=>T(r.name.toUpperCase(),80+(j%2)*470,420+Math.floor(j/2)*60,B(30),'#8d8ca3'))}
-  const val=r=>lv?r.viewers:r.peak,PN={youtube:'YOUTUBE',kick:'KICK',twitch:'TWITCH'},PS={youtube:'YT',kick:'KICK',twitch:'TWITCH'};
+  const val=r=>lv?r.viewers:r.peak,PN={youtube:'YOUTUBE',kick:'KICK',twitch:'TWITCH',tiktok:'TIKTOK'},PS={youtube:'YT',kick:'KICK',twitch:'TWITCH',tiktok:'TIKTOK'};
   const sub=r=>(r.alts||[]).length?(PS[r.platform]||'')+r.alts.map(([p,v2])=>' / '+(PS[p]||p.toUpperCase())+' '+fmt(v2)).join(''):(PN[r.platform]||'YOUTUBE')+(lv?' · LIVE':'');
   const fitT=(t,w,px,f)=>{t=String(t||'');let n=px;x.font=f(n);while(x.measureText(t).width>w&&n>px*.6){n--;x.font=f(n)}while(x.measureText(t).width>w&&t.length>2)t=t.slice(0,-1);return [t,n]};
   const MED=['#f5c451','#d6dae3','#e0915a'];x.textBaseline='alphabetic';
@@ -1197,7 +1197,7 @@ function card(type,vid,avatar){if(type==='history')return histCard();
   T(me.channel.toUpperCase(),x0,262,B(fsz),'#ffffff');
   T('PEAK CONCURRENT VIEWERS',x0,262+fsz+14,M(24),'#8d8ca3');
   x.shadowColor=champ?'rgba(245,196,81,.45)':'rgba(182,242,58,.35)';x.shadowBlur=30;T(full(me.peak),x0-4,262+fsz+40,N(120),acc);x.shadowBlur=0;
-  const PN={youtube:'YT',kick:'KICK',twitch:'TWITCH'};
+  const PN={youtube:'YT',kick:'KICK',twitch:'TWITCH',tiktok:'TIKTOK'};
   if((me.alts||[]).length)T((PN[me.platform]||'')+me.alts.map(([p,v2])=>' / '+(PN[p]||p.toUpperCase())+' '+fmt(v2)).join(''),x0,262+fsz+160,M(26),'#8d8ca3');
   const bw=(W-160-40)/3;
   box(80,560,bw,160,'PEAK',fmt(me.peak),me.at?me.at+' IST':'',acc);

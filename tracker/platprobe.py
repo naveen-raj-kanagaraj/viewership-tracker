@@ -67,10 +67,23 @@ def _keys(o, pre="", out=None, depth=0):
     return out
 
 
+CAND_FILE = __import__("pathlib").Path(__file__).resolve().parent / "live" / "tiktok_check.json"
+
+
+def _candidates() -> list:
+    """Handles to check: tracker/live/tiktok_check.json {"check": [...]} (changes apply within a minute, no restart)."""
+    try:
+        import json as _j
+        extra = [str(x).strip().lstrip("@").lower() for x in (_j.loads(CAND_FILE.read_text()).get("check") or []) if str(x).strip()]
+    except Exception:
+        extra = []
+    return list(dict.fromkeys(extra or TT_CANDIDATES))
+
+
 def tiktok_handles() -> dict:
     """Which candidate handles exist on TikTok, are live, and how many watch (the room JSON's shape kept once)."""
     res, shape = {}, None
-    for h in TT_CANDIDATES:
+    for h in _candidates():
         try:
             r = requests.get("https://www.tiktok.com/api-live/user/room/", headers=H, timeout=10,
                              params={"aid": 1988, "app_language": "en", "app_name": "tiktok_web", "uniqueId": h, "sourceType": 54})
@@ -79,6 +92,9 @@ def tiktok_handles() -> dict:
             u, lr = d.get("user") or {}, d.get("liveRoom") or {}
             if shape is None and u:
                 shape = [k for k in _keys(d) if not k.startswith(("user.avatar", "liveRoom.coverUrl", "liveRoom.squareCoverImg"))][:120]
+            if not u.get("uniqueId"):
+                res[h] = "not found"
+                continue
             res[h] = {"code": j.get("statusCode"), "msg": (j.get("message") or "")[:40], "exists": bool(u.get("uniqueId")),
                       "name": u.get("nickname") or "", "room": u.get("roomId") or "", "ustatus": u.get("status"),
                       "lstatus": lr.get("status"), "viewers": (lr.get("liveRoomStats") or {}).get("userCount"),
@@ -91,12 +107,16 @@ def tiktok_handles() -> dict:
 
 def loop():
     time.sleep(30)
+    last, mt = 0, None
     while True:
         try:
-            probe()
+            m = CAND_FILE.stat().st_mtime if CAND_FILE.exists() else 0
+            if time.time() - last > 1800 or m != mt:
+                last, mt = time.time(), m
+                probe()
         except Exception as e:
             print(f"Platform probe: {str(e)[:150]}")
-        time.sleep(1800)
+        time.sleep(60)
 
 
 def start():

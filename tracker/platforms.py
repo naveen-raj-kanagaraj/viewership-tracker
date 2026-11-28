@@ -30,10 +30,14 @@ import time
 
 import requests
 
-NAMES = {"youtube": "YouTube", "kick": "Kick", "twitch": "Twitch"}
+NAMES = {"youtube": "YouTube", "kick": "Kick", "twitch": "Twitch", "tiktok": "TikTok"}
+OTHER = ("kick", "twitch", "tiktok")
 # Re-read Kick/Twitch counts this often (one batched request per platform covers every stream). The platforms
 # themselves refresh a stream's viewer count roughly every 30-60s, so most 2s readings repeat the last value.
 COUNT_TTL = float(os.getenv("PLATFORM_COUNT_SEC", "2"))
+# TikTok: one public room request per account (no batch call), so every 10 seconds is plenty (TikTok refreshes its
+# live viewer count about that often).
+TTL = {"tiktok": float(os.getenv("TIKTOK_COUNT_SEC", "10"))}
 _http = requests.Session()
 _UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) "
        "Version/17.0 Safari/605.1.15")
@@ -48,7 +52,7 @@ _cats = {}                # (platform, name) -> category id
 def split(vid: str):
     """('kick', 'xqc') for 'kick:xqc', ('youtube', vid) for a YouTube id."""
     p, sep, rest = (vid or "").partition(":")
-    return (p, rest) if sep and p in ("kick", "twitch") else ("youtube", vid)
+    return (p, rest) if sep and p in OTHER else ("youtube", vid)
 
 
 def platform_of(vid: str) -> str:
@@ -61,7 +65,8 @@ def is_other(vid: str) -> bool:
 
 def link(vid: str) -> str:
     p, x = split(vid)
-    return {"kick": f"https://kick.com/{x}", "twitch": f"https://www.twitch.tv/{x}"}.get(p, f"https://youtu.be/{vid}")
+    return {"kick": f"https://kick.com/{x}", "twitch": f"https://www.twitch.tv/{x}",
+            "tiktok": f"https://www.tiktok.com/@{x}/live"}.get(p, f"https://youtu.be/{vid}")
 
 
 def logo(cid: str) -> str:
@@ -89,13 +94,14 @@ def official(ev: dict, preset: dict, vid: str) -> bool:
 
 
 def enabled(ev: dict, preset: dict) -> list:
-    return [p for p in ("kick", "twitch") if any(cfg(ev, preset, p).values())]
+    return [p for p in OTHER if any(cfg(ev, preset, p).values())]
 
 
 def status() -> dict:
     """Which connectors can run (no secret values)."""
     return {"twitch": "official API" if _keys("twitch") else "needs TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET",
-            "kick": "official API" if _keys("kick") else "public channel pages (no keys, unofficial)"}
+            "kick": "official API" if _keys("kick") else "public channel pages (no keys, unofficial)",
+            "tiktok": "public live room data (no keys, unofficial; listed accounts only)"}
 
 
 # ---------- auth ----------
@@ -341,6 +347,54 @@ def _kick_category(name) -> list:
             for s in j.get("data") or [] if s.get("slug")]
 
 
+# ---------- TikTok ----------
+# The public room data TikTok's own website reads for a profile's live badge (no login, no keys):
+#   GET https://www.tiktok.com/api-live/user/room/?aid=1988&uniqueId=<handle>&sourceType=54
+#   data.liveRoom.status 2 = live (4 = ended), data.liveRoom.liveRoomStats.userCount = watching now.
+# Checked from the server on 28 Nov: 200 JSON (the /@handle/live page itself shows a captcha: not used). TikTok has no
+# search for live streams without signing in, so only listed accounts are followed (live list "tiktok", presets).
+_TT_H = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) "
+                       "Chrome/130.0.0.0 Safari/537.36", "Accept": "application/json", "Accept-Language": "en-US,en;q=0.9"}
+
+
+def _tt_room(handle):
+    """The account's live stream as a row, None when it isn't live; raises when TikTok refuses or changes."""
+    r = _http.get("https://www.tiktok.com/api-live/user/room/", headers=_TT_H, timeout=10,
+                  params={"aid": 1988, "app_language": "en", "app_name": "tiktok_web", "uniqueId": handle, "sourceType": 54})
+    if r.status_code != 200:
+        raise RuntimeError(f"HTTP {r.status_code} from tiktok.com")
+    j = r.json()                                   # not JSON (a captcha page): raises, the last reading is kept
+    if j.get("statusCode") not in (0, None):
+        if j.get("statusCode") == 19881007:         # user_not_found
+            return None
+        raise RuntimeError(f"TikTok {j.get('statusCode')}: {(j.get('message') or '')[:60]}")
+    d = j.get("data") or {}
+    u, lr = d.get("user") or {}, d.get("liveRoom") or {}
+    pic = u.get("avatarThumb") or u.get("avatarMedium") or ""
+    h = (u.get("uniqueId") or handle).lower()
+    if pic:
+        _logos[f"tiktok:{h}"] = pic
+    if lr.get("status") != 2:
+        return None
+    return {"vid": f"tiktok:{h}", "channel_id": f"tiktok:{h}", "channel": u.get("nickname") or h,
+            "title": lr.get("title") or "", "viewers": int((lr.get("liveRoomStats") or {}).get("userCount") or 0),
+            "category": "", "platform": "tiktok", "language": "", "tags": "", "started": lr.get("startTime")}
+
+
+def _tt_handles(handles) -> list:
+    from concurrent.futures import ThreadPoolExecutor
+    out, errs = [], 0
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        for r in pool.map(lambda h: _try(_tt_room, h), handles):
+            if r == "err":
+                errs += 1
+            elif r:
+                out.append(r)
+    if handles and errs == len(handles):
+        raise RuntimeError("TikTok refused every request (blocked or changed)")
+    return out
+
+
 def _try(fn, *a):
     try:
         return fn(*a)
@@ -358,6 +412,8 @@ def _by_ids(p, ids) -> list:
         if not _keys("twitch"):
             raise RuntimeError("Twitch needs TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET in .env")
         return _tw_logins(ids)
+    if p == "tiktok":
+        return _tt_handles(ids)
     return _kick_slugs(ids)
 
 
@@ -374,7 +430,7 @@ def discover(ev: dict, preset: dict) -> list:
         except Exception as e:
             print(f"{NAMES[p]} channel check failed: {str(e)[:150]}")
         for cat in ([c["category"]] if isinstance(c["category"], str) else c["category"]):
-            if not cat:
+            if not cat or p == "tiktok":          # TikTok: listed accounts only
                 continue
             try:
                 for s in (_tw_category if p == "twitch" else _kick_category)(cat):
@@ -407,7 +463,7 @@ def count(vid: str):
     with _lock:
         snap = _snap.setdefault(p, {"ts": 0, "data": {}})
         _known.setdefault(p, set()).add(vid)
-        if time.time() - snap["ts"] >= COUNT_TTL:
+        if time.time() - snap["ts"] >= TTL.get(p, COUNT_TTL):
             ids = sorted(split(v)[1] for v in _known[p])
             rows = _by_ids(p, ids)            # raises on failure: the caller keeps the last good reading
             snap["data"] = {s["vid"]: s for s in rows}
